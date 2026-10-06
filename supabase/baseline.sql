@@ -9311,16 +9311,38 @@ alter table public.channel_sessions
 alter table public.channel_sessions
   add column if not exists datafy_phone_number_id text,
   add column if not exists datafy_waba_id text,
-  add column if not exists datafy_token_encrypted bytea;
+  add column if not exists datafy_token_encrypted bytea,
+  add column if not exists telegram_bot_id text,
+  add column if not exists telegram_bot_username text,
+  add column if not exists telegram_bot_token_encrypted bytea,
+  add column if not exists email_address text,
+  add column if not exists email_inbound_token text,
+  add column if not exists instagram_account_id text,
+  add column if not exists instagram_username text,
+  add column if not exists instagram_token_encrypted bytea,
+  add column if not exists tiktok_business_id text,
+  add column if not exists tiktok_username text,
+  add column if not exists tiktok_token_encrypted bytea,
+  add column if not exists tiktok_refresh_token_encrypted bytea,
+  add column if not exists telegram_user_id text,
+  add column if not exists telegram_phone text,
+  add column if not exists telegram_session_encrypted bytea,
+  add column if not exists telegram_api_id integer,
+  add column if not exists telegram_api_hash_encrypted bytea,
+  add column if not exists meta_webhook_override_uri text,
+  add column if not exists meta_webhook_override_erro text,
+  add column if not exists meta_webhook_override_em timestamptz;
 
 alter table public.channel_sessions
   drop constraint if exists channel_sessions_provider_check;
 
 alter table public.channel_sessions
   add constraint channel_sessions_provider_check
-  -- 'wacalls' (0233), 'zernio_social' (0368) e 'datafy' (0387) somados AQUI —
+  -- 'wacalls' (0233), 'zernio_social' (0368), 'datafy' (0387) e canais 0503-0507 somados AQUI —
   -- UM bloco só por constraint (não duplicar drop+add por migration).
-  check (provider = any (array['waha'::text, 'meta_cloud'::text, 'zernio'::text, 'wacalls'::text, 'zernio_social'::text, 'datafy'::text]));
+  check (provider in (
+    'waha', 'meta_cloud', 'zernio', 'zernio_social', 'wacalls', 'datafy', 'telegram', 'email', 'instagram', 'tiktok', 'telegram_user'
+  ));
 
 alter table public.channel_sessions
   drop constraint if exists channel_sessions_provider_ref_check;
@@ -9333,7 +9355,12 @@ alter table public.channel_sessions
     -- é o mesmo intermediário, com outra superfície de canal.
     (provider in ('zernio', 'zernio_social') and zernio_account_id is not null) or
     (provider = 'wacalls'    and wacalls_session_id    is not null) or
-    (provider = 'datafy'     and datafy_phone_number_id is not null)
+    (provider = 'datafy'     and datafy_phone_number_id is not null) or
+    (provider = 'telegram'   and telegram_bot_id is not null) or
+    (provider = 'email'      and email_address is not null) or
+    (provider = 'instagram'  and instagram_account_id is not null) or
+    (provider = 'tiktok'     and tiktok_business_id is not null) or
+    (provider = 'telegram_user' and telegram_user_id is not null)
   );
 
 comment on column public.channel_sessions.zernio_account_id is
@@ -14458,7 +14485,7 @@ alter table public.webhook_events_log
   drop constraint if exists webhook_events_log_provider_check;
 alter table public.webhook_events_log
   add constraint webhook_events_log_provider_check check (provider in (
-    'waha', 'nuvemshop', 'generic', 'meta_cloud', 'zernio', 'datafy'
+    'waha', 'nuvemshop', 'generic', 'meta_cloud', 'zernio', 'datafy', 'telegram', 'email', 'instagram', 'tiktok', 'telegram_user'
   ));
 
 -- ---- a marca da instalação sai do .env e vai para o banco (migration 0155) ----
@@ -32436,17 +32463,22 @@ returns table (
   routing_mode text,
   default_ai_agent_id uuid,
   fallback_user_id uuid
-) as $$
+)
+language sql
+security definer
+stable
+set search_path = ''
+as $$
   select organization_id, routing_mode, default_ai_agent_id, fallback_user_id
   from public.phone_numbers
   where number = p_number and is_active
   limit 1;
-$$ language sql security definer stable;
+$$;
 
 -- Regra do item 9 do CLAUDE.md: função nova em public nasce exposta via as
 -- DUAS origens (default privileges + grant implícito a PUBLIC). Revoga as
 -- duas, concede só a service_role (é o worker quem chama, via admin client).
-revoke execute on function public.fn_resolve_inbound_number(text) from public, anon;
+revoke execute on function public.fn_resolve_inbound_number(text) from public, anon, authenticated;
 grant execute on function public.fn_resolve_inbound_number(text) to service_role;
 
 notify pgrst,'reload schema';
@@ -35107,7 +35139,7 @@ comment on column public.contacts.social_identity is
 -- primeira conexão de rede social.
 alter table public.conversations drop constraint if exists conversations_channel_check;
 alter table public.conversations add constraint conversations_channel_check
-  check (channel in ('whatsapp', 'instagram', 'facebook'));
+  check (channel in ('whatsapp', 'instagram', 'facebook', 'telegram', 'email', 'tiktok'));
 
 
 -- APÊNDICE 20260921030100_0369_prospeccao_nativa.sql
@@ -44325,6 +44357,600 @@ create trigger trg_fechar_aviso_do_jev_ao_bloquear
  after update of is_blocked on public.contacts
  for each row when (new.is_blocked and old.is_blocked is distinct from true)
  execute function public.fn_fechar_aviso_do_jev_ao_bloquear();
+
+-- ---- Protocolo de atendimento legível nas demandas e conversas (migration 0502) ----
+create sequence if not exists public.seq_protocolo_atendimento start with 1001;
+
+create or replace function public.fn_gerar_protocolo()
+returns text language plpgsql as $$
+declare
+  v_seq bigint;
+  v_date text;
+begin
+  v_seq := nextval('public.seq_protocolo_atendimento');
+  v_date := to_char(clock_timestamp(), 'YYYYMMDD');
+  return 'PROT-' || v_date || '-' || lpad(v_seq::text, 4, '0');
+end;
+$$;
+
+revoke execute on function public.fn_gerar_protocolo() from public, anon;
+grant execute on function public.fn_gerar_protocolo() to authenticated, service_role;
+
+alter table public.demandas add column if not exists protocolo text;
+create unique index if not exists idx_demandas_protocolo_unique on public.demandas(protocolo) where protocolo is not null;
+
+alter table public.conversations add column if not exists protocolo text;
+create index if not exists idx_conversations_protocolo on public.conversations(organization_id, protocolo) where protocolo is not null;
+
+update public.demandas set protocolo = public.fn_gerar_protocolo() where protocolo is null;
+update public.conversations c
+   set protocolo = d.protocolo
+  from public.demandas d
+ where d.id = c.current_demanda_id
+   and c.protocolo is null
+   and d.protocolo is not null;
+
+update public.conversations
+   set protocolo = public.fn_gerar_protocolo()
+ where protocolo is null
+   and status not in ('closed', 'archived', 'resolved');
+
+create or replace function public.fn_service_inbound(p_message uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare
+ m public.messages;
+ c public.conversations;
+ d public.demandas;
+ reopened boolean;
+ keep_owner boolean;
+ pre_contact uuid;
+begin
+ select * into m from public.messages where id = p_message;
+ if not found or m.direction <> 'inbound' or m.service_revision is not null then return; end if;
+ select * into c from public.conversations where id = m.conversation_id;
+ if not found or c.organization_id is distinct from m.organization_id
+    or c.channel_session_id is distinct from m.channel_session_id
+    or not exists(select 1 from public.channel_sessions where id=m.channel_session_id and organization_id=m.organization_id)
+ then raise exception 'service_scope_mismatch' using errcode='23503'; end if;
+ if c.is_group or coalesce(c.group_chat_id,'') like '%@g.us' then return; end if;
+ if c.contact_id is distinct from m.contact_id
+    or not exists(select 1 from public.contacts where id=m.contact_id and organization_id=m.organization_id)
+ then raise exception 'service_scope_mismatch' using errcode='23503'; end if;
+ pre_contact:=c.contact_id;
+ perform public.fn_service_lock(c.organization_id,c.contact_id);
+ select * into c from public.conversations where id=m.conversation_id and organization_id=m.organization_id for no key update;
+ if c.contact_id is distinct from pre_contact then raise exception 'service_contact_changed' using errcode='40001'; end if;
+ if m.sent_at <= c.service_closed_at then return; end if;
+ reopened := c.status in ('closed','resolved','archived');
+ keep_owner := reopened and c.assigned_to_user_id is not null
+   and coalesce((select o.settings->'routing'->'conversation_stays_with_attendant' = 'true'::jsonb
+                   from public.organizations o where o.id = c.organization_id), false)
+   and coalesce(public.fn_member_role_in_org(c.assigned_to_user_id,c.organization_id),'none')
+     in ('agent','manager','admin');
+ if not reopened then
+   select x.* into d from public.demandas x join public.demanda_conversas dc on dc.demanda_id=x.id
+    where x.id=c.current_demanda_id and x.organization_id=c.organization_id and x.contact_id=c.contact_id
+      and dc.organization_id=c.organization_id and dc.conversation_id=c.id
+      and dc.service_revision=c.service_revision and x.fechada_em is null;
+ end if;
+ if d.id is null then
+   insert into public.demandas
+     (organization_id,contact_id,aberta_em,origem,estado,dono_kind,dono_user_id,proximo_passo,protocolo)
+    values(c.organization_id,c.contact_id,m.sent_at,'inbound','aberta',
+      case when keep_owner then 'humano' else 'ia' end,
+      case when keep_owner then c.assigned_to_user_id else null end,
+      'Responder à nova mensagem do cliente',
+      public.fn_gerar_protocolo()) returning * into d;
+ elsif d.protocolo is null then
+   d.protocolo := public.fn_gerar_protocolo();
+   update public.demandas set protocolo = d.protocolo where id = d.id;
+ end if;
+ if reopened then
+   update public.conversations set
+     status=case when keep_owner then 'claimed' else 'open' end,
+     status_changed_at=clock_timestamp(),
+     service_revision=service_revision+1,service_started_at=m.sent_at,
+     assigned_to_user_id=case when keep_owner then c.assigned_to_user_id else null end,
+     assigned_at=case when keep_owner then clock_timestamp() else null end,
+     assignee_kind=case when keep_owner then 'user' else null end,
+     bot_silenced_until=case when keep_owner then 'infinity'::timestamptz else c.bot_silenced_until end,
+     active_ai_agent_id=null,
+     current_demanda_id=d.id,
+     protocolo=coalesce(d.protocolo, public.fn_gerar_protocolo())
+    where id=c.id and organization_id=c.organization_id returning * into c;
+ else
+   update public.conversations set
+     service_revision=service_revision+case when current_demanda_id is not null and current_demanda_id<>d.id then 1 else 0 end,
+     service_started_at=case when current_demanda_id is not null and current_demanda_id<>d.id then m.sent_at else coalesce(service_started_at,m.sent_at) end,
+     current_demanda_id=d.id,
+     protocolo=coalesce(d.protocolo, c.protocolo, public.fn_gerar_protocolo())
+    where id=c.id and organization_id=c.organization_id returning * into c;
+ end if;
+ insert into public.demanda_conversas(organization_id,demanda_id,conversation_id,service_revision)
+  values(c.organization_id,d.id,c.id,c.service_revision) on conflict(demanda_id,conversation_id)
+  do update set service_revision=excluded.service_revision;
+ update public.messages set service_revision=c.service_revision,demanda_id=d.id,demanda_revision=d.revision
+  where id=m.id and organization_id=c.organization_id;
+end; $$;
+revoke execute on function public.fn_service_inbound(uuid) from public,anon,authenticated;
+grant execute on function public.fn_service_inbound(uuid) to service_role;
+
+-- ---- Canal Telegram Bot Oficial (migration 0503) ----
+alter table public.channel_sessions
+  add column if not exists telegram_bot_id text,
+  add column if not exists telegram_bot_username text,
+  add column if not exists telegram_bot_token_encrypted bytea;
+
+comment on column public.channel_sessions.telegram_bot_id is
+  'ID numérico do bot do Telegram. É o sessionRef deste canal.';
+comment on column public.channel_sessions.telegram_bot_username is
+  'Username do bot no Telegram (ex: meu_bot).';
+comment on column public.channel_sessions.telegram_bot_token_encrypted is
+  'Token da Telegram Bot API cifrado por fn_encrypt_oauth. Nunca volta à tela depois de gravado.';
+
+with ativos as (
+  select id,
+         row_number() over (
+           partition by telegram_bot_id
+           order by created_at desc nulls last, id desc
+         ) as posicao
+    from public.channel_sessions
+   where archived_at is null
+     and telegram_bot_id is not null
+)
+update public.channel_sessions s
+   set telegram_bot_id = s.telegram_bot_id || '-conflito-' || s.id::text
+  from ativos a
+ where a.id = s.id
+   and a.posicao > 1;
+
+create unique index if not exists channel_sessions_telegram_bot_id_ativo_unique
+  on public.channel_sessions (telegram_bot_id)
+  where archived_at is null and telegram_bot_id is not null;
+
+-- ---- Canal E-mail no Inbox (migration 0504) ----
+alter table public.channel_sessions
+  add column if not exists email_address text,
+  add column if not exists email_inbound_token text;
+
+comment on column public.channel_sessions.email_address is
+  'Endereço de e-mail de atendimento (ex: contato@empresa.com.br). É o sessionRef deste canal.';
+comment on column public.channel_sessions.email_inbound_token is
+  'Token secreto de identificação para ingestão inbound de e-mails.';
+
+with ativos as (
+  select id,
+         row_number() over (
+           partition by lower(email_address)
+           order by created_at desc nulls last, id desc
+         ) as posicao
+    from public.channel_sessions
+   where archived_at is null
+     and email_address is not null
+)
+update public.channel_sessions s
+   set email_address = s.email_address || '-conflito-' || s.id::text
+  from ativos a
+ where a.id = s.id
+   and a.posicao > 1;
+
+create unique index if not exists channel_sessions_email_address_ativo_unique
+  on public.channel_sessions (lower(email_address))
+  where archived_at is null and email_address is not null;
+
+-- ---- Central de Campanhas Multicanal (migration 0505) ----
+alter table public.campaigns
+  add column if not exists channel text not null default 'whatsapp',
+  add column if not exists email_subject text;
+
+comment on column public.campaigns.channel is
+  'Canal de envio da campanha: whatsapp, telegram ou email.';
+comment on column public.campaigns.email_subject is
+  'Assunto personalizado para disparos via canal de e-mail.';
+
+alter table public.campaigns
+  drop constraint if exists campaigns_channel_check;
+
+alter table public.campaigns
+  add constraint campaigns_channel_check
+    check (channel in ('whatsapp', 'telegram', 'email'));
+
+alter table public.campaign_recipients
+  add column if not exists channel text;
+
+comment on column public.campaign_recipients.channel is
+  'Canal específico pelo qual este destinatário foi abordado.';
+
+-- ---- Instagram Direct Nativo & TikTok Messaging (migration 0506) ----
+alter table public.channel_sessions
+  add column if not exists instagram_account_id text,
+  add column if not exists instagram_username text,
+  add column if not exists instagram_token_encrypted bytea,
+  add column if not exists tiktok_business_id text,
+  add column if not exists tiktok_username text,
+  add column if not exists tiktok_token_encrypted bytea,
+  add column if not exists tiktok_refresh_token_encrypted bytea;
+
+comment on column public.channel_sessions.instagram_account_id is
+  'ID da conta Instagram Business / Page ID da Meta. É o sessionRef deste canal.';
+comment on column public.channel_sessions.instagram_username is
+  'Handle/username do perfil no Instagram (ex: @minhaempresa).';
+comment on column public.channel_sessions.instagram_token_encrypted is
+  'Token de acesso da Meta Graph API cifrado por fn_encrypt_oauth.';
+comment on column public.channel_sessions.tiktok_business_id is
+  'ID comercial da conta do TikTok for Business. É o sessionRef deste canal.';
+comment on column public.channel_sessions.tiktok_username is
+  'Handle/username da conta no TikTok.';
+comment on column public.channel_sessions.tiktok_token_encrypted is
+  'Access Token da TikTok Messaging API cifrado por fn_encrypt_oauth.';
+comment on column public.channel_sessions.tiktok_refresh_token_encrypted is
+  'Refresh Token da TikTok Messaging API cifrado por fn_encrypt_oauth.';
+
+with ativos as (
+  select id,
+         row_number() over (
+           partition by instagram_account_id
+           order by created_at desc nulls last, id desc
+         ) as posicao
+    from public.channel_sessions
+   where archived_at is null
+     and instagram_account_id is not null
+)
+update public.channel_sessions s
+   set instagram_account_id = s.instagram_account_id || '-conflito-' || s.id::text
+  from ativos a
+ where a.id = s.id
+   and a.posicao > 1;
+
+create unique index if not exists channel_sessions_instagram_account_id_ativo_unique
+  on public.channel_sessions (instagram_account_id)
+  where archived_at is null and instagram_account_id is not null;
+
+with ativos as (
+  select id,
+         row_number() over (
+           partition by tiktok_business_id
+           order by created_at desc nulls last, id desc
+         ) as posicao
+    from public.channel_sessions
+   where archived_at is null
+     and tiktok_business_id is not null
+)
+update public.channel_sessions s
+   set tiktok_business_id = s.tiktok_business_id || '-conflito-' || s.id::text
+  from ativos a
+ where a.id = s.id
+   and a.posicao > 1;
+
+create unique index if not exists channel_sessions_tiktok_business_id_ativo_unique
+  on public.channel_sessions (tiktok_business_id)
+  where archived_at is null and tiktok_business_id is not null;
+
+create table if not exists public.instagram_comment_rules (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  channel_session_id uuid not null,
+  name text not null,
+  active boolean not null default true,
+  post_id text,
+  keyword_mode text not null default 'any' check (keyword_mode in ('any', 'contains', 'exact')),
+  keywords text[] not null default '{}',
+  reply_comment text,
+  dm_message text not null,
+  agent_id uuid,
+  constraint instagram_comment_rules_session_org_fk foreign key (organization_id, channel_session_id) references public.channel_sessions(organization_id, id) on delete cascade,
+  constraint instagram_comment_rules_agent_org_fk foreign key (organization_id, agent_id) references public.ai_agents(organization_id, id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.instagram_comment_rules enable row level security;
+
+drop policy if exists "instagram_comment_rules_tenant" on public.instagram_comment_rules;
+create policy "instagram_comment_rules_tenant" on public.instagram_comment_rules
+  for all using (organization_id in (select public.fn_user_org_ids()));
+
+create index if not exists idx_instagram_comment_rules_session
+  on public.instagram_comment_rules (channel_session_id)
+  where active is true;
+
+-- ---- Telegram Usuário MTProto (migration 0507) ----
+alter table public.channel_sessions
+  add column if not exists telegram_user_id text,
+  add column if not exists telegram_phone text,
+  add column if not exists telegram_session_encrypted bytea,
+  add column if not exists telegram_api_id integer,
+  add column if not exists telegram_api_hash_encrypted bytea;
+
+comment on column public.channel_sessions.telegram_user_id is
+  'ID numérico do usuário do Telegram (MTProto). É o sessionRef deste canal.';
+comment on column public.channel_sessions.telegram_phone is
+  'Número de telefone internacional da conta do Telegram (+55...).';
+comment on column public.channel_sessions.telegram_session_encrypted is
+  'String de sessão MTProto cifrada por fn_encrypt_oauth.';
+comment on column public.channel_sessions.telegram_api_id is
+  'App API ID do Telegram.';
+comment on column public.channel_sessions.telegram_api_hash_encrypted is
+  'App API Hash do Telegram cifrado por fn_encrypt_oauth.';
+
+with ativos as (
+  select id,
+         row_number() over (
+           partition by telegram_user_id
+           order by created_at desc nulls last, id desc
+         ) as posicao
+    from public.channel_sessions
+   where archived_at is null
+     and telegram_user_id is not null
+)
+update public.channel_sessions s
+   set telegram_user_id = s.telegram_user_id || '-conflito-' || s.id::text
+  from ativos a
+ where a.id = s.id
+   and a.posicao > 1;
+
+create unique index if not exists channel_sessions_telegram_user_id_ativo_unique
+  on public.channel_sessions (telegram_user_id)
+  where archived_at is null and telegram_user_id is not null;
+
+-- ---- Proteção de Quota de Canais e Segurança (migration 0508) ----
+revoke select on public.channel_sessions from authenticated, anon;
+grant select (
+  id, organization_id, waha_session_name, engine, status, status_reason,
+  phone_number, display_name, last_health_check_at, last_status_change_at,
+  consecutive_health_fails, daily_message_limit, warmup_started_at, warmup_completed_at,
+  is_warmup_complete, metadata, created_at, updated_at, created_by, provider,
+  meta_phone_number_id, meta_waba_id, zernio_account_id, wacalls_session_id,
+  wacalls_jid, wacalls_paired_at, datafy_phone_number_id, datafy_waba_id,
+  archived_at, meta_webhook_override_uri, meta_webhook_override_erro, meta_webhook_override_em,
+  telegram_bot_id, telegram_bot_username, email_address, instagram_account_id,
+  instagram_username, tiktok_business_id, tiktok_username, telegram_user_id,
+  telegram_phone, telegram_api_id
+) on public.channel_sessions to authenticated;
+
+create or replace function public.fn_check_channel_session_quota()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_settings jsonb;
+  v_plan text;
+  v_max_channels int;
+  v_current_channels int;
+begin
+  if (TG_OP = 'UPDATE') then
+    if not (OLD.archived_at is not null and NEW.archived_at is null) then
+      return NEW;
+    end if;
+  else
+    if (NEW.archived_at is not null) then
+      return NEW;
+    end if;
+  end if;
+
+  perform pg_advisory_xact_lock(hashtextextended(NEW.organization_id::text, 2282));
+
+  select settings into v_settings
+  from public.organizations
+  where id = NEW.organization_id;
+
+  if v_settings is not null then
+    v_plan := coalesce(v_settings->>'plan', 'standard');
+    
+    if v_settings->'plan_limits' ? 'max_channels' and v_settings->'plan_limits'->>'max_channels' is not null then
+      v_max_channels := (v_settings->'plan_limits'->>'max_channels')::int;
+    else
+      if v_plan = 'pro' then
+        v_max_channels := 5;
+      elsif v_plan = 'enterprise' then
+        v_max_channels := null;
+      else
+        v_max_channels := 1;
+      end if;
+    end if;
+
+    if v_max_channels is not null then
+      select count(*) into v_current_channels
+      from public.channel_sessions
+      where organization_id = NEW.organization_id
+        and archived_at is null
+        and (TG_OP = 'INSERT' or id <> NEW.id);
+
+      if v_current_channels >= v_max_channels then
+        raise exception 'quota_exceeded: limite maximo de canais atingido para o plano % (% / %)',
+          v_plan, v_current_channels, v_max_channels
+          using errcode = 'P0003';
+      end if;
+    end if;
+  end if;
+
+  return NEW;
+end;
+$$;
+
+revoke all on function public.fn_check_channel_session_quota() from public, anon, authenticated;
+grant execute on function public.fn_check_channel_session_quota() to service_role;
+
+drop trigger if exists trg_check_channel_session_quota on public.channel_sessions;
+create trigger trg_check_channel_session_quota
+  before insert or update of archived_at on public.channel_sessions
+  for each row
+  execute function public.fn_check_channel_session_quota();
+
+-- ---- Proteção Atômica de Quota de Assentos de Usuários (migration 0509) ----
+create or replace function public.fn_check_user_seat_quota()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_org_id uuid;
+  v_settings jsonb;
+  v_plan text;
+  v_max_users int;
+  v_active_members int;
+  v_pending_invites int;
+  v_total_seats int;
+begin
+  if (TG_TABLE_NAME = 'team_invites') then
+    v_org_id := NEW.organization_id;
+
+    if (TG_OP = 'UPDATE') then
+      if not (OLD.revoked_at is not null and NEW.revoked_at is null and NEW.accepted_at is null) then
+        return NEW;
+      end if;
+    else
+      if (NEW.accepted_at is not null or NEW.revoked_at is not null) then
+        return NEW;
+      end if;
+    end if;
+
+  elsif (TG_TABLE_NAME = 'user_organizations') then
+    v_org_id := NEW.organization_id;
+
+    if (TG_OP = 'UPDATE') then
+      if not (OLD.revoked_at is not null and NEW.revoked_at is null) then
+        return NEW;
+      end if;
+    else
+      if (NEW.revoked_at is not null) then
+        return NEW;
+      end if;
+    end if;
+
+  else
+    return NEW;
+  end if;
+
+  perform pg_advisory_xact_lock(hashtextextended(v_org_id::text, 2283));
+
+  select settings into v_settings
+  from public.organizations
+  where id = v_org_id;
+
+  if v_settings is not null then
+    v_plan := coalesce(v_settings->>'plan', 'standard');
+
+    if v_settings->'plan_limits' ? 'max_users' and v_settings->'plan_limits'->>'max_users' is not null then
+      v_max_users := (v_settings->'plan_limits'->>'max_users')::int;
+    else
+      if v_plan = 'pro' then
+        v_max_users := 10;
+      elsif v_plan = 'enterprise' then
+        v_max_users := null;
+      else
+        v_max_users := 3;
+      end if;
+    end if;
+
+    if v_max_users is not null then
+      select count(*) into v_active_members
+      from public.user_organizations
+      where organization_id = v_org_id
+        and revoked_at is null
+        and (TG_TABLE_NAME <> 'user_organizations' or TG_OP = 'INSERT' or id <> NEW.id);
+
+      select count(*) into v_pending_invites
+      from public.team_invites
+      where organization_id = v_org_id
+        and accepted_at is null
+        and revoked_at is null
+        and expires_at > now()
+        and (TG_TABLE_NAME <> 'team_invites' or TG_OP = 'INSERT' or id <> NEW.id);
+
+      v_total_seats := v_active_members + v_pending_invites;
+
+      if v_total_seats >= v_max_users then
+        raise exception 'quota_exceeded: limite maximo de usuarios atingido para o plano % (% / %)',
+          v_plan, v_total_seats, v_max_users
+          using errcode = 'P0003';
+      end if;
+    end if;
+  end if;
+
+  return NEW;
+end;
+$$;
+
+revoke all on function public.fn_check_user_seat_quota() from public, anon, authenticated;
+grant execute on function public.fn_check_user_seat_quota() to service_role;
+
+drop trigger if exists trg_check_user_seat_quota_invites on public.team_invites;
+create trigger trg_check_user_seat_quota_invites
+  before insert or update of revoked_at, accepted_at on public.team_invites
+  for each row
+  execute function public.fn_check_user_seat_quota();
+
+drop trigger if exists trg_check_user_seat_quota_members on public.user_organizations;
+create trigger trg_check_user_seat_quota_members
+  before insert or update of revoked_at on public.user_organizations
+  for each row
+  execute function public.fn_check_user_seat_quota();
+
+-- ---- Proteção Atômica Contra Sobreposição Parcial na Agenda (migration 0510) ----
+create or replace function public.fn_check_appointment_overlap()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_conflito_id uuid;
+begin
+  if NEW.owner_user_id is null then
+    return NEW;
+  end if;
+
+  if NEW.status not in ('pending', 'confirmed') then
+    return NEW;
+  end if;
+
+  if NEW.ends_at <= NEW.starts_at then
+    raise exception 'periodo_invalido: ends_at deve ser estritamente posterior a starts_at'
+      using errcode = '22023';
+  end if;
+
+  if (TG_OP = 'UPDATE') then
+    if (OLD.starts_at = NEW.starts_at
+        and OLD.ends_at = NEW.ends_at
+        and OLD.status = NEW.status
+        and OLD.owner_user_id = NEW.owner_user_id) then
+      return NEW;
+    end if;
+  end if;
+
+  perform pg_advisory_xact_lock(hashtextextended(NEW.organization_id::text || ':' || NEW.owner_user_id::text, 2284));
+
+  select id into v_conflito_id
+  from public.calendar_appointments
+  where organization_id = NEW.organization_id
+    and owner_user_id = NEW.owner_user_id
+    and status in ('pending', 'confirmed')
+    and (TG_OP = 'INSERT' or id <> NEW.id)
+    and tstzrange(starts_at, ends_at, '[)') && tstzrange(NEW.starts_at, NEW.ends_at, '[)')
+  limit 1;
+
+  if v_conflito_id is not null then
+    raise exception 'agenda_horario_indisponivel: horario sobreposto com outro agendamento ativo (%)',
+      v_conflito_id
+      using errcode = '23P01';
+  end if;
+
+  return NEW;
+end;
+$$;
+
+revoke all on function public.fn_check_appointment_overlap() from public, anon, authenticated;
+grant execute on function public.fn_check_appointment_overlap() to service_role;
+
+drop trigger if exists trg_check_appointment_overlap on public.calendar_appointments;
+create trigger trg_check_appointment_overlap
+  before insert or update of starts_at, ends_at, status, owner_user_id on public.calendar_appointments
+  for each row
+  execute function public.fn_check_appointment_overlap();
 
 notify pgrst, 'reload schema';
 -- ---- VARREDURA anon: função nova nasce exposta em quem ATUALIZA (migration 0116) ----

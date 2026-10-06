@@ -3,6 +3,7 @@ import { requireSupportWrite } from "@/lib/impersonate/support";
 import { issueInvite } from "@/lib/auth/issue-invite";
 import { emitirConvite } from "@/lib/team/convites";
 import { isServiceRoleConfigured } from "@/lib/audit";
+import { checkUserQuota } from "@/lib/tenant/plan-limits";
 /**
  * POST /api/v1/team/invite — bulk-invite up to 20 emails.
  *
@@ -69,6 +70,16 @@ export async function POST(req: NextRequest): Promise<Response> {
   const failed: FailedItem[] = [];
 
   const admin = isServiceRoleConfigured() ? createAdminClient() : null;
+  if (admin) {
+    const quota = await checkUserQuota(admin, activeOrg.orgId, input.invitations.length);
+    if (!quota.allowed) {
+      return fail("quota_exceeded", quota.reason ?? "Limite de usuários do plano atingido.", 403, {
+        requestId,
+        details: { current: quota.current, max: quota.max },
+      });
+    }
+  }
+
   const inviterName = authUser.full_name ?? authUser.email ?? "Um colega";
   // Emails com membership ATIVA na org — para pular o reconvite de quem já é membro.
   // O schema `auth` NÃO é acessível via PostgREST (erro "Invalid schema: auth"), então
@@ -98,24 +109,34 @@ export async function POST(req: NextRequest): Promise<Response> {
     }
 
     if (admin) {
-      const { convite, accept_url, email_dispatched, email_error } = await emitirConvite(admin, {
-        email,
-        role: inv.role,
-        interfaceSettings: inv.interface_settings,
-        organizationId: activeOrg.orgId,
-        orgName: activeOrg.name,
-        inviterId: authUser.id,
-        inviterName,
-        requestId,
-      });
-      sent.push({
-        email,
-        invite_id: convite.id,
-        expires_at: convite.expires_at,
-        email_dispatched,
-        email_error,
-        accept_url,
-      });
+      try {
+        const { convite, accept_url, email_dispatched, email_error } = await emitirConvite(admin, {
+          email,
+          role: inv.role,
+          interfaceSettings: inv.interface_settings,
+          organizationId: activeOrg.orgId,
+          orgName: activeOrg.name,
+          inviterId: authUser.id,
+          inviterName,
+          requestId,
+        });
+        sent.push({
+          email,
+          invite_id: convite.id,
+          expires_at: convite.expires_at,
+          email_dispatched,
+          email_error,
+          accept_url,
+        });
+      } catch (err: unknown) {
+        const pgErr = err as { code?: string; message?: string };
+        if (pgErr.code === "P0003" || pgErr.message?.includes("quota_exceeded")) {
+          return fail("quota_exceeded", pgErr.message ?? "Limite de usuários do plano atingido.", 403, {
+            requestId,
+          });
+        }
+        throw err;
+      }
     } else {
       sent.push(
         await issueInvite({

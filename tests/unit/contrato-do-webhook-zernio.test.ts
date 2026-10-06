@@ -1,5 +1,5 @@
 import { createHmac } from "node:crypto";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * O CONTRATO do webhook do canal intermediado — e por que o defeito aqui era
@@ -69,6 +69,8 @@ vi.mock("@/lib/channels/zernio/ingest", () => ({
 import { lerEnvelopeZernio } from "@/lib/channels/zernio/envelope";
 import { parseZernioInbound } from "@/lib/channels/zernio/webhook";
 import { POST } from "@/app/api/v1/webhooks/channel/[token]/route";
+import { setAtomicSignatureFailureDriverForTest } from "@/lib/channels/webhook-signature-rate-limit";
+import { _clearWebhookSessionCacheForTest } from "@/lib/channels/webhook-session-cache";
 
 /** Forma do evento medida contra o provider — a mesma de `channel-webhook-zernio.test.ts`. */
 const REAL = {
@@ -188,6 +190,11 @@ describe("o payload fora do contrato é recusado, e o campo é nomeado", () => {
 });
 
 describe("a rota — o desfecho que o provider enxerga", () => {
+  beforeEach(() => {
+    _clearWebhookSessionCacheForTest();
+    setAtomicSignatureFailureDriverForTest(async () => 0, async () => 0);
+  });
+
   it("payload real bem assinado: 200 e a mensagem é ingerida", async () => {
     ingeridos.length = 0;
     arquivoFechado.length = 0;

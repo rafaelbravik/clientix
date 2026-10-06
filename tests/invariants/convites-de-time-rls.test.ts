@@ -87,9 +87,9 @@ beforeAll(() => {
       ('${ADMIN_B}',   'convites-admin-b@invariant.test')
       on conflict (id) do nothing;
 
-    insert into public.organizations (id, slug, legal_name, display_name) values
-      ('${ORG_A}', 'convites-inv-a', 'Convites Invariant A', 'Convites A'),
-      ('${ORG_B}', 'convites-inv-b', 'Convites Invariant B', 'Convites B')
+    insert into public.organizations (id, slug, legal_name, display_name, settings) values
+      ('${ORG_A}', 'convites-inv-a', 'Convites Invariant A', 'Convites A', '{"plan":"enterprise"}'::jsonb),
+      ('${ORG_B}', 'convites-inv-b', 'Convites Invariant B', 'Convites B', '{"plan":"enterprise"}'::jsonb)
       on conflict (id) do nothing;
 
     insert into public.user_organizations (user_id, organization_id, role, accepted_at) values

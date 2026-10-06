@@ -210,8 +210,8 @@ beforeAll(async () => {
     createFakeRegistry: (await import("@/lib/agent-engine/edge/llm/providers")).createFakeRegistry,
   };
   await pool.query(
-    `insert into organizations (id, slug, legal_name, display_name)
-     values ($1,'turno-duplicado','Turno Duplicado','Turno Duplicado') on conflict (id) do nothing`,
+    `insert into organizations (id, slug, legal_name, display_name, settings)
+     values ($1,'turno-duplicado','Turno Duplicado','Turno Duplicado', '{"plan":"enterprise"}'::jsonb) on conflict (id) do nothing`,
     [ORG],
   );
   await pool.query(

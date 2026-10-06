@@ -125,7 +125,7 @@ function apagarCpfETelefone(trecho: string): string {
  * `docs/doctrine/restricao-de-canal.md`).
  */
 const CREDENTIAL_PATH =
-  /(\/api\/v1\/webhooks\/[^/?#\s]+\/|\/team\/accept-invite\/)[^/?#\s]+/g;
+  /(\/api\/v1\/webhooks\/[^/?#\s]+\/|\/team\/accept-invite\/|\/chat\/)[^/?#\s]+/g;
 
 /**
  * Redige credencial de path e valor de query string, preservando as CHAVES da query.

@@ -5,6 +5,7 @@ const ALIASES: Record<string, string> = {
   primeiro_nome: "contact.name",
   telefone: "contact.phone_number",
   email: "contact.email",
+  protocolo: "conversation.protocolo",
 };
 
 /**
@@ -20,7 +21,10 @@ const ALIASES: Record<string, string> = {
  */
 export function marcacaoDoCrm(nome: string): boolean {
   return (
-    ALIASES[nome] !== undefined || nome.startsWith("contact.") || nome.startsWith("lead.")
+    ALIASES[nome] !== undefined ||
+    nome.startsWith("contact.") ||
+    nome.startsWith("lead.") ||
+    nome.startsWith("conversation.")
   );
 }
 

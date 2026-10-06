@@ -9,7 +9,9 @@ const pool = new pg.Pool({
 });
 const orgA = randomUUID(),
   orgB = randomUUID();
+let fixtureOffsetDays = 3;
 async function fixture(org: string, owner: string | null) {
+  fixtureOffsetDays += 2;
   const id = randomUUID(),
     conn = randomUUID(),
     cal = randomUUID();
@@ -24,7 +26,7 @@ async function fixture(org: string, owner: string | null) {
     );
   }
   await pool.query(
-    "insert into calendar_appointments(id,organization_id,owner_user_id,title,starts_at,ends_at,google_next_attempt_at) values($1,$2,$3,'Local',now()+interval '3 days',now()+interval '3 days 1 hour',now()+interval '1 day')",
+    `insert into calendar_appointments(id,organization_id,owner_user_id,title,starts_at,ends_at,google_next_attempt_at) values($1,$2,$3,'Local',now()+interval '${fixtureOffsetDays} days',now()+interval '${fixtureOffsetDays} days 1 hour',now()+interval '1 day')`,
     [id, org, owner],
   );
   return { id, conn, cal, org, owner };
@@ -35,7 +37,7 @@ beforeAll(async () => {
   await seedGov();
   for (const org of [orgA, orgB])
     await pool.query(
-      "insert into organizations(id,slug,display_name,legal_name) values($1,$2,'ACL Google','ACL Google')",
+      "insert into organizations(id,slug,display_name,legal_name,settings) values($1,$2,'ACL Google','ACL Google','{\"plan\":\"enterprise\"}'::jsonb)",
       [org, `google-acl-${org}`],
     );
   for (const [org, user, role] of [

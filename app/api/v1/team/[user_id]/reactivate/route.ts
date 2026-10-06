@@ -81,7 +81,14 @@ export async function POST(
     .from("user_organizations")
     .update({ revoked_at: null, updated_at: nowIso })
     .eq("id", target.id);
-  if (updErr) return fail("internal_error", updErr.message, 500, { requestId });
+  if (updErr) {
+    if (updErr.code === "P0003" || updErr.message?.includes("quota_exceeded")) {
+      return fail("quota_exceeded", updErr.message ?? t("Limite de usuários do plano atingido."), 403, {
+        requestId,
+      });
+    }
+    return fail("internal_error", updErr.message, 500, { requestId });
+  }
 
   await audit({
     action: "member.reactivated",

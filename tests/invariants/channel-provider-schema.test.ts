@@ -28,10 +28,10 @@ import { sql } from "./gov-helpers";
  * O id sai de um SELECT à parte, não de um `returning`: psql imprime a etiqueta
  * `INSERT 0 1` no stdout mesmo com `-tA`, e ela colaria no uuid.
  */
-function novaOrg(slug: string): string {
+function novaOrg(slug: string, plan = "pro"): string {
   sql(`
-    insert into public.organizations (slug, legal_name, display_name)
-    values ('${slug}', 'inv 0087', 'inv 0087');
+    insert into public.organizations (slug, legal_name, display_name, settings)
+    values ('${slug}', 'inv 0087', 'inv 0087', '{"plan":"${plan}"}'::jsonb);
   `);
   return sql(`select id from public.organizations where slug = '${slug}'`).trim();
 }
@@ -111,7 +111,7 @@ describe("0087 · o canal da sessão chega ao clone", () => {
   it("provider fora do vocabulário é RECUSADO", () => {
     const org = novaOrg(`inv-0087-c-${Date.now()}`);
     const msg = erroDe(() =>
-      insertSession(org, { provider: `'telegram'`, waha_session_name: `'s-c'` }),
+      insertSession(org, { provider: `'inexistente'`, waha_session_name: `'s-c'` }),
     );
     expect(msg).toMatch(/channel_sessions_provider_check/);
   });

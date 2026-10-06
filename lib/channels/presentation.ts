@@ -13,6 +13,18 @@ export function channelBrand(
       if (session.social_platform === "instagram") return "instagram";
       if (session.social_platform === "facebook") return "messenger";
       return "unknown";
+    case "telegram":
+    case "telegram_user":
+      return "telegram";
+    case "email":
+      return "email";
+    case "instagram":
+      return "instagram";
+    case "facebook":
+    case "messenger":
+      return "messenger";
+    case "tiktok":
+      return "tiktok";
     default:
       return "unknown";
   }

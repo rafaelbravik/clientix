@@ -11,7 +11,9 @@ const pool = new pg.Pool({
 });
 beforeAll(() => seedGov());
 afterAll(() => pool.end());
+let recFixtureOffsetDays = 5;
 async function fixture(owner = GOV_AGENT_A) {
+  recFixtureOffsetDays += 2;
   const conn = randomUUID(),
     cal = randomUUID(),
     id = randomUUID(),
@@ -33,7 +35,7 @@ async function fixture(owner = GOV_AGENT_A) {
     [cal, GOV_ORG, conn],
   );
   await pool.query(
-    "insert into calendar_appointments(id,organization_id,contact_id,owner_user_id,title,starts_at,ends_at,status) values($1,$2,$3,$4,'Consulta',now()+interval '5 days',now()+interval '5 days 1 hour','confirmed')",
+    `insert into calendar_appointments(id,organization_id,contact_id,owner_user_id,title,starts_at,ends_at,status) values($1,$2,$3,$4,'Consulta',now()+interval '${recFixtureOffsetDays} days',now()+interval '${recFixtureOffsetDays} days 1 hour','confirmed')`,
     [id, GOV_ORG, contact, owner],
   );
   return { conn, cal, id, contact };

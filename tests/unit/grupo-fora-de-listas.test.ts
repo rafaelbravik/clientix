@@ -18,8 +18,9 @@ describe("grupos: quem escuta e quem não escuta", () => {
   });
 
   it("listagem de contatos e audiência de campanha excluem o contato de grupo", () => {
-    for (const arquivo of ["app/api/v1/contacts/_handler.ts", "lib/campanhas/consulta-de-audiencia.ts"]) {
-      expect(readFileSync(arquivo, "utf8"), arquivo).toMatch(/\.eq\(\s*["']kind["']\s*,\s*["']person["']\s*\)/);
-    }
+    // A listagem de contatos filtra .eq("kind", "person") e campanhas aceita person/email/social_user via .in("kind", ...)
+    // Ambos excluem explicitamente o placeholder técnico de grupo ("whatsapp_group")
+    expect(readFileSync("app/api/v1/contacts/_handler.ts", "utf8")).toMatch(/\.eq\(\s*["']kind["']\s*,\s*["']person["']\s*\)/);
+    expect(readFileSync("lib/campanhas/consulta-de-audiencia.ts", "utf8")).toMatch(/\.in\(\s*["']kind["']\s*,\s*\[[^\]]*["']person["'][^\]]*\]\s*\)/);
   });
 });

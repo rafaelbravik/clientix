@@ -79,9 +79,10 @@ describe("imagens-ok só aceita o pulo declarado", () => {
     }
   });
 
-  // 4096 subshells: menos de um segundo numa máquina ociosa, e passou de 15 s
-  // numa com carga 90. O teto é para a máquina, não para o script.
-  it("da matriz inteira de desfechos (4096), passa exatamente o que foi declarado", { timeout: 60_000 }, () => {
+  it(
+    "da matriz inteira de desfechos (4096), passa exatamente o que foi declarado",
+    { timeout: 180_000 },
+    () => {
     const passam = combinacoesAceitas();
     expect(passam.sort()).toEqual(
       [

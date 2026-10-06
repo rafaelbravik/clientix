@@ -6,7 +6,7 @@
  * ação síncrona além de criar o lead (motor de regras consome lead.created
  * via event_log). Aceita JSON e form-urlencoded na mesma URL.
  */
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { fail, ok } from "@/lib/api/wrappers";
@@ -75,7 +75,8 @@ export async function POST(req: NextRequest, ctx: RouteCtx): Promise<NextRespons
     return fail("not_found", "unknown webhook token", 404, { requestId });
   }
 
-  const rl = await checkRateLimit(`webhook_in:${token}`, RATE_LIMIT_PER_MIN, 60);
+  const tokenHash = createHash("sha256").update(token).digest("hex");
+  const rl = await checkRateLimit(`webhook_in:${tokenHash}`, RATE_LIMIT_PER_MIN, 60);
   if (!rl.allowed) {
     return fail("rate_limited", "Too many requests.", 429, {
       requestId,

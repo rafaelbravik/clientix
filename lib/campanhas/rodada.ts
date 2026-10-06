@@ -43,6 +43,7 @@ import { loadChannelKnobs, loadPacingState, recordSend } from "@/lib/agent-engin
 import { beginServiceAtOrigin } from "@/lib/atendimento/origem";
 import { logger } from "@/lib/logger";
 import { OrgNaoOperanteError, idsDeOrgsParadas } from "@/lib/organizacao/operante";
+import { checkFeatureQuota } from "@/lib/tenant/plan-limits";
 
 import { motivoParaExcluir, recusouMarketing } from "./elegibilidade";
 import { hashDoEndereco } from "./exclusoes";
@@ -78,6 +79,8 @@ const NUMEROS_POR_RODADA = 10;
 interface CampanhaRow {
   id: string;
   organization_id: string;
+  channel?: "whatsapp" | "telegram" | "email";
+  email_subject?: string | null;
   /** O número PRINCIPAL. O pool efetivo inclui os vinculados (migration 0377). */
   channel_session_id: string;
   name: string;
@@ -91,7 +94,7 @@ interface CampanhaRow {
 }
 
 const COLUNAS_DA_CAMPANHA =
-  "id, organization_id, channel_session_id, name, message_body, content_version, " +
+  "id, organization_id, channel, email_subject, channel_session_id, name, message_body, content_version, " +
   "intervalo_segundos, janela_inicio_hora, janela_fim_hora, teto_diario, teto_horario";
 
 export async function rodarUmaRodadaDeCampanha(
@@ -193,11 +196,14 @@ interface DestinatarioRow {
   contact_id: string;
   recipient_address: string | null;
   rendered_body: string | null;
+  channel?: "whatsapp" | "telegram" | "email" | null;
   contacts: {
     id: string;
     name: string | null;
     display_name: string | null;
     phone_number: string | null;
+    email?: string | null;
+    social_identity?: string | null;
     is_blocked: boolean;
     is_anonymized: boolean;
     consent: unknown;
@@ -209,11 +215,30 @@ async function rodarUmaCampanha(
   campanha: CampanhaRow,
   agora: Date,
 ): Promise<{ enviadas: number; pulados: number; concluidas: number; detalhe: string }> {
+  // Revalidação canônica de plano/entitlement no momento da execução operacional:
+  // Se a organização sofreu downgrade para um plano sem campanhas (ex: Standard),
+  // novos disparos são interrompidos e a campanha é pausada com segurança.
+  const featureCheck = await checkFeatureQuota(admin, campanha.organization_id, "campaigns");
+  if (!featureCheck.allowed) {
+    logger.warn("[campanha] execução bloqueada por downgrade de plano", {
+      campanhaId: campanha.id,
+      organizationId: campanha.organization_id,
+      motivo: featureCheck.reason,
+    });
+    await admin
+      .from("campaigns")
+      .update({ status: "paused", paused_at: agora.toISOString() })
+      .eq("id", campanha.id)
+      .eq("status", "running");
+
+    return { enviadas: 0, pulados: 0, concluidas: 0, detalhe: "bloqueado:plano_sem_campanhas" };
+  }
+
   const { data: fila } = await admin
     .from("campaign_recipients")
     .select(
-      "id, contact_id, recipient_address, rendered_body, " +
-        "contacts(id, name, display_name, phone_number, is_blocked, is_anonymized, consent)",
+      "id, contact_id, recipient_address, rendered_body, channel, " +
+        "contacts(id, name, display_name, phone_number, email, social_identity, is_blocked, is_anonymized, consent)",
     )
     .eq("campaign_id", campanha.id)
     .eq("status", "pending")
@@ -252,13 +277,19 @@ async function rodarUmaCampanha(
   // revalidados porque entre a preparação e agora a pessoa pode ter pedido para
   // parar — honrar o pedido com um dia de atraso é o mesmo que não honrar.
   const contato = alvo.contacts;
+  const canalCampanha = campanha.channel ?? alvo.channel ?? "whatsapp";
   const motivo = motivoParaExcluir({
     contactId: alvo.contact_id,
     telefone: contato?.phone_number ?? alvo.recipient_address,
+    email: contato?.email ?? alvo.recipient_address,
+    telegramChatId: contato?.social_identity?.startsWith("telegram:")
+      ? contato.social_identity.replace(/^telegram:/, "")
+      : null,
     bloqueado: !!contato?.is_blocked,
     anonimizado: !!contato?.is_anonymized,
     recusouMarketing: recusouMarketing(contato?.consent),
-  });
+    canal: canalCampanha,
+  }, canalCampanha);
   if (motivo) {
     await admin
       .from("campaign_recipients")
@@ -353,9 +384,9 @@ async function rodarUmaCampanha(
       .eq("id", sessionId)
       .maybeSingle();
     const linha = canal as { daily_message_limit: number | null; status: string } | null;
-    // Número fora do ar não entra no rodízio: mandar por ele seria fabricar uma
+    // Número/canal fora do ar não entra no rodízio: mandar por ele seria fabricar uma
     // mensagem presa em `sending` que o recovery depois marca como falha.
-    if (!linha || linha.status !== "WORKING") continue;
+    if (!linha || (linha.status !== "WORKING" && linha.status !== "connected")) continue;
 
     const estadoDoNumero = await loadPacingState(pool, campanha.organization_id, sessionId, {
       now: agora,

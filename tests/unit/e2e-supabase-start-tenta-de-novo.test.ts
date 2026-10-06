@@ -19,7 +19,7 @@
  * status do `tee` e o passo sai verde com o Supabase fora do ar.
  */
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -70,21 +70,51 @@ process.stderr.write(s.texto + "\\n");
 process.exit(s.falha ? 1 : 0);
 `,
   );
+  const raizUnix =
+    process.platform === "win32"
+      ? raiz.replace(/^[A-Za-z]:/, (m) => "/" + m[0]!.toLowerCase()).split("\\").join("/")
+      : raiz;
+
   const sleep = path.join(bin, "sleep");
-  writeFileSync(sleep, `#!/bin/sh\necho "sleep $1" >> "${raiz}/chamadas.log"\n`);
+  writeFileSync(sleep, `#!/bin/sh\necho "sleep $1" >> "${raizUnix}/chamadas.log"\n`);
   chmodSync(supabase, 0o755);
   chmodSync(sleep, 0o755);
 
   // O passo escreve em /tmp; aqui cada rodada tem o seu.
-  const script = scriptDoPasso().replaceAll("/tmp/", `${raiz}/`);
-  // `bash -e`, o mesmo shell que o GitHub dá a um `run:` sem `shell:`.
-  const r = spawnSync("bash", ["-e", "-c", script], {
+  const script = scriptDoPasso().replaceAll("/tmp/", `${raizUnix}/`);
+
+  const gitBash =
+    process.platform === "win32" ? "C:\\Program Files\\Git\\bin\\bash.exe" : "bash";
+  const sep = process.platform === "win32" ? ";" : ":";
+  const pathPrefix =
+    process.platform === "win32"
+      ? `${bin}${sep}C:\\Program Files\\Git\\bin${sep}C:\\Program Files\\Git\\usr\\bin`
+      : bin;
+
+  const binUnix =
+    process.platform === "win32"
+      ? bin.replace(/^[A-Za-z]:/, (m) => "/" + m[0]!.toLowerCase()).split("\\").join("/")
+      : bin;
+
+  const scriptComPath = `export PATH="${binUnix}:$PATH"\n${script.replace(/\r\n/g, "\n")}`;
+
+  const scriptFile = path.join(raiz, "script.sh");
+  writeFileSync(scriptFile, scriptComPath, "utf-8");
+  const scriptFileUnix =
+    process.platform === "win32"
+      ? scriptFile.replace(/^[A-Za-z]:/, (m) => "/" + m[0]!.toLowerCase()).split("\\").join("/")
+      : scriptFile;
+
+  const r = spawnSync(gitBash, ["-e", scriptFileUnix], {
     cwd: path.join(raiz, "repo"),
-    env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
+    env: { ...process.env, PATH: `${pathPrefix}${sep}${process.env.PATH}` },
     encoding: "utf-8",
   });
-  const chamadas = readFileSync(path.join(raiz, "chamadas.log"), "utf-8").trim().split("\n");
-  return { status: r.status, saida: r.stdout + r.stderr, chamadas };
+  const chamadasFile = path.join(raiz, "chamadas.log");
+  const chamadas = (existsSync(chamadasFile) ? readFileSync(chamadasFile, "utf-8") : "")
+    .trim()
+    .split("\n");
+  return { status: r.status, saida: (r.stdout ?? "") + (r.stderr ?? ""), chamadas };
 }
 
 const LIMITE = {

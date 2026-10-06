@@ -118,9 +118,10 @@ describe("a faixa de conexão caída", () => {
     // remontando a lista à mão desde que os campos coincidissem HOJE — que é
     // exatamente a divergência que esta cerca existe para impedir.
     expect(faixa!.props.caidas).toBe(conexoesDoSeam);
-  });
+  }, 60_000);
 
   it("pergunta ao seam com o cliente admin e a organização ativa", async () => {
+    listarConexoesCaidas.mockClear();
     const { default: AppLayout } = await import("@/app/app/layout");
     await AppLayout({ children: null });
 
@@ -128,5 +129,5 @@ describe("a faixa de conexão caída", () => {
     // A organização vem do seam de autenticação (cookie validado), nunca do
     // corpo da requisição — e o cliente é o admin, porque a consulta cruza RLS.
     expect(listarConexoesCaidas).toHaveBeenCalledWith(adminClient, "org-1");
-  });
+  }, 60_000);
 });

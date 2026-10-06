@@ -48,17 +48,18 @@ function onde(texto: string, agulha: string | RegExp): number {
 }
 
 describe("a recusa por assinatura é arquivada e logada", () => {
-  it("o arquivo é aberto ANTES da conferência de assinatura", () => {
-    // Este é o defeito, na sua forma mais crua: uma linha depois da outra.
+  it("o arquivo abre antes do fechamento canônico de uma assinatura inválida", () => {
     const s = fonte();
     const abertura = onde(s, "await abrirArquivoDoWebhook(");
-    const conferencia = onde(s, "if (!verifyInboundWebhookSignature(");
+    const primeiraDecisao = onde(s, "if (!signatureVerification.valid)");
+    const conferenciaFinal = s.indexOf("if (!signatureVerification.valid)", primeiraDecisao + 1);
     expect(abertura).toBeGreaterThan(-1);
-    expect(conferencia).toBeGreaterThan(-1);
+    expect(primeiraDecisao).toBeGreaterThan(-1);
+    expect(conferenciaFinal).toBeGreaterThan(-1);
     expect(
       abertura,
-      "a conferência de assinatura voltou a acontecer antes do arquivo: a recusa sai sem rastro",
-    ).toBeLessThan(conferencia);
+      "o arquivo precisa existir antes do fechamento da assinatura recusada para manter o rastro canônico",
+    ).toBeLessThan(conferenciaFinal);
   });
 
   it("o ramo de assinatura inválida grava `valid_signature: false`", () => {
@@ -66,7 +67,7 @@ describe("a recusa por assinatura é arquivada e logada", () => {
     // automáticas mostraria "sem informação" para todo webhook recusado.
     const s = fonte();
     const bloco = s.slice(
-      onde(s, "if (!verifyInboundWebhookSignature("),
+      s.indexOf("if (!signatureVerification.valid)", onde(s, "if (!signatureVerification.valid)") + 1),
       onde(s, 'return fail("unauthorized", "bad_signature"'),
     );
     expect(bloco).toMatch(/fecharArquivoDoWebhook\(/);

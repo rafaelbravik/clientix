@@ -39,6 +39,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { audit } from "@/lib/audit";
 
 import { ARCHIVED_AT, queryTolerantToMissingArchived, type DbErrorLike } from "./archived";
+import { invalidateWebhookCacheBySessionId } from "./webhook-session-cache";
 
 /** O canal, sempre por (organização, id) — tenancy explícita mesmo sob o admin. */
 export interface ChannelSessionTarget {
@@ -112,6 +113,10 @@ export async function reactivateChannelSession(
       requestId: actor.requestId ?? null,
       metadata: { ...(actor.metadata ?? {}), archived_at: target.archivedAt },
     });
+  }
+
+  if (!error) {
+    invalidateWebhookCacheBySessionId(target.channelSessionId);
   }
 
   return { error: error ?? null, schemaOutdated, reactivated };

@@ -26,8 +26,8 @@ import { lastLine, sql } from "./gov-helpers";
 
 function novaOrg(slug: string): string {
   sql(`
-    insert into public.organizations (slug, legal_name, display_name)
-    values ('${slug}', 'inv 0165', 'inv 0165');
+    insert into public.organizations (slug, legal_name, display_name, settings)
+    values ('${slug}', 'inv 0165', 'inv 0165', '{"plan":"enterprise"}'::jsonb);
   `);
   return sql(`select id from public.organizations where slug = '${slug}'`).trim();
 }

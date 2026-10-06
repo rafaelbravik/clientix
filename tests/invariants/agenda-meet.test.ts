@@ -22,7 +22,7 @@ async function fixture(owner: string | null = GOV_AGENT_A) {
     contact = randomUUID(),
     conn = randomUUID();
   await pool.query(
-    "insert into organizations(id,slug,legal_name,display_name) values($1::uuid,$1::text,'Meet','Meet')",
+    "insert into organizations(id,slug,legal_name,display_name,settings) values($1::uuid,$1::text,'Meet','Meet','{\"plan\":\"enterprise\"}'::jsonb)",
     [org],
   );
   for (const [user, role] of [
@@ -748,8 +748,10 @@ it("booking aceita somente contexto interno do job original; metadados diretos s
   expect(a.meeting_delivery.state).toBe("waiting_for_link");
   expect(a.meeting_delivery).not.toHaveProperty("booking_claim");
   await pool.query("update job_queue set locked_at=clock_timestamp() where id=$1", [jid]);
+  const insertStale =
+    "insert into calendar_appointments(organization_id,contact_id,conversation_id,owner_user_id,title,starts_at,ends_at,location_kind,meeting_delivery) values($1,$2,$3,$4,'Meet combinado',now()+interval '10 days',now()+interval '10 days 1 hour','google_meet',$5) returning *";
   await expect(
-    pool.query(insert, [f.org, f.contact, f.boundary.conversation_id, GOV_AGENT_A, intent]),
+    pool.query(insertStale, [f.org, f.contact, f.boundary.conversation_id, GOV_AGENT_A, intent]),
   ).rejects.toThrow("meet_booking_stale");
   await expect(
     actor(GOV_AGENT_A, "update calendar_appointments set meeting_delivery=$1 where id=$2", [
@@ -758,7 +760,7 @@ it("booking aceita somente contexto interno do job original; metadados diretos s
     ]),
   ).rejects.toThrow("meet_metadata_private");
   await expect(
-    actor(GOV_AGENT_A, insert, [f.org, f.contact, f.boundary.conversation_id, GOV_AGENT_A, intent]),
+    actor(GOV_AGENT_A, insertStale, [f.org, f.contact, f.boundary.conversation_id, GOV_AGENT_A, intent]),
   ).rejects.toThrow("meet_metadata_private");
 });
 
@@ -1440,7 +1442,7 @@ it("FIX1 M1: booking não pode forjar recibo humano mesmo com claim válido", as
   };
   await expect(
     pool.query(
-      "insert into calendar_appointments(id,organization_id,contact_id,conversation_id,owner_user_id,title,starts_at,ends_at,status,location_kind,meeting_delivery) select $2,organization_id,contact_id,conversation_id,owner_user_id,title,starts_at,ends_at,status,location_kind,$3 from calendar_appointments where id=$1",
+      "insert into calendar_appointments(id,organization_id,contact_id,conversation_id,owner_user_id,title,starts_at,ends_at,status,location_kind,meeting_delivery) select $2,organization_id,contact_id,conversation_id,owner_user_id,title,starts_at + interval '10 days',ends_at + interval '10 days',status,location_kind,$3 from calendar_appointments where id=$1",
       [f.id, randomUUID(), intent],
     ),
   ).rejects.toThrow("meet_booking_origin_invalid");

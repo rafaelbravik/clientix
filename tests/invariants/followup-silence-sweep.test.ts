@@ -232,7 +232,7 @@ function nextOrgId(): string {
 async function seedOrg(org: string): Promise<void> {
   const name = `followup-silence-${org.slice(0, 8)}`;
   await pool.query(
-    `insert into organizations (id, slug, legal_name, display_name) values ($1, $2, $3, $4) on conflict (id) do nothing`,
+    `insert into organizations (id, slug, legal_name, display_name, settings) values ($1, $2, $3, $4, '{"plan":"enterprise"}'::jsonb) on conflict (id) do nothing`,
     [org, name, name, name],
   );
 }

@@ -310,8 +310,8 @@ beforeAll(async () => {
     [ORG_I, "cliente-agenda-i"],
   ] as const) {
     await pool.query(
-      `insert into organizations (id, slug, legal_name, display_name)
-       values ($1, $2, 'Cliente LTDA', 'Cliente') on conflict (id) do nothing`,
+      `insert into organizations (id, slug, legal_name, display_name, settings)
+       values ($1, $2, 'Cliente LTDA', 'Cliente', '{"plan":"enterprise"}'::jsonb) on conflict (id) do nothing`,
       [org, slug],
     );
   }

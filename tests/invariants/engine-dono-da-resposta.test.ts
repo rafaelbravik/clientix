@@ -65,10 +65,10 @@ function embutidoCede(org: string): boolean {
 
 function semear(): void {
   sql(`
-    insert into public.organizations (id, slug, legal_name, display_name) values
-      ('${ORG_PUB}', 'eng-pub', 'Engine Publicado', 'Eng Pub'),
-      ('${ORG_SEM}', 'eng-sem', 'Engine Sem Publicacao', 'Eng Sem'),
-      ('${ORG_ARQ}', 'eng-arq', 'Engine Arquivado', 'Eng Arq')
+    insert into public.organizations (id, slug, legal_name, display_name, settings) values
+      ('${ORG_PUB}', 'eng-pub', 'Engine Publicado', 'Eng Pub', '{"plan":"enterprise"}'::jsonb),
+      ('${ORG_SEM}', 'eng-sem', 'Engine Sem Publicacao', 'Eng Sem', '{"plan":"enterprise"}'::jsonb),
+      ('${ORG_ARQ}', 'eng-arq', 'Engine Arquivado', 'Eng Arq', '{"plan":"enterprise"}'::jsonb)
       on conflict do nothing;
 
     insert into public.ai_agents (id, organization_id, name, system_prompt, is_active)

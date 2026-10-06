@@ -219,8 +219,8 @@ beforeAll(async () => {
   };
 
   await pool.query(
-    `insert into organizations (id, slug, legal_name, display_name)
-     values ($1,'send-template-turn','Send Template Turn','Send Template Turn')
+    `insert into organizations (id, slug, legal_name, display_name, settings)
+     values ($1,'send-template-turn','Send Template Turn','Send Template Turn', '{"plan":"enterprise"}'::jsonb)
      on conflict (id) do nothing`,
     [ORG],
   );

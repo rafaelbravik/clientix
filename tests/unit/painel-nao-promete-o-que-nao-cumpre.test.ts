@@ -29,22 +29,55 @@ const RAIZ = path.resolve(__dirname, "..", "..");
 /** Onde ler do ambiente é legítimo: o contrato de env e o próprio resolvedor. */
 const PODEM_LER_O_AMBIENTE = ["lib/env.ts", "lib/instalacao/config.ts"];
 
-function grep(padrao: string, escopo: string[]): string[] {
-  try {
-    const saida = execFileSync(
-      "grep",
-      ["-rlnE", "--include=*.ts", "--include=*.tsx", "-e", padrao, ...escopo],
-      { cwd: RAIZ, encoding: "utf8" },
-    );
-    return saida.split("\n").filter(Boolean);
-  } catch {
-    // grep sai 1 quando não casa nada. Ausência é resultado, não erro — mas só
-    // vale como resultado porque o controle positivo abaixo prova que a sonda vê.
-    return [];
-  }
-}
+import { readdirSync, readFileSync, statSync } from "node:fs";
 
 const ESCOPO = ["lib", "app", "components", "workers", "hooks"];
+
+interface ArquivoEmCache {
+  relativo: string;
+  conteudo: string;
+}
+
+let cacheArquivos: ArquivoEmCache[] | null = null;
+
+function carregarArquivos(escopo: string[]): ArquivoEmCache[] {
+  if (cacheArquivos !== null) return cacheArquivos;
+  const lista: ArquivoEmCache[] = [];
+  const walk = (dir: string) => {
+    try {
+      for (const name of readdirSync(dir)) {
+        if (name === "node_modules" || name === ".next" || name.startsWith(".")) continue;
+        const p = path.join(dir, name);
+        const stat = statSync(p);
+        if (stat.isDirectory()) {
+          walk(p);
+        } else if (/\.(ts|tsx)$/.test(name)) {
+          const content = readFileSync(p, "utf8");
+          lista.push({ relativo: path.relative(RAIZ, p).replace(/\\/g, "/"), conteudo: content });
+        }
+      }
+    } catch {
+      // diretório ausente ou sem permissão
+    }
+  };
+  for (const d of escopo) {
+    walk(path.join(RAIZ, d));
+  }
+  cacheArquivos = lista;
+  return lista;
+}
+
+function grep(padrao: string, escopo: string[]): string[] {
+  const re = new RegExp(padrao);
+  const arquivos = carregarArquivos(escopo);
+  const hits: string[] = [];
+  for (const a of arquivos) {
+    if (re.test(a.conteudo)) {
+      hits.push(a.relativo);
+    }
+  }
+  return hits;
+}
 
 describe("a sonda enxerga (controle positivo)", () => {
   it("acha uma leitura de ambiente que sabidamente existe", () => {

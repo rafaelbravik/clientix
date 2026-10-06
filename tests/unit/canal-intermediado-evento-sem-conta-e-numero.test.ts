@@ -148,9 +148,14 @@ async function entregar(corpo: unknown) {
   };
 }
 
+import { setAtomicSignatureFailureDriverForTest } from "@/lib/channels/webhook-signature-rate-limit";
+import { _clearWebhookSessionCacheForTest } from "@/lib/channels/webhook-session-cache";
+
 beforeEach(() => {
   ops.length = 0;
   saude.chamadas.length = 0;
+  _clearWebhookSessionCacheForTest();
+  setAtomicSignatureFailureDriverForTest(async () => 0, async () => 0);
 });
 
 describe("mensagem: só entra com a conta desta sessão", () => {

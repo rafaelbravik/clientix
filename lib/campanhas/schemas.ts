@@ -26,6 +26,8 @@ export const ritmoSchema = z.object({
 const baseDaCampanha = {
   name: z.string().trim().min(1).max(160),
   description: z.string().trim().max(4000).nullable().optional(),
+  channel: z.enum(["whatsapp", "telegram", "email"]).default("whatsapp"),
+  email_subject: z.string().trim().max(250).nullable().optional(),
   channel_session_id: z.string().uuid(),
   message_body: z.string().trim().max(4096).nullable().optional(),
   base_legal: z.enum(["consent", "legitimate_interest"]),
@@ -58,6 +60,13 @@ export const criarCampanhaSchema = z
       path: ["lia_ref"],
     },
   )
+  .refine(
+    (c) => c.channel !== "email" || (c.email_subject ?? "").trim().length > 0,
+    {
+      message: "Campanhas por e-mail exigem a definição de um assunto.",
+      path: ["email_subject"],
+    },
+  )
   .refine((c) => c.stage_id == null || c.pipeline_id != null, {
     message: "Escolha o funil antes da etapa — etapa sem funil seria um card sem coluna.",
     path: ["stage_id"],
@@ -75,6 +84,8 @@ export const editarCampanhaSchema = z
   .object({
     name: baseDaCampanha.name.optional(),
     description: baseDaCampanha.description,
+    channel: baseDaCampanha.channel.optional(),
+    email_subject: baseDaCampanha.email_subject,
     channel_session_id: baseDaCampanha.channel_session_id.optional(),
     message_body: baseDaCampanha.message_body,
     base_legal: baseDaCampanha.base_legal.optional(),
@@ -91,6 +102,8 @@ export const previaSchema = z.object({
   audience_filter: filtroDeAudienciaSchema,
   message_body: z.string().max(4096).default(""),
   campaign_id: z.string().uuid().optional(),
+  channel: z.enum(["whatsapp", "telegram", "email"]).default("whatsapp").optional(),
+  email_subject: z.string().trim().max(250).optional().nullable(),
 });
 
 export const criarTemplateSchema = z.object({

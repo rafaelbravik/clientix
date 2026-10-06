@@ -19,6 +19,7 @@ import { audit } from "@/lib/audit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { slugToEvent } from "@/lib/nuvemshop/config";
 import { verifyHmac } from "@/lib/nuvemshop/oauth";
+import { readLimitedBody, extractStoreId } from "@/lib/nuvemshop/safe-payload";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -47,22 +48,30 @@ export async function POST(req: NextRequest, ctx: RouteCtx): Promise<NextRespons
     return fail("not_found", `unknown nuvemshop event slug: ${slug}`, 404);
   }
 
-  const rawBody = await req.text();
-  let body: NuvemshopPayload;
-  try {
-    body = JSON.parse(rawBody) as NuvemshopPayload;
-  } catch {
-    return fail("invalid_request", "invalid_json", 400);
+  // 1. Limite estrito de tamanho no stream antes de alocar memória
+  const bodyRead = await readLimitedBody(req);
+  if (!bodyRead.ok) {
+    return fail("payload_too_large", "payload exceeds limit", 413);
+  }
+  const rawBody = bodyRead.body;
+
+  // 2. Extrai store_id de forma mínima para localização do tenant
+  const storeId = extractStoreId(rawBody);
+  if (!storeId) {
+    return fail("invalid_request", "missing or invalid store_id", 400);
   }
 
-  const storeId = body.store_id !== undefined ? String(body.store_id) : "";
-  if (!storeId) {
-    return fail("invalid_request", "missing store_id", 400);
+  // 3. Validação preventiva da presença do header de assinatura HMAC
+  const sigHeader =
+    req.headers.get("x-linkedstore-hmac-sha256") ??
+    req.headers.get("X-Linkedstore-Hmac-Sha256");
+  if (!sigHeader) {
+    return fail("unauthenticated", "missing_signature", 401);
   }
 
   const admin = createAdminClient();
 
-  // Look up the tenant integration by store_id stored in store_metadata.
+  // 4. Localização estrita da integração pelo store_id
   const { data: integration, error: lookupErr } = await admin
     .from("tenant_integrations")
     .select("id, organization_id, webhook_secret_encrypted")
@@ -71,12 +80,11 @@ export async function POST(req: NextRequest, ctx: RouteCtx): Promise<NextRespons
     .maybeSingle();
 
   if (lookupErr || !integration) {
-    // No tenant matches — could be a stale subscription or test ping. We
-    // intentionally return 200 so Nuvemshop stops retrying, but log silently.
+    // Tenant não encontrado — 200 intencional para não acumular retentativas da Nuvemshop
     return ok({ accepted: false, reason: "tenant_not_found" });
   }
 
-  // Decrypt webhook secret (= app client_secret at connect time).
+  // 5. Decriptografia mínima do segredo para verificação HMAC
   const dec = await admin.rpc("fn_decrypt_oauth", {
     ciphertext: integration.webhook_secret_encrypted,
   });
@@ -90,9 +98,7 @@ export async function POST(req: NextRequest, ctx: RouteCtx): Promise<NextRespons
   }
   const clientSecret = dec.data as string;
 
-  const sigHeader =
-    req.headers.get("x-linkedstore-hmac-sha256") ??
-    req.headers.get("X-Linkedstore-Hmac-Sha256");
+  // 6. Verificação criptográfica timing-safe da assinatura HMAC ANTES de qualquer parse de negócio
   const valid = verifyHmac(rawBody, sigHeader, clientSecret);
   if (!valid) {
     await audit({
@@ -101,6 +107,14 @@ export async function POST(req: NextRequest, ctx: RouteCtx): Promise<NextRespons
       metadata: { event, store_id: storeId },
     });
     return fail("unauthenticated", "invalid_signature", 401);
+  }
+
+  // 7. Apenas com HMAC comprovado, realiza JSON.parse e validação do payload
+  let body: NuvemshopPayload;
+  try {
+    body = JSON.parse(rawBody) as NuvemshopPayload;
+  } catch {
+    return fail("invalid_request", "invalid_json", 400);
   }
 
   const externalId = externalIdFor(event, body);

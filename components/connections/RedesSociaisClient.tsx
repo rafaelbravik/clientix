@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { apiClient } from "@/lib/api/client";
 import { useT } from "@/hooks/i18n/useT";
 import { ChannelAiAccess } from "./ChannelAiAccess";
+import { CanalInstagramTikTokClient } from "./CanalInstagramTikTokClient";
 
 type Account = {
   id: string;
@@ -287,6 +288,8 @@ export function RedesSociaisClient() {
           </Button>
         </>
       )}
+
+      <CanalInstagramTikTokClient />
     </div>
   );
 }

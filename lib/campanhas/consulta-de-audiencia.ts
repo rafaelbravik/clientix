@@ -25,6 +25,8 @@ interface LinhaDeContato {
   name: string | null;
   display_name: string | null;
   phone_number: string | null;
+  email?: string | null;
+  social_identity?: string | null;
   is_blocked: boolean;
   is_anonymized: boolean;
   consent: unknown;
@@ -64,11 +66,11 @@ export async function buscarCandidatos(
 
   let consulta = admin
     .from("contacts")
-    .select("id, name, display_name, phone_number, is_blocked, is_anonymized, consent")
+    .select("id, name, display_name, phone_number, email, social_identity, is_blocked, is_anonymized, consent")
     .eq("organization_id", organizationId)
     // Placeholder de GRUPO não recebe campanha: campanha é 1:1 por doutrina, e
     // o grupo não tem opt-in individual nenhum por trás desse registro técnico.
-    .eq("kind", "person")
+    .in("kind", ["person", "email", "social_user"])
     // Cadastro mesclado é fantasma: quem responde é o sobrevivente.
     .is("is_merged_into", null)
     .order("created_at", { ascending: true })
@@ -113,9 +115,9 @@ export async function buscarCandidatos(
   if (faltam.length > 0) {
     const { data: extras, error: erroExtras } = await admin
       .from("contacts")
-      .select("id, name, display_name, phone_number, is_blocked, is_anonymized, consent")
+      .select("id, name, display_name, phone_number, email, social_identity, is_blocked, is_anonymized, consent")
       .eq("organization_id", organizationId)
-      .eq("kind", "person")
+      .in("kind", ["person", "email", "social_user"])
       .in("id", faltam);
     if (erroExtras) throw new Error(`audiência: incluídos — ${erroExtras.message}`);
     linhas.push(...((extras ?? []) as LinhaDeContato[]));
@@ -125,6 +127,8 @@ export async function buscarCandidatos(
     contactId: l.id,
     nome: nomeDoContato(l),
     telefone: l.phone_number,
+    email: l.email ?? null,
+    telegramChatId: l.social_identity?.startsWith("telegram:") ? l.social_identity.replace(/^telegram:/, "") : null,
     bloqueado: l.is_blocked,
     anonimizado: l.is_anonymized,
     recusouMarketing: recusouMarketing(l.consent),

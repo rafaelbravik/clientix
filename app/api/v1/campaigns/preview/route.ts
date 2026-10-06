@@ -55,6 +55,8 @@ export async function POST(req: NextRequest): Promise<Response> {
       corpo: parsed.data.message_body,
       agora: new Date(),
       campanhaId: parsed.data.campaign_id,
+      canal: parsed.data.channel,
+      emailSubject: parsed.data.email_subject,
     });
     return ok(
       {

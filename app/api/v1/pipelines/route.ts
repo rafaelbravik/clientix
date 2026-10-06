@@ -52,6 +52,19 @@ const bodySchema = z
   .object({
     name: z.string().min(1).max(80),
     description: z.string().max(280).nullable().optional(),
+    vocabulary: z.record(z.string(), z.string()).optional(),
+    settings: z.record(z.string(), z.unknown()).optional(),
+    stages: z
+      .array(
+        z.object({
+          name: z.string().min(1).max(80),
+          slug: z.string().min(1).max(80),
+          is_won: z.boolean().optional(),
+          is_lost: z.boolean().optional(),
+          expected_duration_hours: z.number().nullable().optional(),
+        }),
+      )
+      .optional(),
   })
   .strict();
 
@@ -113,6 +126,8 @@ export async function POST(req: NextRequest): Promise<Response> {
     organization_id: orgId,
     name,
     description,
+    vocabulary: parsed.data.vocabulary ?? null,
+    settings: parsed.data.settings ?? null,
     // Arquivados entram na conta do slug: `uniq_crm_pipelines_org_slug` não é parcial.
     slug: slugDeFunil(name, funis.map((f) => f.slug)),
     // No fim da lista: funil novo aparecendo no meio seria a tela decidindo por
@@ -138,9 +153,23 @@ export async function POST(req: NextRequest): Promise<Response> {
   }
   const pipelineId = (criado as { id: string }).id;
 
+  const etapasParaInserir =
+    parsed.data.stages && parsed.data.stages.length > 0
+      ? parsed.data.stages.map((etapa, i) => ({
+          organization_id: orgId,
+          pipeline_id: pipelineId,
+          name: etapa.name,
+          slug: etapa.slug,
+          position: (i + 1) * 1000,
+          is_won: etapa.is_won ?? false,
+          is_lost: etapa.is_lost ?? false,
+          expected_duration_hours: etapa.expected_duration_hours ?? null,
+        }))
+      : etapasIniciais(orgId, pipelineId);
+
   const { error: etapasErr } = await supabase
     .from("crm_stages")
-    .insert(etapasIniciais(orgId, pipelineId));
+    .insert(etapasParaInserir);
 
   // ⚠️ COMPENSAÇÃO, PORQUE SÃO DUAS ESCRITAS SEM TRANSAÇÃO. Um funil sem etapa é
   // quadro morto: o board abre sem coluna nenhuma, não recebe negócio, e quem

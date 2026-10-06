@@ -35,6 +35,8 @@ function fixture(linha: Partial<typeof channel> & { phone_number?: string | null
         is(coluna: string, valor: unknown) { casa &&= ((noBanco as Record<string, unknown>)[coluna] ?? null) === valor; return builder; },
         neq(coluna: string, valor: unknown) { casa &&= (noBanco as Record<string, unknown>)[coluna] !== valor; return builder; },
         select() { return builder; },
+        limit() { return builder; },
+        async single() { return this.maybeSingle(); },
         async maybeSingle() {
           if (casa && pendente) renomeios.push(pendente.waha_session_name as string);
           return { data: casa ? { id: noBanco.id } : null, error: null };

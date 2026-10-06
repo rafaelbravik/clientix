@@ -18,6 +18,11 @@ import { fireEvent, render, screen } from "@testing-library/react";
 
 import { customFieldSchema } from "@/lib/schemas/settings";
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
+  usePathname: () => "/app/settings/tenant/pipelines",
+  useSearchParams: () => new URLSearchParams(),
+}));
 vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() },
 }));

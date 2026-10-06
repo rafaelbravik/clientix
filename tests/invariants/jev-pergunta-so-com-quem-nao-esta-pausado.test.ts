@@ -101,8 +101,8 @@ async function responder(sessionId: string): Promise<{ doJev: boolean | null; do
 
 beforeAll(async () => {
   await pool.query(
-    `insert into organizations (id, slug, legal_name, display_name)
-     values ($1, 'jev-quem-nao-esta-pausado', 'Jev Pausa', 'Jev Pausa')
+    `insert into organizations (id, slug, legal_name, display_name, settings)
+     values ($1, 'jev-quem-nao-esta-pausado', 'Jev Pausa', 'Jev Pausa', '{"plan":"enterprise"}'::jsonb)
      on conflict (id) do nothing`,
     [ORG],
   );

@@ -338,12 +338,14 @@ describe("o cliente de serviço também responde ao tenant", () => {
   });
 
   it("a varredura enxerga quem pega o cliente de serviço (controle positivo)", () => {
-    const comAdmin = ARQUIVOS.filter(
-      (a) => nomesDoClienteAdmin(ts.createSourceFile(a, readFileSync(a, "utf8"), ts.ScriptTarget.Latest, true)).size > 0,
-    );
+    const comAdmin = ARQUIVOS.filter((a) => {
+      const texto = readFileSync(a, "utf8");
+      if (!texto.includes("createAdminClient")) return false;
+      return nomesDoClienteAdmin(ts.createSourceFile(a, texto, ts.ScriptTarget.Latest, true)).size > 0;
+    });
     expect(comAdmin.length).toBeGreaterThan(100);
     expect(CADEIAS.length, "nenhuma cadeia de service role medida — a régua cegou").toBeGreaterThan(80);
-  });
+  }, 60_000);
 
   it("a varredura reconhece o payload que carrega o tenant (controle positivo)", () => {
     // Gêmeo conhecido: o worker monta a linha da mensagem numa variável

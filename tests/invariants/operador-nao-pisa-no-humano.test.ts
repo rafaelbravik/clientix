@@ -162,8 +162,8 @@ async function rodarOperador(conversa = CONV): Promise<ReturnType<typeof fakeLog
 
 beforeAll(async () => {
   await pool.query(
-    `insert into organizations (id, slug, legal_name, display_name)
-     values ($1, 'org-operador-handoff', 'Org Handoff LTDA', 'Org Handoff')
+    `insert into organizations (id, slug, legal_name, display_name, settings)
+     values ($1, 'org-operador-handoff', 'Org Handoff LTDA', 'Org Handoff', '{"plan":"enterprise"}'::jsonb)
      on conflict (id) do nothing`,
     [ORG],
   );

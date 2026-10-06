@@ -143,6 +143,8 @@ export async function PATCH(
   for (const campo of [
     "name",
     "description",
+    "channel",
+    "email_subject",
     "message_body",
     "audience_filter",
     "intervalo_segundos",
@@ -159,9 +161,12 @@ export async function PATCH(
   }
   if (entrada.base_legal !== undefined) mudanca.base_legal = entrada.base_legal;
   if (entrada.lia_ref !== undefined) mudanca.lia_ref = entrada.lia_ref;
-  // Mexer no TEXTO sobe a versão do conteúdo: é ela que o destinatário carrega,
+  // Mexer no TEXTO ou ASSUNTO sobe a versão do conteúdo: é ela que o destinatário carrega,
   // e é por ela que se sabe se a mensagem preparada é a mensagem de hoje.
-  if (entrada.message_body !== undefined && entrada.message_body !== campanha.message_body) {
+  if (
+    (entrada.message_body !== undefined && entrada.message_body !== campanha.message_body) ||
+    (entrada.email_subject !== undefined && entrada.email_subject !== (campanha as { email_subject?: string | null }).email_subject)
+  ) {
     mudanca.content_version = campanha.content_version + 1;
   }
 
@@ -175,7 +180,7 @@ export async function PATCH(
     if (!canal) {
       return fail(
         "campanha_canal_indisponivel",
-        t("Escolha uma conexão de WhatsApp desta organização."),
+        t("Escolha uma conexão válida desta organização."),
         409,
         { requestId },
       );

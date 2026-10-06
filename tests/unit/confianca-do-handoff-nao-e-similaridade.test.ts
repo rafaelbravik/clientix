@@ -132,7 +132,7 @@ describe("a classe inteira: ausência de medição não vira zero nos caminhos d
     // para sempre — e o zero seria indistinguível de "nada a reprovar".
     expect(arquivos.length, "a varredura não encontrou arquivo nenhum — sonda morta").toBeGreaterThan(50);
     expect(
-      arquivos.some((f) => f.endsWith("workers/ai-response-worker.ts")),
+      arquivos.some((f) => f.replace(/\\/g, "/").endsWith("workers/ai-response-worker.ts")),
       "o arquivo que originou esta cerca precisa estar no conjunto varrido",
     ).toBe(true);
   });

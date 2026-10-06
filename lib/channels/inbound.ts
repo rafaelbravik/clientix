@@ -20,7 +20,21 @@ import { CHANNEL_PROVIDER_SOCIAL } from "./capabilities";
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { CHANNEL_PROVIDER_DATAFY, CHANNEL_PROVIDER_ZERNIO } from "./capabilities";
+import {
+  CHANNEL_PROVIDER_DATAFY,
+  CHANNEL_PROVIDER_EMAIL,
+  CHANNEL_PROVIDER_INSTAGRAM,
+  CHANNEL_PROVIDER_TELEGRAM,
+  CHANNEL_PROVIDER_TIKTOK,
+  CHANNEL_PROVIDER_ZERNIO,
+} from "./capabilities";
+import { ingestTelegramInbound } from "./telegram/ingest";
+import { ingestEmailInbound, type EmailInboundPayload } from "./email/ingest";
+import { ingestInstagramWebhook } from "./instagram/ingest";
+import type { InstagramWebhookPayload } from "./instagram/types";
+import { ingestTikTokWebhook } from "./tiktok/ingest";
+import { verifyTikTokSignature } from "./tiktok/webhook";
+import type { TikTokWebhookPayload } from "./tiktok/types";
 import { canalGraphParceiroLigado } from "./graph-parceiro/credentials";
 import { graphPartnerRefsDaSessao } from "./graph-parceiro/session";
 import {
@@ -42,7 +56,54 @@ import {
 import { aplicarEdicaoZernio, ingestZernioInbound } from "./zernio/ingest";
 import { lerEnvelopeZernio } from "./zernio/envelope";
 import { parseZernioEdicao, verifyZernioSignature } from "./zernio/webhook";
+import { verifyMetaSignature } from "./meta/webhook";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type { ChannelProvider } from "./types";
+
+/** Segredo efêmero usado para atestar uma verificação externa concluída neste processo. */
+const INTERNAL_PROOF_KEY = randomBytes(32);
+
+function internalProofPayload(
+  sessionId: string,
+  provider: string,
+  rawBody: string,
+  headers: Headers,
+  secret: string | null,
+): string {
+  const entries: Array<[string, string]> = [];
+  headers.forEach((value, key) => entries.push([key, value]));
+  entries.sort(([a], [b]) => a.localeCompare(b));
+  const secretDigest = secret === null ? null : createHash("sha256").update(secret).digest("hex");
+  return JSON.stringify([sessionId, provider, rawBody, entries, secretDigest]);
+}
+
+function createInternalSignatureProof(
+  sessionId: string,
+  provider: string,
+  rawBody: string,
+  headers: Headers,
+  secret: string | null,
+): string {
+  return createHmac("sha256", INTERNAL_PROOF_KEY)
+    .update(internalProofPayload(sessionId, provider, rawBody, headers, secret))
+    .digest("hex");
+}
+
+function verifyInternalSignatureProof(
+  sessionId: string,
+  provider: string,
+  rawBody: string,
+  headers: Headers,
+  secret: string | null,
+  proof?: string | null,
+): boolean {
+  if (!proof || typeof proof !== "string") return false;
+  const expected = createInternalSignatureProof(sessionId, provider, rawBody, headers, secret);
+  const proofBytes = Buffer.from(proof, "utf8");
+  const expectedBytes = Buffer.from(expected, "utf8");
+  if (proofBytes.length !== expectedBytes.length) return false;
+  return timingSafeEqual(proofBytes, expectedBytes);
+}
 
 /** Curto demais para ser segredo — placeholder ou lixo de decrypt. */
 const MIN_SECRET_LEN = 16;
@@ -62,6 +123,8 @@ export interface InboundWebhookInput {
   headers: Headers;
   /** Segredo já decifrado pela rota, ou null quando não foi possível. */
   secret: string | null;
+  /** Prova interna emitida somente após verificar a assinatura externa. */
+  internalSignatureProof?: string;
 }
 
 export type InboundWebhookOutcome =
@@ -86,21 +149,84 @@ export function acceptsInboundWebhook(provider: string): boolean {
   // O canal Datafy é opcional da instalação: desligado, a entrada dele não
   // existe — nem para quem tem o token de uma sessão gravada antes.
   if (provider === CHANNEL_PROVIDER_DATAFY) return canalGraphParceiroLigado();
+  if (
+    provider === CHANNEL_PROVIDER_TELEGRAM ||
+    provider === CHANNEL_PROVIDER_EMAIL ||
+    provider === CHANNEL_PROVIDER_INSTAGRAM ||
+    provider === CHANNEL_PROVIDER_TIKTOK
+  ) {
+    return true;
+  }
   return provider === CHANNEL_PROVIDER_ZERNIO || provider === CHANNEL_PROVIDER_SOCIAL;
 }
 
 /** Authenticate before archiving raw payloads. The handler repeats this guard for non-HTTP callers. */
-export function verifyInboundWebhookSignature(provider: string, raw: string, headers: Headers, secret: string | null): boolean {
-  if (!acceptsInboundWebhook(provider) || !secret || secret.length < MIN_SECRET_LEN) return false;
+export function verifyInboundWebhookSignature(
+  provider: string,
+  raw: string,
+  headers: Headers,
+  secret: string | null,
+): boolean {
+  if (!acceptsInboundWebhook(provider)) return false;
+  if (provider === CHANNEL_PROVIDER_EMAIL) {
+    if (!secret || secret.length < MIN_SECRET_LEN) return false;
+    const headerSecret = headers.get("x-webhook-secret") || headers.get("x-email-secret") || headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+    return secretMatches(headerSecret, secret);
+  }
+  if (provider === CHANNEL_PROVIDER_INSTAGRAM) {
+    const appSecret = secret || process.env.META_APP_SECRET;
+    if (!appSecret || appSecret.length < MIN_SECRET_LEN) return false;
+    const headerSig = headers.get("x-hub-signature-256");
+    return verifyMetaSignature(raw, headerSig, appSecret);
+  }
+  if (provider === CHANNEL_PROVIDER_TIKTOK) {
+    if (!secret || secret.length < MIN_SECRET_LEN) return false;
+    const headerSig = headers.get("tiktok-signature") || headers.get("x-tiktok-signature") || headers.get("x-signature");
+    return verifyTikTokSignature(raw, headerSig, secret);
+  }
+  if (!secret || secret.length < MIN_SECRET_LEN) return false;
   // Cada canal assina do seu jeito; o esquema do Datafy está em `graph-parceiro/webhook`.
   if (provider === CHANNEL_PROVIDER_DATAFY) {
     return verifyGraphPartnerSignature(raw, headers.get(HEADER_ASSINATURA), headers.get(HEADER_TIMESTAMP), secret);
   }
+  if (provider === CHANNEL_PROVIDER_TELEGRAM) {
+    const headerSecret = headers.get("x-telegram-bot-api-secret-token");
+    return secretMatches(headerSecret, secret);
+  }
   return verifyZernioSignature(raw, headers.get("x-zernio-signature"), secret);
+}
+
+function secretMatches(candidate: string | null | undefined, expected: string): boolean {
+  if (typeof candidate !== "string") return false;
+  const candidateBytes = Buffer.from(candidate, "utf8");
+  const expectedBytes = Buffer.from(expected, "utf8");
+  return candidateBytes.length === expectedBytes.length && timingSafeEqual(candidateBytes, expectedBytes);
+}
+
+/**
+ * Confere a assinatura externa e, somente quando ela é válida, emite uma prova
+ * interna vinculada à sessão, provider, corpo, headers e segredo usados.
+ * Não há uma função pública que gere essa prova sem autenticar o webhook.
+ */
+export function verifyAndCreateInternalSignatureProof(
+  sessionId: string,
+  provider: string,
+  rawBody: string,
+  headers: Headers,
+  secret: string | null,
+): { valid: true; proof: string } | { valid: false; proof: null } {
+  if (!verifyInboundWebhookSignature(provider, rawBody, headers, secret)) {
+    return { valid: false, proof: null };
+  }
+  return {
+    valid: true,
+    proof: createInternalSignatureProof(sessionId, provider, rawBody, headers, secret),
+  };
 }
 
 /**
  * O EVENTO É DESTA CONEXÃO?
+
  *
  * ─── O defeito, medido numa instalação real (23/09/2026) ─────────────────────
  *
@@ -188,12 +314,38 @@ export async function handleInboundWebhook(
 ): Promise<InboundWebhookOutcome> {
   const provider = input.session.provider as ChannelProvider;
 
+  // This is the shared enforcement boundary for HTTP and direct server callers.
+  // The route may pass an internal proof only after verifying the external HMAC;
+  // without a matching proof this path always performs the real verification.
+  if (!acceptsInboundWebhook(provider)) {
+    return { ok: false, code: "provider_mismatch", message: "canal não recebe por esta rota" };
+  }
+  const proofIsValid = verifyInternalSignatureProof(
+    input.session.id,
+    provider,
+    input.rawBody,
+    input.headers,
+    input.secret,
+    input.internalSignatureProof,
+  );
+  if (!proofIsValid && !verifyInboundWebhookSignature(provider, input.rawBody, input.headers, input.secret)) {
+    return { ok: false, code: "unauthorized", message: "bad_signature" };
+  }
+
   switch (provider) {
     case CHANNEL_PROVIDER_SOCIAL:
     case CHANNEL_PROVIDER_ZERNIO:
       return zernioInbound(admin, input);
     case CHANNEL_PROVIDER_DATAFY:
       return datafyInbound(admin, input);
+    case CHANNEL_PROVIDER_TELEGRAM:
+      return telegramInbound(admin, input);
+    case CHANNEL_PROVIDER_EMAIL:
+      return emailInbound(admin, input);
+    case CHANNEL_PROVIDER_INSTAGRAM:
+      return instagramInbound(admin, input);
+    case CHANNEL_PROVIDER_TIKTOK:
+      return tiktokInbound(admin, input);
     default:
       // Token de um canal que não entra por aqui. É configuração trocada, não
       // ataque — mas processar seria ler o payload com o parser errado.
@@ -201,23 +353,123 @@ export async function handleInboundWebhook(
   }
 }
 
+async function instagramInbound(
+  admin: SupabaseClient,
+  input: InboundWebhookInput,
+): Promise<InboundWebhookOutcome> {
+  let payload: unknown;
+  try {
+    payload = JSON.parse(input.rawBody);
+  } catch {
+    return { ok: false, code: "invalid_json", message: "invalid_json" };
+  }
+
+  const result = await ingestInstagramWebhook(
+    admin,
+    payload as InstagramWebhookPayload,
+    input.session.organization_id,
+  );
+  return { ok: true, body: { ...result } };
+}
+
+async function tiktokInbound(
+  admin: SupabaseClient,
+  input: InboundWebhookInput,
+): Promise<InboundWebhookOutcome> {
+  let payload: unknown;
+  try {
+    payload = JSON.parse(input.rawBody);
+  } catch {
+    return { ok: false, code: "invalid_json", message: "invalid_json" };
+  }
+
+  const result = await ingestTikTokWebhook(
+    admin,
+    payload as TikTokWebhookPayload,
+    input.session.organization_id,
+  );
+  return { ok: true, body: { ...result } };
+}
+
+function parseEmailWebhookPayload(raw: string): EmailInboundPayload | null {
+  let json: unknown;
+  try {
+    json = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!json || typeof json !== "object") return null;
+
+  const root = json as Record<string, unknown>;
+  const data = root.data && typeof root.data === "object" ? (root.data as Record<string, unknown>) : root;
+
+  const rawFrom = data.from ?? data.sender;
+  const from = typeof rawFrom === "string" ? rawFrom : (Array.isArray(rawFrom) && typeof rawFrom[0] === "string" ? rawFrom[0] : "");
+
+  const rawTo = data.to ?? data.recipient;
+  const to = typeof rawTo === "string" ? rawTo : (Array.isArray(rawTo) && typeof rawTo[0] === "string" ? rawTo[0] : "");
+
+  const subject = typeof data.subject === "string" ? data.subject : null;
+  const text = typeof data.text === "string" ? data.text : (typeof data.plain === "string" ? data.plain : (typeof data.body === "string" ? data.body : null));
+  const html = typeof data.html === "string" ? data.html : null;
+  const messageId = typeof data.messageId === "string" ? data.messageId : (typeof data.message_id === "string" ? data.message_id : (typeof data.id === "string" ? data.id : (typeof data["Message-Id"] === "string" ? data["Message-Id"] : null)));
+  const inReplyTo = typeof data.inReplyTo === "string" ? data.inReplyTo : (typeof data.in_reply_to === "string" ? data.in_reply_to : (typeof data["In-Reply-To"] === "string" ? data["In-Reply-To"] : null));
+
+  if (!from) return null;
+
+  return {
+    from,
+    to: to || "",
+    subject,
+    text,
+    html,
+    messageId,
+    inReplyTo,
+  };
+}
+
+async function emailInbound(
+  admin: SupabaseClient,
+  input: InboundWebhookInput,
+): Promise<InboundWebhookOutcome> {
+  const emailPayload = parseEmailWebhookPayload(input.rawBody);
+  if (!emailPayload) {
+    return { ok: false, code: "contrato_violado", message: "payload_email_invalido" };
+  }
+
+  const result = await ingestEmailInbound(admin, {
+    organizationId: input.session.organization_id,
+    channelSessionId: input.session.id,
+    payload: emailPayload,
+  });
+
+  return { ok: true, body: { ...result } };
+}
+
+async function telegramInbound(
+  admin: SupabaseClient,
+  input: InboundWebhookInput,
+): Promise<InboundWebhookOutcome> {
+  let payload: unknown;
+  try {
+    payload = JSON.parse(input.rawBody);
+  } catch {
+    return { ok: false, code: "invalid_json", message: "invalid_json" };
+  }
+
+  const result = await ingestTelegramInbound(admin, {
+    organizationId: input.session.organization_id,
+    channelSessionId: input.session.id,
+    payload,
+  });
+
+  return { ok: true, body: { ...result } };
+}
+
 async function zernioInbound(
   admin: SupabaseClient,
   input: InboundWebhookInput,
 ): Promise<InboundWebhookOutcome> {
-  // Fail-closed, sem a exceção que virou regra no canal por QR: lá, "não
-  // consegui verificar" virava "processa assim mesmo", e isso deixou toda
-  // instalação aceitando mensagem forjada de quem soubesse a URL. Este provider
-  // assina sempre, então não há dilema a herdar.
-  if (!input.secret || input.secret.length < MIN_SECRET_LEN) {
-    return { ok: false, code: "unauthorized", message: "webhook_secret_unavailable" };
-  }
-
-  const assinatura = input.headers.get("x-zernio-signature");
-  if (!verifyZernioSignature(input.rawBody, assinatura, input.secret)) {
-    return { ok: false, code: "unauthorized", message: "bad_signature" };
-  }
-
   // ─── O contrato do fio, ANTES de qualquer leitura ─────────────────────────
   //
   // Aqui o payload era `unknown` e cada leitor se defendia sozinho com `str()`,
@@ -345,9 +597,9 @@ async function zernioInbound(
  * Entrada do canal Datafy (recorte do #1130, @vgamkt).
  *
  * O payload é IDÊNTICO ao da Meta (o parceiro espelha a Cloud API), então a
- * leitura reusa `lerEnvelopeMeta` + `parseMetaWebhook` + `ingestMetaInbound`; o
- * que é do parceiro é só a assinatura, conferida de novo aqui porque esta
- * função também é chamada fora da rota.
+ * leitura reusa `lerEnvelopeMeta` + `parseMetaWebhook` + `ingestMetaInbound`. A
+ * autenticação fica na fronteira compartilhada `handleInboundWebhook`, que
+ * também protege chamadas diretas fora da rota.
  *
  * Fail-closed: sem o segredo `whsec_` gravado, nada entra. O evento só é aceito
  * se for do número e da conta DESTA sessão — a sessão veio do token do path, e
@@ -357,10 +609,6 @@ async function datafyInbound(
   admin: SupabaseClient,
   input: InboundWebhookInput,
 ): Promise<InboundWebhookOutcome> {
-  if (!verifyInboundWebhookSignature(input.session.provider, input.rawBody, input.headers, input.secret)) {
-    return { ok: false, code: "unauthorized", message: "bad_signature" };
-  }
-
   const leitura = lerEnvelopeMeta(input.rawBody);
   if (!leitura.ok) {
     if (leitura.motivo === "json_invalido") {

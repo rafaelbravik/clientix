@@ -17,6 +17,8 @@ export interface CampanhaDaLista {
   id: string;
   name: string;
   status: StatusDaCampanha;
+  channel?: "whatsapp" | "telegram" | "email";
+  email_subject?: string | null;
   channel_session_id: string;
   snapshot_total: number;
   snapshot_eligible: number;
@@ -182,6 +184,8 @@ export function usePreviaDaAudiencia() {
       audience_filter: Record<string, unknown>;
       message_body: string;
       campaign_id?: string;
+      channel?: string;
+      email_subject?: string | null;
     }) => (await apiClient.post<{ data: PreviaDaAudiencia }>("/api/v1/campaigns/preview", corpo)).data,
     onError: (err) => showApiError(err),
   });

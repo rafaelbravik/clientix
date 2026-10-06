@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { JanelaSelo } from "@/components/inbox/JanelaSelo";
 import { ChannelLogo } from "@/components/inbox/ChannelLogo";
-import { Phone, ArrowRight, MagnifyingGlass } from "@/lib/ui/icons";
+import { Phone, ArrowRight, MagnifyingGlass, Check, Copy } from "@/lib/ui/icons";
 import { useAuth } from "@/hooks/auth/AuthProvider";
 import { useClaimConversation } from "@/hooks/inbox/useClaimConversation";
 import { useReleaseConversation } from "@/hooks/inbox/useReleaseConversation";
@@ -28,6 +28,7 @@ import {
 import { useResumeAiAttendance } from "@/hooks/inbox/useResumeAiAttendance";
 import { usePauseAiAttendance } from "@/hooks/inbox/usePauseAiAttendance";
 import { useAutomaticoAtivo } from "@/hooks/ai/useAutomaticoAtivo";
+import { copyToClipboard } from "@/lib/clipboard";
 import { OwnerBadge } from "@/components/kanban/OwnerBadge";
 import { comandoDaConversa, ROTULO_DO_MOTIVO } from "@/lib/inbox/comando-da-conversa";
 import { ReassignDialog } from "@/components/inbox/ReassignDialog";
@@ -99,6 +100,7 @@ export function ConversationHeader({
   const [reassignOpen, setReassignOpen] = useState(false);
   const [confirmFecharOpen, setConfirmFecharOpen] = useState(false);
   const [confirmArquivarOpen, setConfirmArquivarOpen] = useState(false);
+  const [protocoloCopiado, setProtocoloCopiado] = useState(false);
 
   const c = conversation.contacts ?? null;
   const displayName = rotuloDoContato(c, t);
@@ -186,6 +188,28 @@ export function ConversationHeader({
           <Badge variant="outline" className="h-4 shrink-0 px-1.5 text-[10px]">
             {t(STATUS_LABEL[status] ?? status)}
           </Badge>
+          {conversation.protocolo && (
+            <button
+              type="button"
+              onClick={async () => {
+                if (conversation.protocolo) {
+                  await copyToClipboard(conversation.protocolo);
+                  setProtocoloCopiado(true);
+                  setTimeout(() => setProtocoloCopiado(false), 2000);
+                }
+              }}
+              className="inline-flex h-4 shrink-0 items-center gap-1 rounded-md border border-border/80 bg-muted/60 px-1.5 font-mono text-[10px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground cursor-pointer"
+              title={t("Clique para copiar o protocolo")}
+              aria-label={`${t("Protocolo")}: ${conversation.protocolo}`}
+            >
+              <span>{conversation.protocolo}</span>
+              {protocoloCopiado ? (
+                <Check size={9} className="text-emerald-500" aria-hidden />
+              ) : (
+                <Copy size={9} aria-hidden />
+              )}
+            </button>
+          )}
           {/* Ao lado do estado, não escondido num painel: a pergunta "dá para
               escrever agora?" se faz ANTES de digitar, não depois de receber um
               `failed` com um código de cinco dígitos. */}

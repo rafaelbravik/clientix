@@ -45,6 +45,7 @@ it("todo handler mutante do app declara guarda de suporte ou é infraestrutura i
  const uncovered:string[]=[];
  for(const path of files("app/api/v1").filter(p=>p.endsWith("/route.ts"))){
   if(/app\/api\/v1\/(cron|webhooks)\//.test(path)||path==="app/api/v1/system/agent/route.ts")continue; // segredo de máquina, sem actor/session cookie
+  if(path.startsWith("app/api/v1/widget/"))continue; // visitante anônimo de widget web (token de chat de visitante, sem sessão de tenant)
   // Provisionamento por sistema externo: Bearer do segredo da INSTALAÇÃO
   // (TENANT_PROVISIONING_SECRET), sem cookie nem ator — a mesma natureza das
   // linhas acima. Não há sessão de suporte para a guarda ler; chamá-la aqui

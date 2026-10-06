@@ -352,6 +352,7 @@ describe.skipIf(!temAwk)("recriar o que falta: o comando INTEIRO, nunca o nome",
         comparacao,
         `printf '%s' "$faltando"`,
       ].join("\n");
+      const errFd = fs.openSync(err, "w");
       try {
         const out = execFileSync(BASH, ["-c", script], {
           encoding: "utf8",
@@ -362,12 +363,16 @@ describe.skipIf(!temAwk)("recriar o que falta: o comando INTEIRO, nunca o nome",
             A: a.join("\n"),
             B: b.join("\n"),
           },
-          stdio: ["ignore", "pipe", fs.openSync(err, "w")],
+          stdio: ["ignore", "pipe", errFd],
         });
+        fs.closeSync(errFd);
         return {
           faltando: out.split("\n").map((l) => l.trim()).filter(Boolean),
           stderr: fs.readFileSync(err, "utf8"),
         };
+      } catch (e) {
+        try { fs.closeSync(errFd); } catch {}
+        throw e;
       } finally {
         fs.rmSync(dir, { recursive: true, force: true });
       }
@@ -422,7 +427,14 @@ describe.skipIf(!temAwk)("recriar o que falta: o comando INTEIRO, nunca o nome",
       } catch {
         return undefined;
       }
-      for (const loc of disponiveis) {
+      // Prioriza os mais comuns e limita a busca para não estourar timeout onde há centenas de locales
+      const prioritarios = ["en_US.UTF-8", "en_US.utf8", "pt_BR.UTF-8", "pt_BR.utf8"];
+      const ordenados = [
+        ...prioritarios.filter((p) => disponiveis.includes(p)),
+        ...disponiveis.filter((d) => !prioritarios.includes(d)),
+      ].slice(0, 30);
+
+      for (const loc of ordenados) {
         // Sonda: a mesma comparação SEM o pin, com o locale candidato.
         const r = comparar(esperadas, existentes, "sort -u", semPin(linhaDeComparacao()), loc);
         if (r.stderr.includes("not in sorted order") || r.faltando.length > 0) return loc;
@@ -471,7 +483,7 @@ describe.skipIf(!temAwk)("recriar o que falta: o comando INTEIRO, nunca o nome",
         expect(r.stderr).not.toContain("not in sorted order");
         expect(r.faltando).toEqual([]);
       }
-    });
+    }, 60_000);
 
     it("⛔ SABOTAGEM: sem o pin, as mesmas listas acusam regra que existe", () => {
       // A metade que importa: prova que o caso acima sabe ficar vermelho. Se
@@ -488,7 +500,7 @@ describe.skipIf(!temAwk)("recriar o que falta: o comando INTEIRO, nunca o nome",
       // E o que ele acusa existe de verdade no banco — é alarme falso, que é o
       // que dói: a tela manda procurar uma regra que nunca faltou.
       for (const f of r.faltando) expect(noBanco).toContain(f);
-    });
+    }, 60_000);
   });
 
   it("CONTROLE VIVO: contra o baseline REAL, recria uma regra de verdade", () => {

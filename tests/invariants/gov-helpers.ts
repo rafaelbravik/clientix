@@ -161,9 +161,9 @@ export function seedGov(): void {
 
   sql(`
     ${users}
-    insert into public.organizations (id, slug, legal_name, display_name)
-      values ('${GOV_ORG}', 'gov-inv', 'Gov Invariant Org', 'Gov Inv')
-      on conflict do nothing;
+    insert into public.organizations (id, slug, legal_name, display_name, settings)
+      values ('${GOV_ORG}', 'gov-inv', 'Gov Invariant Org', 'Gov Inv', '{"plan":"enterprise"}'::jsonb)
+      on conflict (id) do update set settings = '{"plan":"enterprise"}'::jsonb;
     ${memberships}
     -- DO + exception (não ON CONFLICT): channel_sessions tem unique DEFERRABLE
     -- (phone_per_org), que ON CONFLICT sem arbiter rejeita, e o arbiter (id)

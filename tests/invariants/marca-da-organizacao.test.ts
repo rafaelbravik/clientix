@@ -81,7 +81,7 @@ const FN = "public.fn_definir_marca_da_organizacao(uuid,uuid,jsonb)";
  * aninhamento para achatar.
  */
 const SETTINGS_BASE =
-  '{"visibility_mode":"own","routing":{"mode":"round_robin"},"llm":{"provider":"anthropic"}}';
+  '{"plan":"enterprise","visibility_mode":"own","routing":{"mode":"round_robin"},"llm":{"provider":"anthropic"}}';
 
 const MEMBROS: ReadonlyArray<readonly [string, string, string]> = [
   [MARCA_ADMIN, "admin", "marca-admin"],
@@ -162,11 +162,11 @@ beforeAll(() => {
 
   sql(`
     ${usuarios}
-    insert into public.organizations (id, slug, legal_name, display_name)
-      values ('${MARCA_ORG}', 'marca-inv-0157', 'Marca Invariant Org', 'Marca Inv')
+    insert into public.organizations (id, slug, legal_name, display_name, settings)
+      values ('${MARCA_ORG}', 'marca-inv-0157', 'Marca Invariant Org', 'Marca Inv', '${SETTINGS_BASE}'::jsonb)
       on conflict do nothing;
-    insert into public.organizations (id, slug, legal_name, display_name)
-      values ('${MARCA_ORG_VIZINHA}', 'marca-inv-0157-vizinha', 'Marca Invariant Vizinha', 'Marca Viz')
+    insert into public.organizations (id, slug, legal_name, display_name, settings)
+      values ('${MARCA_ORG_VIZINHA}', 'marca-inv-0157-vizinha', 'Marca Invariant Vizinha', 'Marca Viz', '{"plan":"enterprise"}'::jsonb)
       on conflict do nothing;
     ${memberships}
     -- Admin da VIZINHA, e de mais nenhuma: é o ator cross-tenant do caso 3.

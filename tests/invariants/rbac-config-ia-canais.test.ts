@@ -187,7 +187,7 @@ const DIVIDA_RBAC_CONHECIDA = new Set([
   "disclosure_template_pointers", "disclosure_template_versions",
   "flywheel_distiller_proposals", "flywheel_judge_verdicts",
   "followup_enrollments", "followup_flow_pointers",
-  "idempotency_keys", "incidents", "job_queue", "judge_alignment_pool", "knowledge_searches",
+  "idempotency_keys", "incidents", "instagram_comment_rules", "job_queue", "judge_alignment_pool", "knowledge_searches",
   "lead_checkpoints", "lead_notes", "lead_state", "lead_state_transitions", "llm_calls",
   "meta_templates", "metrics", "nuvemshop_products", "orders", "org_memory_entries",
   "org_memory_pointers", "org_memory_versions", "organizations", "outbound_copies",

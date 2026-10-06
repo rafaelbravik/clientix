@@ -5,15 +5,18 @@
  */
 export interface TemplateContact {
   name?: string | null;
+  protocolo?: string | null;
 }
 
 export function interpolateTemplate(body: string, contact: TemplateContact): string {
   const full = (contact.name ?? "").trim();
   const first = full.split(/\s+/)[0] ?? "";
+  const protocolo = (contact.protocolo ?? "").trim();
   return body.replace(/\{\{\s*([a-zA-Z_]+)\s*\}\}/g, (literal, rawKey: string) => {
     const key = rawKey.toLowerCase();
     if (key === "nome") return full !== "" ? full : literal;
     if (key === "primeiro_nome") return first !== "" ? first : literal;
+    if (key === "protocolo") return protocolo !== "" ? protocolo : literal;
     return literal; // desconhecida: mantém
   });
 }

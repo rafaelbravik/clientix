@@ -68,8 +68,8 @@ function semear(org: string, tag: string): Semente {
   };
 
   sql(`
-    insert into public.organizations (id, slug, legal_name, display_name)
-      values ('${org}', 'zona-${tag}', 'Zona de perigo ${tag}', 'Zona ${tag}')
+    insert into public.organizations (id, slug, legal_name, display_name, settings)
+      values ('${org}', 'zona-${tag}', 'Zona de perigo ${tag}', 'Zona ${tag}', '{"plan":"enterprise"}'::jsonb)
       on conflict (id) do nothing;
     insert into public.channel_sessions (id, organization_id, waha_session_name, webhook_secret_encrypted)
       values ('${s.sess}', '${org}', 'zona-${tag}', '\\x00'::bytea),

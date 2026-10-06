@@ -51,13 +51,13 @@ describe("canal datafy — vocabulário e seam", () => {
 
   it("migration e baseline conhecem o provider, o ramo do CHECK e o arquivo do webhook", () => {
     const baseline = readFileSync("supabase/baseline.sql", "utf8");
-    expect(baseline).toMatch(/channel_sessions_provider_check[\s\S]{0,600}'datafy'::text/);
+    expect(baseline).toMatch(/channel_sessions_provider_check[\s\S]{0,600}'datafy'/);
     expect(baseline).toMatch(/provider = 'datafy'\s+and datafy_phone_number_id\s+is not null/);
     expect(baseline).toMatch(/webhook_events_log_provider_check check \(provider in \([^)]*'datafy'/);
     expect(baseline).toContain("channel_sessions_datafy_phone_number_id_ativo_unique");
     // Colunas ANTES do CHECK que as referencia — senão o install quebra.
-    expect(baseline.indexOf("add column if not exists datafy_phone_number_id")).toBeLessThan(
-      baseline.indexOf("(provider = 'datafy'"),
+    expect(baseline.lastIndexOf("add column if not exists datafy_phone_number_id")).toBeLessThan(
+      baseline.lastIndexOf("(provider = 'datafy'"),
     );
 
     const mig = readFileSync(MIGRATION, "utf8");

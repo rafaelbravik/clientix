@@ -432,6 +432,15 @@ async function executarCriacaoDeAgendamento(
     .select("id, starts_at, ends_at, status, time_zone, revision, meeting_state, meeting_url")
     .single();
   if (erroInsert) {
+    if (erroInsert.code === "23P01" || erroInsert.message?.includes("agenda_horario_indisponivel") || erroInsert.code === "23505") {
+      throw new ApiError(
+        409,
+        "agenda_horario_indisponivel",
+        undefined,
+        ctx.requestId,
+        "Este horário já está ocupado na agenda de quem atende — por outro compromisso ou pelo Google Agenda.",
+      );
+    }
     throw new ApiError(500, "internal_error", undefined, ctx.requestId, erroInsert.message);
   }
 
@@ -1228,8 +1237,19 @@ async function leadAtivoDoContato(
 
 async function alteraComRevisao(supabase:SB,ctx:HandlerCtx,id:string,revision:number,patch:Record<string,unknown>):Promise<Record<string,unknown>> {
   const {data,error}=await supabase.rpc("fn_appointment_change",{p_org:ctx.organization_id,p_id:id,p_revision:revision,p_patch:patch});
-  if(error) throw new ApiError(error.code === "40001" ? 409 : error.code === "42501" ? 403 : error.code === "P0002" ? 404 : 422,
-    error.code === "40001" ? "conflict" : error.code === "42501" ? "forbidden" : error.code === "P0002" ? "not_found" : "validation_failed",undefined,ctx.requestId,
-    error.code === "40001" ? "Este compromisso mudou. Atualize os dados antes de confirmar novamente." : "Não foi possível alterar este compromisso. Confira a presença, o horário e a mensagem vinculada.");
+  if(error) {
+    if (error.code === "23P01" || error.message?.includes("agenda_horario_indisponivel")) {
+      throw new ApiError(
+        409,
+        "agenda_horario_indisponivel",
+        undefined,
+        ctx.requestId,
+        "Este horário já está ocupado na agenda de quem atende — por outro compromisso ou pelo Google Agenda.",
+      );
+    }
+    throw new ApiError(error.code === "40001" ? 409 : error.code === "42501" ? 403 : error.code === "P0002" ? 404 : 422,
+      error.code === "40001" ? "conflict" : error.code === "42501" ? "forbidden" : error.code === "P0002" ? "not_found" : "validation_failed",undefined,ctx.requestId,
+      error.code === "40001" ? "Este compromisso mudou. Atualize os dados antes de confirmar novamente." : "Não foi possível alterar este compromisso. Confira a presença, o horário e a mensagem vinculada.");
+  }
   return data as Record<string,unknown>;
 }

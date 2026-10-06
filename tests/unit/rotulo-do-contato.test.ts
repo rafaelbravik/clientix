@@ -233,6 +233,42 @@ describe("a sétima cópia não nasce", () => {
       trecho: "display_name: data.display_name ?? null,",
       motivo: "o export de LGPD entrega as DUAS colunas do titular cruas; não decide nome",
     },
+    // ── canais e sessões sociais (0503-0507): nomes do canal/bot/inbox em channel_sessions ──
+    {
+      arquivo: "app/api/v1/channels/email/route.ts",
+      trecho: "display_name: display_name || email_address,",
+      motivo: "grava display_name de channel_sessions do e-mail, não de contato",
+    },
+    {
+      arquivo: "app/api/v1/channels/instagram/route.ts",
+      trecho: 'display_name: display_name ?? account.name ?? account.username ?? "Instagram Direct",',
+      motivo: "grava display_name de channel_sessions do Instagram Direct, não de contato",
+    },
+    {
+      arquivo: "app/api/v1/channels/telegram/route.ts",
+      trecho: "const botName = display_name || me.first_name || me.username || `Bot ${botIdStr}`;",
+      motivo: "nome de exibição da sessão do bot Telegram, não de contato",
+    },
+    {
+      arquivo: "app/api/v1/channels/tiktok/route.ts",
+      trecho: 'display_name: display_name ?? info.display_name ?? info.username ?? "TikTok Business",',
+      motivo: "grava display_name de channel_sessions do TikTok Business, não de contato",
+    },
+    {
+      arquivo: "components/connections/CanalEmailClient.tsx",
+      trecho: "<h3 className=\"text-base font-medium\">{emailData.display_name || emailData.email_address}</h3>",
+      motivo: "título do card de conexão do canal de e-mail (channel_sessions), não de contato",
+    },
+    {
+      arquivo: "components/connections/CanalTelegramClient.tsx",
+      trecho: '<h3 className="text-base font-medium">{botData.display_name || botData.username || "Bot Conectado"}</h3>',
+      motivo: "título do card de conexão do bot Telegram (channel_sessions), não de contato",
+    },
+    {
+      arquivo: "lib/channels/adapters/tiktok.ts",
+      trecho: "detail: info.display_name ?? null,",
+      motivo: "nome comercial da conta TikTok retornado pela API da plataforma no healthcheck",
+    },
   ];
 
   /**

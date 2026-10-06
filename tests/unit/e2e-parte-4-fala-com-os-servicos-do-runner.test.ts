@@ -99,20 +99,27 @@ function passoInteiro(nome: string): string {
 }
 
 /** Um diretório com `docker` e `sleep` de mentira: a sonda roda sem esperar nem sujar nada. */
-function pathComShims(): { pasta: string; PATH: string } {
+function pathComShims(): { pasta: string; PATH: string; gitBash: string } {
   const pasta = fs.mkdtempSync(path.join(os.tmpdir(), "parte4-"));
   const bin = path.join(pasta, "bin");
   fs.mkdirSync(bin);
   for (const nome of ["docker", "sleep"]) {
     fs.writeFileSync(path.join(bin, nome), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
   }
-  return { pasta, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}` };
+  const sep = process.platform === "win32" ? ";" : ":";
+  const pathPrefix =
+    process.platform === "win32"
+      ? `${bin}${sep}C:\\Program Files\\Git\\bin${sep}C:\\Program Files\\Git\\usr\\bin`
+      : bin;
+  const gitBash =
+    process.platform === "win32" ? "C:\\Program Files\\Git\\bin\\bash.exe" : "bash";
+  return { pasta, PATH: `${pathPrefix}${sep}${process.env.PATH ?? ""}`, gitBash };
 }
 
 describe("a parte 4 do e2e fala com os serviços que ela sobe", () => {
   it("o SERVIDOR recebe as URLs do runner — o .env.e2e é reescrito, não só o $GITHUB_ENV", () => {
     const trecho = secao(PASSO, "# 2. O que a spec fresca", "# 3. A cadeia de Redis");
-    const { pasta, PATH } = pathComShims();
+    const { pasta, PATH, gitBash } = pathComShims();
 
     // As linhas que o GERADOR escreve para as chaves que o passo sobrepõe — as
     // mesmas que, em colisão, venciam no servidor.
@@ -133,10 +140,19 @@ describe("a parte 4 do e2e fala com os serviços que ela sobe", () => {
     const githubEnv = path.join(pasta, "github_env");
     fs.writeFileSync(githubEnv, "");
 
-    const r = spawnSync("bash", ["-c", trecho.replaceAll("/tmp/", `${pasta}/`)], {
+    const pastaUnix =
+      process.platform === "win32"
+        ? pasta.replace(/^[A-Za-z]:/, (m) => "/" + m[0]!.toLowerCase()).split("\\").join("/")
+        : pasta;
+    const githubEnvUnix =
+      process.platform === "win32"
+        ? githubEnv.replace(/^[A-Za-z]:/, (m) => "/" + m[0]!.toLowerCase()).split("\\").join("/")
+        : githubEnv;
+
+    const r = spawnSync(gitBash, ["-c", trecho.replaceAll("/tmp/", `${pastaUnix}/`)], {
       cwd: pasta,
       encoding: "utf8",
-      env: { ...process.env, PATH, GITHUB_ENV: githubEnv },
+      env: { ...process.env, PATH, GITHUB_ENV: githubEnvUnix },
     });
     expect(r.status, `o trecho do passo falhou: ${r.stderr}`).toBe(0);
 
@@ -157,23 +173,32 @@ describe("a parte 4 do e2e fala com os serviços que ela sobe", () => {
     expect(trecho, "a sonda deixou de mirar a porta publicada do redis-http").toContain(
       "127.0.0.1:8079",
     );
-    const { PATH } = pathComShims();
+    const { pasta, PATH, gitBash } = pathComShims();
+    const binUnix =
+      process.platform === "win32"
+        ? path.join(pasta, "bin").replace(/^[A-Za-z]:/, (m) => "/" + m[0]!.toLowerCase()).split("\\").join("/")
+        : path.join(pasta, "bin");
+
     // A porta 1 não tem ninguém escutando: a sonda recebe "connection refused"
     // na hora, e o `sleep` de mentira faz as voltas custarem nada.
     const r = spawnSync(
-      "bash",
-      ["-c", `${trecho.replaceAll("127.0.0.1:8079", "127.0.0.1:1")}\necho SEGUIU`],
+      gitBash,
+      ["-c", `export PATH="${binUnix}:$PATH"\n${trecho.replaceAll("127.0.0.1:8079", "127.0.0.1:1")}\necho SEGUIU`],
       { encoding: "utf8", env: { ...process.env, PATH } },
     );
     expect(r.stdout, "a espera terminou e o passo SEGUIU sem Redis — falha aberta").not.toContain(
       "SEGUIU",
     );
     expect(r.status).not.toBe(0);
-  });
+  }, 90_000);
 
   it("a sonda do Redis fala o protocolo do serverless-redis-http (JSON, com Content-Type)", async () => {
     const trecho = secao(PASSO, "# 3. A cadeia de Redis", "# 4. Alguns scripts");
-    const { PATH } = pathComShims();
+    const { pasta, PATH, gitBash } = pathComShims();
+    const binUnix =
+      process.platform === "win32"
+        ? path.join(pasta, "bin").replace(/^[A-Za-z]:/, (m) => "/" + m[0]!.toLowerCase()).split("\\").join("/")
+        : path.join(pasta, "bin");
 
     // O contrato medido contra o digest do compose: sem `application/json`, 400.
     // Conta os PONGs: "o passo seguiu" sozinho também é o que uma espera que
@@ -194,8 +219,8 @@ describe("a parte 4 do e2e fala com os serviços que ela sobe", () => {
 
     const r = await new Promise<{ status: number | null; stdout: string }>((ok) => {
       const p = spawn(
-        "bash",
-        ["-c", `${trecho.replaceAll("127.0.0.1:8079", `127.0.0.1:${porta}`)}\necho SEGUIU`],
+        gitBash,
+        ["-c", `export PATH="${binUnix}:$PATH"\n${trecho.replaceAll("127.0.0.1:8079", `127.0.0.1:${porta}`)}\necho SEGUIU`],
         { env: { ...process.env, PATH } },
       );
       let stdout = "";

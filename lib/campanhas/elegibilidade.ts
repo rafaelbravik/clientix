@@ -30,10 +30,13 @@ import type { MotivoDeExclusao } from "./tipos";
 export interface ContatoParaDecidir {
   contactId: string;
   telefone: string | null;
+  email?: string | null;
+  telegramChatId?: string | null;
   bloqueado: boolean;
   anonimizado: boolean;
   /** `consent.marketing.declined_at` — recusa REGISTRADA, diferente de ausência. */
   recusouMarketing: boolean;
+  canal?: "whatsapp" | "telegram" | "email";
 }
 
 /** O telefone que o canal aceita: E.164 com `+`, o mesmo CHECK de `contacts.phone_number`. */
@@ -47,14 +50,41 @@ const E164 = /^\+\d{8,15}$/;
  * alguém que pediu para parar, e trocar isso na tela seria mentir sobre o
  * motivo de não ter recebido.
  */
-export function motivoParaExcluir(c: ContatoParaDecidir): MotivoDeExclusao | null {
+export function motivoParaExcluir(
+  c: ContatoParaDecidir,
+  canal: "whatsapp" | "telegram" | "email" = c.canal ?? "whatsapp",
+): MotivoDeExclusao | null {
   if (c.bloqueado) return "opt_out";
   if (c.anonimizado) return "anonimizado";
   if (c.recusouMarketing) return "recusou_marketing";
+
+  if (canal === "email") {
+    const email = c.email?.trim() ?? "";
+    if (email === "") return "sem_email";
+    if (!email.includes("@") || !email.includes(".")) return "email_invalido";
+    return null;
+  }
+
+  if (canal === "telegram") {
+    const chatId = c.telegramChatId?.trim() ?? "";
+    const telefone = c.telefone?.trim() ?? "";
+    if (chatId === "" && telefone === "") return "sem_telegram";
+    return null;
+  }
+
   const telefone = c.telefone?.trim() ?? "";
   if (telefone === "") return "sem_telefone";
   if (!E164.test(telefone)) return "telefone_invalido";
   return null;
+}
+
+export function enderecoDoCandidato(
+  c: ContatoParaDecidir,
+  canal: "whatsapp" | "telegram" | "email" = c.canal ?? "whatsapp",
+): string {
+  if (canal === "email") return (c.email ?? "").trim().toLowerCase();
+  if (canal === "telegram") return (c.telegramChatId || c.telefone || "").trim();
+  return (c.telefone ?? "").trim();
 }
 
 /** Um candidato do recorte, já lido do banco. */
@@ -71,6 +101,7 @@ export interface LinhaClassificada {
 }
 
 export interface ContextoDaClassificacao {
+  canal?: "whatsapp" | "telegram" | "email";
   /** Contatos que o operador tirou à mão desta campanha. */
   excluidosAMao: ReadonlySet<string>;
   /** Contatos já comprometidos com outra campanha não concluída. */
@@ -88,7 +119,7 @@ export interface ContextoDaClassificacao {
 
 /**
  * Classifica a lista inteira — é aqui que moram os dois vetos que não cabem numa
- * pessoa isolada: DUPLICADO (dois cadastros, um telefone) e JÁ EM CAMPANHA.
+ * pessoa isolada: DUPLICADO (dois cadastros, um telefone/endereço) e JÁ EM CAMPANHA.
  *
  * ═══ Por que duplicado é veto, e não "manda para os dois" ═══
  *
@@ -112,6 +143,7 @@ export function classificarAudiencia(
 ): LinhaClassificada[] {
   const enderecosVistos = new Set<string>();
   const saida: LinhaClassificada[] = [];
+  const canal = ctx.canal ?? "whatsapp";
 
   for (const candidato of candidatos) {
     const excluir = (motivo: MotivoDeExclusao): void => {
@@ -122,7 +154,7 @@ export function classificarAudiencia(
       excluir("excluido_manualmente");
       continue;
     }
-    const pessoal = motivoParaExcluir(candidato);
+    const pessoal = motivoParaExcluir(candidato, canal);
     if (pessoal) {
       excluir(pessoal);
       continue;
@@ -131,7 +163,11 @@ export function classificarAudiencia(
       excluir("ja_em_campanha");
       continue;
     }
-    const endereco = candidato.telefone!.trim();
+    const endereco = enderecoDoCandidato(candidato, canal);
+    if (!endereco) {
+      excluir(canal === "email" ? "sem_email" : (canal === "telegram" ? "sem_telegram" : "sem_telefone"));
+      continue;
+    }
     if (ctx.suprimidos.has(ctx.hashDoEndereco(endereco))) {
       excluir("suprimido");
       continue;

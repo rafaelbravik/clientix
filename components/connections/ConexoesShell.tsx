@@ -4,6 +4,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { RedesSociaisClient } from "./RedesSociaisClient";
+import { CanalTelegramClient } from "./CanalTelegramClient";
+import { CanalEmailClient } from "./CanalEmailClient";
+import { CanalWidgetClient } from "./CanalWidgetClient";
 import { CanalGraphParceiroClient } from "./CanalGraphParceiroClient";
 import { CanalOficialClient } from "./CanalOficialClient";
 import { CanalParceiroClient } from "./CanalParceiroClient";
@@ -68,9 +71,15 @@ export function ConexoesShell({
           ? "telefonia"
           : abaParam === "voz"
             ? "voz"
-            : abaParam === "graph" && graphParceiro
-              ? "graph"
-              : "numeros";
+            : abaParam === "telegram"
+              ? "telegram"
+              : abaParam === "email"
+                ? "email"
+                : abaParam === "widget"
+                  ? "widget"
+                  : abaParam === "graph" && graphParceiro
+                    ? "graph"
+                    : "numeros";
   const sub = params.get("sub") === "templates" ? "templates" : "conexao";
 
   const irPara = (proximaAba: string, proximaSub?: string): void => {
@@ -86,22 +95,11 @@ export function ConexoesShell({
   return (
     <Tabs value={aba} onValueChange={(v) => irPara(v, sub)} className="flex flex-col gap-4">
       <TabsList className="h-auto max-w-full flex-wrap justify-start">
-        {/* Rótulos pelo que o usuário RECONHECE, não pelo nome técnico do motor por
-            trás: ele sabe se leu um QR ou se tem conta na Meta; a sigla do provedor
-            não diz nada a quem instalou o sistema para vender.
-
-            Este comentário já citou a sigla como exemplo — e o `lint:channels`
-            reprovou, porque o regex da doutrina não distingue prosa de código
-            (limitação registrada no próprio `scripts/lint-channels.ts`). Reescrever
-            a frase custou menos que abrir exceção no gate, e o gate continua
-            estrito: o dia em que alguém escrever o nome do provider aqui DE VERDADE,
-            ele reprova igual. */}
         <TabsTrigger value="numeros">{t("Números por QR")}</TabsTrigger>
         <TabsTrigger value="oficial">{t("API Oficial (Meta)")}</TabsTrigger>
-        {/* "Provedor parceiro" e não a marca: o rótulo da marca vem do servidor
-            (`lib/channels/connect`), porque a tela não pode nomear provider — e
-            porque no dia em que houver um segundo parceiro esta aba não muda.
-            Aqui fica o CONCEITO; lá dentro o cartão diz de quem se trata. */}
+        <TabsTrigger value="telegram">{t("Telegram")}</TabsTrigger>
+        <TabsTrigger value="email">{t("E-mail")}</TabsTrigger>
+        <TabsTrigger value="widget">{t("Chat do Site")}</TabsTrigger>
         <TabsTrigger value="parceiro">{t("Provedor parceiro")}</TabsTrigger>
         <TabsTrigger value="telefonia">{t("Telefone")}</TabsTrigger>
         <TabsTrigger value="sociais">{t("Redes sociais")}</TabsTrigger>
@@ -111,6 +109,18 @@ export function ConexoesShell({
 
       <TabsContent value="numeros" className="mt-0">
         <ConnectionsClient wahaConfigured={wahaConfigured} />
+      </TabsContent>
+
+      <TabsContent value="telegram" className="mt-0">
+        <CanalTelegramClient />
+      </TabsContent>
+
+      <TabsContent value="email" className="mt-0">
+        <CanalEmailClient />
+      </TabsContent>
+
+      <TabsContent value="widget" className="mt-0">
+        <CanalWidgetClient />
       </TabsContent>
 
       <TabsContent value="telefonia" className="mt-0">

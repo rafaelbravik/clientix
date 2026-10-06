@@ -115,10 +115,10 @@ beforeAll(() => {
       ('${ADMIN_B}',     'aviso-0292-admin-b@invariant.test')
       on conflict do nothing;
 
-    insert into public.organizations (id, slug, legal_name, display_name) values
-      ('${ORG_A}', 'aviso-0292-a', 'Aviso 0292 A', 'Aviso 0292 A'),
-      ('${ORG_B}', 'aviso-0292-b', 'Aviso 0292 B', 'Aviso 0292 B')
-      on conflict do nothing;
+    insert into public.organizations (id, slug, legal_name, display_name, settings) values
+      ('${ORG_A}', 'aviso-0292-a', 'Aviso 0292 A', 'Aviso 0292 A', '{"plan":"pro"}'::jsonb),
+      ('${ORG_B}', 'aviso-0292-b', 'Aviso 0292 B', 'Aviso 0292 B', '{"plan":"pro"}'::jsonb)
+      on conflict (id) do update set settings = '{"plan":"pro"}'::jsonb;
 
     insert into public.user_organizations (user_id, organization_id, role, accepted_at) values
       ('${ADMIN_A}',     '${ORG_A}', 'admin',   now()),

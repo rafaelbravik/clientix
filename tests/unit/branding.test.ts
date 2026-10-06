@@ -912,6 +912,16 @@ const HOSTS_DECLARADOS: Record<string, EntradaDeHost> = {
     motivo:
       "endpoint padrão do canal parceiro que espelha a Cloud API (recorte do #1130), com override por DATAFY_API_BASE_URL. É o destino das chamadas de envio e de validação do token — e o canal só existe numa instalação que o liga (DATAFY_ENABLED).",
   },
+  "api.telegram.org": {
+    categoria: "FORNECEDOR",
+    motivo:
+      "endpoint oficial da API do Telegram Bot (lib/channels/telegram/client.ts). Destino das chamadas de envio e webhook do canal Telegram.",
+  },
+  "business-api.tiktok.com": {
+    categoria: "FORNECEDOR",
+    motivo:
+      "endpoint oficial da Business API do TikTok (lib/channels/tiktok/client.ts). Destino das chamadas de envio e mensagens do canal TikTok.",
+  },
   // ── painel do fornecedor: texto de tela apontando para o endereço DELE ────
   "platform.openai.com": {
     categoria: "CONSOLE",

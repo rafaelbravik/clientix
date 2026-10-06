@@ -28,11 +28,12 @@ import { traduzir } from "@/lib/i18n/dicionario";
 import { requireSupportWrite } from "@/lib/impersonate/support";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { checkFeatureQuota } from "@/lib/tenant/plan-limits";
 
 export const dynamic = "force-dynamic";
 
 const COLUNAS_DA_LISTA =
-  "id, name, status, channel_session_id, snapshot_total, snapshot_eligible, snapshot_excluded, " +
+  "id, name, status, channel, email_subject, channel_session_id, snapshot_total, snapshot_eligible, snapshot_excluded, " +
   "scheduled_at, started_at, completed_at, cancelled_at, created_at, created_by, " +
   "pipeline_id, stage_id, agent_id";
 
@@ -111,6 +112,13 @@ export async function POST(req: NextRequest): Promise<Response> {
   // perde: `org.orgId` vem do `requireRole()` acima, nunca do corpo, e entra
   // explicitamente em toda consulta abaixo.
   const supabase = createAdminClient();
+  const featureCheck = await checkFeatureQuota(supabase, org.orgId, "campaigns");
+  if (!featureCheck.allowed) {
+    return fail("feature_disabled", featureCheck.reason ?? "Módulo de campanhas não disponível no plano.", 403, {
+      requestId,
+    });
+  }
+
   // A conexão é conferida CONTRA A ORGANIZAÇÃO: a FK composta da 0375 recusaria
   // o número de outro tenant, mas a recusa do banco chegaria como erro genérico.
   const { data: canal } = await supabase
@@ -122,7 +130,7 @@ export async function POST(req: NextRequest): Promise<Response> {
   if (!canal) {
     return fail(
       "campanha_canal_indisponivel",
-      t("Escolha uma conexão de WhatsApp desta organização."),
+      t("Escolha uma conexão válida desta organização."),
       409,
       { requestId },
     );
@@ -133,6 +141,8 @@ export async function POST(req: NextRequest): Promise<Response> {
     .insert({
       organization_id: org.orgId,
       name: entrada.name,
+      channel: entrada.channel,
+      email_subject: entrada.email_subject ?? null,
       description: entrada.description ?? null,
       channel_session_id: entrada.channel_session_id,
       message_body: entrada.message_body ?? null,

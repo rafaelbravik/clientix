@@ -32,6 +32,7 @@ import {
   useFunis,
 } from "@/hooks/campanhas/useDestinoDaCampanha";
 import { VARIAVEIS_DA_CAMPANHA, DESCRICAO_DA_VARIAVEL } from "@/lib/campanhas/renderizador";
+import { channelBrand } from "@/lib/channels/presentation";
 
 export function NovaCampanha() {
   const t = useT();
@@ -41,6 +42,8 @@ export function NovaCampanha() {
   const previa = usePreviaDaAudiencia();
 
   const [nome, setNome] = useState("");
+  const [tipoCanal, setTipoCanal] = useState<"whatsapp" | "telegram" | "email">("whatsapp");
+  const [assuntoEmail, setAssuntoEmail] = useState("");
   const [canal, setCanal] = useState("");
   const [baseLegal, setBaseLegal] = useState<"consent" | "legitimate_interest">("consent");
   const [liaRef, setLiaRef] = useState("");
@@ -61,10 +64,18 @@ export function NovaCampanha() {
   const [funilDoPublico, setFunilDoPublico] = useState("");
   const [etapaDoPublico, setEtapaDoPublico] = useState("");
 
+  const [origemPublico, setOrigemPublico] = useState<"filtro" | "csv">("filtro");
+  const [csvFileName, setCsvFileName] = useState("");
+  const [csvContacts, setCsvContacts] = useState<Array<{ name?: string; contact: string }>>([]);
+
   const funis = useFunis();
   const etapas = useEtapas(funil || null);
   const etapasDoPublico = useEtapas(funilDoPublico || null);
   const agentes = useAgentesPublicados();
+
+  const canaisFiltrados = useMemo(() => {
+    return (canais.data ?? []).filter((c) => channelBrand(c) === tipoCanal);
+  }, [canais.data, tipoCanal]);
 
   const filtro = useMemo(
     () => ({
@@ -74,11 +85,14 @@ export function NovaCampanha() {
       funis: funilDoPublico ? [funilDoPublico] : [],
       etapas: etapaDoPublico ? [etapaDoPublico] : [],
       limite: Number(limite) || 100,
+      origem: origemPublico,
+      csv_leads: origemPublico === "csv" ? csvContacts : undefined,
     }),
-    [comAlgumaTag, semTags, semInteracao, funilDoPublico, etapaDoPublico, limite],
+    [comAlgumaTag, semTags, semInteracao, funilDoPublico, etapaDoPublico, limite, origemPublico, csvContacts],
   );
 
   const temCriterio =
+    (origemPublico === "csv" && csvContacts.length > 0) ||
     filtro.com_alguma_tag.length > 0 ||
     filtro.sem_tags.length > 0 ||
     filtro.funis.length > 0 ||
@@ -89,12 +103,15 @@ export function NovaCampanha() {
     nome.trim() !== "" &&
     canal !== "" &&
     texto.trim() !== "" &&
+    (tipoCanal !== "email" || assuntoEmail.trim() !== "") &&
     temCriterio &&
     (baseLegal !== "legitimate_interest" || liaRef.trim() !== "");
 
   async function salvar() {
     const criada = await criar.mutateAsync({
       name: nome.trim(),
+      channel: tipoCanal,
+      email_subject: tipoCanal === "email" ? assuntoEmail.trim() : null,
       channel_session_id: canal,
       message_body: texto.trim(),
       base_legal: baseLegal,
@@ -124,6 +141,59 @@ export function NovaCampanha() {
 
       <Card className="space-y-4 p-4">
         <h2 className="font-medium">{t("Informações")}</h2>
+
+        {/* Seletor de Canal */}
+        <div className="space-y-2">
+          <Label>{t("Canal de envio")}</Label>
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              type="button"
+              className={`flex items-center justify-center gap-2 rounded-lg border p-3 text-sm font-medium transition-all ${
+                tipoCanal === "whatsapp"
+                  ? "border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-sm"
+                  : "border-border bg-surface hover:bg-surface-elevated text-muted-foreground"
+              }`}
+              onClick={() => {
+                setTipoCanal("whatsapp");
+                setCanal("");
+              }}
+            >
+              <span>📱</span>
+              <span>WhatsApp</span>
+            </button>
+            <button
+              type="button"
+              className={`flex items-center justify-center gap-2 rounded-lg border p-3 text-sm font-medium transition-all ${
+                tipoCanal === "telegram"
+                  ? "border-sky-500 bg-sky-500/10 text-sky-600 dark:text-sky-400 shadow-sm"
+                  : "border-border bg-surface hover:bg-surface-elevated text-muted-foreground"
+              }`}
+              onClick={() => {
+                setTipoCanal("telegram");
+                setCanal("");
+              }}
+            >
+              <span>✈️</span>
+              <span>Telegram</span>
+            </button>
+            <button
+              type="button"
+              className={`flex items-center justify-center gap-2 rounded-lg border p-3 text-sm font-medium transition-all ${
+                tipoCanal === "email"
+                  ? "border-blue-500 bg-blue-500/10 text-blue-600 dark:text-blue-400 shadow-sm"
+                  : "border-border bg-surface hover:bg-surface-elevated text-muted-foreground"
+              }`}
+              onClick={() => {
+                setTipoCanal("email");
+                setCanal("");
+              }}
+            >
+              <span>✉️</span>
+              <span>E-mail</span>
+            </button>
+          </div>
+        </div>
+
         <div className="space-y-2">
           <Label htmlFor="nome">{t("Nome da campanha")}</Label>
           <Input
@@ -133,24 +203,53 @@ export function NovaCampanha() {
             placeholder={t("Ex.: Reativação de clientes parados")}
           />
         </div>
+
+        {tipoCanal === "email" && (
+          <div className="space-y-2">
+            <Label htmlFor="assunto-email">{t("Assunto do e-mail")}</Label>
+            <Input
+              id="assunto-email"
+              value={assuntoEmail}
+              onChange={(e) => setAssuntoEmail(e.target.value)}
+              placeholder={t("Ex.: Novidades exclusivas para você")}
+            />
+          </div>
+        )}
+
         <div className="space-y-2">
-          <Label htmlFor="canal">{t("Enviar pelo número")}</Label>
+          <Label htmlFor="canal">
+            {tipoCanal === "email"
+              ? t("Enviar pelo e-mail")
+              : tipoCanal === "telegram"
+              ? t("Enviar pelo bot do Telegram")
+              : t("Enviar pelo número")}
+          </Label>
           <select
             id="canal"
             className="h-9 w-full rounded-md border border-border bg-surface px-2 text-sm"
             value={canal}
             onChange={(e) => setCanal(e.target.value)}
           >
-            <option value="">{t("Escolha um número")}</option>
-            {(canais.data ?? []).map((c) => (
+            <option value="">
+              {tipoCanal === "email"
+                ? t("Escolha um e-mail de atendimento")
+                : tipoCanal === "telegram"
+                ? t("Escolha um bot")
+                : t("Escolha um número")}
+            </option>
+            {canaisFiltrados.map((c) => (
               <option key={c.id} value={c.id}>
                 {channelLabel(c, t)}
               </option>
             ))}
           </select>
-          {canais.data?.length === 0 && (
+          {canaisFiltrados.length === 0 && (
             <p className="text-sm text-warning-fg">
-              {t("Nenhum número conectado. Conecte um em Conexões antes de criar a campanha.")}
+              {tipoCanal === "email"
+                ? t("Nenhum e-mail de atendimento conectado. Configure em Conexões › E-mail.")
+                : tipoCanal === "telegram"
+                ? t("Nenhum bot do Telegram conectado. Configure em Conexões › Telegram.")
+                : t("Nenhum número conectado. Conecte um em Conexões antes de criar a campanha.")}
             </p>
           )}
         </div>
@@ -230,10 +329,81 @@ export function NovaCampanha() {
       </Card>
 
       <Card className="space-y-4 p-4">
-        <h2 className="font-medium">{t("Público")}</h2>
-        <p className="text-sm text-muted-foreground">
-          {t("Escolha pelo menos um critério — uma lista sem recorte ninguém confere antes de apertar.")}
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
+          <div>
+            <h2 className="font-medium">{t("Público Alvo")}</h2>
+            <p className="text-sm text-muted-foreground">
+              {t("Selecione os contatos do CRM ou envie uma lista avulsa de leads via arquivo.")}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant={origemPublico === "filtro" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setOrigemPublico("filtro")}
+            >
+              {t("Filtro no CRM")}
+            </Button>
+            <Button
+              type="button"
+              variant={origemPublico === "csv" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setOrigemPublico("csv")}
+            >
+              {t("Arquivo CSV / TXT")}
+            </Button>
+          </div>
+        </div>
+
+        {origemPublico === "csv" ? (
+          <div className="space-y-4 rounded-lg border border-dashed p-6 text-center">
+            <div className="mx-auto max-w-sm space-y-2">
+              <Label htmlFor="csv-upload" className="cursor-pointer font-medium block">
+                <span className="text-2xl block mb-1">📄</span>
+                <span>{csvFileName || t("Clique para selecionar seu arquivo CSV ou TXT")}</span>
+              </Label>
+              <input
+                id="csv-upload"
+                type="file"
+                accept=".csv,.txt"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setCsvFileName(file.name);
+                  const reader = new FileReader();
+                  reader.onload = (event) => {
+                    const text = event.target?.result as string;
+                    if (!text) return;
+                    const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+                    const parsed: Array<{ name?: string; contact: string }> = [];
+                    for (const line of lines) {
+                      const parts = line.split(/[,;\t]/).map((p) => p.trim());
+                      if (parts.length >= 2) {
+                        parsed.push({ name: parts[0], contact: parts[1] ?? "" });
+                      } else if (parts[0]) {
+                        parsed.push({ contact: parts[0] });
+                      }
+                    }
+                    setCsvContacts(parsed);
+                  };
+                  reader.readAsText(file);
+                }}
+              />
+              <p className="text-xs text-muted-foreground">
+                {t("Formato: uma linha por contato ou 'Nome, Telefone/E-mail'. Suporta arquivos .csv e .txt")}
+              </p>
+            </div>
+
+            {csvContacts.length > 0 && (
+              <div className="rounded-md bg-emerald-500/10 border border-emerald-500/20 p-3 text-sm text-emerald-600 dark:text-emerald-400">
+                <strong>{csvContacts.length}</strong> {t("contatos carregados com sucesso do arquivo!")}
+              </div>
+            )}
+          </div>
+        ) : (
+        <div className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="com-tags">{t("Com alguma destas etiquetas")}</Label>
@@ -317,7 +487,12 @@ export function NovaCampanha() {
             variant="outline"
             disabled={!temCriterio || previa.isPending}
             onClick={() =>
-              previa.mutate({ audience_filter: filtro, message_body: texto })
+              previa.mutate({
+                audience_filter: filtro,
+                message_body: texto,
+                channel: tipoCanal,
+                email_subject: tipoCanal === "email" ? assuntoEmail.trim() : null,
+              })
             }
           >
             {previa.isPending ? t("Contando…") : t("Ver quantas pessoas")}
@@ -339,6 +514,8 @@ export function NovaCampanha() {
               </li>
             ))}
           </ul>
+        )}
+        </div>
         )}
       </Card>
 

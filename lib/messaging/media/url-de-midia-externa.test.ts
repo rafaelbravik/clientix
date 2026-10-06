@@ -17,7 +17,11 @@ describe("assertUrlDeMidiaSegura", () => {
     ["esquema que não é http", "file:///etc/passwd", "unsafe_url:scheme"],
     ["lixo", "não é url", "unsafe_url:invalid"],
     // Parece Storage, mas não é a origem DESTA instalação: não herda a exceção.
-    ["Storage de outra origem", "http://127.0.0.1:54321/storage/v1/object/sign/x?token=t", "unsafe_url:private_host"],
+    [
+      "Storage de outra origem",
+      `${new URL(env.NEXT_PUBLIC_SUPABASE_URL).origin === "http://127.0.0.1:54321" ? "http://127.0.0.1:54322" : "http://127.0.0.1:54321"}/storage/v1/object/sign/x?token=t`,
+      "unsafe_url:private_host",
+    ],
   ])("recusa %s", async (_nome, url, motivo) => {
     await expect(assertUrlDeMidiaSegura(url)).rejects.toThrow(motivo);
   });

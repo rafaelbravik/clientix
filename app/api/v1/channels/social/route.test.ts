@@ -10,6 +10,7 @@ const h = vi.hoisted(() => ({
   channels: vi.fn(),
   accounts: vi.fn(),
   limit: vi.fn(),
+  connect: vi.fn(),
 }));
 vi.mock("@/lib/auth/require-role", () => ({ requireRole: h.role }));
 vi.mock("@/lib/auth/server", () => ({ mfaEmDivida: h.mfa }));
@@ -17,11 +18,12 @@ vi.mock("@/lib/impersonate/support", () => ({ requireSupportWrite: h.support }))
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({}) }));
 vi.mock("@/lib/audit", () => ({ audit: h.audit }));
 vi.mock("@/lib/ai/dispatcher/rate-limit", () => ({ checkRateLimit: h.limit }));
+vi.mock("@/lib/env", () => ({ env: { NEXT_PUBLIC_APP_URL: "https://crm.test" } }));
 vi.mock("@/lib/channels/social/store", () => ({
   readSocialIntegration: h.read,
   configureSocialIntegration: h.configure,
   socialChannels: h.channels,
-  connectSocialInbox: vi.fn(),
+  connectSocialInbox: h.connect,
 }));
 vi.mock("@/lib/channels/social/client", async (original) => ({
   ...(await original<typeof SocialClient>()),
@@ -82,3 +84,15 @@ it("blocks missing role, read-only support and missing MFA proof", async () => {
   expect((await call({})).status).toBe(403);
   expect(h.configure).not.toHaveBeenCalled();
 });
+it("retorna 403 quando connectSocialInbox rejeita por entitlement ou cota", async () => {
+  const { SocialError } = await import("@/lib/channels/social/client");
+  h.connect.mockRejectedValue(
+    new SocialError("O canal 'instagram' não está disponível no plano STANDARD.", 403),
+  );
+  const response = await call({ action: "inbox", account_id: "a".repeat(24) });
+  expect(response.status).toBe(403);
+  const data = await response.json();
+  expect(data.error.message).toContain("não está disponível no plano STANDARD");
+  expect(data.error.code).toBe("social_unavailable");
+});
+

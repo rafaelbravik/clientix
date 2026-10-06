@@ -21,15 +21,62 @@ import { describe, expect, it } from "vitest";
 const GUARDA = "infra/executor-proprio/so-o-que-e-nosso.sh";
 const REPO = "melgarafael/DeskcommCRM";
 
+let stubJq = "";
+
+function montarJqSeNecessario(): string {
+  if (process.platform !== "win32") return "";
+  if (stubJq) return stubJq;
+  stubJq = mkdtempSync(join(tmpdir(), "jq-stub-"));
+  const jqPath = join(stubJq, "jq");
+  writeFileSync(
+    jqPath,
+    `#!/usr/bin/env bash
+file="\${@: -1}"
+node -e '
+  const fs = require("fs");
+  try {
+    const data = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    const val = data?.pull_request?.head?.repo?.full_name ?? "";
+    console.log(val);
+  } catch {
+    process.exit(1);
+  }
+' "$file"
+`,
+  );
+  return stubJq;
+}
+
 function guarda(evento: string, payload: unknown, repo = REPO): number {
   const dir = mkdtempSync(join(tmpdir(), "guarda-"));
   const caminho = join(dir, "evento.json");
   writeFileSync(caminho, typeof payload === "string" ? payload : JSON.stringify(payload));
+
+  const caminhoUnix =
+    process.platform === "win32"
+      ? caminho.replace(/^[A-Za-z]:/, (m) => "/" + m[0]!.toLowerCase()).split("\\").join("/")
+      : caminho;
+
+  const stubDir = montarJqSeNecessario();
+  const sep = process.platform === "win32" ? ";" : ":";
+  const pathPrefix =
+    process.platform === "win32"
+      ? `${stubDir}${sep}C:\\Program Files\\Git\\bin${sep}C:\\Program Files\\Git\\usr\\bin`
+      : "";
+
+  const env = {
+    ...process.env,
+    PATH: pathPrefix ? `${pathPrefix}${sep}${process.env.PATH}` : process.env.PATH,
+    GITHUB_REPOSITORY: repo,
+    GITHUB_EVENT_NAME: evento,
+    GITHUB_EVENT_PATH: caminhoUnix,
+  };
+
+  const gitBash = process.platform === "win32" ? "C:\\Program Files\\Git\\bin\\bash.exe" : "bash";
+
   try {
-    execFileSync("bash", [GUARDA], {
-      // Herda o ambiente (ProcessEnv exige NODE_ENV) e SOBRESCREVE as três que a
-      // guarda lê — no CI elas existem e descreveriam o job de verdade.
-      env: { ...process.env, GITHUB_REPOSITORY: repo, GITHUB_EVENT_NAME: evento, GITHUB_EVENT_PATH: caminho },
+    execFileSync(gitBash, [GUARDA], {
+      env,
       stdio: "pipe",
     });
     return 0;

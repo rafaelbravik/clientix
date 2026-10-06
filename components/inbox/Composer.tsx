@@ -89,6 +89,8 @@ interface Props {
   onCancelarResposta?: () => void;
   /** Nome do contato da conversa, para interpolar {{nome}}/{{primeiro_nome}} do template escolhido. */
   contactName?: string | null;
+  /** Protocolo da conversa, para interpolar {{protocolo}} do template escolhido. */
+  protocolo?: string | null;
   /** Contato da conversa — excluído do seletor de cartão compartilhado. */
   currentContactId?: string | null;
   /**
@@ -110,6 +112,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
     blockedReason,
     janelaFechada,
     contactName,
+    protocolo,
     currentContactId,
     respondendo,
     onCancelarResposta,
@@ -234,7 +237,10 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
   }
 
   function applyTemplate(t: MessageTemplate) {
-    const filled = interpolateTemplate(t.body, { name: contactName ?? null });
+    const filled = interpolateTemplate(t.body, {
+      name: contactName ?? null,
+      protocolo: protocolo ?? null,
+    });
     setText(filled);
     setMenuDismissed(true);
     const ta = taRef.current;

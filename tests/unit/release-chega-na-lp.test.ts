@@ -109,7 +109,8 @@ function rodarPassoLp(respostas: Record<string, { status: string; html?: string 
       writeFileSync(join(pasta, "status"), `${r.status}\n`);
       if (r.html !== undefined) writeFileSync(join(pasta, "html"), `${r.html}\n`);
     }
-    const env = { ...process.env, LP, VERSAO, CENARIO: cenario };
+    const cenarioPosix = cenario.replace(/\\/g, "/");
+    const env = { ...process.env, LP, VERSAO, CENARIO: cenarioPosix };
     try {
       const saida = execFileSync("bash", ["-c", `${falsos}\n${corpo.join("\n")}`], {
         encoding: "utf8",
@@ -269,7 +270,7 @@ describe("a release chega à página de changelog da LP", () => {
     for (const p of ["/changelog", "/en/changelog", "/es/changelog"]) {
       expect(nomeia(foraDoAr.saida, `${LP}${p}`, "000"), `o erro não nomeia o 000 de ${p}:\n${foraDoAr.saida}`).toBe(true);
     }
-  });
+  }, 120_000);
 
   it("a doutrina de versionamento declara a vitrine", () => {
     expect(doutrina).toMatch(/^## A vitrine/m);

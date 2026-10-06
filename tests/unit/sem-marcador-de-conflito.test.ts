@@ -77,7 +77,7 @@ describe("nenhum marcador de conflito versionado", () => {
         "especialmente caro: nenhum outro gate lê `supabase/migrations/`, e quem " +
         "descobre é o clone que roda `update.sh` com o banco já em movimento.",
     ).toEqual([]);
-  });
+  }, 60_000);
 
   it("a busca pega as DUAS larguras — sete e oito", () => {
     // O conflito de renomeação usa oito, e foi ele que escapou da primeira

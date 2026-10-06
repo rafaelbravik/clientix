@@ -72,7 +72,7 @@ function ctx(over: Partial<CtxAtivacao> = {}): CtxAtivacao {
 beforeAll(async () => {
   await q(
     `insert into organizations (id, slug, legal_name, display_name, settings)
-       values ($1,'gate-ativ','Gate Ativ','Gate Ativ','{}'::jsonb) on conflict do nothing`,
+       values ($1,'gate-ativ','Gate Ativ','Gate Ativ','{"plan":"enterprise"}'::jsonb) on conflict do nothing`,
     [ORG],
   );
   for (const [id, nome] of [

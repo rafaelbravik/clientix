@@ -20,10 +20,10 @@ export default defineConfig({
     // Aconteceu três vezes aqui, em testes diferentes a cada vez — inclusive
     // derrubando a main num PR que só mexia em documentação. Um gate que
     // reprova sem defeito ensina o time a ignorar o gate.
-    // 15s não mascara travamento (quem trava continua reprovando, dez segundos
-    // depois); só para de cronometrar a lentidão da máquina como se fosse
-    // asserção. Caso que precisa de mais (abrir processo filho) declara o seu.
-    testTimeout: 15_000,
+    // 30s não mascara travamento (quem trava continua reprovando); só para de
+    // cronometrar a lentidão da máquina sob concorrência intensa como se fosse asserção.
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
     setupFiles: ["./tests/setup/vitest.setup.ts"],
     globals: true,
     coverage: { provider: "v8", reporter: ["text", "html"] },

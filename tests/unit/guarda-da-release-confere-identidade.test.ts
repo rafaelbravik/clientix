@@ -237,25 +237,52 @@ function rodarGuarda(sha: string, respostaDaApi: string, opts: { apiFalha?: bool
   const saidaDoGithub = join(repo, `.github-output-${process.pid}-${contador++}`);
   writeFileSync(saidaDoGithub, "");
 
+  const sep = process.platform === "win32" ? ";" : ":";
+  const stubUnix =
+    process.platform === "win32"
+      ? stub.replace(/^[A-Za-z]:/, (m) => "/" + m[0]!.toLowerCase()).split("\\").join("/")
+      : stub;
+
+  const saidaDoGithubUnix =
+    process.platform === "win32"
+      ? saidaDoGithub.replace(/^[A-Za-z]:/, (m) => "/" + m[0]!.toLowerCase()).split("\\").join("/")
+      : saidaDoGithub;
+
+  const pathPrefix =
+    process.platform === "win32"
+      ? `${stub}${sep}C:\\Program Files\\Git\\bin${sep}C:\\Program Files\\Git\\usr\\bin`
+      : stub;
+
   const env = {
     ...process.env,
-    PATH: `${stub}:${process.env.PATH}`,
+    PATH: `${pathPrefix}${sep}${process.env.PATH}`,
     GH_RESPOSTA: respostaDaApi,
     GH_FALHA: opts.apiFalha ? "1" : "",
-    GITHUB_OUTPUT: saidaDoGithub,
+    GITHUB_OUTPUT: saidaDoGithubUnix,
     GITHUB_REPOSITORY: REPO_DE_CIMA,
     GITHUB_SHA: sha,
     APP_SLUG: "deskcommcrm-release",
   };
 
+  const gitBash =
+    process.platform === "win32" ? "C:\\Program Files\\Git\\bin\\bash.exe" : "bash";
+
+  const scriptFile = join(repo, `guarda-script-${contador}.sh`);
+  writeFileSync(scriptFile, script.replace(/\r\n/g, "\n"), "utf8");
+  const scriptFileUnix =
+    process.platform === "win32"
+      ? scriptFile.replace(/^[A-Za-z]:/, (m) => "/" + m[0]!.toLowerCase()).split("\\").join("/")
+      : scriptFile;
+
   try {
-    const saida = execFileSync("bash", ["-c", script], {
+    const saida = execFileSync(gitBash, [scriptFileUnix], {
       cwd: repo,
       encoding: "utf8",
       env,
       stdio: ["ignore", "pipe", "pipe"],
     }) as string;
-    return { status: 0, decisao: /cortar=(\w+)/.exec(`${saida}\n${readFileSync(saidaDoGithub, "utf8")}`)?.[1] ?? "(nenhuma decisão)", saida };
+    const arq = readFileSync(saidaDoGithub, "utf8");
+    return { status: 0, decisao: /cortar=(\w+)/.exec(`${saida}\n${arq}`)?.[1] ?? "(nenhuma decisão)", saida };
   } catch (err) {
     const e = err as { stderr?: Buffer | string; stdout?: Buffer | string; status?: number };
     const detalhe = [

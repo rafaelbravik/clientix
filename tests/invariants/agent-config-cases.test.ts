@@ -37,8 +37,8 @@ const VERSION_OFF = "dddddddd-0000-4000-8000-000000000014";
 
 beforeAll(async () => {
   await pool.query(
-    `insert into organizations (id, slug, legal_name, display_name)
-     values ($1, 'ac-cases-proof', 'Org de Prova', 'Org de Prova') on conflict (id) do nothing`,
+    `insert into organizations (id, slug, legal_name, display_name, settings)
+     values ($1, 'ac-cases-proof', 'Org de Prova', 'Org de Prova', '{"plan":"enterprise"}'::jsonb) on conflict (id) do nothing`,
     [ORG],
   );
 

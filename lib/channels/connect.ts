@@ -19,6 +19,7 @@ import { ARCHIVED_AT, queryTolerantToMissingArchived } from "./archived";
 import { CHANNEL_PROVIDER_ZERNIO } from "./capabilities";
 import { zernioBaseUrl } from "./zernio/credentials";
 import type { ChannelProvider } from "./types";
+import { invalidateWebhookCacheBySessionId, invalidateWebhookSessionCache } from "./webhook-session-cache";
 
 /**
  * O canal conectável por credencial nesta instalação.
@@ -229,6 +230,15 @@ export async function savePartnerSession(
     : await admin
         .from("channel_sessions")
         .insert({ ...linha, metadata: metadataInicialDoCanal() });
+
+  if (!error) {
+    if (input.existingId) {
+      invalidateWebhookCacheBySessionId(input.existingId);
+    }
+    if (input.webhookPathToken) {
+      invalidateWebhookSessionCache(input.webhookPathToken);
+    }
+  }
 
   return { error: error?.message ?? null };
 }

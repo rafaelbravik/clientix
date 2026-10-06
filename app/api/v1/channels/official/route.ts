@@ -42,6 +42,7 @@ import { metadataInicialDoCanal } from "@/lib/ai/elegibilidade/pre-go-live";
 import { encryptWebhookSecret } from "@/lib/webhooks/secrets";
 import { basePublicaDoWebhookMeta } from "@/lib/webhooks/url-publica";
 import { traduzir } from "@/lib/i18n/dicionario";
+import { checkChannelQuota } from "@/lib/tenant/plan-limits";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -254,6 +255,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     archived_at?: string | null;
     webhook_path_token?: string | null;
   } | null;
+
+  if (!existente || existente.archived_at) {
+    const quota = await checkChannelQuota(admin, orgId, "whatsapp");
+    if (!quota.allowed) {
+      return fail("quota_exceeded", quota.reason ?? t("Limite de canais atingido para o plano."), 403, {
+        requestId,
+        details: { current: quota.current, max: quota.max },
+      });
+    }
+  }
 
   const linha = {
     organization_id: orgId,

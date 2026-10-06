@@ -39,6 +39,7 @@ import { hashDoEndereco, hashesExcluidos } from "./exclusoes";
 import {
   classificarAudiencia,
   contarExclusoes,
+  enderecoDoCandidato,
   type CandidatoDaAudiencia,
 } from "./elegibilidade";
 import { renderizar } from "./renderizador";
@@ -69,6 +70,8 @@ export async function preverAudiencia(
     agora: Date;
     /** Campanha a ignorar na conta de "já em campanha" (a que está sendo editada). */
     campanhaId?: string;
+    canal?: "whatsapp" | "telegram" | "email";
+    emailSubject?: string | null;
   },
 ): Promise<ResumoDoSnapshot & { amostra: Array<{ nome: string | null; motivo: MotivoDeExclusao | null }> }> {
   const linhas = await classificar(admin, entrada);
@@ -92,8 +95,11 @@ async function classificar(
     corpo: string;
     agora: Date;
     campanhaId?: string;
+    canal?: "whatsapp" | "telegram" | "email";
+    emailSubject?: string | null;
   },
 ) {
+  const canal = entrada.canal ?? "whatsapp";
   const candidatos = await buscarCandidatos(admin, {
     organizationId: entrada.organizationId,
     filtro: entrada.filtro,
@@ -105,7 +111,20 @@ async function classificar(
     entrada.campanhaId,
   );
   const suprimidos = await hashesExcluidos(admin, entrada.organizationId);
+
+  let corpoEfetivo = entrada.corpo;
+  if (canal === "email") {
+    const assunto = (entrada.emailSubject ?? "").trim();
+    if (assunto && !corpoEfetivo.startsWith("Assunto:")) {
+      corpoEfetivo = `Assunto: ${assunto}\n\n${corpoEfetivo}`;
+    }
+    if (!corpoEfetivo.includes("Para não receber mais") && !corpoEfetivo.includes("cancelar o recebimento")) {
+      corpoEfetivo = `${corpoEfetivo}\n\n---\nPara cancelar o recebimento destas mensagens, responda com SAIR.`;
+    }
+  }
+
   return classificarAudiencia(candidatos, {
+    canal,
     excluidosAMao: new Set(entrada.filtro.excluir_contatos),
     jaEmCampanha,
     suprimidos,
@@ -113,7 +132,7 @@ async function classificar(
     // A saudação NÃO é resolvida aqui: ela é da hora do envio. O token fica no
     // corpo congelado e o despacho o troca — ver `rodada.ts`.
     renderizar: (c: CandidatoDaAudiencia) => {
-      const r = renderizar(entrada.corpo, { nome: c.nome });
+      const r = renderizar(corpoEfetivo, { nome: c.nome });
       return { texto: r.texto, faltando: r.faltando };
     },
   });
@@ -132,6 +151,8 @@ export async function prepararCampanha(
     corpo: string;
     contentVersion: number;
     agora: Date;
+    canal?: "whatsapp" | "telegram" | "email";
+    emailSubject?: string | null;
   },
 ): Promise<ResumoDoSnapshot> {
   const filtro = filtroDeAudienciaSchema.safeParse(entrada.filtro);
@@ -139,12 +160,15 @@ export async function prepararCampanha(
     throw new Error(`Filtro de audiência inválido: ${filtro.error.issues[0]?.message ?? "sem critério"}`);
   }
 
+  const canal = entrada.canal ?? "whatsapp";
   const linhas = await classificar(admin, {
     organizationId: entrada.organizationId,
     filtro: filtro.data,
     corpo: entrada.corpo,
     agora: entrada.agora,
     campanhaId: entrada.campanhaId,
+    canal,
+    emailSubject: entrada.emailSubject,
   });
 
   // Reconstrução limpa: a rota só chega aqui quando nada saiu, então apagar a
@@ -161,9 +185,10 @@ export async function prepararCampanha(
     organization_id: entrada.organizationId,
     campaign_id: entrada.campanhaId,
     contact_id: l.candidato.contactId,
+    channel: canal,
     // Endereço só de quem vai receber: o excluído não precisa dele, e guardar
     // telefone que ninguém vai usar é PII sem finalidade.
-    recipient_address: l.elegivel ? l.candidato.telefone : null,
+    recipient_address: l.elegivel ? enderecoDoCandidato(l.candidato, canal) : null,
     status: l.elegivel ? "pending" : "skipped",
     eligibility_status: l.elegivel ? "eligible" : "excluded",
     exclusion_reason: l.motivo,

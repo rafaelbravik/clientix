@@ -22,6 +22,7 @@ import { createChannelSchema } from "@/lib/schemas/channels";
 import { createClient } from "@/lib/supabase/server";
 import { getWahaClient } from "@/lib/waha/client";
 import { traduzir } from "@/lib/i18n/dicionario";
+import { checkChannelQuota } from "@/lib/tenant/plan-limits";
 
 export const dynamic = "force-dynamic";
 
@@ -107,15 +108,41 @@ export async function POST(req: NextRequest): Promise<Response> {
     });
   }
 
+  const admin = createAdminClient();
+  const idempotencyKey = req.headers.get("Idempotency-Key") ?? "";
+  let existingSessionId: string | undefined = undefined;
+  if (idempotencyKey) {
+    const { data: existingReq } = await admin
+      .from("channel_connection_requests")
+      .select("channel_session_id")
+      .eq("organization_id", activeOrg.orgId)
+      .eq("idempotency_key", idempotencyKey)
+      .maybeSingle();
+    if (existingReq?.channel_session_id) {
+      existingSessionId = existingReq.channel_session_id;
+    }
+  }
+
+  const quota = await checkChannelQuota(admin, activeOrg.orgId, "whatsapp", {
+    excludeChannelSessionId: existingSessionId,
+  });
+  if (!quota.allowed) {
+    return fail("quota_exceeded", quota.reason ?? t("Limite de conexões de canais atingido para o plano."), 403, {
+      requestId,
+      details: { current: quota.current, max: quota.max },
+    });
+  }
+
   try {
-    const result = await connectWahaChannel(await createClient(), createAdminClient(), waha, {
+    const result = await connectWahaChannel(await createClient(), admin, waha, {
       organizationId: activeOrg.orgId, idempotencyKey: req.headers.get("Idempotency-Key") ?? "",
       userId: user.id, requestId, displayName: parsed.data.display_name,
     });
     return ok(result.channel, { requestId, status: result.replay ? 200 : 201 });
   } catch (error) {
     if (error instanceof ChannelConnectionError) return fail(error.code,
-      error.code === "connection_in_progress" ? t("A conexão ainda está sendo preparada. Aguarde e tente novamente.")
+      error.code === "quota_exceeded" ? ((error.technical?.reason as string) ?? t("Limite de conexões do plano atingido."))
+        : error.code === "connection_in_progress" ? t("A conexão ainda está sendo preparada. Aguarde e tente novamente.")
         : error.code === "connection_session_name_too_long" ? t("O identificador desta conexão passou do limite que o WhatsApp aceita. Nada foi criado no WhatsApp — atualize o sistema e tente novamente.")
         : t("Não foi possível concluir a conexão. Abra Conexões para tentar novamente ou reparar o número."),
       error.status, { requestId, details: error.technical });

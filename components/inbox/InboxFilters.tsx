@@ -195,9 +195,44 @@ export function InboxFilters({ value, onChange }: Props) {
     channel_session_id: value.channel_session_id,
   });
 
-  const tabs = activeOrg
+  const [customVisibleTabs, setCustomVisibleTabs] = useState<InboxTab[]>(() =>
+    INBOX_TABS.map((t) => t.value),
+  );
+
+  useEffect(() => {
+    try {
+      const salvo = localStorage.getItem("clientix_inbox_visible_tabs");
+      if (salvo) {
+        const parsed = JSON.parse(salvo);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setCustomVisibleTabs(parsed as InboxTab[]);
+        }
+      }
+    } catch {}
+  }, []);
+
+  const toggleTabVisibility = (tab: InboxTab) => {
+    setCustomVisibleTabs((current) => {
+      let proximo: InboxTab[];
+      if (current.includes(tab)) {
+        if (current.length <= 1) return current;
+        proximo = current.filter((t) => t !== tab);
+      } else {
+        proximo = [...current, tab];
+      }
+      try {
+        localStorage.setItem("clientix_inbox_visible_tabs", JSON.stringify(proximo));
+      } catch {}
+      return proximo;
+    });
+  };
+
+  const baseTabs = activeOrg
     ? visibleInboxTabs(activeOrg.role, activeOrg.visibility_mode)
     : INBOX_TABS.map((t) => t.value);
+
+  const tabs = baseTabs.filter((t) => customVisibleTabs.includes(t));
+
   const moveTab = (direction: -1 | 1) => {
     const next = tabs[tabs.indexOf(value.tab) + direction];
     if (next) onChange({ ...value, tab: next });
@@ -359,7 +394,7 @@ export function InboxFilters({ value, onChange }: Props) {
             <Input
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              placeholder={t("Buscar por nome, telefone ou última mensagem…")}
+              placeholder={t("Buscar por protocolo, nome ou telefone…")}
               className="h-9 rounded-full border-transparent bg-surface-elevated pl-9 text-sm shadow-none focus-visible:border-border focus-visible:bg-background"
               aria-label={t("Buscar conversas")}
             />
@@ -589,6 +624,36 @@ export function InboxFilters({ value, onChange }: Props) {
           ) : (
             <span className="w-4 shrink-0" aria-hidden />
           )}
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                title={t("Personalizar abas visíveis")}
+                aria-label={t("Personalizar abas visíveis")}
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md hover:bg-surface-elevated text-text-muted hover:text-text transition-colors ml-1"
+              >
+                <span className="text-xs">⚙️</span>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuLabel className="text-xs font-semibold">{t("Abas visíveis no Inbox")}</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {baseTabs.map((tVal) => {
+                const meta = INBOX_TABS.find((t) => t.value === tVal)!;
+                return (
+                  <DropdownMenuCheckboxItem
+                    key={tVal}
+                    checked={customVisibleTabs.includes(tVal)}
+                    onCheckedChange={() => toggleTabVisibility(tVal)}
+                    onSelect={(e) => e.preventDefault()}
+                  >
+                    {t(meta.label)}
+                  </DropdownMenuCheckboxItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </Tabs>
     </div>

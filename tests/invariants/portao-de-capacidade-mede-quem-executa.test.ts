@@ -165,9 +165,9 @@ async function drenaEGeraJob(c: Cenario): Promise<boolean> {
 
 beforeAll(async () => {
   await pool.query(
-    `insert into organizations (id, slug, legal_name, display_name)
-     values ($1, 'portao-capacidade', 'Portao Capacidade', 'Portao Capacidade')
-     on conflict (id) do nothing`,
+    `insert into organizations (id, slug, legal_name, display_name, settings)
+     values ($1, 'portao-capacidade', 'Portao Capacidade', 'Portao Capacidade', '{"plan":"enterprise"}'::jsonb)
+     on conflict (id) do update set settings = '{"plan":"enterprise"}'::jsonb`,
     [ORG],
   );
   await pool.query(

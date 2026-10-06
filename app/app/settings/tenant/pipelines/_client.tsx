@@ -24,6 +24,7 @@ import { customFieldSchema, type CustomFieldDef } from "@/lib/schemas/settings";
 import { Plus, Trash } from "@/lib/ui/icons";
 import { AgentMappingSection, ancoraDoMapeamento } from "./_mapping";
 import { StagesSection, ancoraDasEtapas } from "./_stages";
+import { CriadorDeFunilDeNicho } from "@/components/crm/CriadorDeFunilDeNicho";
 
 export interface PipelineRow {
   id: string;
@@ -168,20 +169,32 @@ export function PipelinesClient({
 }) {
   const t = useT();
   if (pipelines.length === 0) {
-    // ⚠️ NÃO PROMETA UM CAMINHO QUE NÃO EXISTE. Criar funil não é feito por
-    // nenhuma tela, rota ou action deste produto — só por script de instalação;
-    // e como o instalador não provisiona funil, ESTE é o estado de toda
-    // instalação nova. O texto anterior mandava "crie um no quadro", e o quadro
-    // vazio manda "Ir para Configurações": pingue-pongue fechado, com o usuário
-    // procurando um botão que não existe em lugar nenhum.
     return (
-      <Card className="p-6 text-sm leading-relaxed text-muted-foreground">
-        {t("Você ainda não tem nenhum funil. Enquanto for assim, o agente atende normalmente, mas não tem para onde levar o card de ninguém — não há etapas para onde mover. Criar o funil é feito por quem instalou o sistema, direto no banco; depois ele aparece aqui para você escolher a etapa de cada passo.")}
+      <Card className="p-8 text-center space-y-4">
+        <div className="mx-auto max-w-md space-y-2">
+          <span className="text-4xl block">🎯</span>
+          <h2 className="text-lg font-semibold">{t("Você ainda não tem nenhum funil de vendas")}</h2>
+          <p className="text-sm text-muted-foreground">
+            {t("Crie seu primeiro funil escolhendo um dos nossos modelos prontos por nicho (PetShop, Barbearia, Clínicas, etc) ou comece do zero.")}
+          </p>
+        </div>
+        <div>
+          <CriadorDeFunilDeNicho />
+        </div>
       </Card>
     );
   }
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between border-b pb-4">
+        <div>
+          <h2 className="text-lg font-semibold">{t("Funis de Vendas & Atendimento")}</h2>
+          <p className="text-sm text-muted-foreground">
+            {t("Personalize etapas, vocabulário e regras do Kanban de cada funil da sua empresa.")}
+          </p>
+        </div>
+        <CriadorDeFunilDeNicho />
+      </div>
       {pipelines.map((p) => (
         <Card key={p.id} className="space-y-6 p-6">
           <header>

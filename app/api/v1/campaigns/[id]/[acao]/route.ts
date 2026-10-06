@@ -38,6 +38,7 @@ import { knobsDoCanal } from "@/lib/automation/janela-do-canal";
 import { traduzir } from "@/lib/i18n/dicionario";
 import { requireSupportWrite } from "@/lib/impersonate/support";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { checkFeatureQuota } from "@/lib/tenant/plan-limits";
 
 export const dynamic = "force-dynamic";
 
@@ -85,6 +86,20 @@ export async function POST(
   }
   const campanha = carregada.campanha;
   const agora = new Date();
+
+  // Ações que produzem ou retomam efeito operacional exigem entitlement ativo no plano.
+  // Ações puramente restritivas (pausar, cancelar) continuam permitidas mesmo após downgrade.
+  if (acao !== "pausar" && acao !== "cancelar") {
+    const featureCheck = await checkFeatureQuota(admin, authz.org.orgId, "campaigns");
+    if (!featureCheck.allowed) {
+      return fail(
+        "feature_disabled",
+        featureCheck.reason ?? t("Módulo de campanhas não disponível no plano atual da organização."),
+        403,
+        { requestId },
+      );
+    }
+  }
 
   let desfecho: Desfecho<Record<string, unknown>>;
   let acaoAuditada: AuditAction | null = null;

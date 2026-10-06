@@ -38,7 +38,7 @@ function proximoId(): string {
 async function criarOrganizacao(nome: string): Promise<string> {
   const org = proximoId();
   await pool.query(
-    `insert into organizations (id, slug, legal_name, display_name) values ($1, $2, $3, $3)`,
+    `insert into organizations (id, slug, legal_name, display_name, settings) values ($1, $2, $3, $3, '{"plan":"enterprise"}'::jsonb)`,
     [org, `jev-nao-roda-${nome}`, `Jev Não Roda ${nome}`],
   );
   return org;

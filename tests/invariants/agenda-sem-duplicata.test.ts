@@ -99,12 +99,12 @@ describe("a guarda barra o duplo clique", () => {
 });
 
 describe("o que a guarda NÃO barra — e é aqui que ela se distingue da que foi recusada", () => {
-  it("o ENCAIXE por sobreposição continua permitido: 14h-15h e 14h30-15h30, mesmo dono", () => {
-    // Se alguém trocar este índice por `exclude using gist`, os testes de barrar
-    // acima continuam verdes e SÓ este fica vermelho. Ele é a régua.
+  it("o ENCAIXE por sobreposição: desde a migration 0510 (CAL-001) é bloqueado pelo trg_check_appointment_overlap", () => {
+    // A migration 0177 recusava exclude using gist para o índice único, mas a 0510 (CAL-001)
+    // instituiu a proteção atômica contra sobreposição para o mesmo dono via trigger.
     expect(
       marca(base(DONO, "2026-11-10 14:30:00+00", "2026-11-10 15:30:00+00")),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it("dois atendentes DIFERENTES no mesmo instante: os dois entram", () => {

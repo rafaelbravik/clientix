@@ -5,6 +5,7 @@ import { encryptWebhookSecret, decryptWebhookSecret } from "@/lib/webhooks/secre
 import { metadataInicialDoCanal } from "@/lib/ai/elegibilidade/pre-go-live";
 import { inboxSupported, SOCIAL_PROVIDER } from "./catalog";
 import { listSocialAccounts, socialRequest, SocialError } from "./client";
+import { checkChannelQuota } from "@/lib/tenant/plan-limits";
 
 export async function readSocialIntegration(db: SupabaseClient, org: string) {
   const { data, error } = await db
@@ -98,6 +99,25 @@ export async function connectSocialInbox(
   const existing = (await socialChannels(db, org)).find((c) => c.accountId === accountId);
   if (existing?.metadata.social_webhook_id && existing.status === "WORKING")
     return { channel_id: existing.id, already_connected: true };
+
+  let quota;
+  try {
+    quota = await checkChannelQuota(db, org, account.platform, {
+      excludeChannelSessionId: existing?.id,
+    });
+  } catch {
+    quota = {
+      allowed: false,
+      reason: "Falha ao validar permissões do plano para o canal.",
+    };
+  }
+  if (!quota || !quota.allowed) {
+    throw new SocialError(
+      quota?.reason ?? `O canal social '${account.platform}' não está disponível no plano contratado.`,
+      403,
+    );
+  }
+
   let token = randomBytes(24).toString("hex");
   let secret = randomBytes(32).toString("hex");
   if (existing) {

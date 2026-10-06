@@ -9,6 +9,7 @@
  * notice when Redis is misconfigured and the limit is effectively per-instance.
  */
 
+import { createHash } from "node:crypto";
 import { Redis } from "@upstash/redis";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
@@ -16,8 +17,12 @@ import { validarConfigRedisRest } from "@/lib/redis-config";
 
 let _redis: Redis | null = null;
 let _fallbackWarned = false;
+let _redisOverrideForTest: { client: Redis | null } | null = null;
+
+const MAX_MEM_BUCKETS = 10_000;
 
 function getRedis(): Redis | null {
+  if (_redisOverrideForTest) return _redisOverrideForTest.client;
   if (_redis) return _redis;
   const url = env.UPSTASH_REDIS_REST_URL;
   const token = env.UPSTASH_REDIS_REST_TOKEN;
@@ -69,7 +74,7 @@ const _memBuckets = new Map<string, MemBucket>();
  * `srh` parado, rede caída, URL errada. O `catch` abaixo trata exatamente isso, e é o
  * estado normal da suíte de e2e — 120 quedas num único job, todas por `fetch failed`.
  * Num processo de longa duração, cada janela dessas deixava uma chave para trás: com
- * `webhook_in:<token>` (janela de 60s) são 1.440 por dia por token, nenhuma relida.
+ * `webhook_in:<sha256(token)>` (janela de 60s) são 1.440 por dia por token, nenhuma relida.
  *
  * Oportunista, e não um timer: um `setInterval` num módulo de request handler segura
  * o processo vivo e roda em todo runtime que importar o arquivo, inclusive edge. Aqui
@@ -93,16 +98,36 @@ function memIncrement(key: string, windowSec: number): number {
   }
   const existing = _memBuckets.get(key);
   if (!existing || existing.expiresAt <= now) {
+    if (existing) _memBuckets.delete(key);
+    while (_memBuckets.size >= MAX_MEM_BUCKETS) {
+      const oldestKey = _memBuckets.keys().next().value;
+      if (oldestKey === undefined) break;
+      _memBuckets.delete(oldestKey);
+    }
     _memBuckets.set(key, { count: 1, expiresAt: now + windowSec * 1000 });
     return 1;
   }
   existing.count += 1;
+  // Mantém os buckets recentemente usados longe da ponta de descarte.
+  _memBuckets.delete(key);
+  _memBuckets.set(key, existing);
   return existing.count;
 }
 
 /** Só para teste: quantas chaves o contador em memória guarda NESTE instante. */
 export function __chavesEmMemoriaParaTeste(): number {
   return _memBuckets.size;
+}
+
+/** Só para teste: zera o contador em memória entre testes. */
+export function __limparMemoriaRateLimitParaTeste(): void {
+  _memBuckets.clear();
+  _chamadasDesdeAVarredura = 0;
+}
+
+/** Injeta um cliente Redis de teste para exercitar os caminhos reais de erro sem acessar `.env`. */
+export function __setRateLimitRedisForTest(client: Redis | null | undefined): void {
+  _redisOverrideForTest = client === undefined ? null : { client };
 }
 
 export interface RateLimitResult {
@@ -136,9 +161,18 @@ export async function checkRateLimit(
         await redis.expire(key, windowSec);
       }
     } catch (err) {
+      // Se o bucket contiver dados sensíveis (ex: tokens), redigimos para evitar logar o token bruto
+      const isSensitiveToken = bucket.startsWith("webhook_channel:");
+      const rawToken = isSensitiveToken ? bucket.slice(16) : null;
+      const safeHash = rawToken ? createHash("sha256").update(rawToken).digest("hex").slice(0, 12) : null;
+      const safeBucket = isSensitiveToken && safeHash ? `webhook_channel:${safeHash}` : bucket;
+
+      const rawError = err instanceof Error ? err.message : String(err);
+      const sanitizedError = rawToken && safeHash ? rawError.split(rawToken).join(`[TOKEN_HASH:${safeHash}]`) : rawError;
+
       logger.warn("[ai-dispatcher.rate-limit] redis incr failed; falling back to in-memory", {
-        error: err instanceof Error ? err.message : String(err),
-        bucket,
+        error: sanitizedError,
+        bucket: safeBucket,
       });
       count = memIncrement(key, windowSec);
     }

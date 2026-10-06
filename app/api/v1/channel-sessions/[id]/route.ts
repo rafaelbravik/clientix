@@ -31,6 +31,7 @@ import { resolverSaudeDaConexaoRemovida } from "@/lib/channels/health";
 import { desfazerWebhookDoNumero } from "@/lib/channels/meta/webhook-override";
 import { numeroObservadoDaSessao } from "@/lib/channels/numero-observado";
 import { isChannelStatus } from "@/lib/schemas/channels";
+import { invalidateWebhookCacheBySessionId } from "@/lib/channels/webhook-session-cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getWahaClient, wahaFriendlyError } from "@/lib/waha/client";
@@ -466,6 +467,9 @@ export async function DELETE(
       .eq("id", id);
     if (delErr) return fail("internal_error", delErr.message, 500, { requestId });
   }
+
+  // Invalida o cache em memória do webhook imediatamente
+  invalidateWebhookCacheBySessionId(id);
 
   // ─── O AVISO NÃO FICA ÓRFÃO (issue #1023) ─────────────────────────────────
   //

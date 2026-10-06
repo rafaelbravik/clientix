@@ -3,7 +3,12 @@
  * pede o adapter do provider da conversa e o descritor de capabilities.
  */
 import { datafyAdapter } from "./adapters/datafy";
+import { emailAdapter } from "./adapters/email";
+import { instagramAdapter } from "./adapters/instagram";
 import { metaCloudAdapter } from "./adapters/meta-cloud";
+import { telegramAdapter } from "./adapters/telegram";
+import { telegramUserAdapter } from "./adapters/telegram-user";
+import { tiktokAdapter } from "./adapters/tiktok";
 import { wahaAdapter } from "./adapters/waha";
 import { socialAdapter } from "./social/adapter";
 import { zernioAdapter } from "./adapters/zernio";
@@ -19,6 +24,11 @@ const ADAPTERS: Record<ProviderDeMensagem, ChannelAdapter | null> = {
   zernio: zernioAdapter,
   zernio_social: socialAdapter,
   datafy: datafyAdapter,
+  telegram: telegramAdapter,
+  telegram_user: telegramUserAdapter,
+  email: emailAdapter,
+  instagram: instagramAdapter,
+  tiktok: tiktokAdapter,
 };
 
 /**

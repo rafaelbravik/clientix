@@ -104,6 +104,7 @@ function bashDaGuarda(): string {
 
 let repo: string;
 let stub: string;
+let contador = 0;
 
 /**
  * O `gh` de mentira, no PATH antes do de verdade.
@@ -191,20 +192,39 @@ function decisaoPara(sha: string, respostaDaApi: string = RESPOSTA_DO_APP): stri
   // `>> /dev/stdout` falha. No macOS funciona. O passo do workflow escreve no
   // arquivo que o GitHub dá — então o teste faz o mesmo, que é também o que o
   // ambiente real faz.
-  const saidaDoGithub = join(repo, `.github-output-${process.pid}`);
+  const saidaDoGithub = join(repo, `.github-output-${process.pid}-${contador++}`);
   writeFileSync(saidaDoGithub, "");
 
+  const sep = process.platform === "win32" ? ";" : ":";
+  const saidaDoGithubUnix =
+    process.platform === "win32"
+      ? saidaDoGithub.replace(/^[A-Za-z]:/, (m) => "/" + m[0]!.toLowerCase()).split("\\").join("/")
+      : saidaDoGithub;
+
+  const pathPrefix =
+    process.platform === "win32"
+      ? `${stub}${sep}C:\\Program Files\\Git\\bin${sep}C:\\Program Files\\Git\\usr\\bin`
+      : stub;
+
+  const gitBash =
+    process.platform === "win32" ? "C:\\Program Files\\Git\\bin\\bash.exe" : "bash";
+
+  const scriptFile = join(repo, `guarda-script-${contador}.sh`);
+  writeFileSync(scriptFile, script.replace(/\r\n/g, "\n"), "utf8");
+  const scriptFileUnix =
+    process.platform === "win32"
+      ? scriptFile.replace(/^[A-Za-z]:/, (m) => "/" + m[0]!.toLowerCase()).split("\\").join("/")
+      : scriptFile;
+
   try {
-    const saida = execFileSync("bash", ["-c", script], {
+    const saida = execFileSync(gitBash, [scriptFileUnix], {
       cwd: repo,
       encoding: "utf8",
-      // `PATH` com o stub na frente é o que impede a pergunta à API de sair
-      // para a rede; o resto é o ambiente que o passo do workflow tem.
       env: {
         ...process.env,
-        PATH: `${stub}:${process.env.PATH}`,
+        PATH: `${pathPrefix}${sep}${process.env.PATH}`,
         GH_RESPOSTA: respostaDaApi,
-        GITHUB_OUTPUT: saidaDoGithub,
+        GITHUB_OUTPUT: saidaDoGithubUnix,
         GITHUB_REPOSITORY: REPO_DE_CIMA,
         GITHUB_SHA: sha,
         APP_SLUG: "deskcommcrm-release",

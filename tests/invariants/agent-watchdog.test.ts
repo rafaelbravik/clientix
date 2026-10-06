@@ -103,8 +103,8 @@ beforeAll(async () => {
   wahaPort = typeof addr === "object" && addr !== null ? addr.port : 0;
 
   await pool.query(
-    `insert into organizations (id, slug, legal_name, display_name)
-     values ($1, 'wd-proof', 'Watchdog Proof', 'Watchdog Proof') on conflict (id) do nothing`,
+    `insert into organizations (id, slug, legal_name, display_name, settings)
+     values ($1, 'wd-proof', 'Watchdog Proof', 'Watchdog Proof', '{"plan":"enterprise"}'::jsonb) on conflict (id) do nothing`,
     [ORG],
   );
   await pool.query(

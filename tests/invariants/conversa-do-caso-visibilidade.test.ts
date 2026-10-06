@@ -92,7 +92,7 @@ beforeAll(() => {
     -- Medir no default seria medir o caso em que a policy não faz diferença.
     insert into public.organizations (id, slug, legal_name, display_name, settings)
       values ('${ORG}', 'chat-0281', 'Chat 0281 Invariant', 'Chat 0281',
-              '{"visibility_mode":"own"}'::jsonb)
+              '{"plan":"enterprise","visibility_mode":"own"}'::jsonb)
       on conflict (id) do update set settings = excluded.settings;
 
     insert into public.user_organizations (user_id, organization_id, role, accepted_at) values

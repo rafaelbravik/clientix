@@ -8,6 +8,7 @@ import {
 import type { WahaClient } from "@/lib/waha/client";
 import { WahaSessionError } from "@/lib/waha/client";
 import { sincronizarRecebimentoDeGrupos } from "@/lib/grupos/sincronizar-filtro";
+import { checkChannelQuota } from "@/lib/tenant/plan-limits";
 
 const channelSchema = z.object({
   id: z.string().uuid(), organization_id: z.string().uuid(), waha_session_name: z.string(),
@@ -34,6 +35,48 @@ export interface ConnectChannelInput {
  */
 export async function connectWahaChannel(authDb: SupabaseClient, serviceDb: SupabaseClient, waha: Transport, input: ConnectChannelInput): Promise<{ channel: z.infer<typeof channelSchema>; replay: boolean }> {
   if (!z.string().uuid().safeParse(input.idempotencyKey).success) throw new ChannelConnectionError("idempotency_key_required", 422);
+
+  // Se for replay ou reconexão de sessão já existente, não penaliza na quota
+  let existingChannelSessionId: string | undefined = undefined;
+  try {
+    const { data: existingReceipt } = await serviceDb
+      .from("channel_connection_requests")
+      .select("channel_session_id")
+      .eq("organization_id", input.organizationId)
+      .eq("idempotency_key", input.idempotencyKey)
+      .maybeSingle();
+
+    if (existingReceipt?.channel_session_id) {
+      existingChannelSessionId = existingReceipt.channel_session_id;
+    } else if (input.onboarding) {
+      const { data: onboardingChannel } = await serviceDb
+        .from("channel_sessions")
+        .select("id")
+        .eq("organization_id", input.organizationId)
+        .eq("provider", "waha")
+        .is("archived_at", null)
+        .limit(1)
+        .maybeSingle();
+      if (onboardingChannel?.id) {
+        existingChannelSessionId = onboardingChannel.id;
+      }
+    }
+  } catch {
+    // Mocks em testes ou falha transiente na pré-consulta não impedem a verificação
+  }
+
+  // Confere quota de conexões da organização no plano antes de reservar
+  const quota = await checkChannelQuota(serviceDb, input.organizationId, "whatsapp", {
+    excludeChannelSessionId: existingChannelSessionId,
+  });
+  if (!quota.allowed) {
+    throw new ChannelConnectionError("quota_exceeded", 403, {
+      reason: quota.reason,
+      current: quota.current,
+      max: quota.max,
+    });
+  }
+
   const hash = createHash("sha256").update(JSON.stringify({ display_name: input.displayName ?? null, onboarding: input.onboarding ?? false, restart: input.restart ?? false })).digest("hex");
   const { data, error } = await authDb.rpc("fn_reserve_channel_connection", {
     p_org: input.organizationId, p_key: input.idempotencyKey, p_hash: hash,

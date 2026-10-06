@@ -47,6 +47,7 @@ import { ARCHIVED_AT, queryTolerantToMissingArchived } from "@/lib/channels/arch
 import { createClient } from "@/lib/supabase/server";
 import { getWahaClient, wahaFriendlyError } from "@/lib/waha/client";
 import { traduzir } from "@/lib/i18n/dicionario";
+import { invalidateWebhookCacheBySessionId } from "@/lib/channels/webhook-session-cache";
 
 export const dynamic = "force-dynamic";
 
@@ -177,6 +178,7 @@ export async function POST(
     const { error: syncError } = await supabase.from("channel_sessions").update(patch).eq("organization_id", activeOrg.orgId).eq("id", id);
 
     if (syncError) throw new Error("connection_sync_failed");
+    invalidateWebhookCacheBySessionId(id);
 
     // A sessão recriada (volume do WAHA perdido, logout forçado) nasce ignorando
     // grupos, mas o banco pode ter grupos LIGADOS neste número. Ressincroniza o

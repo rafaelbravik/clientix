@@ -86,8 +86,8 @@ beforeAll(() => {
       ('${ADMIN}',       'agenda-rbac-admin@invariant.test')
       on conflict (id) do nothing;
 
-    insert into public.organizations (id, slug, legal_name, display_name)
-      values ('${ORG}', 'agenda-rbac', 'Agenda RBAC', 'Agenda RBAC')
+    insert into public.organizations (id, slug, legal_name, display_name, settings)
+      values ('${ORG}', 'agenda-rbac', 'Agenda RBAC', 'Agenda RBAC', '{"plan":"enterprise"}'::jsonb)
       on conflict (id) do nothing;
 
     insert into public.user_organizations (user_id, organization_id, role, accepted_at) values

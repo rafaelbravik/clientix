@@ -137,12 +137,15 @@ function bashComBiblioteca(
 cd ${JSON.stringify(dir)}
 source ${JSON.stringify(BIBLIOTECA)}
 ${trecho}`;
+  const pathLimpo = process.platform === "win32"
+    ? "C:\\Program Files\\Git\\bin;C:\\Program Files\\Git\\usr\\bin"
+    : "/usr/sbin:/usr/bin:/sbin:/bin";
   const r = execFileSync("bash", ["-c", script], {
     encoding: "utf8",
     env: {
       ...process.env,
       // NENHUM gh: a rede é o que o hook de pre-commit não pode fazer.
-      PATH: "/usr/sbin:/usr/bin:/sbin:/bin",
+      PATH: pathLimpo,
       ...extraEnv,
     },
     stdio: ["ignore", "pipe", "pipe"],
@@ -155,6 +158,9 @@ function bashCapturandoRc(
   trecho: string,
   extraEnv: Record<string, string> = {},
 ): { stdout: string; rc: number } {
+  const pathLimpo = process.platform === "win32"
+    ? "C:\\Program Files\\Git\\bin;C:\\Program Files\\Git\\usr\\bin"
+    : "/usr/sbin:/usr/bin:/sbin:/bin";
   const script = `set -uo pipefail
 cd ${JSON.stringify(dir)}
 source ${JSON.stringify(BIBLIOTECA)}
@@ -164,7 +170,7 @@ printf '__rc=%s\\n' "$?"`;
     encoding: "utf8",
     env: {
       ...process.env,
-      PATH: "/usr/sbin:/usr/bin:/sbin:/bin",
+      PATH: pathLimpo,
       ...extraEnv,
     },
     stdio: ["ignore", "pipe", "pipe"],

@@ -32,6 +32,8 @@ export interface CampanhaCarregada {
   organization_id: string;
   name: string;
   status: StatusDaCampanha;
+  channel?: "whatsapp" | "telegram" | "email";
+  email_subject?: string | null;
   channel_session_id: string;
   message_body: string | null;
   base_legal: string;
@@ -52,7 +54,7 @@ export type Recusa = { ok: false; codigo: ApiErrorCode; mensagem: string; status
 export type Desfecho<T = unknown> = ({ ok: true } & T) | Recusa;
 
 const COLUNAS =
-  "id, organization_id, name, status, channel_session_id, message_body, base_legal, lia_ref, " +
+  "id, organization_id, name, status, channel, email_subject, channel_session_id, message_body, base_legal, lia_ref, " +
   "audience_filter, audience_version, content_version, scheduled_at, description, " +
   "intervalo_segundos, janela_inicio_hora, janela_fim_hora, teto_diario, teto_horario";
 
@@ -164,6 +166,8 @@ export async function prepararAcao(
       filtro: c.audience_filter,
       corpo: c.message_body ?? "",
       contentVersion: c.content_version,
+      canal: c.channel ?? "whatsapp",
+      emailSubject: c.email_subject ?? null,
       agora,
     });
     if (resumo.total === 0) {

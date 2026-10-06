@@ -41,6 +41,15 @@ for (const envFile of [".env", ".env.local"]) {
   }
 }
 
+// Em ambiente Windows, garantir que utilitários unix (bash, sed, grep) do Git estejam no PATH
+if (process.platform === "win32") {
+  const gitBin = "C:\\Program Files\\Git\\bin";
+  const gitUsrBin = "C:\\Program Files\\Git\\usr\\bin";
+  if (!process.env.PATH?.includes("Git\\usr\\bin")) {
+    process.env.PATH = `${gitBin};${gitUsrBin};${process.env.PATH || ""}`;
+  }
+}
+
 /**
  * Placeholders para as vars que `lib/env.ts` exige na IMPORTAÇÃO.
  *

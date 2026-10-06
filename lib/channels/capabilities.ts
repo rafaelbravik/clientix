@@ -110,6 +110,61 @@ export const CHANNEL_CAPABILITIES: Record<ProviderDeMensagem, ChannelCapabilitie
     costPerMessage: true,
     alteraMensagemEnviada: false,
   },
+  telegram: {
+    freeformOutsideWindow: true,
+    requiresTemplates: false,
+    canManageTemplates: false,
+    banRisk: false,
+    minIntervalMs: null,
+    voiceNote: "server-convert",
+    groups: "none",
+    costPerMessage: false,
+    alteraMensagemEnviada: true,
+  },
+  email: {
+    freeformOutsideWindow: true,
+    requiresTemplates: false,
+    canManageTemplates: false,
+    banRisk: false,
+    minIntervalMs: null,
+    voiceNote: "server-convert",
+    groups: "none",
+    costPerMessage: false,
+    alteraMensagemEnviada: false,
+  },
+  instagram: {
+    freeformOutsideWindow: false,
+    requiresTemplates: false,
+    canManageTemplates: false,
+    banRisk: false,
+    minIntervalMs: 1000,
+    voiceNote: "server-convert",
+    groups: "none",
+    costPerMessage: false,
+    alteraMensagemEnviada: false,
+  },
+  tiktok: {
+    freeformOutsideWindow: false,
+    requiresTemplates: false,
+    canManageTemplates: false,
+    banRisk: false,
+    minIntervalMs: 1000,
+    voiceNote: "server-convert",
+    groups: "none",
+    costPerMessage: false,
+    alteraMensagemEnviada: false,
+  },
+  telegram_user: {
+    freeformOutsideWindow: true,
+    requiresTemplates: false,
+    canManageTemplates: false,
+    banRisk: true,
+    minIntervalMs: 3000,
+    voiceNote: "server-convert",
+    groups: "full",
+    costPerMessage: false,
+    alteraMensagemEnviada: true,
+  },
 };
 
 /**
@@ -134,6 +189,16 @@ export const CHANNEL_PROVIDER_SOCIAL: ChannelProvider = "zernio_social";
 export const CHANNEL_PROVIDER_ZERNIO: ChannelProvider = "zernio";
 /** Parceiro que espelha a Cloud API — canal opcional da instalação, desligado por padrão. */
 export const CHANNEL_PROVIDER_DATAFY: ChannelProvider = "datafy";
+/** Canal Telegram Bot Oficial. */
+export const CHANNEL_PROVIDER_TELEGRAM: ChannelProvider = "telegram";
+/** Canal E-mail no Inbox. */
+export const CHANNEL_PROVIDER_EMAIL: ChannelProvider = "email";
+/** Canal Instagram Direct Nativo (Meta Graph API). */
+export const CHANNEL_PROVIDER_INSTAGRAM: ChannelProvider = "instagram";
+/** Canal TikTok Messaging API for Business. */
+export const CHANNEL_PROVIDER_TIKTOK: ChannelProvider = "tiktok";
+/** Canal Telegram Usuário / Userbot (MTProto). */
+export const CHANNEL_PROVIDER_TELEGRAM_USER: ChannelProvider = "telegram_user";
 /** Chamada de voz WhatsApp (spec 18). Não transporta mensagem — ver abaixo. */
 export const CHANNEL_PROVIDER_WACALLS: ChannelProvider = "wacalls";
 
@@ -158,6 +223,11 @@ export const PROVIDERS_DE_MENSAGEM = [
   "zernio",
   "zernio_social",
   "datafy",
+  "telegram",
+  "email",
+  "instagram",
+  "tiktok",
+  "telegram_user",
 ] as const satisfies readonly ProviderDeMensagem[];
 
 /**
@@ -193,6 +263,20 @@ export function transportaMensagem(provider: string | null | undefined): boolean
  * voz. Aqui a pergunta é outra.
  */
 export const PROVIDERS_SEM_MENSAGEM = ["wacalls"] as const;
+
+/**
+ * Nomes de provedores de infraestrutura interna de transporte que não correspondem
+ * a termos de domínio público / redes sociais.
+ * Usado por guardrails de vazamento interno para evitar que nomes de encanamento vazem ao cliente.
+ */
+export const PROVIDERS_DE_INFRAESTRUTURA_INTERNA = [
+  "waha",
+  "meta_cloud",
+  "zernio",
+  "zernio_social",
+  "datafy",
+  "wacalls",
+] as const;
 
 /**
  * Erro de COMPILAÇÃO enquanto sobrar provider fora das duas listas. Provider
