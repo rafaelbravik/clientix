@@ -71,8 +71,12 @@ if [ -z "$release" ]; then
 fi
 if [ -z "$release" ]; then
   # Fallback quando não há GitHub Releases publicadas via API (repositório privado
-  # sem releases na API ou execução local offline): consulta a tag mais recente no Git.
+  # sem releases na API ou checkout raso sem tags): consulta tags locais ou remotas.
   release="$(git -C "$ROOT" tag -l 'clientix-*' 'v*' --sort=-v:refname | head -1 || true)"
+  if [ -z "$release" ]; then
+    release="$(git -C "$ROOT" ls-remote --tags origin 'refs/tags/clientix-*' 'refs/tags/v*' 2>/dev/null \
+      | sed -n 's#.*refs/tags/##p' | grep -v '\^{}' | sort -V -r | head -1 || true)"
+  fi
 fi
 case "$release" in
   v[0-9]*|clientix-[0-9]*) ;;

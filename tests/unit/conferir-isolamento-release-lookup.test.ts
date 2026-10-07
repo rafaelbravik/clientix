@@ -33,6 +33,10 @@ describe("Resolução de release para repositório privado e padrão de tags", (
     expect(conferirSh).toContain("git -C \"$ROOT\" tag -l 'clientix-*' 'v*' --sort=-v:refname | head -1");
   });
 
+  it("scripts/conferir-isolamento-do-kit.sh possui fallback para tags Git remotas via ls-remote em checkouts rasos", () => {
+    expect(conferirSh).toContain("git -C \"$ROOT\" ls-remote --tags origin 'refs/tags/clientix-*' 'refs/tags/v*'");
+  });
+
   it("scripts/conferir-isolamento-do-kit.sh valida formato v* e clientix-* e recusa formatos inválidos", () => {
     expect(conferirSh).toContain("v[0-9]*|clientix-[0-9]*) ;;");
     expect(conferirSh).toContain("FATAL: não consegui saber qual é a última release publicada");
