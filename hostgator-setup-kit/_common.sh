@@ -1965,6 +1965,8 @@ ensure_encryption_key() {
 # reintroduzir exatamente o defeito que esta função existe para matar.
 ultima_release_estavel() {
   local origem slug url tag
+  local auth_args=()
+  local token="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
   origem="$(git config --get remote.origin.url 2>/dev/null || true)"
 
   # Endereço explícito primeiro: é o caminho dos testes (um JSON local via
@@ -1983,15 +1985,19 @@ ultima_release_estavel() {
         # release, e a maior tag é a única resposta que existe — o mesmo que o
         # kit fazia antes. Toda instalação real clona do GitHub (install.sh) e
         # nunca cai aqui; quem cai é o repositório descartável dos testes.
-        git tag -l 'v*' --sort=-v:refname | head -1
+        git tag -l 'clientix-*' 'v*' --sort=-v:refname | head -1
         return 0
         ;;
     esac
   fi
 
+  if [ -n "$token" ]; then
+    auth_args=(-H "Authorization: Bearer $token" -H "X-GitHub-Api-Version: 2022-11-28")
+  fi
+
   # `-f` faz o curl falhar em 404 (repo sem release nenhuma) em vez de devolver
   # o corpo de erro, que o sed abaixo interpretaria como ausência de tag_name.
-  tag="$(curl -fsSL --max-time 20 -H 'Accept: application/vnd.github+json' "$url" 2>/dev/null \
+  tag="$(curl -fsSL --max-time 20 -H 'Accept: application/vnd.github+json' "${auth_args[@]}" "$url" 2>/dev/null \
     | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)"
 
   # Sem jq de propósito: o kit não pode exigir jq numa VPS de cliente. O
@@ -1999,7 +2005,7 @@ ultima_release_estavel() {
   # contém aspas, então o sed é suficiente — e a validação abaixo recusa
   # qualquer coisa que não tenha cara de versão, em vez de confiar no parse.
   case "$tag" in
-    v[0-9]*) printf '%s\n' "$tag" ;;
+    v[0-9]*|clientix-[0-9]*) printf '%s\n' "$tag" ;;
     *) printf '' ;;
   esac
 }

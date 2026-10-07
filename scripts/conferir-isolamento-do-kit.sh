@@ -63,16 +63,21 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 KIT="$ROOT/hostgator-setup-kit"
 
 release="${CONFERENCIA_KIT_RELEASE:-}"
-if [ -z "$release" ] && [ -n "${GH_TOKEN:-}" ] && command -v gh >/dev/null 2>&1; then
-  release="$(cd "$ROOT" && gh release view --json tagName -q .tagName 2>/dev/null || true)"
+if [ -z "$release" ] && [ -n "${GH_TOKEN:-${GITHUB_TOKEN:-}}" ] && command -v gh >/dev/null 2>&1; then
+  release="$(cd "$ROOT" && GH_TOKEN="${GH_TOKEN:-${GITHUB_TOKEN:-}}" gh release view --json tagName -q .tagName 2>/dev/null || true)"
 fi
 if [ -z "$release" ]; then
-  release="$(cd "$ROOT" && bash -c 'source "$1/_common.sh" >/dev/null 2>&1; ultima_release_estavel' _ "$KIT" || true)"
+  release="$(cd "$ROOT" && GITHUB_TOKEN="${GITHUB_TOKEN:-${GH_TOKEN:-}}" bash -c 'source "$1/_common.sh" >/dev/null 2>&1; ultima_release_estavel' _ "$KIT" || true)"
+fi
+if [ -z "$release" ]; then
+  # Fallback quando não há GitHub Releases publicadas via API (repositório privado
+  # sem releases na API ou execução local offline): consulta a tag mais recente no Git.
+  release="$(git -C "$ROOT" tag -l 'clientix-*' 'v*' --sort=-v:refname | head -1 || true)"
 fi
 case "$release" in
-  v[0-9]*) ;;
-  *) echo "FATAL: não consegui saber qual é a última release publicada (sem rede? API fora?)." >&2
-     echo "       Diga qual com CONFERENCIA_KIT_RELEASE=vX.Y.Z e rode de novo." >&2
+  v[0-9]*|clientix-[0-9]*) ;;
+  *) echo "FATAL: não consegui saber qual é a última release publicada (sem rede? API fora? sem releases/tags?)." >&2
+     echo "       Diga qual com CONFERENCIA_KIT_RELEASE=vX.Y.Z ou clientix-YYYY-MM-DD e rode de novo." >&2
      exit 1 ;;
 esac
 
