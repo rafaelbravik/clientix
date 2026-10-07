@@ -1301,13 +1301,13 @@ ler_rodada_do_banco() {
 # `publish-image.yml` digam o mesmo. Se você é um fork, é lá que está a lista do
 # que trocar junto — e, desde 18/09/2026, o CI do SEU fork não cobra este valor:
 # a asserção só vale quando o dono do runner é o dono deste repositório.
-IMG_NS="ghcr.io/melgarafael"
-IMG_APP="${IMG_NS}/deskcommcrm"
-IMG_WORKER="${IMG_NS}/deskcomm-worker"
-IMG_SCHEDULER="${IMG_NS}/deskcomm-scheduler"
+IMG_NS="ghcr.io/rafaelbravik"
+IMG_APP="${IMG_NS}/clientix-app"
+IMG_WORKER="${IMG_NS}/clientix-worker"
+IMG_SCHEDULER="${IMG_NS}/clientix-scheduler"
 # Telefonia por SIP (#677): só roda com `telefonia` em COMPOSE_PROFILES, mas é
 # imagem NOSSA e segue a mesma versão das outras três (gravar_imagens).
-IMG_VOICE_AGENT="${IMG_NS}/deskcomm-voice-agent"
+IMG_VOICE_AGENT="${IMG_NS}/clientix-voice-agent"
 
 # A última versão publicada (ex.: "1.2.1"), ou vazio se não deu para saber.
 #
@@ -1321,7 +1321,7 @@ IMG_VOICE_AGENT="${IMG_NS}/deskcomm-voice-agent"
 # alguém porque não deu para resolver um número de versão seria trocar um
 # problema de previsibilidade por um de disponibilidade.
 ultima_versao_publicada() {
-  local url="${1:-https://github.com/melgarafael/DeskcommCRM.git}" ref
+  local url="${1:-https://github.com/rafaelbravik/clientix-agencia.git}" ref
   command -v git >/dev/null 2>&1 || return 0
   # `grep -v -- -` descarta PRERELEASE (v1.11.0-rc1, v1.1.1-jmpo.1 — esta última
   # existe de verdade neste repo). O `--sort=-v:refname` do git põe o prerelease
@@ -1380,7 +1380,7 @@ ghcr_status() {
 # quebraria o leitor daquele teste sem ganhar nada: o que importa é a lista.
 trio_publicado() {
   local tag="$1" i
-  for i in deskcommcrm deskcomm-worker deskcomm-scheduler deskcomm-voice-agent; do
+  for i in clientix-app clientix-worker clientix-scheduler clientix-voice-agent; do
     [ "$(ghcr_status "$i" "$tag")" = "200" ] || return 1
   done
   return 0

@@ -1,30 +1,51 @@
-# Worker de voz (SIP/ARI + IA em tempo real) — mesmo padrão do Dockerfile.worker:
-# roda TS direto via tsx (sem build), imagem single-stage com devDeps.
-FROM node:22-alpine
+# Worker de voz (SIP/ARI + IA em tempo real) — compilado para JavaScript.
+# Estágio de build compila o entrypoint eliminando código TypeScript e devDependencies do runtime.
+
+# --- ESTÁGIO 1: BUILDER ---
+FROM node:22-alpine AS builder
 
 WORKDIR /app
-
-LABEL org.opencontainers.image.source="https://github.com/melgarafael/DeskcommCRM" \
-      org.opencontainers.image.licenses="MIT" \
-      org.opencontainers.image.title="DeskcommCRM voice-agent"
 
 RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 
 COPY package.json pnpm-lock.yaml ./
-# `package.json` declara `pnpm.patchedDependencies`, e o pnpm lê o arquivo do
-# patch durante o `install` — não no `postinstall`. Sem esta linha ele morre com
-# ENOENT em `patches/@react-pdf__hyphenate.patch` e a imagem não nasce.
-# `Dockerfile` e `Dockerfile.worker` já copiam; esta era a única que não copiava.
 COPY patches ./patches
 RUN pnpm install --frozen-lockfile
 
-COPY . .
+# Código-fonte para compilação
+COPY tsconfig*.json ./
+COPY workers ./workers
+COPY lib ./lib
+COPY app/api ./app/api
+COPY scripts ./scripts
 
-# A versão por ÚLTIMO, como no Dockerfile.worker. Declarada antes do `pnpm install`,
-# a instrução `ARG` entrava na chave de cache de tudo o que vem depois e a
-# instalação INTEIRA de dependências era refeita a cada release, só porque o
-# número mudou. Aqui ela só invalida o que não custa nada.
+# Compilar voice-agent para JavaScript standalone em dist/
+RUN node scripts/build-worker-bundle.mjs voice-agent
+
+# Isolar dependências estritamente de produção para o runtime
+RUN pnpm prune --prod
+
+# --- ESTÁGIO 2: RUNTIME FINAL HARDENED ---
+FROM node:22-alpine AS runner
+
+WORKDIR /app
+
+LABEL org.opencontainers.image.source="https://github.com/rafaelbravik/clientix-agencia" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.title="Clientix Agência voice agent"
+
+# Dependências estritamente de produção (sem typescript, sem tsx, sem devDeps)
+COPY --from=builder --chown=node:node /app/node_modules ./node_modules
+COPY --from=builder --chown=node:node /app/package.json ./package.json
+
+# Código compilado (zero arquivos .ts/.tsx proprietários)
+COPY --from=builder --chown=node:node /app/dist ./dist
+
+# A versão por ÚLTIMO (invariante de cache).
 ARG APP_VERSION=dev
 ENV APP_VERSION=$APP_VERSION
 
-CMD ["pnpm", "exec", "tsx", "workers/voice-agent/index.ts"]
+# Execução como non-root
+USER node
+
+CMD ["node", "dist/voice-agent/index.js"]
