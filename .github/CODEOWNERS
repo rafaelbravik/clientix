@@ -1,0 +1,10 @@
+# Global default owner
+* @rafaelbravik
+
+# Sensitive architectural & security boundaries
+supabase/ @rafaelbravik
+lib/auth/ @rafaelbravik
+lib/tenant/ @rafaelbravik
+lib/channels/ @rafaelbravik
+app/api/ @rafaelbravik
+.github/workflows/ @rafaelbravik
