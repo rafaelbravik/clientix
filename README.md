@@ -2,21 +2,18 @@
 
 🇧🇷 Português · [🇺🇸 English](README.en.md) · [🇪🇸 Español](README.es.md)
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/brand/deskcomm-logo-dark.svg">
-  <img src="docs/brand/deskcomm-logo.svg" alt="Deskcomm CRM" width="420">
-</picture>
+# 🛠️ Clientix Agência
 
-# 🛠️ Clientix Agência — Plataforma SaaS Multi-Tenant de Atendimento, CRM e IA
+### Plataforma SaaS Multi-Tenant de Atendimento, CRM, Automação e IA
 
-**Plataforma completa de atendimento, CRM comercial, automação multicanal e operações inteligentes com IA nativa.**
+**Plataforma de atendimento e operações inteligentes com CRM, automação multicanal, integrações e IA nativa, arquitetura self-hosted e isolamento multi-tenant.**
 **Sem limites de assentos por licença de terceiros, controle total de dados, arquitetura self-hosted em VPS e multi-tenant com isolamento RLS nativo.**
 
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript)](https://www.typescriptlang.org)
 [![Supabase](https://img.shields.io/badge/Supabase-Postgres%2BAuth%2BStorage-3ecf8e?logo=supabase)](https://supabase.com)
 [![Self-hosted](https://img.shields.io/badge/self--hosted-1%20comando-orange)](hostgator-setup-kit/)
-[![CI](https://github.com/melgarafael/DeskcommCRM/actions/workflows/ci.yml/badge.svg)](https://github.com/melgarafael/DeskcommCRM/actions/workflows/ci.yml)
+[![CI](https://github.com/rafaelbravik/clientix-agencia/actions/workflows/ci.yml/badge.svg)](https://github.com/rafaelbravik/clientix-agencia/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 [**⚡ Instalar**](#-instalar-na-sua-vps-o-caminho-principal) · [**🔄 Atualizar**](#-atualizar) · [**🧭 Visão**](VISION.md) · [**🏗️ Arquitetura**](ARCHITECTURE.md) · [**🤝 Contribuir**](CONTRIBUTING.md) · [**🗺️ Roadmap**](#%EF%B8%8F-roadmap)
@@ -25,25 +22,14 @@
 
 ---
 
-> ### ☁️ Rode este CRM em produção com 1 comando
+> ### ☁️ Executar o Clientix em ambiente self-hosted
 >
-> O DeskcommCRM foi desenvolvido em **parceria com a HostGator**: o [`hostgator-setup-kit/`](hostgator-setup-kit/)
-> instala o CRM completo (app + WhatsApp + banco) numa VPS com um único comando, e o
-> [runbook de produção](docs/runbooks/waha-hostgator.md) já assume esse ambiente.
+> O Clientix Agência é uma plataforma SaaS multi-tenant voltada para atendimento, CRM,
+> automação de processos, canais digitais e operações inteligentes com IA.
+> O kit de automação de instalação ([`hostgator-setup-kit/`](hostgator-setup-kit/)) configura a stack
+> completa (app + WhatsApp + banco) em qualquer VPS com Docker com um único comando.
 >
-> **[👉 Assinar a VPS HostGator com desconto da parceria](https://www.hostgator.com.br/52708-141-3-52.html)** —
-> datacenter em São Paulo, ideal pro WhatsApp rodando 24/7. *(link de parceiro — assinar por ele apoia o projeto e sai mais barato)*
->
-> **Ainda não tem servidor?** Rode isto **no seu computador** (macOS, Linux ou WSL). Ele diz
-> qual plano contratar — com os números do runbook, não um "depende" — e te devolve o
-> comando certo pro seu caso:
->
-> ```bash
-> curl -fsSL https://raw.githubusercontent.com/melgarafael/DeskcommCRM/main/hostgator-setup-kit/comecar.sh | bash
-> ```
->
-> *(prefere ler antes de executar? clone o repo e rode `bash hostgator-setup-kit/comecar.sh` —
-> ele não instala nada sem você confirmar.)*
+> *Nota: Alguns identificadores internos legados permanecem preservados por compatibilidade operacional.*
 
 ---
 
@@ -72,8 +58,8 @@ travamento: é o terminal escondendo a senha. Digite (ou cole) e dê Enter.
 Já dentro da VPS:
 
 ```bash
-git clone https://github.com/melgarafael/DeskcommCRM.git
-cd DeskcommCRM
+git clone https://github.com/rafaelbravik/clientix-agencia.git
+cd clientix-agencia
 bash hostgator-setup-kit/install.sh
 ```
 
@@ -84,7 +70,7 @@ Se faltar Docker, o instalador pergunta e instala sozinho.
 
 | Item | Onde conseguir |
 |---|---|
-| **VPS com Docker** | [HostGator](https://www.hostgator.com.br/52708-141-3-52.html) (parceria) — ou qualquer VPS com Docker. 4 GB de RAM recomendados |
+| **VPS com Docker** | Qualquer VPS com Docker (HostGator, Hostinger, Hetzner, AWS, etc.). 4 GB de RAM recomendados |
 | **Domínio** | Um registro **A** apontando pro IP da VPS (ex.: `crm.suaempresa.com.br`) |
 | **Banco** | Conta grátis no [supabase.com](https://supabase.com) — 3 chaves + connection string do **Session pooler** |
 | **IA** | Uma chave de **OpenRouter**, **Anthropic** ou **OpenAI** — o instalador pergunta qual você quer |
@@ -139,7 +125,7 @@ do agente e contribuir. Para tê-los em **qualquer pasta** — inclusive antes d
 computador —, rode uma vez:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/melgarafael/DeskcommCRM/main/scripts/instalar-guias.sh | bash
+curl -fsSL https://raw.githubusercontent.com/rafaelbravik/clientix-agencia/main/scripts/instalar-guias.sh | bash
 ```
 
 Depois abra uma sessão nova do seu assistente e diga *"quero instalar o CRM na minha VPS"*: pedir o
@@ -151,7 +137,7 @@ Os guias **não** se atualizam sozinhos: rodar o mesmo comando de novo traz a ve
 desfazer:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/melgarafael/DeskcommCRM/main/scripts/instalar-guias.sh | bash -s -- --remover
+curl -fsSL https://raw.githubusercontent.com/rafaelbravik/clientix-agencia/main/scripts/instalar-guias.sh | bash -s -- --remover
 ```
 
 Com o repositório já clonado, os guias vêm dentro dele (`.agents/skills/`) e nem isso é preciso. Se
@@ -184,7 +170,7 @@ volta no `.env` — sem isso, o próximo restart traria o app quebrado de novo, 
 ### Pelo terminal
 
 ```bash
-cd /caminho/do/DeskcommCRM
+cd /caminho/do/clientix-agencia
 bash hostgator-setup-kit/update.sh
 ```
 
@@ -314,7 +300,7 @@ Toda tela tem porta na navegação — o CI reprova tela que existe mas em que s
 | **AI** | Vercel AI SDK v7 — OpenRouter, Requesty, Anthropic, OpenAI e Google | Instalador pergunta qual; troca depois pela tela |
 | **Validação** | Zod | Input externo, env, payloads |
 | **Observability** | Sentry (scrub em erro, transação, span e breadcrumb) | Telemetria opt-in no install |
-| **Hospedagem** | VPS com Docker (HostGator/SP na parceria) | App + WhatsApp + workers na sua máquina |
+| **Hospedagem** | VPS com Docker | App + WhatsApp + workers na sua máquina |
 
 Detalhes: [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
@@ -326,8 +312,8 @@ Detalhes: [`ARCHITECTURE.md`](ARCHITECTURE.md).
 > Esta seção é pra quem vai mexer no código.
 
 ```bash
-git clone https://github.com/melgarafael/DeskcommCRM.git
-cd DeskcommCRM
+git clone https://github.com/rafaelbravik/clientix-agencia.git
+cd clientix-agencia
 
 nvm use                     # Node 22
 npm install -g pnpm && pnpm install
@@ -363,7 +349,7 @@ App: <http://localhost:3000> · Health check: <http://localhost:3000/api/v1/heal
 ## 📁 Estrutura
 
 ```
-DeskcommCRM/
+clientix-agencia/
 ├── app/                    # Next.js App Router
 │   ├── (admin)/            # Rotas super-admin (impersonate, tenants)
 │   ├── (public)/           # Login, recovery
@@ -477,9 +463,9 @@ o `imagens-ok` (constrói as três imagens Docker). Verde na sua máquina não �
 
 ## 🐛 Reportando bugs
 
-Abra uma [issue](https://github.com/melgarafael/DeskcommCRM/issues/new/choose) — o template pede o que precisamos (ambiente, `/api/v1/health`, steps). Rodar `bash hostgator-setup-kit/healthcheck.sh` e colar a saída ajuda muito.
+Abra uma [issue](https://github.com/rafaelbravik/clientix-agencia/issues/new/choose) — o template pede o que precisamos (ambiente, `/api/v1/health`, steps). Rodar `bash hostgator-setup-kit/healthcheck.sh` e colar a saída ajuda muito.
 
-Pra **vulnerabilidades de segurança**, **NÃO abra issue pública** — use o [relato privado de vulnerabilidades](https://github.com/melgarafael/DeskcommCRM/security/advisories/new). Detalhes em [`SECURITY.md`](SECURITY.md).
+Pra **vulnerabilidades de segurança**, **NÃO abra issue pública** — use o [relato privado de vulnerabilidades](https://github.com/rafaelbravik/clientix-agencia/security/advisories/new). Detalhes em [`SECURITY.md`](SECURITY.md).
 
 ---
 
@@ -501,7 +487,7 @@ Pra **vulnerabilidades de segurança**, **NÃO abra issue pública** — use o [
 
 ### 🔮 Próximo
 
-- **MCP público** — capabilities do CRM expostas pro ecossistema de agentes: plugue o agente que quiser e ele opera o Deskcomm.
+- **MCP público** — capabilities do CRM expostas pro ecossistema de agentes: plugue o agente que quiser e ele opera o Clientix.
 - **Templates por nicho** — pipelines e vocabulários prontos pra clínica, imobiliária, infoproduto e serviços (e-commerce já entregue).
 - **Integrações** — VTEX e Shopify via adapter pattern (Nuvemshop já entregue).
 - **Identity probabilística** — unificação de contatos entre canais.
@@ -510,10 +496,8 @@ Pra **vulnerabilidades de segurança**, **NÃO abra issue pública** — use o [
 
 ## 💬 Comunidade
 
-- **Discussões:** [GitHub Discussions](https://github.com/melgarafael/DeskcommCRM/discussions) — pra perguntas, ideias, showcase.
-- **Issues:** [GitHub Issues](https://github.com/melgarafael/DeskcommCRM/issues) — bugs e tasks.
-- **Instagram:** [@melgarafael](https://www.instagram.com/melgarafael)
-- **YouTube:** [youtube.com/@melgarafael](https://www.youtube.com/@melgarafael)
+- **Discussões:** [GitHub Discussions](https://github.com/rafaelbravik/clientix-agencia/discussions) — pra perguntas, ideias, showcase.
+- **Issues:** [GitHub Issues](https://github.com/rafaelbravik/clientix-agencia/issues) — bugs e tasks.
 
 ---
 
@@ -531,8 +515,8 @@ Este é um projeto **self-host**: cada pessoa roda o CRM na **própria infraestr
 (VPS, banco Supabase e chave de IA próprios). Isso implica:
 
 - **Suporte é comunitário e "as-is".** Dúvidas e bugs entram como
-  [Issues](https://github.com/melgarafael/DeskcommCRM/issues) ou
-  [Discussions](https://github.com/melgarafael/DeskcommCRM/discussions). Não há SLA nem
+  [Issues](https://github.com/rafaelbravik/clientix-agencia/issues) ou
+  [Discussions](https://github.com/rafaelbravik/clientix-agencia/discussions). Não há SLA nem
   suporte garantido — é open source mantido por boa vontade.
 - **Você é responsável pela sua instalação.** Atualizações não são automáticas (você clica
   ou roda `update.sh` quando quiser), e manter/backup do seu servidor é com você.
@@ -558,17 +542,14 @@ Este é um projeto **self-host**: cada pessoa roda o CRM na **própria infraestr
 
 - **WAHA** ([devlikeapro](https://waha.devlikeapro.com/)) — engine WhatsApp.
 - **Supabase** — Postgres + Auth + Storage + Realtime numa stack só.
-- **HostGator** — parceria de infraestrutura que tornou o self-host de 1 comando possível.
 - **Anthropic**, **OpenAI** e **OpenRouter** — os provedores de IA que o CRM sabe usar.
 - **shadcn/ui** — base de componentes.
-- A comunidade que nos levou do e-commerce pra clínicas, imobiliárias, infoprodutos e além — vocês definiram o que este projeto é.
+- A comunidade e clientes que levaram a plataforma do e-commerce pra clínicas, imobiliárias, infoprodutos e além.
 
 ---
 
 <div align="center">
 
-**Built with ☕ in Brasil** · **Made for the community**
-
-Siga o desenvolvimento: [Instagram](https://www.instagram.com/melgarafael) · [YouTube](https://www.youtube.com/@melgarafael)
+**Built with ☕ in Brasil** · **Clientix Agência**
 
 </div>
