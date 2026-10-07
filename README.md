@@ -7,10 +7,10 @@
   <img src="docs/brand/deskcomm-logo.svg" alt="Deskcomm CRM" width="420">
 </picture>
 
-# 🛠️ DeskcommCRM — o Sistema Operacional de Vendas com IA, open source, pro WhatsApp
+# 🛠️ Clientix Agência — Plataforma SaaS Multi-Tenant de Atendimento, CRM e IA
 
-**Agentes de IA que atendem, qualificam e vendem no WhatsApp — dentro de um CRM open source rodando no seu servidor.**
-**Sem mensalidade, sem feature travada, seus dados com você. A alternativa aberta a Kommo, Octadesk e Intercom.**
+**Plataforma completa de atendimento, CRM comercial, automação multicanal e operações inteligentes com IA nativa.**
+**Sem limites de assentos por licença de terceiros, controle total de dados, arquitetura self-hosted em VPS e multi-tenant com isolamento RLS nativo.**
 
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript)](https://www.typescriptlang.org)
@@ -255,11 +255,11 @@ só quando a instalação tiver um `COMPOSE_PROJECT_NAME` personalizado que não
 
 ---
 
-## ✨ O que é
+**Clientix Agência** é a plataforma completa de operação comercial e atendimento omnichannel para agências, clínicas, empresas e prestadores de serviços, operada por atendentes humanos e agentes autônomos de IA integrados.
 
-**Deskcomm** vem de **Desk** (mesa) + **comm** (comércio): **o comercial de mesa** — toda a operação de vendas do seu negócio numa mesa só, operada por pessoas e agentes de IA juntos.
+> *Nota de linhagem técnica: Este projeto evoluiu a partir da base open source DeskcommCRM, consolidando arquitetura multi-tenant robusta, automações multicanal e segurança avançada.*
 
-O projeto nasceu como CRM de e-commerce e a comunidade o levou muito além: hoje roda em **clínicas, imobiliárias, infoprodutos, agências, lojas e prestadores de serviço** — qualquer negócio que vende pelo WhatsApp. O produto acompanhou essa virada e virou um **sistema operacional de vendas**: agentes de IA com RAG por tenant atendem, qualificam, movem leads no funil, disparam automações e sabem a hora de passar pra um humano — com o CRM inteiro exposto via **MCP** pros agentes operarem de verdade. A história completa está em [`VISION.md`](VISION.md).
+O projeto atende com excelência **agências, clínicas, imobiliárias, infoprodutos, e-commerces e prestadores de serviços** — qualquer operação moderna de atendimento e vendas. A plataforma oferece um **sistema operacional comercial completo**: agentes de IA com RAG por tenant atendem, qualificam, movem leads no funil, disparam automações e sabem a hora exata de transferir para um atendente humano — com o CRM inteiro exposto via **MCP** para agentes operarem com ferramentas reais. A visão estratégica detalhada está em [`VISION.md`](VISION.md).
 
 ### Diferenciais
 

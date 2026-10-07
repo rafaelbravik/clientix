@@ -1,8 +1,8 @@
 {
-  "name": "deskcomm-crm",
+  "name": "clientix-agencia",
   "version": "0.1.0",
   "private": true,
-  "description": "DeskcommCRM — sistema operacional de vendas open source com agentes de IA nativos e WhatsApp (WAHA). Self-hosted, multi-tenant, LGPD by-design.",
+  "description": "Clientix Agência — plataforma multi-tenant de atendimento, CRM, automação, canais digitais e operações inteligentes com IA.",
   "engines": {
     "node": ">=22"
   },
