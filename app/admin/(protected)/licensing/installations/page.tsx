@@ -6,6 +6,7 @@ import { StatusBadge } from "@/components/admin/licensing/Badges";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MagnifyingGlass, CircleNotch } from "@/lib/ui/icons";
+import { useTagDeIdioma } from "@/hooks/i18n/useLocaleDeData";
 
 interface InstallationItem {
   id: string;
@@ -22,6 +23,7 @@ interface InstallationItem {
 }
 
 export default function AdminInstallationsPage() {
+  const tag = useTagDeIdioma();
   const [installations, setInstallations] = useState<InstallationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -84,7 +86,7 @@ export default function AdminInstallationsPage() {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="h-9 px-3 rounded-md border border-input bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          className="h-9 px-3 rounded-md border border-input bg-background text-sm text-foreground focus:outline-hidden focus:ring-1 focus:ring-ring"
         >
           <option value="ALL">Status: Todos</option>
           <option value="ACTIVE">Ativas</option>
@@ -138,7 +140,7 @@ export default function AdminInstallationsPage() {
                   <td className="px-4 py-3 text-xs">{inst.app_version || "—"}</td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">
                     {inst.last_heartbeat_at
-                      ? new Date(inst.last_heartbeat_at).toLocaleString("pt-BR")
+                      ? new Date(inst.last_heartbeat_at).toLocaleString(tag)
                       : "Nunca"}
                   </td>
                   <td className="px-4 py-3 text-right">

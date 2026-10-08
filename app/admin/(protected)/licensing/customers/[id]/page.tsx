@@ -7,6 +7,7 @@ import { StatusBadge, TemporalStateBadge } from "@/components/admin/licensing/Ba
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, CircleNotch, Plus, PencilSimple, X } from "@/lib/ui/icons";
+import { useTagDeIdioma } from "@/hooks/i18n/useLocaleDeData";
 
 interface CustomerLicenseItem {
   id: string;
@@ -32,6 +33,7 @@ interface CustomerDetailData {
 }
 
 export default function CustomerDetailPage() {
+  const tag = useTagDeIdioma();
   const params = useParams();
   const id = params?.id as string;
 
@@ -118,7 +120,7 @@ export default function CustomerDetailPage() {
             <ArrowLeft className="mr-1.5 h-4 w-4" /> Voltar
           </Link>
         </Button>
-        <div className="p-4 rounded bg-rose-500/10 text-rose-500">{error || "Não encontrado"}</div>
+        <div className="p-4 rounded-md bg-rose-500/10 text-rose-500">{error || "Não encontrado"}</div>
       </div>
     );
   }
@@ -175,7 +177,7 @@ export default function CustomerDetailPage() {
             </div>
             <div className="flex justify-between py-1">
               <span className="text-muted-foreground">Data de Cadastro:</span>
-              <span>{new Date(customer.created_at).toLocaleString("pt-BR")}</span>
+              <span>{new Date(customer.created_at).toLocaleString(tag)}</span>
             </div>
           </div>
         </div>
@@ -247,7 +249,7 @@ export default function CustomerDetailPage() {
                       {lic.active_installations_count || 0} / {lic.max_installations}
                     </td>
                     <td className="px-3 py-2.5 text-xs text-muted-foreground">
-                      {new Date(lic.expires_at).toLocaleDateString("pt-BR")}
+                      {new Date(lic.expires_at).toLocaleDateString(tag)}
                     </td>
                     <td className="px-3 py-2.5 text-right">
                       <Button asChild variant="outline" size="sm" className="h-7 text-xs">
@@ -274,7 +276,7 @@ export default function CustomerDetailPage() {
             </div>
 
             {editError && (
-              <div className="p-3 text-xs rounded bg-rose-500/10 text-rose-500 border border-rose-500/20">
+              <div className="p-3 text-xs rounded-md bg-rose-500/10 text-rose-500 border border-rose-500/20">
                 {editError}
               </div>
             )}

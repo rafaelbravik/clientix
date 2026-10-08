@@ -15,6 +15,7 @@ import {
   Copy,
   Check,
 } from "@/lib/ui/icons";
+import { useTagDeIdioma } from "@/hooks/i18n/useLocaleDeData";
 
 interface InstallationEvent {
   id: string;
@@ -56,6 +57,7 @@ interface InstallationDetailData {
 }
 
 export default function InstallationDetailPage() {
+  const tag = useTagDeIdioma();
   const params = useParams();
   const id = params?.id as string;
 
@@ -166,7 +168,7 @@ export default function InstallationDetailPage() {
             <ArrowLeft className="mr-1.5 h-4 w-4" /> Voltar
           </Link>
         </Button>
-        <div className="p-4 rounded bg-rose-500/10 text-rose-500">{error || "Não encontrada"}</div>
+        <div className="p-4 rounded-md bg-rose-500/10 text-rose-500">{error || "Não encontrada"}</div>
       </div>
     );
   }
@@ -266,13 +268,13 @@ export default function InstallationDetailPage() {
               <span className="text-muted-foreground">Último Heartbeat:</span>
               <span>
                 {installation.last_heartbeat_at
-                  ? new Date(installation.last_heartbeat_at).toLocaleString("pt-BR")
+                  ? new Date(installation.last_heartbeat_at).toLocaleString(tag)
                   : "Nunca"}
               </span>
             </div>
             <div className="flex justify-between py-1 border-b border-border/50">
               <span className="text-muted-foreground">Registrada em:</span>
-              <span>{new Date(installation.created_at).toLocaleString("pt-BR")}</span>
+              <span>{new Date(installation.created_at).toLocaleString(tag)}</span>
             </div>
             <div className="flex justify-between py-1">
               <span className="text-muted-foreground">Contrato Vinculado:</span>
@@ -295,7 +297,7 @@ export default function InstallationDetailPage() {
               <span className="text-muted-foreground text-xs block mb-1">
                 Fingerprint SHA-256 da Chave Pública:
               </span>
-              <div className="p-2 rounded bg-muted font-mono text-xs break-all border">
+              <div className="p-2 rounded-md bg-muted font-mono text-xs break-all border">
                 {installation.public_key_fingerprint}
               </div>
             </div>
@@ -317,7 +319,7 @@ export default function InstallationDetailPage() {
                 readOnly
                 value={installation.public_key}
                 rows={3}
-                className="w-full p-2 rounded bg-muted/60 font-mono text-xs border resize-none focus:outline-none"
+                className="w-full p-2 rounded-md bg-muted/60 font-mono text-xs border resize-none focus:outline-hidden"
               />
             </div>
           </div>
@@ -352,7 +354,7 @@ export default function InstallationDetailPage() {
                 {events.map((evt) => (
                   <tr key={evt.id} className="hover:bg-muted/10">
                     <td className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
-                      {new Date(evt.created_at).toLocaleString("pt-BR")}
+                      {new Date(evt.created_at).toLocaleString(tag)}
                     </td>
                     <td className="px-3 py-2.5 font-mono text-xs font-medium">{evt.event_type}</td>
                     <td className="px-3 py-2.5 text-xs text-muted-foreground">{evt.actor}</td>

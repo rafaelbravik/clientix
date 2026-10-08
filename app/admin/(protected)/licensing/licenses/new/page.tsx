@@ -117,7 +117,7 @@ export default function NewLicensePage() {
       <LicensingNav />
 
       {error && (
-        <div className="p-3 text-sm rounded bg-rose-500/10 text-rose-500 border border-rose-500/20">
+        <div className="p-3 text-sm rounded-md bg-rose-500/10 text-rose-500 border border-rose-500/20">
           {error}
         </div>
       )}
@@ -137,7 +137,7 @@ export default function NewLicensePage() {
             <select
               value={customerId}
               onChange={(e) => setCustomerId(e.target.value)}
-              className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm text-foreground focus:outline-hidden focus:ring-1 focus:ring-ring"
               required
             >
               {customers.map((c) => (
@@ -157,7 +157,7 @@ export default function NewLicensePage() {
             <select
               value={licenseType}
               onChange={(e) => setLicenseType(e.target.value as "enterprise" | "partner" | "internal")}
-              className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm text-foreground focus:outline-hidden focus:ring-1 focus:ring-ring"
             >
               <option value="enterprise">Enterprise</option>
               <option value="partner">Partner</option>
@@ -251,7 +251,7 @@ export default function NewLicensePage() {
               type="checkbox"
               checked={whiteLabel}
               onChange={(e) => setWhiteLabel(e.target.checked)}
-              className="rounded border-input text-primary"
+              className="rounded-md border-input text-primary"
             />
             White Label Autorizado
           </label>
@@ -261,7 +261,7 @@ export default function NewLicensePage() {
               type="checkbox"
               checked={resaleAllowed}
               onChange={(e) => setResaleAllowed(e.target.checked)}
-              className="rounded border-input text-primary"
+              className="rounded-md border-input text-primary"
             />
             Revenda Autorizada (Partner)
           </label>

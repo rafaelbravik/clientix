@@ -6,6 +6,7 @@ import { StatusBadge, TemporalStateBadge } from "@/components/admin/licensing/Ba
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, MagnifyingGlass, CircleNotch } from "@/lib/ui/icons";
+import { useTagDeIdioma } from "@/hooks/i18n/useLocaleDeData";
 
 interface LicenseItem {
   id: string;
@@ -22,6 +23,7 @@ interface LicenseItem {
 }
 
 export default function AdminLicensesPage() {
+  const tag = useTagDeIdioma();
   const [licenses, setLicenses] = useState<LicenseItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -93,7 +95,7 @@ export default function AdminLicensesPage() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="h-9 px-3 rounded-md border border-input bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            className="h-9 px-3 rounded-md border border-input bg-background text-sm text-foreground focus:outline-hidden focus:ring-1 focus:ring-ring"
           >
             <option value="ALL">Status: Todos</option>
             <option value="ACTIVE">Ativas</option>
@@ -104,7 +106,7 @@ export default function AdminLicensesPage() {
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
-            className="h-9 px-3 rounded-md border border-input bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            className="h-9 px-3 rounded-md border border-input bg-background text-sm text-foreground focus:outline-hidden focus:ring-1 focus:ring-ring"
           >
             <option value="ALL">Tipo: Todos</option>
             <option value="enterprise">Enterprise</option>
@@ -158,7 +160,7 @@ export default function AdminLicensesPage() {
                     <span className="text-muted-foreground font-mono"> / {lic.max_installations}</span>
                   </td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">
-                    {new Date(lic.expires_at).toLocaleDateString("pt-BR")}
+                    {new Date(lic.expires_at).toLocaleDateString(tag)}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <Button asChild variant="outline" size="sm">

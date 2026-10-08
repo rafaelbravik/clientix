@@ -4,6 +4,7 @@ import { LicensingNav } from "@/components/admin/licensing/LicensingNav";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CircleNotch, MagnifyingGlass } from "@/lib/ui/icons";
+import { useTagDeIdioma } from "@/hooks/i18n/useLocaleDeData";
 
 interface AuditEventItem {
   id: string;
@@ -16,6 +17,7 @@ interface AuditEventItem {
 }
 
 export default function AdminAuditPage() {
+  const tag = useTagDeIdioma();
   const [events, setEvents] = useState<AuditEventItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [eventTypeFilter, setEventTypeFilter] = useState("");
@@ -122,7 +124,7 @@ export default function AdminAuditPage() {
                 {events.map((evt) => (
                   <tr key={evt.id} className="hover:bg-muted/20">
                     <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
-                      {new Date(evt.created_at).toLocaleString("pt-BR")}
+                      {new Date(evt.created_at).toLocaleString(tag)}
                     </td>
                     <td className="px-4 py-3 font-mono text-xs font-semibold text-foreground">
                       {evt.event_type}
@@ -142,7 +144,7 @@ export default function AdminAuditPage() {
                       {!evt.license_id && !evt.installation_id && "—"}
                     </td>
                     <td className="px-4 py-3 text-xs font-mono text-muted-foreground max-w-lg">
-                      <pre className="bg-muted/50 p-2 rounded text-[11px] overflow-x-auto max-h-24">
+                      <pre className="bg-muted/50 p-2 rounded-md text-[11px] overflow-x-auto max-h-24">
                         {JSON.stringify(evt.payload, null, 2)}
                       </pre>
                     </td>

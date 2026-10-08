@@ -18,6 +18,7 @@ import {
   Play,
   X,
 } from "@/lib/ui/icons";
+import { useTagDeIdioma } from "@/hooks/i18n/useLocaleDeData";
 
 interface ActivationCodeItem {
   id: string;
@@ -76,6 +77,7 @@ interface LicenseDetailData {
 }
 
 export default function LicenseDetailPage() {
+  const tag = useTagDeIdioma();
   const params = useParams();
   const id = params?.id as string;
 
@@ -237,7 +239,7 @@ export default function LicenseDetailPage() {
             <ArrowLeft className="mr-1.5 h-4 w-4" /> Voltar
           </Link>
         </Button>
-        <div className="p-4 rounded bg-rose-500/10 text-rose-500">{error || "Não encontrada"}</div>
+        <div className="p-4 rounded-md bg-rose-500/10 text-rose-500">{error || "Não encontrada"}</div>
       </div>
     );
   }
@@ -329,11 +331,11 @@ export default function LicenseDetailPage() {
             </div>
             <div className="flex justify-between py-1 border-b border-border/50">
               <span className="text-muted-foreground">Válido a partir de:</span>
-              <span>{new Date(license.valid_from).toLocaleDateString("pt-BR")}</span>
+              <span>{new Date(license.valid_from).toLocaleDateString(tag)}</span>
             </div>
             <div className="flex justify-between py-1 border-b border-border/50">
               <span className="text-muted-foreground">Data de Expiração:</span>
-              <span>{new Date(license.expires_at).toLocaleDateString("pt-BR")}</span>
+              <span>{new Date(license.expires_at).toLocaleDateString(tag)}</span>
             </div>
             <div className="flex justify-between py-1 border-b border-border/50">
               <span className="text-muted-foreground">Período de Carência:</span>
@@ -345,7 +347,7 @@ export default function LicenseDetailPage() {
             </div>
             <div className="flex justify-between py-1">
               <span className="text-muted-foreground">Emitida em:</span>
-              <span>{new Date(license.issued_at).toLocaleString("pt-BR")}</span>
+              <span>{new Date(license.issued_at).toLocaleString(tag)}</span>
             </div>
           </div>
         </div>
@@ -379,7 +381,7 @@ export default function LicenseDetailPage() {
               <div className="flex flex-wrap gap-1">
                 {license.features && license.features.length > 0 ? (
                   license.features.map((f: string) => (
-                    <span key={f} className="px-2 py-0.5 rounded text-xs bg-muted font-mono">
+                    <span key={f} className="px-2 py-0.5 rounded-md text-xs bg-muted font-mono">
                       {f}
                     </span>
                   ))
@@ -464,7 +466,7 @@ export default function LicenseDetailPage() {
                       {code.used_count} / {code.max_uses}
                     </td>
                     <td className="px-3 py-2.5 text-xs text-muted-foreground">
-                      {new Date(code.expires_at).toLocaleString("pt-BR")}
+                      {new Date(code.expires_at).toLocaleString(tag)}
                     </td>
                     <td className="px-3 py-2.5">
                       {code.revoked_at ? (
@@ -534,7 +536,7 @@ export default function LicenseDetailPage() {
                     <td className="px-3 py-2.5 text-xs">{inst.app_version || "—"}</td>
                     <td className="px-3 py-2.5 text-xs text-muted-foreground">
                       {inst.last_heartbeat_at
-                        ? new Date(inst.last_heartbeat_at).toLocaleString("pt-BR")
+                        ? new Date(inst.last_heartbeat_at).toLocaleString(tag)
                         : "Nunca"}
                     </td>
                     <td className="px-3 py-2.5 text-right">
@@ -572,7 +574,7 @@ export default function LicenseDetailPage() {
 
             {generatedCode ? (
               <div className="space-y-4">
-                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded text-xs text-amber-500">
+                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-md text-xs text-amber-500">
                   <Warning className="inline-block mr-1 h-3.5 w-3.5" />
                   <strong>ATENÇÃO:</strong> Este código é exibido apenas UMA VEZ. Copie agora e envie
                   ao operador da instalação. Apenas o hash HMAC-SHA256 foi salvo no banco.

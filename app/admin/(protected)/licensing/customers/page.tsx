@@ -5,6 +5,7 @@ import { LicensingNav } from "@/components/admin/licensing/LicensingNav";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, MagnifyingGlass, CircleNotch, X } from "@/lib/ui/icons";
+import { useTagDeIdioma } from "@/hooks/i18n/useLocaleDeData";
 
 interface CustomerItem {
   id: string;
@@ -16,6 +17,7 @@ interface CustomerItem {
 }
 
 export default function AdminCustomersPage() {
+  const tag = useTagDeIdioma();
   const [customers, setCustomers] = useState<CustomerItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -149,7 +151,7 @@ export default function AdminCustomersPage() {
                   <td className="px-4 py-3 text-foreground">{c.billing_email}</td>
                   <td className="px-4 py-3 font-mono text-xs">{c.country || "—"}</td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">
-                    {new Date(c.created_at).toLocaleDateString("pt-BR")}
+                    {new Date(c.created_at).toLocaleDateString(tag)}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <Button asChild variant="outline" size="sm">
@@ -175,7 +177,7 @@ export default function AdminCustomersPage() {
             </div>
 
             {createError && (
-              <div className="p-3 text-xs rounded bg-rose-500/10 text-rose-500 border border-rose-500/20">
+              <div className="p-3 text-xs rounded-md bg-rose-500/10 text-rose-500 border border-rose-500/20">
                 {createError}
               </div>
             )}
