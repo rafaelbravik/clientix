@@ -10,6 +10,9 @@ services:
     env_file: .env
     ports:
       - "${PORT:-3000}:3000"
+    volumes:
+      - ./licenses:/opt/clientix/licenses:ro
+      - ./state:/opt/clientix/state:ro
     healthcheck:
       test: ["CMD", "node", "-e", "require('net').connect(3000,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"]
       interval: 15s
@@ -24,6 +27,9 @@ services:
     restart: unless-stopped
     mem_limit: 512m
     env_file: .env
+    volumes:
+      - ./licenses:/opt/clientix/licenses:ro
+      - ./state:/opt/clientix/state:ro
     networks:
       - clientix-net
 
@@ -40,6 +46,9 @@ services:
     restart: unless-stopped
     mem_limit: 512m
     env_file: .env
+    volumes:
+      - ./licenses:/opt/clientix/licenses:ro
+      - ./state:/opt/clientix/state:ro
     networks:
       - clientix-net
 

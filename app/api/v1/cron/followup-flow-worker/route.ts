@@ -38,6 +38,7 @@ import { enviarTextoFixoPendente } from "@/lib/followup/enviar-texto-fixo";
 import { encerrarRoteirosVencidos } from "@/lib/followup/atendimento";
 import { createSupabaseSilenceSweepDb, runSilenceSweep } from "@/lib/followup/silence-sweep";
 import { autorizaCron } from "@/lib/auth/cron-auth";
+import { requireValidInstallationLicense } from "@/lib/licensing";
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +61,9 @@ async function handle(req: NextRequest): Promise<Response> {
   if (!autorizaCron(req)) {
     return fail("forbidden", "Cron secret missing or invalid.", 403, { requestId });
   }
+
+  const licenseDenied = await requireValidInstallationLicense();
+  if (licenseDenied) return licenseDenied;
 
   const admin = createAdminClient();
   const deps = {

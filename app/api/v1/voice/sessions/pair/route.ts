@@ -48,6 +48,7 @@ import { audit } from "@/lib/audit";
 import { ok, fail } from "@/lib/api/wrappers";
 import { requireRole } from "@/lib/auth/require-role";
 import { requireSupportWrite } from "@/lib/impersonate/support";
+import { requireValidInstallationLicense } from "@/lib/licensing";
 import { logger } from "@/lib/logger";
 import { createClient } from "@/lib/supabase/server";
 import { exigirVozLigada } from "@/lib/voice/guarda";
@@ -94,6 +95,9 @@ export async function POST(request: Request): Promise<Response> {
   // desliga e não pareia: o efeito é do tenant, não de quem observa.
   const suporteNegado = await requireSupportWrite();
   if (suporteNegado) return suporteNegado;
+
+  const licenseDenied = await requireValidInstallationLicense();
+  if (licenseDenied) return licenseDenied;
 
   const requestId = randomUUID();
 

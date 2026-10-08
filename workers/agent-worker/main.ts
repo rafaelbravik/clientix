@@ -6,6 +6,7 @@ import { AgendaDeferredError } from "@/lib/agenda/protecao-followup";
 import { avisarRespostaDeCasoObsoleto } from "@/lib/atendimento/aviso-caso-obsoleto";
 import { withServiceJob } from "@/lib/atendimento/fronteira-server";
 import { StaleServiceBoundaryError } from "@/lib/atendimento/fronteira";
+import { getInstallationLicenseStatus } from "@/lib/licensing";
 /**
  * Worker 24/7 do agent-engine (fusão Vendaval → DeskcommCRM) — o processo
  * long-running que o CRM não tinha: fila durável, cron/follow-up, drain do
@@ -457,6 +458,26 @@ export async function startWorker(
       if (!handler) {
         throw new Error(`nenhum handler registrado para kind=${job.kind}`);
       }
+      // Licença Comercial da Instalação: se expirada ou inválida, pausa execução de jobs comerciais autônomos
+      if (
+        job.kind === "inbound_turn" ||
+        job.kind === "followup_turn" ||
+        job.kind === "case_reply_turn" ||
+        job.kind === "approved_reply" ||
+        job.kind === "transactional_delivery"
+      ) {
+        const licenseStatus = await getInstallationLicenseStatus();
+        if (!licenseStatus.usable) {
+          log.warn("worker: execução de job suspensa — licença da instalação restrita ou expirada", {
+            job_id: job.id,
+            kind: job.kind,
+            state: licenseStatus.state,
+            reason: licenseStatus.reason,
+          });
+          return;
+        }
+      }
+
       // Entrega transacional liquida estado do compromisso + job na mesma RPC cercada.
       if (job.kind === "transactional_delivery" || job.kind === "approved_reply") {
         await handler(job, pool, { workerId });

@@ -55,6 +55,7 @@ import { resolveOrCreateCallerContact } from "@/lib/voip/resolve-caller";
 import { garantirLeadDaConversa } from "@/lib/leads/nascimento-do-lead";
 import { buscarConhecimento, resolverAcervoDoAgente } from "@/lib/ai/knowledge/busca";
 import { ehOperante } from "@/lib/organizacao/operante";
+import { getInstallationLicenseStatus } from "@/lib/licensing";
 
 const supabaseAdmin = createAdminClient();
 
@@ -251,6 +252,16 @@ async function handleAudioSocketConnection(socket: net.Socket, uuid: string, lef
     .maybeSingle();
   if (orgErr || !ehOperante(org?.status)) {
     console.warn(`[audiosocket] voz_org_suspensa org ${callRow.organization_id} — encerrando`);
+    socket.end();
+    return;
+  }
+
+  // Licença Comercial da Instalação: se expirada ou inválida, encerra sessão de voz
+  const licenseStatus = await getInstallationLicenseStatus();
+  if (!licenseStatus.usable) {
+    console.warn(
+      `[audiosocket] licença comercial restrita (${licenseStatus.state}) — encerrando chamada org ${callRow.organization_id}`
+    );
     socket.end();
     return;
   }

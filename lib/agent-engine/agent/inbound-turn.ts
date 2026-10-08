@@ -163,6 +163,7 @@ import {
 } from './human-cases';
 import { buildMcpTurnTools } from '../edge/crm/mcp-tools';
 import { definicaoNaConexao } from '@/lib/channels/linha-do-espelho';
+import { getInstallationLicenseStatus } from '@/lib/licensing';
 import { cancelPendingCronsForLead } from '../cron/scheduler';
 import {
   latestInboundSignal,
@@ -1878,6 +1879,19 @@ async function executarTurnoDoAgente(
   if (!preview && (await isLeadInHandoff(pool, tenantId, leadId))) {
     runLog.info('turno pulado — lead em handoff humano (bot silenciado)', { kind: liveJob().kind });
     return;
+  }
+
+  // Licença Comercial da Instalação: se expirada ou inválida, suspende execução autônoma
+  if (!preview) {
+    const licenseStatus = await getInstallationLicenseStatus();
+    if (!licenseStatus.usable) {
+      runLog.warn('turno do agente cancelado — licença comercial restrita ou expirada', {
+        state: licenseStatus.state,
+        reason: licenseStatus.reason,
+        kind: liveJob().kind,
+      });
+      return;
+    }
   }
 
   // GATE DE ELEGIBILIDADE (opt-in por canal — `metadata.ai_gate = 'allowlist'`).

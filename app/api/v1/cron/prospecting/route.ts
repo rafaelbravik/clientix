@@ -4,6 +4,7 @@ import { autorizaCron } from "@/lib/auth/cron-auth";
 import { ok, fail } from "@/lib/api/wrappers";
 import { getRequestPool } from "@/lib/agent-engine/db/request-pool";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireValidInstallationLicense } from "@/lib/licensing";
 import { tickProspecting } from "@/lib/prospecting/worker";
 import { logger } from "@/lib/logger";
 
@@ -13,6 +14,8 @@ async function handle(req: NextRequest) {
   const requestId = randomUUID();
   if (!autorizaCron(req))
     return fail("forbidden", "Credencial de execução inválida.", 403, { requestId });
+  const licenseDenied = await requireValidInstallationLicense();
+  if (licenseDenied) return licenseDenied;
   try {
     return ok(await tickProspecting(getRequestPool(), createAdminClient()), { requestId });
   } catch (err) {

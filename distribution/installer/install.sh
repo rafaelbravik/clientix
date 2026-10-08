@@ -444,10 +444,31 @@ cmd_status() {
   load_env
   log "Inspecionando instalação Clientix em $INSTALL_DIR..."
   if [ -f "$STATE_FILE" ]; then
+    echo "--- ESTADO DA VERSÃO ---"
     cat "$STATE_FILE"
+    echo ""
   else
     log "Nenhum arquivo de estado encontrado em $STATE_FILE."
   fi
+
+  local license_path="$INSTALL_DIR/licenses/license.json"
+  if [ -f "$license_path" ]; then
+    echo "--- LICENÇA COMERCIAL DETECTADA ---"
+    local lic_id cust_name exp_at lic_type
+    lic_id="$(grep '"license_id":' "$license_path" 2>/dev/null | awk -F'"' '{print $4}' || echo "desconhecido")"
+    cust_name="$(grep '"name":' "$license_path" 2>/dev/null | awk -F'"' '{print $4}' || echo "desconhecido")"
+    lic_type="$(grep '"license_type":' "$license_path" 2>/dev/null | awk -F'"' '{print $4}' || echo "desconhecido")"
+    exp_at="$(grep '"expires_at":' "$license_path" 2>/dev/null | awk -F'"' '{print $4}' || echo "desconhecido")"
+    echo "  ID da Licença: $lic_id"
+    echo "  Cliente: $cust_name"
+    echo "  Tipo: $lic_type"
+    echo "  Expiração: $exp_at"
+    echo ""
+  else
+    log "Arquivo de licença não encontrado em $license_path (Modo não licenciado / restrito)."
+  fi
+
+  echo "--- ESTADO DOS SERVIÇOS DOCKER ---"
   docker compose -f "$COMPOSE_FILE" ps 2>/dev/null || true
 }
 

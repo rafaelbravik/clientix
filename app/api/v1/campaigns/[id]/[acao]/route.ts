@@ -37,6 +37,7 @@ import { agendarSchema, testarSchema } from "@/lib/campanhas/schemas";
 import { knobsDoCanal } from "@/lib/automation/janela-do-canal";
 import { traduzir } from "@/lib/i18n/dicionario";
 import { requireSupportWrite } from "@/lib/impersonate/support";
+import { requireValidInstallationLicense } from "@/lib/licensing";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkFeatureQuota } from "@/lib/tenant/plan-limits";
 
@@ -65,6 +66,9 @@ export async function POST(
 ): Promise<Response> {
   const negado = await requireSupportWrite();
   if (negado) return negado;
+
+  const licenseDenied = await requireValidInstallationLicense();
+  if (licenseDenied) return licenseDenied;
 
   const requestId = randomUUID();
   const authz = await requireRole("manager", { requestId, resource: "campaigns" });

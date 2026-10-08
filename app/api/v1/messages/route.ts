@@ -1,4 +1,5 @@
 import { requireSupportWrite } from "@/lib/impersonate/support";
+import { requireValidInstallationLicense } from "@/lib/licensing";
 /**
  * POST /api/v1/messages — envia mensagem outbound (handler em ./_handler.ts).
  */
@@ -46,6 +47,9 @@ const PAPEL_MINIMO_EM_NOME_DE = "agent";
 export async function POST(req: NextRequest): Promise<Response> {
   const supportDenied = await requireSupportWrite();
   if (supportDenied) return supportDenied;
+
+  const licenseDenied = await requireValidInstallationLicense();
+  if (licenseDenied) return licenseDenied;
 
   const requestId = randomUUID();
 

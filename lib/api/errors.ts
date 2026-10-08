@@ -39,6 +39,7 @@ export const ApiErrorCodes = {
   // Platform admin `support_readonly` tentando ESCREVER (`requirePlatformAdminEscrita`).
   forbidden_scope: "forbidden_scope",
   lgpd_anonymization_irreversible: "lgpd_anonymization_irreversible",
+  license_restricted: "license_restricted",
 
   // 404
   not_found: "not_found",

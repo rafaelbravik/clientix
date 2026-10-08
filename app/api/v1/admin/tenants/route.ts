@@ -1,4 +1,5 @@
 import { requireSupportWrite } from "@/lib/impersonate/support";
+import { requireValidInstallationLicense } from "@/lib/licensing";
 import { createTenantSchema } from "@/lib/schemas/tenant-creation";
 import { issueInvite } from "@/lib/auth/issue-invite";
 import { type NextRequest } from "next/server";
@@ -152,6 +153,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const supportDenied = await requireSupportWrite();
   if (supportDenied) return supportDenied;
+
+  const licenseDenied = await requireValidInstallationLicense();
+  if (licenseDenied) return licenseDenied;
 
   const requestId = randomUUID();
 
