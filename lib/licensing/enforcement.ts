@@ -102,7 +102,7 @@ export async function getInstallationLicenseStatus(
     nowMs - cachedState.evaluatedAtMs < CACHE_TTL_MS
   ) {
     try {
-      const stat = await fs.stat(licensePath);
+      const stat = await fs.stat(/*turbopackIgnore: true*/ licensePath);
       if (stat.mtimeMs === cachedState.mtimeMs) {
         return cachedState.statusInfo;
       }
@@ -125,9 +125,9 @@ export async function getInstallationLicenseStatus(
     rawContent = inlineLicenseJson.trim();
   } else {
     try {
-      const stat = await fs.stat(licensePath);
+      const stat = await fs.stat(/*turbopackIgnore: true*/ licensePath);
       fileMtimeMs = stat.mtimeMs;
-      rawContent = await fs.readFile(licensePath, "utf-8");
+      rawContent = await fs.readFile(/*turbopackIgnore: true*/ licensePath, "utf-8");
     } catch (err: unknown) {
       const code = (err as NodeJS.ErrnoException).code;
       if (code === "ENOENT") {
