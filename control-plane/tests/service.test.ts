@@ -12,13 +12,60 @@ import {
   normalizeCanonicalPath,
   verifyInstallationRequestSignature,
 } from "@/lib/licensing/installation-auth";
+interface MockCustomer {
+  id: string;
+  name: string;
+  legal_name?: string;
+  billing_email: string;
+  country: string;
+}
+
+interface MockLicense {
+  id: string;
+  customer_id: string;
+  license_type: string;
+  status: string;
+  signing_key_id: string;
+  valid_from: string;
+  expires_at: string;
+  maintenance_until?: string;
+  grace_days: number;
+  max_installations: number;
+  max_tenants: number | null;
+  resale_allowed: boolean;
+  white_label: boolean;
+  features: string[];
+  issued_at: string;
+}
+
+interface MockActivationCode {
+  id: string;
+  license_id: string;
+  code_hash: string;
+  max_uses: number;
+  used_count: number;
+  expires_at: string;
+  revoked_at: string | null;
+}
+
+interface MockInstallation {
+  id: string;
+  license_id: string;
+  public_key: string;
+  public_key_fingerprint: string;
+  status: string;
+  environment: string;
+  app_version?: string;
+  last_heartbeat_at: string;
+}
+
 import { verifyLicense } from "@/lib/licensing/verify";
 
 class InProcessDatabaseClient implements DatabaseClient {
-  public customers = new Map<string, Record<string, unknown>>();
-  public licenses = new Map<string, Record<string, unknown>>();
-  public activationCodes = new Map<string, Record<string, unknown>>();
-  public installations = new Map<string, Record<string, unknown>>();
+  public customers = new Map<string, MockCustomer>();
+  public licenses = new Map<string, MockLicense>();
+  public activationCodes = new Map<string, MockActivationCode>();
+  public installations = new Map<string, MockInstallation>();
   public nonces = new Set<string>();
   public events: Record<string, unknown>[] = [];
   public inTransaction = false;
@@ -58,12 +105,12 @@ class InProcessDatabaseClient implements DatabaseClient {
     // Customers
     if (trimmed.startsWith("insert into control_plane.licensing_customers")) {
       const id = (params[0] as string) || crypto.randomUUID();
-      const customer = {
+      const customer: MockCustomer = {
         id,
-        name: params[1],
-        legal_name: params[2],
-        billing_email: params[3],
-        country: params[4],
+        name: (params[1] as string) || "Test Customer",
+        legal_name: params[2] as string | undefined,
+        billing_email: (params[3] as string) || "billing@example.com",
+        country: (params[4] as string) || "BR",
       };
       this.customers.set(id, customer);
       return { rows: [{ id } as unknown as R], rowCount: 1 };
@@ -72,21 +119,21 @@ class InProcessDatabaseClient implements DatabaseClient {
     // Licenses INSERT
     if (trimmed.startsWith("insert into control_plane.licensing_licenses")) {
       const id = crypto.randomUUID();
-      const lic = {
+      const lic: MockLicense = {
         id,
-        customer_id: params[0],
-        license_type: params[1],
+        customer_id: params[0] as string,
+        license_type: params[1] as string,
         status: "ACTIVE",
-        signing_key_id: params[2],
-        valid_from: params[3] || new Date().toISOString(),
-        expires_at: params[4],
-        maintenance_until: params[5],
-        grace_days: params[6] ?? 7,
-        max_installations: params[7],
-        max_tenants: params[8],
-        resale_allowed: params[9],
-        white_label: params[10],
-        features: params[11],
+        signing_key_id: params[2] as string,
+        valid_from: (params[3] as string) || new Date().toISOString(),
+        expires_at: params[4] as string,
+        maintenance_until: params[5] as string | undefined,
+        grace_days: (params[6] as number) ?? 7,
+        max_installations: params[7] as number,
+        max_tenants: params[8] as number | null,
+        resale_allowed: Boolean(params[9]),
+        white_label: Boolean(params[10]),
+        features: (params[11] as string[]) || [],
         issued_at: new Date().toISOString(),
       };
       this.licenses.set(id, lic);
@@ -126,7 +173,7 @@ class InProcessDatabaseClient implements DatabaseClient {
       const newStatus = statusMatch ? statusMatch[1] : "ACTIVE";
       const licId = params[0] as string;
       const lic = this.licenses.get(licId);
-      if (lic) {
+      if (lic && newStatus) {
         lic.status = newStatus;
       }
       return { rows: [] };
@@ -135,13 +182,13 @@ class InProcessDatabaseClient implements DatabaseClient {
     // Activation Codes INSERT
     if (trimmed.startsWith("insert into control_plane.licensing_activation_codes")) {
       const id = crypto.randomUUID();
-      const code = {
+      const code: MockActivationCode = {
         id,
-        license_id: params[0],
-        code_hash: params[1],
-        max_uses: params[2],
+        license_id: params[0] as string,
+        code_hash: params[1] as string,
+        max_uses: (params[2] as number) ?? 1,
         used_count: 0,
-        expires_at: params[3],
+        expires_at: params[3] as string,
         revoked_at: null,
       };
       this.activationCodes.set(id, code);
@@ -202,14 +249,14 @@ class InProcessDatabaseClient implements DatabaseClient {
     // Installations INSERT
     if (trimmed.startsWith("insert into control_plane.licensing_installations")) {
       const id = params[0] as string;
-      const inst = {
+      const inst: MockInstallation = {
         id,
-        license_id: params[1],
-        public_key: params[2],
-        public_key_fingerprint: params[3],
+        license_id: params[1] as string,
+        public_key: params[2] as string,
+        public_key_fingerprint: params[3] as string,
         status: "ACTIVE",
         environment: "production",
-        app_version: params[4],
+        app_version: params[4] as string | undefined,
         last_heartbeat_at: new Date().toISOString(),
       };
       this.installations.set(id, inst);
@@ -228,7 +275,7 @@ class InProcessDatabaseClient implements DatabaseClient {
         } else if (trimmed.includes("last_heartbeat_at = now()")) {
           inst.last_heartbeat_at = new Date().toISOString();
           if (params[1]) {
-            inst.app_version = params[1];
+            inst.app_version = params[1] as string;
           }
         }
       }
@@ -529,7 +576,7 @@ describe("L8.1F Control Plane Core Endpoints & Licensing Lifecycle", () => {
       expect(hbRes.data?.temporal_state).toBe("VALID");
 
       const instInDb = db.installations.get(activeInstId);
-      expect(instInDb.app_version).toBe("2026.10.1");
+      expect(instInDb!.app_version).toBe("2026.10.1");
     });
 
     it("rejects invalid signature with 401 and rejects replayed nonce with 409", async () => {
@@ -1366,8 +1413,8 @@ describe("L8.1F Control Plane Core Endpoints & Licensing Lifecycle", () => {
 
       const stored = db.activationCodes.get(codeRecord.id);
       expect(stored).toBeDefined();
-      expect(stored.code_hash).toBeDefined();
-      expect(stored.code_hash).not.toBe(codeRecord.raw_activation_code);
+      expect(stored!.code_hash).toBeDefined();
+      expect(stored!.code_hash).not.toBe(codeRecord.raw_activation_code);
       expect(JSON.stringify(stored)).not.toContain(codeRecord.raw_activation_code);
     });
 
@@ -1411,7 +1458,7 @@ describe("L8.1F Control Plane Core Endpoints & Licensing Lifecycle", () => {
       expect(authRes.ok).toBe(true);
 
       const lic = db.licenses.get(licenseId);
-      expect(lic.status).toBe("SUSPENDED");
+      expect(lic!.status).toBe("SUSPENDED");
     });
   });
 });
