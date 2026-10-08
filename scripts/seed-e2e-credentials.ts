@@ -117,9 +117,11 @@ async function ensureOrg(): Promise<string> {
      */
     const { error: erroOnboard } = await admin
       .from("organizations")
-      .update({ onboarded_at: new Date().toISOString() } as never)
-      .eq("id", orgExistente)
-      .is("onboarded_at", null);
+      .update({
+        onboarded_at: new Date().toISOString(),
+        settings: { plan: "enterprise" },
+      } as never)
+      .eq("id", orgExistente);
     if (erroOnboard) {
       throw new Error(`reafirmar org onboarded: ${erroOnboard.message}`);
     }
@@ -135,6 +137,7 @@ async function ensureOrg(): Promise<string> {
       legal_name: ORG_NAME,
       timezone: "America/Sao_Paulo",
       locale: "pt-BR",
+      settings: { plan: "enterprise" },
       onboarded_at: new Date().toISOString(),
     } as never)
     .select("id")
