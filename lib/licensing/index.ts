@@ -7,3 +7,4 @@ export * from "./state";
 export * from "./verify";
 export * from "./enforcement";
 export * from "./capabilities";
+export * from "./installation-auth";
