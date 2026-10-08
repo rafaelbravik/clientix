@@ -273,7 +273,7 @@ echo nova > nova.txt; git add -A; git commit --quiet -m "v1.1.0"; git tag v1.1.0
 git checkout --quiet v0.9.0
 run_update --to v1.1.0
 check "a atualização termina com sucesso" test "$RC" -eq 0
-check ".env aponta para a imagem da versão instalada" grep -q "^APP_IMAGE=${NS}/deskcommcrm:1.1.0$" .env
+check ".env aponta para a imagem da versão instalada" grep -q "^APP_IMAGE=${NS}/clientix-app:1.1.0$" .env
 check "a chave APP_IMAGE não duplicou" test "$(grep -c '^APP_IMAGE=' .env)" -eq 1
 run_update --to v1.1.0 --force
 check "segunda execução também não duplica" test "$(grep -c '^APP_IMAGE=' .env)" -eq 1
@@ -303,9 +303,9 @@ echo "── 4b. As três imagens sobem juntas, na mesma versão"
 # runtime do agente de IA — ficava congelado no código do dia da instalação.
 # Se estas três linhas voltarem a divergir, o defeito voltou.
 check "o worker é pinado na MESMA versão do app" \
-  grep -q "^WORKER_IMAGE=${NS}/deskcomm-worker:1.1.0$" .env
+  grep -q "^WORKER_IMAGE=${NS}/clientix-worker:1.1.0$" .env
 check "o scheduler é pinado na MESMA versão do app" \
-  grep -q "^SCHEDULER_IMAGE=${NS}/deskcomm-scheduler:1.1.0$" .env
+  grep -q "^SCHEDULER_IMAGE=${NS}/clientix-scheduler:1.1.0$" .env
 check "o worker herda a política da tag imutável" \
   grep -q '^WORKER_PULL_POLICY=missing$' .env
 check "o scheduler herda a política da tag imutável" \
@@ -598,7 +598,7 @@ case "$*" in
   # resolução o dublê devolvia a string `${NS}/deskcomm-worker:stable` — uma
   # fixture que não representa instalação nenhuma. O `:?` faz o dublê morrer alto
   # se a variável não vier, em vez de devolver um nome começando em "/".
-  *"Config.Image"*)  printf '%s/deskcomm-worker:stable\n' "${NS:?dublê de docker sem NS no ambiente}" ;;
+  *"Config.Image"*)  printf '%s/clientix-worker:stable\n' "${NS:?dublê de docker sem NS no ambiente}" ;;
   *"image.version"*) printf '%s
 ' "${DUBLE_VERSION:-1.3.0}" ;;
   *) exit 1 ;;
@@ -613,10 +613,10 @@ autopin() {  # autopin <conteúdo do .env> → ecoa o que a função corrigiu
       ". '$KIT_DIR_TESTE/_common.sh'; completar_pin_ausente .env" 2>/dev/null ) || true
 }
 
-R="$(autopin "APP_IMAGE=${NS}/deskcommcrm:1.3.0")"
+R="$(autopin "APP_IMAGE=${NS}/clientix-app:1.3.0")"
 check "chave AUSENTE → preenche os dois" test "$R" = "worker scheduler"
 check "  e grava a versão da imagem em execução, não um canal" \
-  grep -q "^WORKER_IMAGE=${NS}/deskcomm-worker:1.3.0$" "$PIN_DIR/.env"
+  grep -q "^WORKER_IMAGE=${NS}/clientix-worker:1.3.0$" "$PIN_DIR/.env"
 check "  com pull_policy de tag imutável" \
   grep -q "^WORKER_PULL_POLICY=missing$" "$PIN_DIR/.env"
 
@@ -628,21 +628,21 @@ check "  e não altera um byte do .env" test "$ANTES_MD5" = "$(md5sum "$PIN_DIR/
 
 # A REGRA QUE PROTEGE O OPERADOR. Se esta cair, o cron passa a sobrescrever
 # escolha explícita — e a decisão de implementar a autocorreção deixa de valer.
-R="$(autopin "APP_IMAGE=${NS}/deskcommcrm:1.3.0
-WORKER_IMAGE=${NS}/deskcomm-worker:stable
-SCHEDULER_IMAGE=${NS}/deskcomm-scheduler:stable")"
+R="$(autopin "APP_IMAGE=${NS}/clientix-app:1.3.0
+WORKER_IMAGE=${NS}/clientix-worker:stable
+SCHEDULER_IMAGE=${NS}/clientix-scheduler:stable")"
 check "canal móvel EXPLÍCITO → não toca (é decisão de quem opera)" test -z "$R"
 check "  o :stable escolhido continua lá, intacto" \
-  grep -q "^WORKER_IMAGE=${NS}/deskcomm-worker:stable$" "$PIN_DIR/.env"
+  grep -q "^WORKER_IMAGE=${NS}/clientix-worker:stable$" "$PIN_DIR/.env"
 
-R="$(autopin "APP_IMAGE=${NS}/deskcommcrm:1.3.0
-WORKER_IMAGE=${NS}/deskcomm-worker:1.3.0
-SCHEDULER_IMAGE=${NS}/deskcomm-scheduler:1.3.0")"
+R="$(autopin "APP_IMAGE=${NS}/clientix-app:1.3.0
+WORKER_IMAGE=${NS}/clientix-worker:1.3.0
+SCHEDULER_IMAGE=${NS}/clientix-scheduler:1.3.0")"
 check "já pinada → silêncio" test -z "$R"
 
 # Imagem sem o label (build local): não há versão para gravar, e inventar uma
 # seria pior que não fazer nada.
-R="$( printf "APP_IMAGE=${NS}/deskcommcrm:1.3.0\n" > "$PIN_DIR/.env"
+R="$( printf "APP_IMAGE=${NS}/clientix-app:1.3.0\n" > "$PIN_DIR/.env"
       cd "$PIN_DIR" && PATH="$PIN_DIR/bin:$PATH" DUBLE_VERSION="<no value>" bash -c \
         ". '$KIT_DIR_TESTE/_common.sh'; completar_pin_ausente .env" 2>/dev/null || true )"
 check "imagem sem label de versão → não inventa pin" test -z "$R"
