@@ -40,6 +40,8 @@ export const ApiErrorCodes = {
   forbidden_scope: "forbidden_scope",
   lgpd_anonymization_irreversible: "lgpd_anonymization_irreversible",
   license_restricted: "license_restricted",
+  CAPABILITY_NOT_LICENSED: "CAPABILITY_NOT_LICENSED",
+  WHITE_LABEL_NOT_LICENSED: "WHITE_LABEL_NOT_LICENSED",
 
   // 404
   not_found: "not_found",
@@ -85,6 +87,7 @@ export const ApiErrorCodes = {
   retry_later: "retry_later",
   invalid_state: "invalid_state", // resposta a um agent_case que saiu de awaiting_human (spec 15 §7)
   tenant_already_exists: "tenant_already_exists",
+  GLOBAL_TENANT_LIMIT_REACHED: "GLOBAL_TENANT_LIMIT_REACHED",
   // POST /api/v1/settings/api-tokens quando a organização já está no teto de
   // tokens ATIVOS (migration 0415, issue #1448). O corpo devolve a MESMA
   // mensagem que o gatilho levantou — com o limite e a instrução de revogar um

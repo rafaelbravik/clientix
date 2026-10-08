@@ -6,12 +6,13 @@ import { audit } from "@/lib/audit";
 import { escritaDeAdminOuRecusa } from "@/lib/auth/escritaDeAdminOuRecusa";
 import { invalidarMarcaDaInstalacao } from "@/lib/branding/instalacao";
 import { normalizarHex } from "@/lib/branding/rampa";
+import { hasInstallationCapability } from "@/lib/licensing";
 import { platformBrandingSchema, type PlatformBrandingInput } from "@/lib/schemas/settings";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export type UpdateBrandingResult =
   | { ok: true }
-  | { ok: false; error: string; details?: unknown };
+  | { ok: false; error: "validation_failed" | "WHITE_LABEL_NOT_LICENSED" | string; details?: unknown };
 
 /**
  * Troca a marca da INSTALAÇÃO — nome, logo, cor e o selo — sem SSH e sem
@@ -82,6 +83,17 @@ export async function updateBranding(
   const escrita = await escritaDeAdminOuRecusa();
   if (!escrita.ok) return escrita;
   const { user: authUser } = escrita.ctx;
+
+  const podeWhiteLabel = await hasInstallationCapability("can_white_label_installation");
+  if (!podeWhiteLabel) {
+    return {
+      ok: false,
+      error: "WHITE_LABEL_NOT_LICENSED",
+      details: {
+        message: "Personalização da marca da instalação não autorizada pela licença atual.",
+      },
+    };
+  }
 
   const hdrs = await headers();
   const requestId = hdrs.get("x-request-id");

@@ -25,6 +25,7 @@ import type { NextRequest } from "next/server";
 import { checkRateLimit, peekRateLimit } from "@/lib/ai/dispatcher/rate-limit";
 import { ApiError } from "@/lib/api/types";
 import { fail, ok } from "@/lib/api/wrappers";
+import { requireValidInstallationLicense, assertCanCreateTenant } from "@/lib/licensing";
 import {
   EmailJaTemContaError,
   ProvisionConflictError,
@@ -120,6 +121,25 @@ export async function POST(req: NextRequest): Promise<Response> {
       });
     }
     throw err;
+  }
+
+  const licenseDenied = await requireValidInstallationLicense();
+  if (licenseDenied) return licenseDenied;
+
+  const limitCheck = await assertCanCreateTenant();
+  if (!limitCheck.allowed) {
+    return fail(
+      "GLOBAL_TENANT_LIMIT_REACHED",
+      limitCheck.reason || "Limite global de organizações atingido para a licença desta instalação.",
+      409,
+      {
+        requestId,
+        details: {
+          current: limitCheck.current,
+          max: limitCheck.max,
+        },
+      }
+    );
   }
 
   try {

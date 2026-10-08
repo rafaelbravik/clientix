@@ -454,15 +454,23 @@ cmd_status() {
   local license_path="$INSTALL_DIR/licenses/license.json"
   if [ -f "$license_path" ]; then
     echo "--- LICENÇA COMERCIAL DETECTADA ---"
-    local lic_id cust_name exp_at lic_type
+    local lic_id cust_name exp_at lic_type max_tenants white_label resale
     lic_id="$(grep '"license_id":' "$license_path" 2>/dev/null | awk -F'"' '{print $4}' || echo "desconhecido")"
     cust_name="$(grep '"name":' "$license_path" 2>/dev/null | awk -F'"' '{print $4}' || echo "desconhecido")"
     lic_type="$(grep '"license_type":' "$license_path" 2>/dev/null | awk -F'"' '{print $4}' || echo "desconhecido")"
     exp_at="$(grep '"expires_at":' "$license_path" 2>/dev/null | awk -F'"' '{print $4}' || echo "desconhecido")"
+    max_tenants="$(grep '"max_tenants":' "$license_path" 2>/dev/null | awk -F': ' '{print $2}' | tr -d ',\r\n' || echo "desconhecido")"
+    white_label="$(grep '"white_label":' "$license_path" 2>/dev/null | awk -F': ' '{print $2}' | tr -d ',\r\n' || echo "desconhecido")"
+    resale="$(grep '"resale_allowed":' "$license_path" 2>/dev/null | awk -F': ' '{print $2}' | tr -d ',\r\n' || echo "desconhecido")"
+
     echo "  ID da Licença: $lic_id"
     echo "  Cliente: $cust_name"
-    echo "  Tipo: $lic_type"
+    echo "  Tipo Comercial: $lic_type"
     echo "  Expiração: $exp_at"
+    echo "  Capacidades Habilitadas:"
+    echo "    - Revenda / Multi-cliente: $resale"
+    echo "    - White-Label / Marca Própria: $white_label"
+    echo "    - Limite Global de Empresas (max_tenants): $max_tenants"
     echo ""
   else
     log "Arquivo de licença não encontrado em $license_path (Modo não licenciado / restrito)."

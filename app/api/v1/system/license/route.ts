@@ -49,7 +49,25 @@ export async function GET(req: NextRequest): Promise<Response> {
           license_type: status.license_type,
           expires_at: status.expires_at,
           grace_until: status.grace_until,
-          entitlements: status.entitlements,
+          entitlements: status.entitlements
+            ? {
+                max_installations: status.entitlements.max_installations,
+                max_tenants: status.entitlements.max_tenants,
+                resale_allowed: status.entitlements.resale_allowed,
+                white_label: status.entitlements.white_label,
+                features: status.entitlements.features,
+              }
+            : undefined,
+          capabilities: {
+            can_resell_access: Boolean(status.usable && status.entitlements?.resale_allowed),
+            can_white_label: Boolean(status.usable && status.entitlements?.white_label),
+            can_manage_multiple_tenants: Boolean(
+              status.usable &&
+                (status.entitlements?.max_tenants === null ||
+                  (status.entitlements?.max_tenants ?? 0) > 1)
+            ),
+            max_tenants: status.usable ? (status.entitlements?.max_tenants ?? null) : 1,
+          },
           installation_id_matched: status.installation_id_matched,
         },
       },

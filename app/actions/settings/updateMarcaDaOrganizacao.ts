@@ -8,6 +8,7 @@ import { audit } from "@/lib/audit";
 import { loadAuthUser, mfaEmDivida, resolveActiveOrg } from "@/lib/auth/server";
 import { ROLE_RANK, escreveComoPlatformAdmin } from "@/lib/auth/types";
 import { normalizarHex } from "@/lib/branding/rampa";
+import { hasInstallationCapability } from "@/lib/licensing";
 import {
   marcaDaOrganizacaoSchema,
   type MarcaDaOrganizacaoInput,
@@ -25,7 +26,8 @@ export type UpdateMarcaDaOrganizacaoResult =
         | "forbidden_role"
         | "mfa_required"
         | "nao_gravou"
-        | "db_error";
+        | "db_error"
+        | "WHITE_LABEL_NOT_LICENSED";
       details?: unknown;
     };
 
@@ -114,6 +116,23 @@ export async function updateMarcaDaOrganizacao(
     return { ok: false, error: "mfa_required" };
   }
 
+  // Os dois campos vazios significam "volte ao que vem da instalação", e é `null`
+  // que a função entende como apagar a chave `branding` — limpar é sempre permitido.
+  // Mas customizar marca exige que a instalação tenha capacidade can_white_label_tenant.
+  const limpar = parsed.data.app_name === null && parsed.data.accent_hex === null;
+  if (!limpar) {
+    const podeWhiteLabel = await hasInstallationCapability("can_white_label_tenant");
+    if (!podeWhiteLabel) {
+      return {
+        ok: false,
+        error: "WHITE_LABEL_NOT_LICENSED",
+        details: {
+          message: "Personalização de marca da empresa não autorizada pela licença desta instalação.",
+        },
+      };
+    }
+  }
+
   const hdrs = await headers();
   const requestId = hdrs.get("x-request-id");
   const ip = hdrs.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
@@ -122,7 +141,6 @@ export async function updateMarcaDaOrganizacao(
   // Os dois campos vazios significam "volte ao que vem da instalação", e é `null`
   // que a função entende como apagar a chave `branding` — gravar `{}` deixaria um
   // envelope vazio que o resolvedor teria de aprender a ignorar.
-  const limpar = parsed.data.app_name === null && parsed.data.accent_hex === null;
   const marca = limpar
     ? null
     : {

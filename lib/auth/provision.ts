@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { audit } from "@/lib/audit";
+import { requireValidInstallationLicense, assertCanCreateTenant } from "@/lib/licensing";
 
 /** Normaliza o nome da empresa para um slug candidato (citext unique no DB). */
 export function slugify(name: string): string {
@@ -91,6 +92,16 @@ export async function ensureTenantForUser(
 
   const organizationId = await vinculoAtivo(user.id);
   if (organizationId) return { provisioned: false, organizationId };
+
+  const licenseDenied = await requireValidInstallationLicense();
+  if (licenseDenied) {
+    throw new Error("signup provisioning: licença da instalação inválida ou expirada");
+  }
+
+  const limitCheck = await assertCanCreateTenant(admin);
+  if (!limitCheck.allowed) {
+    throw new Error(`signup provisioning: ${limitCheck.reason || "limite global de organizações atingido"}`);
+  }
 
   const orgName =
     (user.user_metadata?.org_name as string | undefined)?.trim() ||

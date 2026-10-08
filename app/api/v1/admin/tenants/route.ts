@@ -1,5 +1,5 @@
 import { requireSupportWrite } from "@/lib/impersonate/support";
-import { requireValidInstallationLicense } from "@/lib/licensing";
+import { requireValidInstallationLicense, assertCanCreateTenant } from "@/lib/licensing";
 import { createTenantSchema } from "@/lib/schemas/tenant-creation";
 import { issueInvite } from "@/lib/auth/issue-invite";
 import { type NextRequest } from "next/server";
@@ -186,6 +186,22 @@ export async function POST(req: NextRequest) {
   }
 
   const admin = createAdminClient();
+  const limitCheck = await assertCanCreateTenant(admin);
+  if (!limitCheck.allowed) {
+    return fail(
+      "GLOBAL_TENANT_LIMIT_REACHED",
+      limitCheck.reason || "Limite global de organizações atingido para a licença desta instalação.",
+      409,
+      {
+        requestId,
+        details: {
+          current: limitCheck.current,
+          max: limitCheck.max,
+        },
+      }
+    );
+  }
+
   const request = { ...parsed.data, owner_email: parsed.data.owner_email.trim().toLowerCase() };
   const { data: org, error } = await admin.rpc("fn_create_tenant_with_owner", {
     p_actor: adminCtx.user.id,

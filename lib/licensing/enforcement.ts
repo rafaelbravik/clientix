@@ -143,6 +143,13 @@ export async function getInstallationLicenseStatus(
             license_id: "lic_test_environment",
             customer_name: "Test Environment",
             license_type: "partner",
+            entitlements: {
+              max_installations: 1,
+              max_tenants: null, // unlimited in default test mode
+              resale_allowed: true,
+              white_label: true,
+              features: ["messages", "voice", "ai_agent"],
+            },
             installation_id_expected: expectedInstallationId || undefined,
             installation_id_matched: true,
           };

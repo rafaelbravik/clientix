@@ -60,6 +60,7 @@ import { audit } from "@/lib/audit";
 import { EscritaDePlatformAdminNegada, requirePlatformAdminEscrita } from "@/lib/auth/requirePlatformAdmin";
 import { loadAuthUser, mfaEmDivida } from "@/lib/auth/server";
 import { orgAtivaDaApi } from "@/lib/auth/require-role";
+import { requireInstallationCapability } from "@/lib/licensing";
 import { escreveComoPlatformAdmin, roleAtLeast } from "@/lib/auth/types";
 import { checkRateLimit } from "@/lib/ai/dispatcher/rate-limit";
 import { invalidarMarcaDaInstalacao } from "@/lib/branding/instalacao";
@@ -429,6 +430,13 @@ export async function POST(req: NextRequest): Promise<Response> {
     return fail(aberto.recusa.codigo, aberto.recusa.mensagem, aberto.recusa.status, { requestId });
   }
   const ctx = aberto.ctx;
+
+  const capNecessaria =
+    ctx.escopo === "instalacao"
+      ? "can_white_label_installation"
+      : "can_white_label_tenant";
+  const capDenied = await requireInstallationCapability(capNecessaria);
+  if (capDenied) return capDenied;
 
   const limite = await checkRateLimit(
     `marca-logo:${ctx.userId}`,
