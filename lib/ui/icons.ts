@@ -124,6 +124,7 @@ export {
   CaretLeft,
   CaretRight,
   ArrowRight,
+  ArrowLeft,
   SignOut,
   WebhooksLogo,
   PuzzlePiece,
@@ -135,6 +136,7 @@ export {
   Funnel,
   BookOpen,
   Key,
+  Certificate,
   UserCircle,
   ClockCounterClockwise,
   // inbox no celular: voltar para a lista e abrir a ficha do contato
