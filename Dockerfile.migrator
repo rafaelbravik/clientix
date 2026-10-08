@@ -1,0 +1,37 @@
+# Clientix Standalone Database Migrator
+#
+# Imagem one-shot para instalação, adoção e atualização de schema sem git clone.
+# Non-root user: clientix (10001:10001).
+
+FROM node:22-alpine AS builder
+
+WORKDIR /build
+RUN npm init -y && npm install pg@8.23.0 --production
+
+# ── Runtime Final Mínimo ──────────────────────────────────────────────────────
+FROM node:22-alpine
+
+RUN apk add --no-cache postgresql17-client bash \
+    && addgroup -g 10001 -S clientix \
+    && adduser -u 10001 -S clientix -G clientix
+
+WORKDIR /app
+
+# Copia node_modules com 'pg'
+COPY --from=builder /build/node_modules ./node_modules
+
+# Copia artefatos de migração isolados (zero código fonte Next.js, zero workers, zero tests)
+COPY supabase/baseline.sql ./sql/baseline.sql
+COPY supabase/migrations ./sql/migrations
+COPY supabase/manifest.json ./manifest/manifest.json
+COPY supabase/verify-schema.sql ./verify/verify-schema.sql
+COPY scripts/migrator/clientix-migrator.js ./bin/clientix-migrator
+
+RUN chmod +x ./bin/clientix-migrator \
+    && ln -s /app/bin/clientix-migrator /usr/local/bin/clientix-migrator \
+    && chown -R clientix:clientix /app
+
+USER 10001:10001
+
+ENTRYPOINT ["/app/bin/clientix-migrator"]
+CMD ["help"]

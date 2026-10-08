@@ -1,0 +1,3333 @@
+{
+  "version": 1,
+  "generated_at": "2026-10-08T09:21:35.379Z",
+  "schema_target": "0510",
+  "baseline": {
+    "file": "baseline.sql",
+    "checksum": "c5655e5f08cc0e02b7b70bac94c01ce7aa6be4452f6b89c2812568a194da42db",
+    "size_bytes": 2395929,
+    "incorporated_through_sequence": 510
+  },
+  "migrations": [
+    {
+      "file": "20260428195354_0001_platform_base.sql",
+      "version": "20260428195354",
+      "sequence": 1,
+      "slug": "platform_base",
+      "checksum": "044ea315c7ca243363aef744f241d17c39842cae7df42e34a9f49064d2b983a3",
+      "transactional": true
+    },
+    {
+      "file": "20260428195513_0002_event_log_and_compat.sql",
+      "version": "20260428195513",
+      "sequence": 2,
+      "slug": "event_log_and_compat",
+      "checksum": "bf0fa9e33b6bb8510055cade11c47e56b4f4e15a80b5eaf61204100aad0cf033",
+      "transactional": true
+    },
+    {
+      "file": "20260428195708_0003_customer_360.sql",
+      "version": "20260428195708",
+      "sequence": 3,
+      "slug": "customer_360",
+      "checksum": "4705c9cb2fa67d5a1c614f478a124062cfed7e6e9bf2c94dc5cc13525ca3b84b",
+      "transactional": true
+    },
+    {
+      "file": "20260428200016_0004_whatsapp_waha.sql",
+      "version": "20260428200016",
+      "sequence": 4,
+      "slug": "whatsapp_waha",
+      "checksum": "efa32f3e8a63950042c61fa59a6943def61311ebd155a0e7ae74de9ff40e863a",
+      "transactional": true
+    },
+    {
+      "file": "20260428200128_0005_ai_rag.sql",
+      "version": "20260428200128",
+      "sequence": 5,
+      "slug": "ai_rag",
+      "checksum": "a7d10085a5470feea1d9174e8826174b18c3532075992903dd4cee053c60fae7",
+      "transactional": true
+    },
+    {
+      "file": "20260428200211_0006_nuvemshop_lgpd.sql",
+      "version": "20260428200211",
+      "sequence": 6,
+      "slug": "nuvemshop_lgpd",
+      "checksum": "1c4ec3ccd9fb2b57a0bce3ec9d9f5d8875cbacd9e2cda9b7c76689965908fd6f",
+      "transactional": true
+    },
+    {
+      "file": "20260428200331_0007_security_hardening.sql",
+      "version": "20260428200331",
+      "sequence": 7,
+      "slug": "security_hardening",
+      "checksum": "bfcb4c150fc638895c2e2243e298d3984c943df6f206eb012c2516a8fb769756",
+      "transactional": true
+    },
+    {
+      "file": "20260429013958_0008_tenant_onboarding_state.sql",
+      "version": "20260429013958",
+      "sequence": 8,
+      "slug": "tenant_onboarding_state",
+      "checksum": "fb081c63f98f3766c9fe324c2818bc70982fbaf93f26c5933bf2ed45394a6b21",
+      "transactional": true
+    },
+    {
+      "file": "20260429021857_0009_expand_messaging_constraints.sql",
+      "version": "20260429021857",
+      "sequence": 9,
+      "slug": "expand_messaging_constraints",
+      "checksum": "7c80403fa22532d4a7da94d276e8a2fb38a5b6b0f4b8fd44ed0b1300ead8c6bd",
+      "transactional": true
+    },
+    {
+      "file": "20260429032132_0010_ai_rag_handoff_columns_and_rpcs.sql",
+      "version": "20260429032132",
+      "sequence": 10,
+      "slug": "ai_rag_handoff_columns_and_rpcs",
+      "checksum": "842b94db375a497b312737d2d877b9067a62f188283a11732e0ddddcc00c918a",
+      "transactional": true
+    },
+    {
+      "file": "20260429040000_0011_handoff_reason_column.sql",
+      "version": "20260429040000",
+      "sequence": 11,
+      "slug": "handoff_reason_column",
+      "checksum": "67c83ca7d69a26b201692356d10506d75edce22de8484b4644d52e3b979ee7b0",
+      "transactional": true
+    },
+    {
+      "file": "20260429060000_0012_kb_version_lifecycle_columns.sql",
+      "version": "20260429060000",
+      "sequence": 12,
+      "slug": "kb_version_lifecycle_columns",
+      "checksum": "637e0cc36c5a16c48ef585fbe8bdbb6f314a40a9eaa1fec0b6591f1d8009a8f4",
+      "transactional": true
+    },
+    {
+      "file": "20260429070000_0013_ai_faq_items.sql",
+      "version": "20260429070000",
+      "sequence": 13,
+      "slug": "ai_faq_items",
+      "checksum": "ae68dd52e918cf7e332cb5f27af1563cb9ffd7b8a6eb3986c0d8173285cddf15",
+      "transactional": true
+    },
+    {
+      "file": "20260429080000_0014_storage_policies_ai_policy.sql",
+      "version": "20260429080000",
+      "sequence": 14,
+      "slug": "storage_policies_ai_policy",
+      "checksum": "eaee919bd1f39a128123a7f4d226b80a3c906d3dfc18bd7fb609d92cf7c56c31",
+      "transactional": true
+    },
+    {
+      "file": "20260429090000_0015_conversations_rag_optin.sql",
+      "version": "20260429090000",
+      "sequence": 15,
+      "slug": "conversations_rag_optin",
+      "checksum": "c935414475a21672b2568443abe8934102132dfcef16df1c20483961f5079206",
+      "transactional": true
+    },
+    {
+      "file": "20260429100000_0017_storage_policies_lgpd_exports.sql",
+      "version": "20260429100000",
+      "sequence": 17,
+      "slug": "storage_policies_lgpd_exports",
+      "checksum": "ced113557c72023c18c30a9a61a2ee4a2e3e6b38944265f9cce94994c408c63d",
+      "transactional": true
+    },
+    {
+      "file": "20260429110000_0018_lgpd_redaction_queue.sql",
+      "version": "20260429110000",
+      "sequence": 18,
+      "slug": "lgpd_redaction_queue",
+      "checksum": "aa10b937f52238bc02b17497e674c5927915db277f12fbb003a1e04bb6080e53",
+      "transactional": true
+    },
+    {
+      "file": "20260429110001_0019_lgpd_cascade_redact_rpc.sql",
+      "version": "20260429110001",
+      "sequence": 19,
+      "slug": "lgpd_cascade_redact_rpc",
+      "checksum": "359e4d3dbe067c3dd7169b0a65ae592ebd80e2546b40d7ea869da7406b0572e6",
+      "transactional": true
+    },
+    {
+      "file": "20260429120000_0020_organization_suspend_reason.sql",
+      "version": "20260429120000",
+      "sequence": 20,
+      "slug": "organization_suspend_reason",
+      "checksum": "78916f209fa7e98a52ae76f8a81cdd1125c8e6498930bcc51d182e93c65e5a2f",
+      "transactional": true
+    },
+    {
+      "file": "20260429130000_0021_incidents.sql",
+      "version": "20260429130000",
+      "sequence": 21,
+      "slug": "incidents",
+      "checksum": "07e05497a48090e1c0e2b6202d63fac975ac733fabe3f066bad9f90a275b89a6",
+      "transactional": true
+    },
+    {
+      "file": "20260429140000_0022_ai_budget_trigger.sql",
+      "version": "20260429140000",
+      "sequence": 22,
+      "slug": "ai_budget_trigger",
+      "checksum": "eda498170056920a3f2455b77642d015162b67447391a1965353994e0b7a797a",
+      "transactional": true
+    },
+    {
+      "file": "20260505140000_0023_ai_agents_module.sql",
+      "version": "20260505140000",
+      "sequence": 23,
+      "slug": "ai_agents_module",
+      "checksum": "4b3cf34ca56f1f0110fdf56dd4e0a17a245b741aa2fed94689cc5d86b0bf35f2",
+      "transactional": true
+    },
+    {
+      "file": "20260506000000_0024_ai_agent_publish_fn.sql",
+      "version": "20260506000000",
+      "sequence": 24,
+      "slug": "ai_agent_publish_fn",
+      "checksum": "4821c893d38445b902758a16597e0865da45dcaaedaf6fb3cf2b70b9f9a067a9",
+      "transactional": true
+    },
+    {
+      "file": "20260506100000_0025_fix_publish_fn_and_realtime_publication.sql",
+      "version": "20260506100000",
+      "sequence": 25,
+      "slug": "fix_publish_fn_and_realtime_publication",
+      "checksum": "9e51ca6dc01b3f93dffbc1cce4397e5194c5e17c2f9e953b7bdc2ee23190aea3",
+      "transactional": true
+    },
+    {
+      "file": "20260706200000_0026_fix_publish_fn_status_case.sql",
+      "version": "20260706200000",
+      "sequence": 26,
+      "slug": "fix_publish_fn_status_case",
+      "checksum": "f62cab737102ea31f72428cbf2be1e0811d1ae1e95db90372e3ee1fba567c15c",
+      "transactional": true
+    },
+    {
+      "file": "20260706210000_0027_whatsapp_conversation_unification.sql",
+      "version": "20260706210000",
+      "sequence": 27,
+      "slug": "whatsapp_conversation_unification",
+      "checksum": "c7c776044e37f5f6718cd88f35bb58a3bc1fed123b4284cdcb4e9a54c1970f47",
+      "transactional": true
+    },
+    {
+      "file": "20260716120000_0030_config_rls_role_policies.sql",
+      "version": "20260716120000",
+      "sequence": 30,
+      "slug": "config_rls_role_policies",
+      "checksum": "01317fa0fc6f59b12aa0d9befb7fec9e8f5f1c2fe6ba5886b46c33e9d7540054",
+      "transactional": true
+    },
+    {
+      "file": "20260717120000_0031_conversation_assignment_events.sql",
+      "version": "20260717120000",
+      "sequence": 31,
+      "slug": "conversation_assignment_events",
+      "checksum": "5a74c886c9f166ca8ec3eb3ea1fbff969f6daa4caf7fab696ba7eb9904bc8980",
+      "transactional": true
+    },
+    {
+      "file": "20260717150000_0032_conversation_assignee_kind.sql",
+      "version": "20260717150000",
+      "sequence": 32,
+      "slug": "conversation_assignee_kind",
+      "checksum": "90e99e13526751b8312676aaa9d0ea1e638af56ee4f6cd62404446d3e7e7d562",
+      "transactional": true
+    },
+    {
+      "file": "20260717180000_0033_conversation_tags.sql",
+      "version": "20260717180000",
+      "sequence": 33,
+      "slug": "conversation_tags",
+      "checksum": "5cd47818316681e3b7cb63aca6d3d8665823c23a657b4093c40599d2c6a2c5b2",
+      "transactional": true
+    },
+    {
+      "file": "20260717190000_0034_hardening_revoke_anon_definer.sql",
+      "version": "20260717190000",
+      "sequence": 34,
+      "slug": "hardening_revoke_anon_definer",
+      "checksum": "9b76f82cdb83a290a10747bd3cd3450b9c38d84429271c9c41626911ffd6a175",
+      "transactional": true
+    },
+    {
+      "file": "20260717190001_0038_webhooks_automation.sql",
+      "version": "20260717190001",
+      "sequence": 38,
+      "slug": "webhooks_automation",
+      "checksum": "9cfff1e1d339d263be7d15892fc01826566f5136b183d14c203f8f1faf0cb898",
+      "transactional": true
+    },
+    {
+      "file": "20260717200000_0035_visibility_mode_conversation_rls.sql",
+      "version": "20260717200000",
+      "sequence": 35,
+      "slug": "visibility_mode_conversation_rls",
+      "checksum": "f3be19dd7b1d0d30916da0295947692957df1e26135986dd51b5bb71c92ea7b3",
+      "transactional": true
+    },
+    {
+      "file": "20260717210000_0036_visibility_mode_lead_rls.sql",
+      "version": "20260717210000",
+      "sequence": 36,
+      "slug": "visibility_mode_lead_rls",
+      "checksum": "0612b6da89bd089274d95048ebc9cbabb3ae72fc2c72b89668c1e159d5545e79",
+      "transactional": true
+    },
+    {
+      "file": "20260718120000_0037_attendant_metrics.sql",
+      "version": "20260718120000",
+      "sequence": 37,
+      "slug": "attendant_metrics",
+      "checksum": "46141c7810db935b0ace9c6ec2d6093c243a653684dcd30399e0b9f956dabbd8",
+      "transactional": true
+    },
+    {
+      "file": "20260718130000_0039_attendant_availability.sql",
+      "version": "20260718130000",
+      "sequence": 39,
+      "slug": "attendant_availability",
+      "checksum": "e6bf8718fadb6b597d54b30363f4802d7f4a0586e3a06a83cdaea1a0a4e7dde6",
+      "transactional": true
+    },
+    {
+      "file": "20260718140000_0040_conversation_routing_emit.sql",
+      "version": "20260718140000",
+      "sequence": 40,
+      "slug": "conversation_routing_emit",
+      "checksum": "7bd92769e56b5672b66ea479d48e5125c5f0313d8d0be5ca607f413c362f9e90",
+      "transactional": true
+    },
+    {
+      "file": "20260718150000_0041_webhook_secret_encryption.sql",
+      "version": "20260718150000",
+      "sequence": 41,
+      "slug": "webhook_secret_encryption",
+      "checksum": "376bbd7f12023977ae133ec8bee06a47b6b8dec2045d7bb9261e04319727f04b",
+      "transactional": true
+    },
+    {
+      "file": "20260718160000_0042_lead_children_visibility_rls.sql",
+      "version": "20260718160000",
+      "sequence": 42,
+      "slug": "lead_children_visibility_rls",
+      "checksum": "337ab9ad02017c5840a8bdc9893d426e59b6ce535b21573da78fdc8e79076348",
+      "transactional": true
+    },
+    {
+      "file": "20260718160001_0043_retire_duplicate_lead_trigger_events.sql",
+      "version": "20260718160001",
+      "sequence": 43,
+      "slug": "retire_duplicate_lead_trigger_events",
+      "checksum": "3315cc6a5f90a73bef3a6f3c7dbd027fdf07fcfa293913f897d5155064a54886",
+      "transactional": true
+    },
+    {
+      "file": "20260718170000_0044_user_orgs_select_manager.sql",
+      "version": "20260718170000",
+      "sequence": 44,
+      "slug": "user_orgs_select_manager",
+      "checksum": "61a88bcad79c96d6de5d1d92c9280a3f262a24dbb83e69547602f79cdbc89220",
+      "transactional": true
+    },
+    {
+      "file": "20260719000000_0050_agent_harness.sql",
+      "version": "20260719000000",
+      "sequence": 50,
+      "slug": "agent_harness",
+      "checksum": "5e7af7966a82529522b871e2c0c5bf231783e609936cc9add4f75b8ec81ecada",
+      "transactional": true
+    },
+    {
+      "file": "20260719100000_0051_agent_version_immutability.sql",
+      "version": "20260719100000",
+      "sequence": 51,
+      "slug": "agent_version_immutability",
+      "checksum": "da2d121671aae4902d2bf47477bf3150e6c1dfea97bce82377a67ec2b9505567",
+      "transactional": true
+    },
+    {
+      "file": "20260719110000_0052_republish_fn_uppercase_fix.sql",
+      "version": "20260719110000",
+      "sequence": 52,
+      "slug": "republish_fn_uppercase_fix",
+      "checksum": "489e1dd789338e775c37f2fcde7249ba86d14c0d0c23a9a9c24598b47e39eee3",
+      "transactional": true
+    },
+    {
+      "file": "20260720100000_0053_flywheel_proposal_applied.sql",
+      "version": "20260720100000",
+      "sequence": 53,
+      "slug": "flywheel_proposal_applied",
+      "checksum": "5d6fd4e1dc627d2683833882d10c167552ddc8dd19689434e439fd8a321a7be1",
+      "transactional": true
+    },
+    {
+      "file": "20260721120000_0054_followup_flows.sql",
+      "version": "20260721120000",
+      "sequence": 54,
+      "slug": "followup_flows",
+      "checksum": "8429b6261868162e3cc29843f1ff583aed859772806d83b02f80d9552334141b",
+      "transactional": true
+    },
+    {
+      "file": "20260721120001_0055_whatsapp_media_bucket.sql",
+      "version": "20260721120001",
+      "sequence": 55,
+      "slug": "whatsapp_media_bucket",
+      "checksum": "d1960ed53e9088b3fae2cc43b41788d57d2a51a093789b2afc02547d7e34924d",
+      "transactional": true
+    },
+    {
+      "file": "20260721130000_0056_followup_version_lineage.sql",
+      "version": "20260721130000",
+      "sequence": 56,
+      "slug": "followup_version_lineage",
+      "checksum": "ca8c819cb58feba3d00681b18a7eb65ed0274218f929a5cc3d7c6ba1d1476764",
+      "transactional": true
+    },
+    {
+      "file": "20260721140000_0057_followup_dead_inbox_kind.sql",
+      "version": "20260721140000",
+      "sequence": 57,
+      "slug": "followup_dead_inbox_kind",
+      "checksum": "a20f34d3c0aa0945a74d96df0f11b2a17f9686cbf933b7596d75dab58baa4dc3",
+      "transactional": true
+    },
+    {
+      "file": "20260722120000_0058_media_multimodal.sql",
+      "version": "20260722120000",
+      "sequence": 58,
+      "slug": "media_multimodal",
+      "checksum": "9c294e05faa96cfe9e8fd8aea41f8b9671084eac4cdb2d0e1e91eb931389b75a",
+      "transactional": true
+    },
+    {
+      "file": "20260722130000_0059_agent_split_messages.sql",
+      "version": "20260722130000",
+      "sequence": 59,
+      "slug": "agent_split_messages",
+      "checksum": "c4d91dddcf128130db545692b1e07776ad6eb35bc9697cf5cf4638389d4c5454",
+      "transactional": true
+    },
+    {
+      "file": "20260722140000_0060_message_templates.sql",
+      "version": "20260722140000",
+      "sequence": 60,
+      "slug": "message_templates",
+      "checksum": "099683aa38a255feacd7e69c4dc88c1df3ddcc18222e4064019f5c485020f869",
+      "transactional": true
+    },
+    {
+      "file": "20260722150000_0061_agent_followup_selector.sql",
+      "version": "20260722150000",
+      "sequence": 61,
+      "slug": "agent_followup_selector",
+      "checksum": "7c0b3a42b4af83abcd61e896e6129181e5584089a4c6ae8cb38f7e31c2f5a388",
+      "transactional": true
+    },
+    {
+      "file": "20260722160000_0062_conversation_snooze.sql",
+      "version": "20260722160000",
+      "sequence": 62,
+      "slug": "conversation_snooze",
+      "checksum": "2e7ebe603d5dd5a634f900bc2dae94caf7c3896f753ee0f406073aa9ce347c2b",
+      "transactional": true
+    },
+    {
+      "file": "20260722160001_0064_followup_enrollment_exclusivity.sql",
+      "version": "20260722160001",
+      "sequence": 64,
+      "slug": "followup_enrollment_exclusivity",
+      "checksum": "67b1fb892585539a71a1b93e0e1fc1522a89c32a9db3b030cc70e954f1abea1d",
+      "transactional": true
+    },
+    {
+      "file": "20260723120000_0063_conversation_notes.sql",
+      "version": "20260723120000",
+      "sequence": 63,
+      "slug": "conversation_notes",
+      "checksum": "8f9b221c877e5c09c3ebbab0b2ab421545c466daf296530f989ca47608e911e3",
+      "transactional": true
+    },
+    {
+      "file": "20260723130000_0065_reconcile_inbox_kind_check.sql",
+      "version": "20260723130000",
+      "sequence": 65,
+      "slug": "reconcile_inbox_kind_check",
+      "checksum": "a2d81a026fe08aacd1208ca98e3bbb7e672cb1434b9e7173a2f1e9be9ad5d899",
+      "transactional": true
+    },
+    {
+      "file": "20260724000000_0066_human_cases.sql",
+      "version": "20260724000000",
+      "sequence": 66,
+      "slug": "human_cases",
+      "checksum": "24395da489208620be2af37deb189fea42b2783588861c94798d3301a76c0163",
+      "transactional": true
+    },
+    {
+      "file": "20260724010000_0067_org_memory.sql",
+      "version": "20260724010000",
+      "sequence": 67,
+      "slug": "org_memory",
+      "checksum": "a069363c68f8246749a624452c95486a931c2917e68bdd3c0d4f4a0c72ef135e",
+      "transactional": true
+    },
+    {
+      "file": "20260724120000_0068_skills_marketplace.sql",
+      "version": "20260724120000",
+      "sequence": 68,
+      "slug": "skills_marketplace",
+      "checksum": "5a3ce355c8b81f046a1a71740a0b085eb6c236dac3c9c5667fab48a731d91a31",
+      "transactional": true
+    },
+    {
+      "file": "20260724130000_0069_seed_platform_skills.sql",
+      "version": "20260724130000",
+      "sequence": 69,
+      "slug": "seed_platform_skills",
+      "checksum": "0bd431750522893cd80de2639f937c1e2bc475d1416b3ce5c01f2654f3dbe556",
+      "transactional": true
+    },
+    {
+      "file": "20260725000000_0070_crm_lead_owner_kind.sql",
+      "version": "20260725000000",
+      "sequence": 70,
+      "slug": "crm_lead_owner_kind",
+      "checksum": "15567a7c349c6473f8fa3ca59a3b6f757606eff96217cb420ab258c758f67f37",
+      "transactional": true
+    },
+    {
+      "file": "20260725010000_0071_crm_lead_activities_barramento.sql",
+      "version": "20260725010000",
+      "sequence": 71,
+      "slug": "crm_lead_activities_barramento",
+      "checksum": "5a8adc50cde91ca4744e1aedbf192d611559f35eb03543ed42c7abd7971573f8",
+      "transactional": true
+    },
+    {
+      "file": "20260725020000_0072_activity_evidence_llm_call_ids.sql",
+      "version": "20260725020000",
+      "sequence": 72,
+      "slug": "activity_evidence_llm_call_ids",
+      "checksum": "45fec9037f9c29bb8844ad698c51a5cca5643f0d2dbde2380f7095916724d93f",
+      "transactional": true
+    },
+    {
+      "file": "20260725030000_0073_next_action_identity_and_ambiguous_inbox.sql",
+      "version": "20260725030000",
+      "sequence": 73,
+      "slug": "next_action_identity_and_ambiguous_inbox",
+      "checksum": "6fb13ccd15bc5080e5e3951ff22a3bac17e8fb0a0d8562e13afd078dc50940db",
+      "transactional": true
+    },
+    {
+      "file": "20260725040000_0074_lead_score_com_evidencia.sql",
+      "version": "20260725040000",
+      "sequence": 74,
+      "slug": "lead_score_com_evidencia",
+      "checksum": "ada10796e33ac757296a9340bc6abc4e64524f8e4ba3e87ffb9d86fe90500f0e",
+      "transactional": true
+    },
+    {
+      "file": "20260725050000_0075_score_sai_do_lead_para_tabela_propria.sql",
+      "version": "20260725050000",
+      "sequence": 75,
+      "slug": "score_sai_do_lead_para_tabela_propria",
+      "checksum": "c8c29c401dfbfa1fb623ea0244757182e8c02fc54f2a327bbe59244b77de0a26",
+      "transactional": true
+    },
+    {
+      "file": "20260725060000_0076_evidencia_do_score_exige_ancora_e_fatores.sql",
+      "version": "20260725060000",
+      "sequence": 76,
+      "slug": "evidencia_do_score_exige_ancora_e_fatores",
+      "checksum": "e393e258d3c1ec9cfd0b396058f1b79e6e3c96a5b20d1697b113636e7c813b6d",
+      "transactional": true
+    },
+    {
+      "file": "20260725070000_0077_evidencia_do_score_uma_fonte_so.sql",
+      "version": "20260725070000",
+      "sequence": 77,
+      "slug": "evidencia_do_score_uma_fonte_so",
+      "checksum": "b7bcc651c7441b0d6e3b7c96ecd16f60ad5f2ab4eef90186c6c080b54e148a69",
+      "transactional": true
+    },
+    {
+      "file": "20260725080000_0078_estado_de_risco_do_negocio.sql",
+      "version": "20260725080000",
+      "sequence": 78,
+      "slug": "estado_de_risco_do_negocio",
+      "checksum": "de9fd86405426213528e4cf11d8eece71ead94a2dfa5e7500c76a6760ea03070",
+      "transactional": true
+    },
+    {
+      "file": "20260725090000_0079_relogio_do_silencio_so_conta_interacao.sql",
+      "version": "20260725090000",
+      "sequence": 79,
+      "slug": "relogio_do_silencio_so_conta_interacao",
+      "checksum": "867d6306b222e45f5aa344b855069845fc582104e0b7a27814309126ec8da3eb",
+      "transactional": true
+    },
+    {
+      "file": "20260725100000_0080_kind_de_caixa_para_o_acervo_de_risco.sql",
+      "version": "20260725100000",
+      "sequence": 80,
+      "slug": "kind_de_caixa_para_o_acervo_de_risco",
+      "checksum": "05568393a46b3f35257927769c5c92b7622cb83f0485847e9f2dc3dff2b5ff39",
+      "transactional": true
+    },
+    {
+      "file": "20260725110000_0081_detected_at_e_carimbo_do_banco.sql",
+      "version": "20260725110000",
+      "sequence": 81,
+      "slug": "detected_at_e_carimbo_do_banco",
+      "checksum": "f85d771bd5689bdb7cb2aaff26b990e94ac901f2ab84b5acdb1f74f205947215",
+      "transactional": true
+    },
+    {
+      "file": "20260725120000_0082_proposta_de_reativacao_com_prazo.sql",
+      "version": "20260725120000",
+      "sequence": 82,
+      "slug": "proposta_de_reativacao_com_prazo",
+      "checksum": "725cd1652cc8b44d294563e73d9faa529a1a76d357c6368a5e9de727683cae35",
+      "transactional": true
+    },
+    {
+      "file": "20260725130000_0083_kind_de_caixa_para_reativacao_vencida.sql",
+      "version": "20260725130000",
+      "sequence": 83,
+      "slug": "kind_de_caixa_para_reativacao_vencida",
+      "checksum": "890301f57c35d75271d80639e73b552691c018201d8241bd86b99171d855f3e7",
+      "transactional": true
+    },
+    {
+      "file": "20260725140000_0084_agent_stage_hint.sql",
+      "version": "20260725140000",
+      "sequence": 84,
+      "slug": "agent_stage_hint",
+      "checksum": "1dae922368bfc540142f48e7e4a48ad860a8185985c139472833dddfe6c75ce3",
+      "transactional": true
+    },
+    {
+      "file": "20260725150000_0113_ai_pricing_backfill.sql",
+      "version": "20260725150000",
+      "sequence": 113,
+      "slug": "ai_pricing_backfill",
+      "checksum": "fc63070ccb69bb358a06573cad76d7606103cff69fa76cca4b6e900c5d6af330",
+      "transactional": true
+    },
+    {
+      "file": "20260726000000_0085_intent_router.sql",
+      "version": "20260726000000",
+      "sequence": 85,
+      "slug": "intent_router",
+      "checksum": "d324b034021072f2acd47fc3c566ea1f6ae68b62a6475260f2f99df808cfbed8",
+      "transactional": true
+    },
+    {
+      "file": "20260727000000_0086_knowledge_searches.sql",
+      "version": "20260727000000",
+      "sequence": 86,
+      "slug": "knowledge_searches",
+      "checksum": "6aa10904b372d7d2a33a032f2b4dfad17c5ec45676e3454e50c738e479937ebc",
+      "transactional": true
+    },
+    {
+      "file": "20260727120000_0087_channel_provider.sql",
+      "version": "20260727120000",
+      "sequence": 87,
+      "slug": "channel_provider",
+      "checksum": "545c58eb7b98ae4dbe458a643e41da86db671fc16d6eca12ee237e0b30015fe0",
+      "transactional": true
+    },
+    {
+      "file": "20260728120000_0088_meta_templates.sql",
+      "version": "20260728120000",
+      "sequence": 88,
+      "slug": "meta_templates",
+      "checksum": "2e9c76bbcc50ecc52a88505ee819c91d4f4904a92403a01a0161188b74c4f209",
+      "transactional": true
+    },
+    {
+      "file": "20260728130000_0089_system_self_update.sql",
+      "version": "20260728130000",
+      "sequence": 89,
+      "slug": "system_self_update",
+      "checksum": "baf5b0941ce522bbf9ac322b08970ea253e6d24edfff136fdd2be605b4fffa27",
+      "transactional": true
+    },
+    {
+      "file": "20260728140000_0090_system_update_dispatched_unique.sql",
+      "version": "20260728140000",
+      "sequence": 90,
+      "slug": "system_update_dispatched_unique",
+      "checksum": "057b76a3e41b5cfcf4992cb25be92811930ffbd30bd374978ff34b3e3a49e635",
+      "transactional": true
+    },
+    {
+      "file": "20260729000000_0092_stage_names_acentos.sql",
+      "version": "20260729000000",
+      "sequence": 92,
+      "slug": "stage_names_acentos",
+      "checksum": "7e2cb64afb2cccf2f79cfc08ba46cfa007644b50e1ffe0d74e0d9047cabed161",
+      "transactional": true
+    },
+    {
+      "file": "20260729120000_0091_message_type_template.sql",
+      "version": "20260729120000",
+      "sequence": 91,
+      "slug": "message_type_template",
+      "checksum": "fe187d564a5ff4afdf2b68c2c203fbce91cda70e224808d3de288c9957672a6b",
+      "transactional": true
+    },
+    {
+      "file": "20260729130000_0093_system_version_compare_failed.sql",
+      "version": "20260729130000",
+      "sequence": 93,
+      "slug": "system_version_compare_failed",
+      "checksum": "23281672dccf6a914886715f42feecb57de21679dbe69241f81bff985b44c63d",
+      "transactional": true
+    },
+    {
+      "file": "20260730000000_0094_system_version_has_known_release.sql",
+      "version": "20260730000000",
+      "sequence": 94,
+      "slug": "system_version_has_known_release",
+      "checksum": "d7813452df76ccc5d0adf2bae60a36a21ae630eaf533993d5de07bac94d263bc",
+      "transactional": true
+    },
+    {
+      "file": "20260730180000_0095_budget_conta_llm_calls.sql",
+      "version": "20260730180000",
+      "sequence": 95,
+      "slug": "budget_conta_llm_calls",
+      "checksum": "e81a8b14cc246f6b3822b3a33bf101ea199da589fa1aec2bb8d835a83da0ef33",
+      "transactional": true
+    },
+    {
+      "file": "20260730200000_0096_llm_default_model_da_org.sql",
+      "version": "20260730200000",
+      "sequence": 96,
+      "slug": "llm_default_model_da_org",
+      "checksum": "ab072bd74d267deccd1e0426c2d388354a9828b4b5847cdaad80e165c86fac32",
+      "transactional": true
+    },
+    {
+      "file": "20260730220000_0097_rag_threshold_calibrado.sql",
+      "version": "20260730220000",
+      "sequence": 97,
+      "slug": "rag_threshold_calibrado",
+      "checksum": "0bf5a8149e01855c6db6441bc42f1fd274773bf31d14f226211bc31cc8e1963c",
+      "transactional": true
+    },
+    {
+      "file": "20260801200000_0098_contacts_locale.sql",
+      "version": "20260801200000",
+      "sequence": 98,
+      "slug": "contacts_locale",
+      "checksum": "8137692615485a4467160712bae8ae80c30af2b6f338faf51f9118d6163cd122",
+      "transactional": true
+    },
+    {
+      "file": "20260801220000_0099_contacts_avatar.sql",
+      "version": "20260801220000",
+      "sequence": 99,
+      "slug": "contacts_avatar",
+      "checksum": "ca464707e74b2498d1883a526ab3236db6b789ff5f641a605c3fa1c75513e9aa",
+      "transactional": true
+    },
+    {
+      "file": "20260804180000_0102_cron_jobs_retorno_cancelado.sql",
+      "version": "20260804180000",
+      "sequence": 102,
+      "slug": "cron_jobs_retorno_cancelado",
+      "checksum": "8a980181050cd5f2318b10d268c4685a0b268bcb53ad9ab0d89eeeaef5bed94a",
+      "transactional": true
+    },
+    {
+      "file": "20260804200000_0100_agent_case_events_agent_noted.sql",
+      "version": "20260804200000",
+      "sequence": 100,
+      "slug": "agent_case_events_agent_noted",
+      "checksum": "feb2bd6a73099d16301a66ac72e009b509d954d11a136e57fd3b5c811166ccbe",
+      "transactional": true
+    },
+    {
+      "file": "20260804210000_0101_autoria_da_configuracao.sql",
+      "version": "20260804210000",
+      "sequence": 101,
+      "slug": "autoria_da_configuracao",
+      "checksum": "7bd4767dd2a7970a05bacbf729d20f050d1fccf8a690328018fe4bf6aaeacd67",
+      "transactional": true
+    },
+    {
+      "file": "20260804220000_0103_uso_de_capacidades_do_agente.sql",
+      "version": "20260804220000",
+      "sequence": 103,
+      "slug": "uso_de_capacidades_do_agente",
+      "checksum": "813ca3f1000e89ec6e2e7952d2214fe84068b8ad92e622d4f87f990282f3d6a3",
+      "transactional": true
+    },
+    {
+      "file": "20260805120000_0104_catalogo_de_modelos_atualizado.sql",
+      "version": "20260805120000",
+      "sequence": 104,
+      "slug": "catalogo_de_modelos_atualizado",
+      "checksum": "a22a41fd2a93760342938652fad1c1cfa16cb68ce2b65a92b680e18a33341f5a",
+      "transactional": true
+    },
+    {
+      "file": "20260805140000_0105_inbox_capabilities_missing.sql",
+      "version": "20260805140000",
+      "sequence": 105,
+      "slug": "inbox_capabilities_missing",
+      "checksum": "a9bed3e24b8fc8602403196d00100aa7cfe8d810ae88f245d6c89ffd95f5deba",
+      "transactional": true
+    },
+    {
+      "file": "20260805150000_0106_channel_sessions_archived_at.sql",
+      "version": "20260805150000",
+      "sequence": 106,
+      "slug": "channel_sessions_archived_at",
+      "checksum": "da4fc822489931500faff487105813a2bc2f2b87666ffe65def3fb46a571d5d9",
+      "transactional": true
+    },
+    {
+      "file": "20260805160000_0107_channel_sessions_phone_unique_ativos.sql",
+      "version": "20260805160000",
+      "sequence": 107,
+      "slug": "channel_sessions_phone_unique_ativos",
+      "checksum": "33423afa64dab4b62ae6cb0c93b842eaf80e673f001dc4950ef17b0060d1cc2b",
+      "transactional": true
+    },
+    {
+      "file": "20260805180000_0108_revoke_definer_exposto.sql",
+      "version": "20260805180000",
+      "sequence": 108,
+      "slug": "revoke_definer_exposto",
+      "checksum": "43297d975955d2f50bb3a8b7143e80913288553991173ab746d3ef4fe0c04e38",
+      "transactional": true
+    },
+    {
+      "file": "20260805190000_0109_inbox_kind_message_send_stuck.sql",
+      "version": "20260805190000",
+      "sequence": 109,
+      "slug": "inbox_kind_message_send_stuck",
+      "checksum": "2f31136ada313c7d8a3e1d4e7eae5faaabb7202e907d842ab03d4052feab77e4",
+      "transactional": true
+    },
+    {
+      "file": "20260805200000_0110_lead_checkpoints_declaracao.sql",
+      "version": "20260805200000",
+      "sequence": 110,
+      "slug": "lead_checkpoints_declaracao",
+      "checksum": "d8bd9d875fa5f98fb5793e2475c4e3af8a1c61c7cdf0f8574eabe5f3494cbaf6",
+      "transactional": true
+    },
+    {
+      "file": "20260806100000_0111_operator_turn.sql",
+      "version": "20260806100000",
+      "sequence": 111,
+      "slug": "operator_turn",
+      "checksum": "070b9b77add4d44d8bae0959e7e44efcb399d0ec090c17f12cd031be35c5e2d5",
+      "transactional": true
+    },
+    {
+      "file": "20260806120000_0114_ai_invocations_agent_id_nullable.sql",
+      "version": "20260806120000",
+      "sequence": 114,
+      "slug": "ai_invocations_agent_id_nullable",
+      "checksum": "4d3413b8fc665ef65ed8f96de7f8be8c7faff25b11694d0cd73f70033d6a5357",
+      "transactional": true
+    },
+    {
+      "file": "20260806140000_0112_operator_tool_ids.sql",
+      "version": "20260806140000",
+      "sequence": 112,
+      "slug": "operator_tool_ids",
+      "checksum": "8f3d61aff98e1e0199b42b7a9bd9a20eff69da78072c9e567d70151c4d03ce28",
+      "transactional": true
+    },
+    {
+      "file": "20260806180000_0115_deletar_org_e_agente.sql",
+      "version": "20260806180000",
+      "sequence": 115,
+      "slug": "deletar_org_e_agente",
+      "checksum": "6e29c4d5c13ebcb410c0bf0f4bba223d09cf28b63c0daf18b196e4ddf91f00f8",
+      "transactional": true
+    },
+    {
+      "file": "20260806190000_0133_fn_atrito_metrics.sql",
+      "version": "20260806190000",
+      "sequence": 133,
+      "slug": "fn_atrito_metrics",
+      "checksum": "dd9178f3f3d39596a3c1b28756ee4cc7b072fb398c3b17000a995925799622d8",
+      "transactional": true
+    },
+    {
+      "file": "20260806210000_0134_atrito_abandono.sql",
+      "version": "20260806210000",
+      "sequence": 134,
+      "slug": "atrito_abandono",
+      "checksum": "d5d6e4097cc49526cba3a66f0bf937abb744e06aee5b5073303d7edf6d29a5c8",
+      "transactional": true
+    },
+    {
+      "file": "20260806230000_0135_atrito_repeticao_espera.sql",
+      "version": "20260806230000",
+      "sequence": 135,
+      "slug": "atrito_repeticao_espera",
+      "checksum": "fd501b27538dda18ed37c7872991dbab45f941e3fe3da5828024ead1bb14963d",
+      "transactional": true
+    },
+    {
+      "file": "20260807010000_0136_demandas.sql",
+      "version": "20260807010000",
+      "sequence": 136,
+      "slug": "demandas",
+      "checksum": "a566a9958721ca3497453c4af49671cc6e773cb5a80a9d747a78b4cb63909d12",
+      "transactional": true
+    },
+    {
+      "file": "20260807030000_0137_atrito_denominador_demanda.sql",
+      "version": "20260807030000",
+      "sequence": 137,
+      "slug": "atrito_denominador_demanda",
+      "checksum": "8becf91ed4bf1c5a594081eb6aadbc9c197d8a57e6fbdb837ea5a8fe5db81487",
+      "transactional": true
+    },
+    {
+      "file": "20260807050000_0138_demanda_no_ponto_de_entrada.sql",
+      "version": "20260807050000",
+      "sequence": 138,
+      "slug": "demanda_no_ponto_de_entrada",
+      "checksum": "ef2da705849d3782cd18b78d8b59ab41e3913cedb4603f49394d681423461714",
+      "transactional": true
+    },
+    {
+      "file": "20260807060000_0122_telefone_do_lid.sql",
+      "version": "20260807060000",
+      "sequence": 122,
+      "slug": "telefone_do_lid",
+      "checksum": "34ea470862faf78e99a61bdc0282bf1d98d9064ff96c7bd1f130fa7ab053ac6e",
+      "transactional": true
+    },
+    {
+      "file": "20260807070000_0123_fila_de_confirmacao_de_dado.sql",
+      "version": "20260807070000",
+      "sequence": 123,
+      "slug": "fila_de_confirmacao_de_dado",
+      "checksum": "9ac6df5166ec894ad8fef799fdda4c23f5af3687341aac1529c7d8a3ab204ae3",
+      "transactional": true
+    },
+    {
+      "file": "20260807080000_0124_kind_proposta_vencida.sql",
+      "version": "20260807080000",
+      "sequence": 124,
+      "slug": "kind_proposta_vencida",
+      "checksum": "17f31e13418ed61c357c5ce7d63022472d231bb6fd3edd65b1c8e1d6569e8bdb",
+      "transactional": true
+    },
+    {
+      "file": "20260807090000_0125_escopo_de_funil_do_agente.sql",
+      "version": "20260807090000",
+      "sequence": 125,
+      "slug": "escopo_de_funil_do_agente",
+      "checksum": "f866af5a4b4525f96b4a8b63ef3e30925bded2a8fef17d9a9dacdff9fe33e459",
+      "transactional": true
+    },
+    {
+      "file": "20260807120000_0126_ai_purpose_bindings.sql",
+      "version": "20260807120000",
+      "sequence": 126,
+      "slug": "ai_purpose_bindings",
+      "checksum": "2ba26c2b7aa74a19031f60c5d7bbd8c314deb51a25fbdcd747aef73c0552e07d",
+      "transactional": true
+    },
+    {
+      "file": "20260807140000_0127_provider_vocabulario_aberto.sql",
+      "version": "20260807140000",
+      "sequence": 127,
+      "slug": "provider_vocabulario_aberto",
+      "checksum": "f1719426228be7ff14d6449ba57d0187cd65495189aa47f35a4fdf9faeca8775",
+      "transactional": true
+    },
+    {
+      "file": "20260807160000_0116_definer_nova_nasce_exposta.sql",
+      "version": "20260807160000",
+      "sequence": 116,
+      "slug": "definer_nova_nasce_exposta",
+      "checksum": "5429fd23d3612f718cb4c8b8e5f498c854f129f9d7493ff043edbb92d52beeea",
+      "transactional": true
+    },
+    {
+      "file": "20260807160500_0128_llm_calls_registra_falha.sql",
+      "version": "20260807160500",
+      "sequence": 128,
+      "slug": "llm_calls_registra_falha",
+      "checksum": "9a1c36c525562f86560f7a0b9022579836dbee12845d650be048bc75e90509dc",
+      "transactional": true
+    },
+    {
+      "file": "20260807180000_0129_midia_nao_lida.sql",
+      "version": "20260807180000",
+      "sequence": 129,
+      "slug": "midia_nao_lida",
+      "checksum": "247ba5383d412d80830f656af120338f32c3e028dc6c63edaf6c5f2454800734",
+      "transactional": true
+    },
+    {
+      "file": "20260807200000_0130_unifica_ai_invocations.sql",
+      "version": "20260807200000",
+      "sequence": 130,
+      "slug": "unifica_ai_invocations",
+      "checksum": "211be299731bc132453a44605aeee27f75c2e7ccedbcd5efa4cbfb9ca1e71a30",
+      "transactional": true
+    },
+    {
+      "file": "20260808020000_0131_canal_zernio_vocabulario.sql",
+      "version": "20260808020000",
+      "sequence": 131,
+      "slug": "canal_zernio_vocabulario",
+      "checksum": "001d4ef122b7a448a9757a2ac751bb7d329425c4e06a529d68f59b95370005a5",
+      "transactional": true
+    },
+    {
+      "file": "20260808030000_0132_zernio_envio.sql",
+      "version": "20260808030000",
+      "sequence": 132,
+      "slug": "zernio_envio",
+      "checksum": "c10677455a25c530187b56a21ba2a50f85ed96a67e2a8333df4035ac5c66c9ef",
+      "transactional": true
+    },
+    {
+      "file": "20260808040000_0139_kind_check_completo.sql",
+      "version": "20260808040000",
+      "sequence": 139,
+      "slug": "kind_check_completo",
+      "checksum": "3743021b5d20496fd41a37b3f01cffe9a3fbf2b9bd7160360b42fb4bb5745817",
+      "transactional": true
+    },
+    {
+      "file": "20260808050000_0140_orcamento_nao_conta_backfill.sql",
+      "version": "20260808050000",
+      "sequence": 140,
+      "slug": "orcamento_nao_conta_backfill",
+      "checksum": "1d6c842e2fa805287dc49f3966dedad25347754dade85a3a42c0651ea487a078",
+      "transactional": true
+    },
+    {
+      "file": "20260808060000_0141_binding_sobrevive_a_rotacao.sql",
+      "version": "20260808060000",
+      "sequence": 141,
+      "slug": "binding_sobrevive_a_rotacao",
+      "checksum": "bee9c6414d48b0b102f28d6b69232e3560e10761c345579078258e608b8cd6df",
+      "transactional": true
+    },
+    {
+      "file": "20260808180000_0119_contato_lookup_telefone.sql",
+      "version": "20260808180000",
+      "sequence": 119,
+      "slug": "contato_lookup_telefone",
+      "checksum": "a75d2220b1dc6bf7a40fec779672dbeb915d306bf50f133de4b464c2a061f2d7",
+      "transactional": true
+    },
+    {
+      "file": "20260808200000_0120_avisos_de_canal.sql",
+      "version": "20260808200000",
+      "sequence": 120,
+      "slug": "avisos_de_canal",
+      "checksum": "ec14f2dffd0d99ca5c2179cae41d9ab1c2308515c1832dc188d530bad1d67f3f",
+      "transactional": true
+    },
+    {
+      "file": "20260809100000_0142_camadas_de_seguranca_por_org.sql",
+      "version": "20260809100000",
+      "sequence": 142,
+      "slug": "camadas_de_seguranca_por_org",
+      "checksum": "0253c046d67cd75207bafa7dac9ee76024b5b876fb9409ec4faf89de14819664",
+      "transactional": true
+    },
+    {
+      "file": "20260810120000_0145_dossie_do_followup.sql",
+      "version": "20260810120000",
+      "sequence": 145,
+      "slug": "dossie_do_followup",
+      "checksum": "18f2326400238facae11786bde2587e73c9bb6ba8b19893b22744e2b265d84e6",
+      "transactional": true
+    },
+    {
+      "file": "20260810121000_0144_followup_timing_plan.sql",
+      "version": "20260810121000",
+      "sequence": 144,
+      "slug": "followup_timing_plan",
+      "checksum": "0703ff3a480fc0a485c60ccf3dd0a8924ef4d42fa74bbcbf8c8b66902332c891",
+      "transactional": true
+    },
+    {
+      "file": "20260810122000_0146_claim_justo_entre_organizacoes.sql",
+      "version": "20260810122000",
+      "sequence": 146,
+      "slug": "claim_justo_entre_organizacoes",
+      "checksum": "520626dc0c8b21eae54b8c441f87a1c73fb8e6f6bb32f9cc052bc9772c6a4507",
+      "transactional": true
+    },
+    {
+      "file": "20260810150000_0143_guardrail_layers_escrita_de_admin.sql",
+      "version": "20260810150000",
+      "sequence": 143,
+      "slug": "guardrail_layers_escrita_de_admin",
+      "checksum": "b95dbf006c340ec8627eb87b571f62d3dcc2a72b7df0391da5fe1c2f98a2f596",
+      "transactional": true
+    },
+    {
+      "file": "20260810160000_0147_relogio_do_banco.sql",
+      "version": "20260810160000",
+      "sequence": 147,
+      "slug": "relogio_do_banco",
+      "checksum": "c382f1cae271b591ca26114de54bf4afe2edb434f95264f140035f74f8b989c0",
+      "transactional": true
+    },
+    {
+      "file": "20260810180000_0153_mensagem_editada_e_apagada.sql",
+      "version": "20260810180000",
+      "sequence": 153,
+      "slug": "mensagem_editada_e_apagada",
+      "checksum": "0e7be0b1131a7b0d3cd58b3f9a697eeee7abd1bf4c3ac6c98eec8ace11801dc7",
+      "transactional": true
+    },
+    {
+      "file": "20260810210000_0154_template_sabe_de_qual_conexao.sql",
+      "version": "20260810210000",
+      "sequence": 154,
+      "slug": "template_sabe_de_qual_conexao",
+      "checksum": "70981d9dd1a1d8e770ab83a492aee97273fdf62695c499e0fcf6388a4cecd805",
+      "transactional": true
+    },
+    {
+      "file": "20260811090000_0148_caso_anuncia_no_barramento.sql",
+      "version": "20260811090000",
+      "sequence": 148,
+      "slug": "caso_anuncia_no_barramento",
+      "checksum": "62faf389b145eabfd41390b867072fce17ac807f485a4471c906231b604694fb",
+      "transactional": true
+    },
+    {
+      "file": "20260811100000_0149_definer_valida_membership.sql",
+      "version": "20260811100000",
+      "sequence": 149,
+      "slug": "definer_valida_membership",
+      "checksum": "13387e3c534460be55aa292e948468a1fbf718cf0cac4fe8c5c9e0a215b587d1",
+      "transactional": true
+    },
+    {
+      "file": "20260811110000_0150_rbac_na_config_de_ia_e_canais.sql",
+      "version": "20260811110000",
+      "sequence": 150,
+      "slug": "rbac_na_config_de_ia_e_canais",
+      "checksum": "a3133047d39a2dc023e7d618a6dcea6c9de61fcb96d25a0570bdf507554db7ce",
+      "transactional": true
+    },
+    {
+      "file": "20260811200000_0151_arquivo_do_webhook_por_canal.sql",
+      "version": "20260811200000",
+      "sequence": 151,
+      "slug": "arquivo_do_webhook_por_canal",
+      "checksum": "ded71c609d13c6b58b80602213f7ac6666303c604663017b2653229b908b36eb",
+      "transactional": true
+    },
+    {
+      "file": "20260811210000_0152_o_gatilho_manda_o_texto.sql",
+      "version": "20260811210000",
+      "sequence": 152,
+      "slug": "o_gatilho_manda_o_texto",
+      "checksum": "396d0b80a2a22ba6d8079e6a391a8c899811a17e06ab9ef5a79a98a7f6616018",
+      "transactional": true
+    },
+    {
+      "file": "20260813090000_0155_marca_da_instalacao_no_banco.sql",
+      "version": "20260813090000",
+      "sequence": 155,
+      "slug": "marca_da_instalacao_no_banco",
+      "checksum": "34e291e3fba9bfd0e884d6239a53150300f28a79f80716e0bc0e463f80ab3d7d",
+      "transactional": true
+    },
+    {
+      "file": "20260813120000_0156_quadro_do_onboarding.sql",
+      "version": "20260813120000",
+      "sequence": 156,
+      "slug": "quadro_do_onboarding",
+      "checksum": "76e8eb6dec340c188bc3c1dafae5902f0ce965178ea222424faccdf736ff2498",
+      "transactional": true
+    },
+    {
+      "file": "20260814090000_0157_marca_por_organizacao.sql",
+      "version": "20260814090000",
+      "sequence": 157,
+      "slug": "marca_por_organizacao",
+      "checksum": "b89c9be83506371a70cda0ba15e8fc05a8e7de1eeb1cea4ad84347ef701043f6",
+      "transactional": true
+    },
+    {
+      "file": "20260814140000_0158_logo_no_storage.sql",
+      "version": "20260814140000",
+      "sequence": 158,
+      "slug": "logo_no_storage",
+      "checksum": "68a238f2a34cf8349875b557bf1fc942b2ef86323f42cc51262629671f9e9b1d",
+      "transactional": true
+    },
+    {
+      "file": "20260814210000_0159_o_teto_que_vincula.sql",
+      "version": "20260814210000",
+      "sequence": 159,
+      "slug": "o_teto_que_vincula",
+      "checksum": "5759234e678e602b0fdaf6b686b146872fd9c216997e7e33540228aacf4b9256",
+      "transactional": true
+    },
+    {
+      "file": "20260815120000_0160_ai_budgets_so_escreve_pela_rota.sql",
+      "version": "20260815120000",
+      "sequence": 160,
+      "slug": "ai_budgets_so_escreve_pela_rota",
+      "checksum": "3d8cd775531733bcc235355d5587ff7bf8b1aa1c3e952f871d48145c716990f2",
+      "transactional": true
+    },
+    {
+      "file": "20260819140000_0161_outbound_zera_unread.sql",
+      "version": "20260819140000",
+      "sequence": 161,
+      "slug": "outbound_zera_unread",
+      "checksum": "8fd03e0af6f224f0e596a3f486bb2a1053548de12939824b8b3633c2095e45dd",
+      "transactional": true
+    },
+    {
+      "file": "20260819150000_0162_contato_ultima_atividade_mensagem.sql",
+      "version": "20260819150000",
+      "sequence": 162,
+      "slug": "contato_ultima_atividade_mensagem",
+      "checksum": "294bfb3528f60ac2a6b1e8412951fad5fe1b0a3dd93b3bb94dc39aa77d2ebedf",
+      "transactional": true
+    },
+    {
+      "file": "20260820010000_0163_o_arquivo_do_webhook_pode_perder_o_corpo.sql",
+      "version": "20260820010000",
+      "sequence": 163,
+      "slug": "o_arquivo_do_webhook_pode_perder_o_corpo",
+      "checksum": "616714bc9800c62c709564963e76544059ad5937a2eb032efe8542718e831a6e",
+      "transactional": true
+    },
+    {
+      "file": "20260820030000_0164_atribuicao_de_anuncio.sql",
+      "version": "20260820030000",
+      "sequence": 164,
+      "slug": "atribuicao_de_anuncio",
+      "checksum": "f3b8ba830334f737eabb2f19f98fab87f846006d889b42a1751467088b9096c0",
+      "transactional": true
+    },
+    {
+      "file": "20260820120000_0166_indice_do_claim_da_fila.sql",
+      "version": "20260820120000",
+      "sequence": 166,
+      "slug": "indice_do_claim_da_fila",
+      "checksum": "aee2e5535221c3a20c5735b6482676e8849406a17e74870097f1bb292fc7199c",
+      "transactional": true
+    },
+    {
+      "file": "20260820160000_0165_identificador_de_canal_unico_entre_ativos.sql",
+      "version": "20260820160000",
+      "sequence": 165,
+      "slug": "identificador_de_canal_unico_entre_ativos",
+      "checksum": "28f3646bd6ac5924729bb4a9d9f75aab1b3e3e81ca4bb371de4953b79de3483f",
+      "transactional": true
+    },
+    {
+      "file": "20260820170000_0167_poda_da_fila_e_expurgo_do_audit.sql",
+      "version": "20260820170000",
+      "sequence": 167,
+      "slug": "poda_da_fila_e_expurgo_do_audit",
+      "checksum": "f49102a3a9d3f687768a98c72af052fe86003aed431eebc1b5a6c8ee191734c0",
+      "transactional": true
+    },
+    {
+      "file": "20260821090000_0168_a_mensagem_que_responde_outra.sql",
+      "version": "20260821090000",
+      "sequence": 168,
+      "slug": "a_mensagem_que_responde_outra",
+      "checksum": "463bdbacf74df654436ec34bdfabdb3ace4c614963add5f18d0bf55dcb57090f",
+      "transactional": true
+    },
+    {
+      "file": "20260824120000_0173_quem_manda_na_conversa.sql",
+      "version": "20260824120000",
+      "sequence": 173,
+      "slug": "quem_manda_na_conversa",
+      "checksum": "69d815696cdd479c3e722b6ebe6fc9dbd635629cccab473148ca939c7f3adec2",
+      "transactional": true
+    },
+    {
+      "file": "20260825120000_0174_historico_de_leads_captados.sql",
+      "version": "20260825120000",
+      "sequence": 174,
+      "slug": "historico_de_leads_captados",
+      "checksum": "9b32e103beb0493067a1faff7df1398ece792321f666bb6b3f3f28744636e035",
+      "transactional": true
+    },
+    {
+      "file": "20260825130000_0175_a_automacao_diz_a_verdade.sql",
+      "version": "20260825130000",
+      "sequence": 175,
+      "slug": "a_automacao_diz_a_verdade",
+      "checksum": "2890bd350929bb96f8bbf0654631d70d90988dc546c12278247a6822e6098fb9",
+      "transactional": true
+    },
+    {
+      "file": "20260826140000_0181_o_acervo_e_da_organizacao.sql",
+      "version": "20260826140000",
+      "sequence": 181,
+      "slug": "o_acervo_e_da_organizacao",
+      "checksum": "fad3f941e1e78a30906fb27a3f02080aeee8f2592106ac95b66072ef5b8ce4d8",
+      "transactional": true
+    },
+    {
+      "file": "20260826190000_0177_agenda_o_compromisso_marcado.sql",
+      "version": "20260826190000",
+      "sequence": 177,
+      "slug": "agenda_o_compromisso_marcado",
+      "checksum": "475ccc34486f8e13e438aa935667524855b87caa91c9b176ca58fa11e3a3a878",
+      "transactional": true
+    },
+    {
+      "file": "20260826200000_0182_dois_cliques_nao_marcam_duas_vezes.sql",
+      "version": "20260826200000",
+      "sequence": 182,
+      "slug": "dois_cliques_nao_marcam_duas_vezes",
+      "checksum": "831cf3f7ea0daf37fc23d0fbc544df302d0b87ad234d9cfbd1d729474eacd4b0",
+      "transactional": true
+    },
+    {
+      "file": "20260826210000_0183_a_grade_da_agenda_nao_se_move_sozinha.sql",
+      "version": "20260826210000",
+      "sequence": 183,
+      "slug": "a_grade_da_agenda_nao_se_move_sozinha",
+      "checksum": "54004eb49bbd6ccd5d53096bcefc5f28cd7865a3f16a3e0ee30f31f1065b806a",
+      "transactional": true
+    },
+    {
+      "file": "20260826220000_0184_anonimizar_um_contato_deixava_a_agenda_legivel.sql",
+      "version": "20260826220000",
+      "sequence": 184,
+      "slug": "anonimizar_um_contato_deixava_a_agenda_legivel",
+      "checksum": "c9bfdc2b47973f97c4c3dbf8cd52b304bcc8169431ba362832aa7a3a354c6cbb",
+      "transactional": true
+    },
+    {
+      "file": "20260826230000_0185_instalacao_fresca_nao_dava_para_marcar_nada.sql",
+      "version": "20260826230000",
+      "sequence": 185,
+      "slug": "instalacao_fresca_nao_dava_para_marcar_nada",
+      "checksum": "2c95acabf5388a2ee424a8d16937f2bdff2762413a4c05dc7be2d311f4cc005d",
+      "transactional": true
+    },
+    {
+      "file": "20260827000000_0186_a_cor_da_pessoa_e_uma_trilha_nao_um_hex.sql",
+      "version": "20260827000000",
+      "sequence": 186,
+      "slug": "a_cor_da_pessoa_e_uma_trilha_nao_um_hex",
+      "checksum": "1c4fff00edfcf51831c543cf588953a2e1926e231225b6b66e69fb487252f494",
+      "transactional": true
+    },
+    {
+      "file": "20260827010000_0187_o_espelho_do_google_e_cache_com_prazo.sql",
+      "version": "20260827010000",
+      "sequence": 187,
+      "slug": "o_espelho_do_google_e_cache_com_prazo",
+      "checksum": "685f4240317e4fbe01991715cb2fbb6c882fb9bec1f85ffb48c03fb93c7fdec9",
+      "transactional": true
+    },
+    {
+      "file": "20260827020000_0188_a_volta_do_google_sem_identidade_cria_fantasma.sql",
+      "version": "20260827020000",
+      "sequence": 188,
+      "slug": "a_volta_do_google_sem_identidade_cria_fantasma",
+      "checksum": "655c42cbc94136676ee318533627e8cc635c00b747b3560f3f28600cc4587ed8",
+      "transactional": true
+    },
+    {
+      "file": "20260827030000_0189_o_espelho_nao_se_limpa_sozinho.sql",
+      "version": "20260827030000",
+      "sequence": 189,
+      "slug": "o_espelho_nao_se_limpa_sozinho",
+      "checksum": "94fbaa85f5e16db2da216027d7a218df0efb672267b9af0f5ecf3d3a64f6f9ef",
+      "transactional": true
+    },
+    {
+      "file": "20260827040000_0190_o_mesmo_state_do_google_valia_duas_vezes.sql",
+      "version": "20260827040000",
+      "sequence": 190,
+      "slug": "o_mesmo_state_do_google_valia_duas_vezes",
+      "checksum": "a765e3a2aac6ac7fc7e9b48fa6e329bb311f31a245f813475f4c060b780e900c",
+      "transactional": true
+    },
+    {
+      "file": "20260827050000_0191_o_playbook_de_agendamento_nao_conhecia_as_ferramentas.sql",
+      "version": "20260827050000",
+      "sequence": 191,
+      "slug": "o_playbook_de_agendamento_nao_conhecia_as_ferramentas",
+      "checksum": "96960130996893f7f352c1e80f1609a05128007682569b7c640612e4c93ed951",
+      "transactional": true
+    },
+    {
+      "file": "20260827060000_0192_a_poda_de_nonces_esqueceu_authenticated.sql",
+      "version": "20260827060000",
+      "sequence": 192,
+      "slug": "a_poda_de_nonces_esqueceu_authenticated",
+      "checksum": "b2b12236f5d02d61fbc094709cdb962b7c75837fc3d2d90aa21588d9a3fe5e14",
+      "transactional": true
+    },
+    {
+      "file": "20260827080000_0193_a_conexao_do_google_sem_fk_e_sem_fuso.sql",
+      "version": "20260827080000",
+      "sequence": 193,
+      "slug": "a_conexao_do_google_sem_fk_e_sem_fuso",
+      "checksum": "29344b9277c16f3f45f919863a63f29c87dbdc7f7982000262d2ef38d80b7099",
+      "transactional": true
+    },
+    {
+      "file": "20260827090000_0194_lembrete_nasce_desligado.sql",
+      "version": "20260827090000",
+      "sequence": 194,
+      "slug": "lembrete_nasce_desligado",
+      "checksum": "c41f6a66dbbd083b8a1b2c34588917c5f929a05e951d40a0bea2b51e95467bb7",
+      "transactional": true
+    },
+    {
+      "file": "20260827100000_0195_tipo_semeado_nascia_sem_dono.sql",
+      "version": "20260827100000",
+      "sequence": 195,
+      "slug": "tipo_semeado_nascia_sem_dono",
+      "checksum": "495dc0c56fd434053a8d3fc3a04085c916ba3be339a8ec43974a400fdae1c843",
+      "transactional": true
+    },
+    {
+      "file": "20260827180000_0196_followup_pointer_surface.sql",
+      "version": "20260827180000",
+      "sequence": 196,
+      "slug": "followup_pointer_surface",
+      "checksum": "77bc4c1ab895e76190656791f74b5055282df3c3965d0fbd4efa3ef0b7ec1909",
+      "transactional": true
+    },
+    {
+      "file": "20260827181000_0197_push_subscriptions.sql",
+      "version": "20260827181000",
+      "sequence": 197,
+      "slug": "push_subscriptions",
+      "checksum": "c8cdbcdbb7a0c8305bcd46ee3b6f2b0ff0c22eac9c9a0fcfcf2947f101342745",
+      "transactional": true
+    },
+    {
+      "file": "20260827182000_0198_nono_digito_canonico.sql",
+      "version": "20260827182000",
+      "sequence": 198,
+      "slug": "nono_digito_canonico",
+      "checksum": "0a9a7efe32a5373ee4da22eac67276d12ac2d0ca61e2092a8e444e32dc8e8a98",
+      "transactional": true
+    },
+    {
+      "file": "20260827183000_0199_push_subscriptions_rbac.sql",
+      "version": "20260827183000",
+      "sequence": 199,
+      "slug": "push_subscriptions_rbac",
+      "checksum": "00aaa52500228ff20abeda186f6e3e7ae2d1dfa8b974851ee3322551f8fbbe0e",
+      "transactional": true
+    },
+    {
+      "file": "20260827190000_0200_o_que_ainda_nao_foi_ao_google.sql",
+      "version": "20260827190000",
+      "sequence": 200,
+      "slug": "o_que_ainda_nao_foi_ao_google",
+      "checksum": "51e1d41c7ab888771d336ae113fe17e5eb4249077f359c132fe23b06105b67a9",
+      "transactional": true
+    },
+    {
+      "file": "20260827200000_0201_credencial_do_google_pela_tela.sql",
+      "version": "20260827200000",
+      "sequence": 201,
+      "slug": "credencial_do_google_pela_tela",
+      "checksum": "4df15284318d6e5f615cd53487247e209b7d78419304d2aab18fecc7e98e7477",
+      "transactional": true
+    },
+    {
+      "file": "20260828000000_0202_o_nome_do_atendente_custava_uma_chamada_http.sql",
+      "version": "20260828000000",
+      "sequence": 202,
+      "slug": "o_nome_do_atendente_custava_uma_chamada_http",
+      "checksum": "2f282b0d616b37e029eeb678310e98d29dcbccd0cc2534b3157bee5b01b56122",
+      "transactional": true
+    },
+    {
+      "file": "20260831000000_0203_comando_da_conversa.sql",
+      "version": "20260831000000",
+      "sequence": 203,
+      "slug": "comando_da_conversa",
+      "checksum": "ea24f56f871f596ed4f6bf649d9a527f9da5426f6a54873e4020b47041c0b49d",
+      "transactional": true
+    },
+    {
+      "file": "20260901120000_0204_catalogo_de_produtos_da_loja.sql",
+      "version": "20260901120000",
+      "sequence": 204,
+      "slug": "catalogo_de_produtos_da_loja",
+      "checksum": "1493b6709bb55051124be872b857db3fb5f0e648e56452e8ce6b5df5dfd67223",
+      "transactional": true
+    },
+    {
+      "file": "20260902020000_0205_um_agente_indexa_mais_de_um_material.sql",
+      "version": "20260902020000",
+      "sequence": 205,
+      "slug": "um_agente_indexa_mais_de_um_material",
+      "checksum": "ac54348d85db2d468fa429590cbb359a67febf14eb6f22a0ac19cbbd6ded1b59",
+      "transactional": true
+    },
+    {
+      "file": "20260903000000_0206_contact_ai_authorization.sql",
+      "version": "20260903000000",
+      "sequence": 206,
+      "slug": "contact_ai_authorization",
+      "checksum": "7d9efe1db5003aa32f3e2dc665c398221c73da2bbfb7428429b80065b7536deb",
+      "transactional": true
+    },
+    {
+      "file": "20260903143000_0210_tarefas_do_crm.sql",
+      "version": "20260903143000",
+      "sequence": 210,
+      "slug": "tarefas_do_crm",
+      "checksum": "3f6774198bf4268f3954483a4132345b7b26dbfddbf6589be38ed1d99ef00beb",
+      "transactional": true
+    },
+    {
+      "file": "20260903210000_0207_credenciais_de_ia_voltam_a_ser_lidas_por_manager.sql",
+      "version": "20260903210000",
+      "sequence": 207,
+      "slug": "credenciais_de_ia_voltam_a_ser_lidas_por_manager",
+      "checksum": "8c529c5f0f3ddb459f72a1ad56ebb20957837e075603372b014e00d0a9a590af",
+      "transactional": true
+    },
+    {
+      "file": "20260903230000_0211_contact_custom_fields.sql",
+      "version": "20260903230000",
+      "sequence": 211,
+      "slug": "contact_custom_fields",
+      "checksum": "e3bb79086b561842e510917f7d9037c96cfe442b8424e13a700d39696b086672",
+      "transactional": true
+    },
+    {
+      "file": "20260904000000_0208_moeda_da_organizacao.sql",
+      "version": "20260904000000",
+      "sequence": 208,
+      "slug": "moeda_da_organizacao",
+      "checksum": "9871b650ffa50a9161fd8ef51d0b83afcaf9ae150438f2a0f461d0ba64abd509",
+      "transactional": true
+    },
+    {
+      "file": "20260904011000_0209_mover_em_lote_sem_colidir_posicao.sql",
+      "version": "20260904011000",
+      "sequence": 209,
+      "slug": "mover_em_lote_sem_colidir_posicao",
+      "checksum": "f75ec58386dd74df83b360f775343019c9174a9bc7afd372e277eeaeaed2b92a",
+      "transactional": true
+    },
+    {
+      "file": "20260904050000_0212_o_email_do_convidado.sql",
+      "version": "20260904050000",
+      "sequence": 212,
+      "slug": "o_email_do_convidado",
+      "checksum": "22a05131d736e6d9df59bee3ee6cd7ecfaf51d9f52126c62fcc47eda6e563606",
+      "transactional": true
+    },
+    {
+      "file": "20260904051000_0213_conversoes_de_anuncio.sql",
+      "version": "20260904051000",
+      "sequence": 213,
+      "slug": "conversoes_de_anuncio",
+      "checksum": "d1c7074d2c7759805362d33c4762e568161b950e27c9aa09d584e43bb606849a",
+      "transactional": true
+    },
+    {
+      "file": "20260904052000_0214_leitura_de_anuncios.sql",
+      "version": "20260904052000",
+      "sequence": 214,
+      "slug": "leitura_de_anuncios",
+      "checksum": "f0838260dcf4043148dd6b040c00ca7bde1a2fa38075af2bb5b87bf3a268786b",
+      "transactional": true
+    },
+    {
+      "file": "20260904190000_0215_juntar_contatos_duplicados.sql",
+      "version": "20260904190000",
+      "sequence": 215,
+      "slug": "juntar_contatos_duplicados",
+      "checksum": "14a584278c1d26af99c4c9e94789a0af4053f6c11f6b1bccbfad56eeb424cbf0",
+      "transactional": true
+    },
+    {
+      "file": "20260904210000_0216_agent_inbox_items_resolved_at.sql",
+      "version": "20260904210000",
+      "sequence": 216,
+      "slug": "agent_inbox_items_resolved_at",
+      "checksum": "d5961fd150466f75cd4b0764679b763650ca88fb8d3c408c691226f134e21a2b",
+      "transactional": true
+    },
+    {
+      "file": "20260904220000_0217_relatorio_de_atividades.sql",
+      "version": "20260904220000",
+      "sequence": 217,
+      "slug": "relatorio_de_atividades",
+      "checksum": "a51d63a9bf41ef59f10affef10ae2f0b22b37734b5f48e635f9b6344e9abc23e",
+      "transactional": true
+    },
+    {
+      "file": "20260905120000_0231_organizacao_e_acesso_atomicos.sql",
+      "version": "20260905120000",
+      "sequence": 231,
+      "slug": "organizacao_e_acesso_atomicos",
+      "checksum": "cc7a9c777fb8dbdb8bac276607350b5ba19b6891d20f89db9dfe565472033aec",
+      "transactional": true
+    },
+    {
+      "file": "20260905150000_0219_recibo_de_criacao_confiavel.sql",
+      "version": "20260905150000",
+      "sequence": 219,
+      "slug": "recibo_de_criacao_confiavel",
+      "checksum": "3dd58a79a247d635f632025ebb10734f2d25044291246447a4e142a7b781c037",
+      "transactional": true
+    },
+    {
+      "file": "20260905160000_0218_configuracao_pre_go_live_atomica.sql",
+      "version": "20260905160000",
+      "sequence": 218,
+      "slug": "configuracao_pre_go_live_atomica",
+      "checksum": "f738a1303109500ec585c89dde8b4f0c3b5d352c6283fadcbdf92e0ae888fc13",
+      "transactional": true
+    },
+    {
+      "file": "20260905210000_0220_suporte_temporario_por_sessao.sql",
+      "version": "20260905210000",
+      "sequence": 220,
+      "slug": "suporte_temporario_por_sessao",
+      "checksum": "b3c8ab07083561d27318f146ac253002204f939c7f81effdfc874848f87d02a0",
+      "transactional": true
+    },
+    {
+      "file": "20260906010000_0221_interface_por_vinculo.sql",
+      "version": "20260906010000",
+      "sequence": 221,
+      "slug": "interface_por_vinculo",
+      "checksum": "5944dabb8bccb80d8fffc637ab9d29be775bfd31b1759f9918c8c25e8cd0f99d",
+      "transactional": true
+    },
+    {
+      "file": "20260906020000_0222_fronteira_do_atendimento.sql",
+      "version": "20260906020000",
+      "sequence": 222,
+      "slug": "fronteira_do_atendimento",
+      "checksum": "339a453b0143d5d904231b910246c32a21232e5b90f6e12f2b4eec1371fe95cd",
+      "transactional": true
+    },
+    {
+      "file": "20260906030000_0223_origem_imutavel_do_evento.sql",
+      "version": "20260906030000",
+      "sequence": 223,
+      "slug": "origem_imutavel_do_evento",
+      "checksum": "c7382fb24beed8b55e76bcd9635eb90af4037f647996435fdfcf3bd6ccf4f9ac",
+      "transactional": true
+    },
+    {
+      "file": "20260906120000_0224_presenca_e_recuperacao.sql",
+      "version": "20260906120000",
+      "sequence": 224,
+      "slug": "presenca_e_recuperacao",
+      "checksum": "67b858574667e092c59297489697330898e356994c5385ed568dee556c9d1ef4",
+      "transactional": true
+    },
+    {
+      "file": "20260907010000_0225_google_reconciliacao.sql",
+      "version": "20260907010000",
+      "sequence": 225,
+      "slug": "google_reconciliacao",
+      "checksum": "0667c46d34f4f806270234d67cd2ac930582e472653adacbb834713db7b223f1",
+      "transactional": true
+    },
+    {
+      "file": "20260907020000_0226_meet_e_entrega_transacional.sql",
+      "version": "20260907020000",
+      "sequence": 226,
+      "slug": "meet_e_entrega_transacional",
+      "checksum": "c8aeb851b114a62c2118a06600c1448a472940154f505e6cc8fea92c2319c783",
+      "transactional": true
+    },
+    {
+      "file": "20260907030000_0227_autonomia_e_respostas_revisadas.sql",
+      "version": "20260907030000",
+      "sequence": 227,
+      "slug": "autonomia_e_respostas_revisadas",
+      "checksum": "1eb9be5a826d5afa8626fb2298813bef828f2ee2d5602397cb242bfcbea4f0b1",
+      "transactional": true
+    },
+    {
+      "file": "20260907040000_0228_roteamento_por_canal_e_reservas.sql",
+      "version": "20260907040000",
+      "sequence": 228,
+      "slug": "roteamento_por_canal_e_reservas",
+      "checksum": "5d3bdc7f9435440ea729f63b4eafcba97fd5a6c036c371a527eb160077e00333",
+      "transactional": true
+    },
+    {
+      "file": "20260907050000_0229_mfa_e_lgpd_agenda.sql",
+      "version": "20260907050000",
+      "sequence": 229,
+      "slug": "mfa_e_lgpd_agenda",
+      "checksum": "67aada762b77acd2507f963e3ef9f12fad34144abe423e5f5b6c6397d6d5b32a",
+      "transactional": true
+    },
+    {
+      "file": "20260907060000_0230_reserva_pre_go_live.sql",
+      "version": "20260907060000",
+      "sequence": 230,
+      "slug": "reserva_pre_go_live",
+      "checksum": "26964cfefa3c41d514a80a37f9e0176dae92f634ead717918be0cb6d5d4fe113",
+      "transactional": true
+    },
+    {
+      "file": "20260907120000_0233_chamada_de_voz_wacalls.sql",
+      "version": "20260907120000",
+      "sequence": 233,
+      "slug": "chamada_de_voz_wacalls",
+      "checksum": "7e698b4f3910bcb16a7fc356a34760ef5a1ce522fa3d19d0c069f3e56f11a2a8",
+      "transactional": true
+    },
+    {
+      "file": "20260907130000_0234_voice_calls_no_realtime.sql",
+      "version": "20260907130000",
+      "sequence": 234,
+      "slug": "voice_calls_no_realtime",
+      "checksum": "94431d724fe517e975f14efed137e9e1b31824b241626b9ba790dd3027eadbd3",
+      "transactional": true
+    },
+    {
+      "file": "20260908140000_0235_voz_isolamento_lgpd_e_dono.sql",
+      "version": "20260908140000",
+      "sequence": 235,
+      "slug": "voz_isolamento_lgpd_e_dono",
+      "checksum": "02832a470bd51bbacdf9ceb6fb154c55895613b7aaa5d60d596588176bfeb02f",
+      "transactional": true
+    },
+    {
+      "file": "20260909190000_0232_nome_de_sessao_waha_cabe_no_teto_do_waha.sql",
+      "version": "20260909190000",
+      "sequence": 232,
+      "slug": "nome_de_sessao_waha_cabe_no_teto_do_waha",
+      "checksum": "ac186ac456be251a596e376a0c508447e21afbed5fdf3e886eb05fbcfb39211d",
+      "transactional": true
+    },
+    {
+      "file": "20260911120000_0236_opt_in_de_chamada_de_voz.sql",
+      "version": "20260911120000",
+      "sequence": 236,
+      "slug": "opt_in_de_chamada_de_voz",
+      "checksum": "fd8f1f7fcf9392029caf4344a493fa49e26a427fddc6338abf5e6873526dd40d",
+      "transactional": true
+    },
+    {
+      "file": "20260911170000_0238_convites_de_time_persistidos.sql",
+      "version": "20260911170000",
+      "sequence": 238,
+      "slug": "convites_de_time_persistidos",
+      "checksum": "ad8ad80e1418a88b3501f5678f73e170392a8f9b49c7543040853053fb4320ff",
+      "transactional": true
+    },
+    {
+      "file": "20260912010000_0237_criador_provisorio_sai_na_entrega.sql",
+      "version": "20260912010000",
+      "sequence": 237,
+      "slug": "criador_provisorio_sai_na_entrega",
+      "checksum": "a9b16b09e96b9243eed585ff257bcdb2d982be38b64660f0381d633942a868e7",
+      "transactional": true
+    },
+    {
+      "file": "20260912200000_0239_registro_nao_fica_pendente.sql",
+      "version": "20260912200000",
+      "sequence": 239,
+      "slug": "registro_nao_fica_pendente",
+      "checksum": "0bcf31b3c4d8cd92d0d6bca184c815b69ca3ade145c362ccf297ae1abf87a0a8",
+      "transactional": true
+    },
+    {
+      "file": "20260912210000_0247_indices_fks_mensagens_e_runs.sql",
+      "version": "20260912210000",
+      "sequence": 247,
+      "slug": "indices_fks_mensagens_e_runs",
+      "checksum": "50c9764d3ee0058b09857aa92feca17dcf24a1a7481fe854435958e39c7dd1f2",
+      "transactional": true
+    },
+    {
+      "file": "20260912220000_0240_credencial_de_enfeite_nao_derruba_a_leitura.sql",
+      "version": "20260912220000",
+      "sequence": 240,
+      "slug": "credencial_de_enfeite_nao_derruba_a_leitura",
+      "checksum": "db37c0488a62923760de5c95b62e5a164bf88a24aed2656302983265a8d37e41",
+      "transactional": true
+    },
+    {
+      "file": "20260914090000_0248_caso_tem_assunto.sql",
+      "version": "20260914090000",
+      "sequence": 248,
+      "slug": "caso_tem_assunto",
+      "checksum": "26bb5b75aba862bd74970c225a0c34fc02c5f85518dcf34e71e32cec49b2e4f9",
+      "transactional": true
+    },
+    {
+      "file": "20260914150000_0241_rascunho_de_agente_sem_numero.sql",
+      "version": "20260914150000",
+      "sequence": 241,
+      "slug": "rascunho_de_agente_sem_numero",
+      "checksum": "07a567227201488fbc2d75624f1f119dd17bf5717e63c74c95bf23c117d3f4f6",
+      "transactional": true
+    },
+    {
+      "file": "20260914160000_0242_aviso_de_caso_parado.sql",
+      "version": "20260914160000",
+      "sequence": 242,
+      "slug": "aviso_de_caso_parado",
+      "checksum": "a96162f0702d0e381fc72dec4823cbdb02f41c05f1b0f72c38e4d0117b017fa8",
+      "transactional": true
+    },
+    {
+      "file": "20260914170000_0243_chamada_de_api_tem_prazo_de_trava.sql",
+      "version": "20260914170000",
+      "sequence": 243,
+      "slug": "chamada_de_api_tem_prazo_de_trava",
+      "checksum": "d06af13490fe7422409c469a89290e5b7aa77db3270cde888ea0d3870d0c0187",
+      "transactional": true
+    },
+    {
+      "file": "20260914180000_0244_tags_de_conversa_em_uso.sql",
+      "version": "20260914180000",
+      "sequence": 244,
+      "slug": "tags_de_conversa_em_uso",
+      "checksum": "e9d6bf7e7c4884cb347b5dfe9241c06bafe24fd97e5e9191f280707bbf34e7d2",
+      "transactional": true
+    },
+    {
+      "file": "20260914190000_0249_agenda_prazo_de_expiracao_do_pendente.sql",
+      "version": "20260914190000",
+      "sequence": 249,
+      "slug": "agenda_prazo_de_expiracao_do_pendente",
+      "checksum": "ac33e4126957355bf949dd669c70268c5c6083f3dab23f55cd5997db01c98fd4",
+      "transactional": true
+    },
+    {
+      "file": "20260914195200_0245_followup_stale_nao_e_retry.sql",
+      "version": "20260914195200",
+      "sequence": 245,
+      "slug": "followup_stale_nao_e_retry",
+      "checksum": "b06126c8b53a5c1fbed95b48aaa2a66ddcf67a2ea608fdbc696208c5d5ff19b7",
+      "transactional": true
+    },
+    {
+      "file": "20260914200000_0250_guarda_contra_replay_do_gateway.sql",
+      "version": "20260914200000",
+      "sequence": 250,
+      "slug": "guarda_contra_replay_do_gateway",
+      "checksum": "549a4b4f201f03c328ed2d04e714d318486ecedc7d0a3fbac091a1f81a4e1226",
+      "transactional": true
+    },
+    {
+      "file": "20260914210000_0251_acesso_da_ia_volta_a_trilha_do_operador.sql",
+      "version": "20260914210000",
+      "sequence": 251,
+      "slug": "acesso_da_ia_volta_a_trilha_do_operador",
+      "checksum": "d59b1f1bc0056e66beaf6db96dad922f982368ae56203e10a92702fb4677709b",
+      "transactional": true
+    },
+    {
+      "file": "20260914220000_0252_aniversario_do_contato.sql",
+      "version": "20260914220000",
+      "sequence": 252,
+      "slug": "aniversario_do_contato",
+      "checksum": "10fdea8a2142a428a19cd269f34250f9976804a80701c1c86115095679ec4c9f",
+      "transactional": true
+    },
+    {
+      "file": "20260914230000_0253_politica_de_cadastro.sql",
+      "version": "20260914230000",
+      "sequence": 253,
+      "slug": "politica_de_cadastro",
+      "checksum": "4fcaab84deaace148a2635c5a07197b8ae294f52c45a4b8db427d6d087492af3",
+      "transactional": true
+    },
+    {
+      "file": "20260915000000_0254_lembrete_em_degraus.sql",
+      "version": "20260915000000",
+      "sequence": 254,
+      "slug": "lembrete_em_degraus",
+      "checksum": "9655b3a7c27f19f5a2026f775f83e37d0116346cbb91ab1c35b51551f8ba1fc1",
+      "transactional": true
+    },
+    {
+      "file": "20260915010000_0255_atualizar_nao_desliga_o_lembrete.sql",
+      "version": "20260915010000",
+      "sequence": 255,
+      "slug": "atualizar_nao_desliga_o_lembrete",
+      "checksum": "05d3fd71e85911a1e1c5f9f372f23420304476b593ce1f5e7ee0744dd7bbda2a",
+      "transactional": true
+    },
+    {
+      "file": "20260915020000_0256_lead_do_ingest_nao_duplica.sql",
+      "version": "20260915020000",
+      "sequence": 256,
+      "slug": "lead_do_ingest_nao_duplica",
+      "checksum": "1800ce7f54bbb0c2e253f1bcbcbbfdf177197f4850a785464dcb5c7865a69cc1",
+      "transactional": true
+    },
+    {
+      "file": "20260915120000_0257_app_da_meta_da_instalacao.sql",
+      "version": "20260915120000",
+      "sequence": 257,
+      "slug": "app_da_meta_da_instalacao",
+      "checksum": "f85b5a82021b440af55a1a9a6423cb5240d12960611a1fe6f166968327b20f28",
+      "transactional": true
+    },
+    {
+      "file": "20260915140000_0258_audit_log_so_recebe_linha.sql",
+      "version": "20260915140000",
+      "sequence": 258,
+      "slug": "audit_log_so_recebe_linha",
+      "checksum": "3f774f70a578c626f4c74b585c8aeba5cb8787730590686abd3aeeb8a82c3ccb",
+      "transactional": true
+    },
+    {
+      "file": "20260915150000_0259_indices_redundantes_saem.sql",
+      "version": "20260915150000",
+      "sequence": 259,
+      "slug": "indices_redundantes_saem",
+      "checksum": "57a4aa1566b79206239c578cab61f06f4886f9074bfd3962a2b2d83ffcb61a05",
+      "transactional": true
+    },
+    {
+      "file": "20260915160000_0260_ocupacao_do_google_do_dono.sql",
+      "version": "20260915160000",
+      "sequence": 260,
+      "slug": "ocupacao_do_google_do_dono",
+      "checksum": "b94f65370efcd5d76a3c17e475909a600bba091fbb64f006800882e8cb134a2a",
+      "transactional": true
+    },
+    {
+      "file": "20260915170000_0261_titulo_do_evento_pessoal_sai_do_alcance.sql",
+      "version": "20260915170000",
+      "sequence": 261,
+      "slug": "titulo_do_evento_pessoal_sai_do_alcance",
+      "checksum": "23aceabffb00da8127aad98ab04e3f5dbd650c3dc61be6a0a91f9f035e112d93",
+      "transactional": true
+    },
+    {
+      "file": "20260915180000_0262_cliente_pela_agenda.sql",
+      "version": "20260915180000",
+      "sequence": 262,
+      "slug": "cliente_pela_agenda",
+      "checksum": "7ca382b63c96bc73416239b05682149fbe42517fe296336a24b25575cb089b5d",
+      "transactional": true
+    },
+    {
+      "file": "20260915193743_0263_etapa_de_perda_grava_o_motivo.sql",
+      "version": "20260915193743",
+      "sequence": 263,
+      "slug": "etapa_de_perda_grava_o_motivo",
+      "checksum": "7f3f21187afbcdaee1d979f326008b78901e411b937de81844c2ce084c98675e",
+      "transactional": true
+    },
+    {
+      "file": "20260915213849_0264_vocabulario_de_tags.sql",
+      "version": "20260915213849",
+      "sequence": 264,
+      "slug": "vocabulario_de_tags",
+      "checksum": "9ecdae42bd2da67a4eff7d9e781dd62412f1bd74e6f1da808b4be80045828a6b",
+      "transactional": true
+    },
+    {
+      "file": "20260916120000_0266_transferencia_entre_funis_nao_e_perda.sql",
+      "version": "20260916120000",
+      "sequence": 266,
+      "slug": "transferencia_entre_funis_nao_e_perda",
+      "checksum": "e97e0fc3e0276bb82d92d457e7343fa77ffd55caf1d6fabcaacfb00ca23d176b",
+      "transactional": true
+    },
+    {
+      "file": "20260916202500_0267_espera_da_fila_nao_recomeca.sql",
+      "version": "20260916202500",
+      "sequence": 267,
+      "slug": "espera_da_fila_nao_recomeca",
+      "checksum": "c1da9639e151117b761e3944fda9bf66aaef8f7ea0e00aad3459807bb296f19f",
+      "transactional": true
+    },
+    {
+      "file": "20260917034929_0268_regra_de_automacao_guarda_o_gatilho.sql",
+      "version": "20260917034929",
+      "sequence": 268,
+      "slug": "regra_de_automacao_guarda_o_gatilho",
+      "checksum": "863ababaf44ce41686358ab1afd7195af88ad66c0c315a4bf731f83b275937f4",
+      "transactional": true
+    },
+    {
+      "file": "20260917120000_0271_extensoes_declarativas.sql",
+      "version": "20260917120000",
+      "sequence": 271,
+      "slug": "extensoes_declarativas",
+      "checksum": "753d3a3d5058e4e5ddf14e3b82925820b60d032b28431c7e816a1cc15bf95781",
+      "transactional": true
+    },
+    {
+      "file": "20260917150000_0274_travas_de_suporte_cobrem_toda_tabela.sql",
+      "version": "20260917150000",
+      "sequence": 274,
+      "slug": "travas_de_suporte_cobrem_toda_tabela",
+      "checksum": "933d0d9648c3b1c2f23fd8718e8e7f677824094beffb6555c778a223c3630cbb",
+      "transactional": true
+    },
+    {
+      "file": "20260917150401_0273_zona_de_perigo_apaga_com_resposta_revisada.sql",
+      "version": "20260917150401",
+      "sequence": 273,
+      "slug": "zona_de_perigo_apaga_com_resposta_revisada",
+      "checksum": "202311e6abb654b2eab6c59e346166b43d201199a8f5188e6ac5bd592f1945c6",
+      "transactional": true
+    },
+    {
+      "file": "20260918001726_0276_rodada_do_banco.sql",
+      "version": "20260918001726",
+      "sequence": 276,
+      "slug": "rodada_do_banco",
+      "checksum": "521417a604a11b21e3a2d0c300445e4d104d63c332761f3cf79163f5a0be8095",
+      "transactional": true
+    },
+    {
+      "file": "20260918011500_0282_extensoes_perfil_v2.sql",
+      "version": "20260918011500",
+      "sequence": 282,
+      "slug": "extensoes_perfil_v2",
+      "checksum": "05398e9742d357ca08f4aa0e534a19e0d232e7a1927a18c74c9864abd5224758",
+      "transactional": true
+    },
+    {
+      "file": "20260918014500_0277_pais_da_organizacao.sql",
+      "version": "20260918014500",
+      "sequence": 277,
+      "slug": "pais_da_organizacao",
+      "checksum": "14b9952d1bd29872f1aab3674d60f9f9fa7847677578c70186863e3fb3361b64",
+      "transactional": true
+    },
+    {
+      "file": "20260918100000_0279_caso_so_nasce_do_motor.sql",
+      "version": "20260918100000",
+      "sequence": 279,
+      "slug": "caso_so_nasce_do_motor",
+      "checksum": "54feee1d43473f504263ff20b0a7b5b88d80399c6872fc7b325950208d04bd9d",
+      "transactional": true
+    },
+    {
+      "file": "20260918101000_0280_anonimizar_alcanca_o_caso.sql",
+      "version": "20260918101000",
+      "sequence": 280,
+      "slug": "anonimizar_alcanca_o_caso",
+      "checksum": "3fcad88eb9fe4d2b0d06e959fcc6ee93abf81d85edd37faed39953d701f19960",
+      "transactional": true
+    },
+    {
+      "file": "20260918102000_0281_conversa_do_caso.sql",
+      "version": "20260918102000",
+      "sequence": 281,
+      "slug": "conversa_do_caso",
+      "checksum": "d0c84121c6d69e009c3522abe554e32995ba62cb147ff8e0d6069c9eb245107e",
+      "transactional": true
+    },
+    {
+      "file": "20260918110000_0291_passagem_para_humano_tem_registro.sql",
+      "version": "20260918110000",
+      "sequence": 291,
+      "slug": "passagem_para_humano_tem_registro",
+      "checksum": "9a51f439101f957e70e390a5d58100b7e610b0ccefcd8380cd2a0bd5b4436d5d",
+      "transactional": true
+    },
+    {
+      "file": "20260918120000_0310_csv_como_material_de_conhecimento.sql",
+      "version": "20260918120000",
+      "sequence": 310,
+      "slug": "csv_como_material_de_conhecimento",
+      "checksum": "5535b2c8c90175d61c582c0f97169088a91b570c71223be9b32134112e8aebe7",
+      "transactional": true
+    },
+    {
+      "file": "20260918121000_0292_aviso_de_caso_no_whatsapp.sql",
+      "version": "20260918121000",
+      "sequence": 292,
+      "slug": "aviso_de_caso_no_whatsapp",
+      "checksum": "c88834c6a2f543f6105453279f0b1a8ec762d0f33d54d8f88f1e65920dd62f0e",
+      "transactional": true
+    },
+    {
+      "file": "20260918130000_0293_a_passagem_se_reconhece_sozinha.sql",
+      "version": "20260918130000",
+      "sequence": 293,
+      "slug": "a_passagem_se_reconhece_sozinha",
+      "checksum": "c6203e44402ae2ceb7e987623cd18ea71efeac730b1952e5e23d56b67fe6255c",
+      "transactional": true
+    },
+    {
+      "file": "20260918140000_0294_o_cliente_repetiu_depois_da_passagem.sql",
+      "version": "20260918140000",
+      "sequence": 294,
+      "slug": "o_cliente_repetiu_depois_da_passagem",
+      "checksum": "28c702186a1a944dee6860d73b5b5e411b5b91b7f1500b329ab15d4fb28d4764",
+      "transactional": true
+    },
+    {
+      "file": "20260918210000_0306_google_ads_captura_de_clique.sql",
+      "version": "20260918210000",
+      "sequence": 306,
+      "slug": "google_ads_captura_de_clique",
+      "checksum": "35cf1b3d72f3e6a3b15ac1e93174e728cbb50fa400b02f7d0880fb509a54999d",
+      "transactional": true
+    },
+    {
+      "file": "20260918211000_0307_google_ads_conversao.sql",
+      "version": "20260918211000",
+      "sequence": 307,
+      "slug": "google_ads_conversao",
+      "checksum": "eb88775543116de80087f8e60eb84b1a5bf301cdc457a7789991e7d17e6dc854",
+      "transactional": true
+    },
+    {
+      "file": "20260918220000_0308_espera_longa_dorme.sql",
+      "version": "20260918220000",
+      "sequence": 308,
+      "slug": "espera_longa_dorme",
+      "checksum": "47872864bc4734e350f795a070bab25c6dfc34b5d835c1acd0fc152c0a3be480",
+      "transactional": true
+    },
+    {
+      "file": "20260918230000_0311_webhook_do_numero_no_canal_oficial.sql",
+      "version": "20260918230000",
+      "sequence": 311,
+      "slug": "webhook_do_numero_no_canal_oficial",
+      "checksum": "9dfac483f696af721219fcf6af1afc8bd06e6d527653acb8c613e62dae6233f5",
+      "transactional": true
+    },
+    {
+      "file": "20260918231000_0312_aviso_de_followup_sem_agente.sql",
+      "version": "20260918231000",
+      "sequence": 312,
+      "slug": "aviso_de_followup_sem_agente",
+      "checksum": "22a1f72a53cc96b02195b1b978d54d26e809d24492d8eefa8489b2445a60c079",
+      "transactional": true
+    },
+    {
+      "file": "20260919103000_0322_automacao_tem_numero_proprio.sql",
+      "version": "20260919103000",
+      "sequence": 322,
+      "slug": "automacao_tem_numero_proprio",
+      "checksum": "69ac5ff4a65860f5993159d400fdd827e5eecda9ce1a6212fbdef182bfe1bfb0",
+      "transactional": true
+    },
+    {
+      "file": "20260919120000_0321_recibo_de_idempotencia_em_curso.sql",
+      "version": "20260919120000",
+      "sequence": 321,
+      "slug": "recibo_de_idempotencia_em_curso",
+      "checksum": "57c316e701f93cd95f4e45aa4938b4b1d1fceefe4d4f9ac6bcdb09d939d69fb8",
+      "transactional": true
+    },
+    {
+      "file": "20260919130000_0323_marcadores_do_contato_na_conversa.sql",
+      "version": "20260919130000",
+      "sequence": 323,
+      "slug": "marcadores_do_contato_na_conversa",
+      "checksum": "bc9f6b8406b0bf8d1304d9193ffc5aa64b3fceb5f694b1dc364b5dbbb7019530",
+      "transactional": true
+    },
+    {
+      "file": "20260919140000_0324_destinos_internos_da_instalacao.sql",
+      "version": "20260919140000",
+      "sequence": 324,
+      "slug": "destinos_internos_da_instalacao",
+      "checksum": "4a6feca8e2c8bfe5585039b7cb878bf3d0fe86ba8e4e6cd6e536db38c636f9f2",
+      "transactional": true
+    },
+    {
+      "file": "20260919150500_0326_reconciliacao_das_branches_represadas.sql",
+      "version": "20260919150500",
+      "sequence": 326,
+      "slug": "reconciliacao_das_branches_represadas",
+      "checksum": "ee215014cb35c7dad31d7f2c0a0eeff3bf01e33ba8aab08608746821ee677eb0",
+      "transactional": true
+    },
+    {
+      "file": "20260919151000_0328_mensagem_do_lembrete.sql",
+      "version": "20260919151000",
+      "sequence": 328,
+      "slug": "mensagem_do_lembrete",
+      "checksum": "a8069aa85a47d80a830988ab8785fe48f0a6b9109a4fbb8679f1bcfa01e5ab87",
+      "transactional": true
+    },
+    {
+      "file": "20260919151100_0329_mensagem_por_lembrete.sql",
+      "version": "20260919151100",
+      "sequence": 329,
+      "slug": "mensagem_por_lembrete",
+      "checksum": "14b81c7a12e01e4597d07a76590ca2632695b7c0e416740734e3cddef0ea609b",
+      "transactional": true
+    },
+    {
+      "file": "20260919151200_0330_enderecos_salvos_da_agenda.sql",
+      "version": "20260919151200",
+      "sequence": 330,
+      "slug": "enderecos_salvos_da_agenda",
+      "checksum": "92cbf4e4e9a84bae5496391393159ff476aa3a1cfa23223e33cc73c8af90848a",
+      "transactional": true
+    },
+    {
+      "file": "20260919152000_0331_comportamento_da_instalacao.sql",
+      "version": "20260919152000",
+      "sequence": 331,
+      "slug": "comportamento_da_instalacao",
+      "checksum": "ba332df1bd5672cbb4e4508dd699c153c9cc276ebe431d9fb63a03c142fcef50",
+      "transactional": true
+    },
+    {
+      "file": "20260919153000_0325_protecao_de_tabela_de_organizacao_sai_do_laco.sql",
+      "version": "20260919153000",
+      "sequence": 325,
+      "slug": "protecao_de_tabela_de_organizacao_sai_do_laco",
+      "checksum": "128ac1bc446d299bd1837e37893fa89046de46d872fb56ff01853ca518652336",
+      "transactional": true
+    },
+    {
+      "file": "20260919154000_0333_transporte_smtp_da_instalacao.sql",
+      "version": "20260919154000",
+      "sequence": 333,
+      "slug": "transporte_smtp_da_instalacao",
+      "checksum": "1e233498c875613ad13d43302efbfabbe3e38528a6b6690b27afbd4c99dfcb7e",
+      "transactional": true
+    },
+    {
+      "file": "20260919160000_0335_marcador_do_contato_normalizado.sql",
+      "version": "20260919160000",
+      "sequence": 335,
+      "slug": "marcador_do_contato_normalizado",
+      "checksum": "2172a07cc50d204deac14c827ce8b6deabaee396af2f94b9325ffce0a18f9fc9",
+      "transactional": true
+    },
+    {
+      "file": "20260919160431_0343_agenda_dos_colegas.sql",
+      "version": "20260919160431",
+      "sequence": 343,
+      "slug": "agenda_dos_colegas",
+      "checksum": "328275d75b1cf1c81cf0a0a4859e516c9392a2cc7b5a55f2ccf61d57ee772fc9",
+      "transactional": true
+    },
+    {
+      "file": "20260919190000_0336_cor_das_etiquetas.sql",
+      "version": "20260919190000",
+      "sequence": 336,
+      "slug": "cor_das_etiquetas",
+      "checksum": "f2b9c2aed28a6c2cce9752ce215c2bbe389036b0601220c970aaf75318176b12",
+      "transactional": true
+    },
+    {
+      "file": "20260919220000_0339_canal_mudo_sem_numero.sql",
+      "version": "20260919220000",
+      "sequence": 339,
+      "slug": "canal_mudo_sem_numero",
+      "checksum": "780dd0f186081296f503aa96e3dfb6938d4131d3be8f7f3eb5a7c2caa84c50ee",
+      "transactional": true
+    },
+    {
+      "file": "20260919234000_0342_catalogo_deepseek.sql",
+      "version": "20260919234000",
+      "sequence": 342,
+      "slug": "catalogo_deepseek",
+      "checksum": "0897cf532d5b91d4d71f5a59392617a803f4cdbb090c7da89193b9301bf700de",
+      "transactional": true
+    },
+    {
+      "file": "20260919235000_0340_modulo_instalado.sql",
+      "version": "20260919235000",
+      "sequence": 340,
+      "slug": "modulo_instalado",
+      "checksum": "ffb40bdc89889d9ec4e0fca06ce479d3b3a20297954c6859fbb0c03c70474f36",
+      "transactional": true
+    },
+    {
+      "file": "20260920000000_0341_configuracao_da_instalacao_pela_tela.sql",
+      "version": "20260920000000",
+      "sequence": 341,
+      "slug": "configuracao_da_instalacao_pela_tela",
+      "checksum": "0d9308132abd0c3e28757edc53e74fe520a7aa82ab56c7beac0ca954f71cef37",
+      "transactional": true
+    },
+    {
+      "file": "20260920000500_0344_atribuicao_de_anuncio_exige_organizacao.sql",
+      "version": "20260920000500",
+      "sequence": 344,
+      "slug": "atribuicao_de_anuncio_exige_organizacao",
+      "checksum": "6495b9954281eb355ad356f31dadfec34fbba7020b673707476a3078d1d8c1d7",
+      "transactional": true
+    },
+    {
+      "file": "20260920001000_0347_modulo_voip.sql",
+      "version": "20260920001000",
+      "sequence": 347,
+      "slug": "modulo_voip",
+      "checksum": "95c4afa5a33addbda5d5ebd0fc9e6bf1ff2481fbe151ff886e7139b8364e27b4",
+      "transactional": true
+    },
+    {
+      "file": "20260920001100_0348_voice_calls_sip.sql",
+      "version": "20260920001100",
+      "sequence": 348,
+      "slug": "voice_calls_sip",
+      "checksum": "8653f54555fcdecc1c9768de92c12d48faf5f0598d833ae06c5290d28fe70d0d",
+      "transactional": true
+    },
+    {
+      "file": "20260920001200_0349_voip_trunk_settings.sql",
+      "version": "20260920001200",
+      "sequence": 349,
+      "slug": "voip_trunk_settings",
+      "checksum": "fd6cf26b41940cce33bd0ba746c90a5e702cacb7da2f5b792cd8c70514867405",
+      "transactional": true
+    },
+    {
+      "file": "20260920002000_0350_catalogo_financeiro.sql",
+      "version": "20260920002000",
+      "sequence": 350,
+      "slug": "catalogo_financeiro",
+      "checksum": "c50a5bf9471ace45f8009e190073ada5d9d7c1cb2f9d18dcd3ce7d74fc574c5a",
+      "transactional": true
+    },
+    {
+      "file": "20260920002100_0351_comanda_e_financeiro.sql",
+      "version": "20260920002100",
+      "sequence": 351,
+      "slug": "comanda_e_financeiro",
+      "checksum": "a33ab51be73e95994ce305b2d943876cb685ee0157f9db8fd4097ad29bb1716e",
+      "transactional": true
+    },
+    {
+      "file": "20260920002200_0352_comanda_por_agendamento_e_unica.sql",
+      "version": "20260920002200",
+      "sequence": 352,
+      "slug": "comanda_por_agendamento_e_unica",
+      "checksum": "7fde4576dd6f708ea5cca938747c1d62677ba6cb3dab8694a6fbd798c69a1b38",
+      "transactional": true
+    },
+    {
+      "file": "20260920002300_0353_relatorio_financeiro.sql",
+      "version": "20260920002300",
+      "sequence": 353,
+      "slug": "relatorio_financeiro",
+      "checksum": "782f8b869daa9cd908715efdfecc037b8c8bf0b872029c66b0c13236e9dd72a0",
+      "transactional": true
+    },
+    {
+      "file": "20260920002400_0354_regra_de_comissao_inativa.sql",
+      "version": "20260920002400",
+      "sequence": 354,
+      "slug": "regra_de_comissao_inativa",
+      "checksum": "7a470bebb9bc1a2be709b40444dc17871698fe7d6dac1c9895236facdcf5eb60",
+      "transactional": true
+    },
+    {
+      "file": "20260920002500_0355_saldo_de_fidelidade.sql",
+      "version": "20260920002500",
+      "sequence": 355,
+      "slug": "saldo_de_fidelidade",
+      "checksum": "b9cde3c2ea47f141db2594ebc7c332758a00cb38c32f22f7f600eef6f418bb2b",
+      "transactional": true
+    },
+    {
+      "file": "20260920002600_0356_relatorio_por_servico_e_cliente.sql",
+      "version": "20260920002600",
+      "sequence": 356,
+      "slug": "relatorio_por_servico_e_cliente",
+      "checksum": "597f3635901367cc40ffa1b30bb1138efb7576be9a89abd9576e806590e928b8",
+      "transactional": true
+    },
+    {
+      "file": "20260920002700_0357_lancamento_recorrente.sql",
+      "version": "20260920002700",
+      "sequence": 357,
+      "slug": "lancamento_recorrente",
+      "checksum": "b7c533f8df4f63591c5cd030c3514fd2646c3b74eb2efbda2a4ccb0644b6ae52",
+      "transactional": true
+    },
+    {
+      "file": "20260920002800_0358_preco_do_tipo_de_evento.sql",
+      "version": "20260920002800",
+      "sequence": 358,
+      "slug": "preco_do_tipo_de_evento",
+      "checksum": "53df7535b708d897e7daadea47dff745bab3fdaed2baad052496cf871f8d8ef1",
+      "transactional": true
+    },
+    {
+      "file": "20260920003000_0359_cascata_lgpd_alcanca_a_comanda.sql",
+      "version": "20260920003000",
+      "sequence": 359,
+      "slug": "cascata_lgpd_alcanca_a_comanda",
+      "checksum": "cfa1c9d032749c3ee5f09f8e72ced26027b8527c580846ddc389575647919e6a",
+      "transactional": true
+    },
+    {
+      "file": "20260920020000_0363_recusa_permanente_da_agenda_nao_pede_repeticao.sql",
+      "version": "20260920020000",
+      "sequence": 363,
+      "slug": "recusa_permanente_da_agenda_nao_pede_repeticao",
+      "checksum": "72cdfb0d83f11ca0ce46476a6aa1678a302f616fdc5624dcca0694c9fa821914",
+      "transactional": true
+    },
+    {
+      "file": "20260920120000_0364_a_poda_de_nonces_aceita_os_nomes_das_irmas.sql",
+      "version": "20260920120000",
+      "sequence": 364,
+      "slug": "a_poda_de_nonces_aceita_os_nomes_das_irmas",
+      "checksum": "56dd0b2a39621066df3753a502c950a7183c665c9a25b2db6403d5cee3e98766",
+      "transactional": true
+    },
+    {
+      "file": "20260920130000_0365_reenviar_o_link_e_acao_propria.sql",
+      "version": "20260920130000",
+      "sequence": 365,
+      "slug": "reenviar_o_link_e_acao_propria",
+      "checksum": "43bacf6e9767c00ef0158b3f672b7f5f21f993c49bda2fc34bf84d442e03de95",
+      "transactional": true
+    },
+    {
+      "file": "20260920140000_0366_o_compromisso_chega_sem_meet.sql",
+      "version": "20260920140000",
+      "sequence": 366,
+      "slug": "o_compromisso_chega_sem_meet",
+      "checksum": "b6a64ed0a99f7f6d006c98e4c208966ae8f1fa0850dd270a74bf43bab1558244",
+      "transactional": true
+    },
+    {
+      "file": "20260921020000_0367_interface_por_empresa.sql",
+      "version": "20260921020000",
+      "sequence": 367,
+      "slug": "interface_por_empresa",
+      "checksum": "e27e0d05a52527748dbccb582d42752b0b8572b3660ff067a33ed8aab836c875",
+      "transactional": true
+    },
+    {
+      "file": "20260921030000_0368_redes_sociais_nativas.sql",
+      "version": "20260921030000",
+      "sequence": 368,
+      "slug": "redes_sociais_nativas",
+      "checksum": "fd069a9b1ec34ec6306a74c0ad4bbd952856873ad3180664c71a099de215f92e",
+      "transactional": true
+    },
+    {
+      "file": "20260921030100_0369_prospeccao_nativa.sql",
+      "version": "20260921030100",
+      "sequence": 369,
+      "slug": "prospeccao_nativa",
+      "checksum": "75b65f527b29711661a686a9499a2b203d7f1a5c5b084df8a6ba6a76e641f2ce",
+      "transactional": true
+    },
+    {
+      "file": "20260921030200_0370_prospeccao_anonimizacao.sql",
+      "version": "20260921030200",
+      "sequence": 370,
+      "slug": "prospeccao_anonimizacao",
+      "checksum": "215441da43a937b83e0be0aab1306528e9a3e13aedbbd6e3824db0e5791b642b",
+      "transactional": true
+    },
+    {
+      "file": "20260921030300_0371_prospeccao_conversa_salva.sql",
+      "version": "20260921030300",
+      "sequence": 371,
+      "slug": "prospeccao_conversa_salva",
+      "checksum": "adaa980f7052bd8ee63359142e6610b03d8350ed91c936a4cdad205e453c2ac6",
+      "transactional": true
+    },
+    {
+      "file": "20260921040000_0372_banco_externo_do_agente.sql",
+      "version": "20260921040000",
+      "sequence": 372,
+      "slug": "banco_externo_do_agente",
+      "checksum": "ad6f1a6e76ba4dc2c4de953810480936aa12ab4e314f1ced1467230dbea0bf41",
+      "transactional": true
+    },
+    {
+      "file": "20260921040100_0373_limites_configuraveis_do_banco_externo.sql",
+      "version": "20260921040100",
+      "sequence": 373,
+      "slug": "limites_configuraveis_do_banco_externo",
+      "checksum": "8b471f21e277621d3bd274f512cc9913c24c88403a9e976f94703b975b0fa289",
+      "transactional": true
+    },
+    {
+      "file": "20260921050000_0374_remarcar_corrige_o_envio.sql",
+      "version": "20260921050000",
+      "sequence": 374,
+      "slug": "remarcar_corrige_o_envio",
+      "checksum": "a88818b59f75616cd2b0a75ba78474549703d04fe0efb6616058cd0221f2db27",
+      "transactional": true
+    },
+    {
+      "file": "20260921060000_0375_campanhas.sql",
+      "version": "20260921060000",
+      "sequence": 375,
+      "slug": "campanhas",
+      "checksum": "7cd1e70249d8b21dbb1498faf3b00768d6effc8214d89b9d16b9b89903a68a8c",
+      "transactional": true
+    },
+    {
+      "file": "20260921060100_0376_campanhas_templates_e_exclusoes.sql",
+      "version": "20260921060100",
+      "sequence": 376,
+      "slug": "campanhas_templates_e_exclusoes",
+      "checksum": "12263f7ad6080a1409fe7b718d035bf1926396687e9b7475fbe104b7417d573c",
+      "transactional": true
+    },
+    {
+      "file": "20260921060200_0377_campanha_rodizio_de_numeros.sql",
+      "version": "20260921060200",
+      "sequence": 377,
+      "slug": "campanha_rodizio_de_numeros",
+      "checksum": "38a764e9bd6e1880845cb16ab38e1e8ea5fe4bd43fdc1034026c17f6a015b691",
+      "transactional": true
+    },
+    {
+      "file": "20260921060300_0378_campanha_funil_e_agente.sql",
+      "version": "20260921060300",
+      "sequence": 378,
+      "slug": "campanha_funil_e_agente",
+      "checksum": "42b576575321a36fc510955612563b51a441032e589edd6bdb706972a4385e9a",
+      "transactional": true
+    },
+    {
+      "file": "20260921060400_0379_campanha_na_cascata_lgpd.sql",
+      "version": "20260921060400",
+      "sequence": 379,
+      "slug": "campanha_na_cascata_lgpd",
+      "checksum": "66ace2fcfcf365d2c60f8f136a4e1c03a50fe0fc936e80f9335452414f2cd0f6",
+      "transactional": true
+    },
+    {
+      "file": "20260921070000_0380_hierarquia_do_anuncio.sql",
+      "version": "20260921070000",
+      "sequence": 380,
+      "slug": "hierarquia_do_anuncio",
+      "checksum": "e276d21746b7c19e083e25657898a69df10af5d9ed5fccbef3c99ea713e3930e",
+      "transactional": true
+    },
+    {
+      "file": "20260921080000_0381_meta_ads_captura_de_utm.sql",
+      "version": "20260921080000",
+      "sequence": 381,
+      "slug": "meta_ads_captura_de_utm",
+      "checksum": "050b8d2541f1dbf85fdb9553c4f871aebce759679ce97c6bfa48a4749c5c269a",
+      "transactional": true
+    },
+    {
+      "file": "20260922021548_0382_link_salvo_no_modelo.sql",
+      "version": "20260922021548",
+      "sequence": 382,
+      "slug": "link_salvo_no_modelo",
+      "checksum": "2a9336e5117d82c5252ec778a48608054fb2e6ac3c6189a7752ad81d5ff4d917",
+      "transactional": true
+    },
+    {
+      "file": "20260922140000_0383_pedidos_de_cadastro.sql",
+      "version": "20260922140000",
+      "sequence": 383,
+      "slug": "pedidos_de_cadastro",
+      "checksum": "497b4d8c92bea25c5e12be2407343f179c2229582c1e8e3e6a271abe37ec53d6",
+      "transactional": true
+    },
+    {
+      "file": "20260922164700_0387_canal_datafy.sql",
+      "version": "20260922164700",
+      "sequence": 387,
+      "slug": "canal_datafy",
+      "checksum": "1e87c282cdc95537a89cedb7897c751e34513bd9440df4259ec1947cfb216800",
+      "transactional": true
+    },
+    {
+      "file": "20260922190000_0384_banco_externo_vira_modulo_opcional.sql",
+      "version": "20260922190000",
+      "sequence": 384,
+      "slug": "banco_externo_vira_modulo_opcional",
+      "checksum": "5c292cbc120d5af09105eb70e71b1aef6e2d5d002f6d2b8adc506a807606a451",
+      "transactional": true
+    },
+    {
+      "file": "20260923120000_0385_memoria_da_org_aceita_origem_agente.sql",
+      "version": "20260923120000",
+      "sequence": 385,
+      "slug": "memoria_da_org_aceita_origem_agente",
+      "checksum": "788cd8b386782ef8a9eeeec13364c28262175216dfd9690ff8124d114ac33d49",
+      "transactional": true
+    },
+    {
+      "file": "20260923120100_0386_preco_catalogo_e_conta_openai.sql",
+      "version": "20260923120100",
+      "sequence": 386,
+      "slug": "preco_catalogo_e_conta_openai",
+      "checksum": "b76036eb6768f913a55f40ca0209cad0fbe701d59b06139411564f81d834713b",
+      "transactional": true
+    },
+    {
+      "file": "20260923140000_0390_fotos_no_catalogo.sql",
+      "version": "20260923140000",
+      "sequence": 390,
+      "slug": "fotos_no_catalogo",
+      "checksum": "bda9ea999e39577f5f066db53f4c3fec312bf7556aefcbe310b13d9a12d82e82",
+      "transactional": true
+    },
+    {
+      "file": "20260923150000_0391_anonimizar_pela_tela_redige_conversas.sql",
+      "version": "20260923150000",
+      "sequence": 391,
+      "slug": "anonimizar_pela_tela_redige_conversas",
+      "checksum": "028da551609ea94197ae5c0b79ccb08f5e41d20d31dd128a65028dfb257a44fc",
+      "transactional": true
+    },
+    {
+      "file": "20260923160000_0392_demanda_derivada_nao_reduplica.sql",
+      "version": "20260923160000",
+      "sequence": 392,
+      "slug": "demanda_derivada_nao_reduplica",
+      "checksum": "04aa30fa5877cadd2a579ea2ef9e2ed78040e69f6b5951528d012c00681f4acd",
+      "transactional": true
+    },
+    {
+      "file": "20260923210000_0394_fluxos_de_atendimento_base.sql",
+      "version": "20260923210000",
+      "sequence": 394,
+      "slug": "fluxos_de_atendimento_base",
+      "checksum": "a99a3ee183082de54b6dc5e91e1d5fb3f6e9022cdd54f21c3e5669212cefaf26",
+      "transactional": true
+    },
+    {
+      "file": "20260923220000_0396_conversa_fica_com_quem_atendeu.sql",
+      "version": "20260923220000",
+      "sequence": 396,
+      "slug": "conversa_fica_com_quem_atendeu",
+      "checksum": "180cfed3b52b024b1b7504cf944146674d6c07610126bf4f8481a666832e9446",
+      "transactional": true
+    },
+    {
+      "file": "20260923230000_0397_roteiro_encerra_com_humano_e_prazo.sql",
+      "version": "20260923230000",
+      "sequence": 397,
+      "slug": "roteiro_encerra_com_humano_e_prazo",
+      "checksum": "73e048cf513e8829f2f83b3b8885f96febd72e9b90e030aa594b74354a87b6c2",
+      "transactional": true
+    },
+    {
+      "file": "20260924053717_0401_conversoes_processamento_e_reenvio.sql",
+      "version": "20260924053717",
+      "sequence": 401,
+      "slug": "conversoes_processamento_e_reenvio",
+      "checksum": "1afaf5a0e4c532cf4dfdd9ff026df27b3230404394eabb2b12308de91eb8176a",
+      "transactional": true
+    },
+    {
+      "file": "20260924053718_0402_google_captura_e_qualificacao.sql",
+      "version": "20260924053718",
+      "sequence": 402,
+      "slug": "google_captura_e_qualificacao",
+      "checksum": "2cc0bf4fbbe3251d2aed9f8a396cb3fa576c3b2ef0a4252814166db93ddb2244",
+      "transactional": true
+    },
+    {
+      "file": "20260924060000_0400_moeda_do_negocio_da_conversa.sql",
+      "version": "20260924060000",
+      "sequence": 400,
+      "slug": "moeda_do_negocio_da_conversa",
+      "checksum": "2bf4dec588bc7b3191849b18139786a54ff5ec84449c80a64a84fe841d330169",
+      "transactional": true
+    },
+    {
+      "file": "20260924070000_0403_lead_so_liga_a_propria_empresa.sql",
+      "version": "20260924070000",
+      "sequence": 403,
+      "slug": "lead_so_liga_a_propria_empresa",
+      "checksum": "b8b3bd1c680f1e2909739d61d807f448ce7e30ca5d9f68db5e66a976ac505628",
+      "transactional": true
+    },
+    {
+      "file": "20260924180000_0404_comando_da_conversa_sem_reavaliar_rls.sql",
+      "version": "20260924180000",
+      "sequence": 404,
+      "slug": "comando_da_conversa_sem_reavaliar_rls",
+      "checksum": "4bf72a4c56e55778f643228e5775fc16d3cf6b4a8d558cb8ba5b121df17e4256",
+      "transactional": true
+    },
+    {
+      "file": "20260924190000_0405_revogacao_de_membro_desatribui_conversas.sql",
+      "version": "20260924190000",
+      "sequence": 405,
+      "slug": "revogacao_de_membro_desatribui_conversas",
+      "checksum": "35c3e334397020504d8ec250ffadcbac4e408e80ee3f61de152cafd541cfc137",
+      "transactional": true
+    },
+    {
+      "file": "20260924200000_0406_logo_por_tema.sql",
+      "version": "20260924200000",
+      "sequence": 406,
+      "slug": "logo_por_tema",
+      "checksum": "faab83fccada994ae56bd08ebdd6bdedad01933d42651c7dd24d76569aef8730",
+      "transactional": true
+    },
+    {
+      "file": "20260924200100_0407_social_identity_na_fusao.sql",
+      "version": "20260924200100",
+      "sequence": 407,
+      "slug": "social_identity_na_fusao",
+      "checksum": "63213a64a3b3e566c9d5440c0e537686b7c034c1c63ed5594de1cca5494a73a6",
+      "transactional": true
+    },
+    {
+      "file": "20260924200200_0408_prospeccao_vence_no_cron.sql",
+      "version": "20260924200200",
+      "sequence": 408,
+      "slug": "prospeccao_vence_no_cron",
+      "checksum": "cad0dce4cdeb7616db228b1dbb7d09e6e04eb1312201262d87049c664b844fa3",
+      "transactional": true
+    },
+    {
+      "file": "20260925000000_0409_knowledge_content_hash.sql",
+      "version": "20260925000000",
+      "sequence": 409,
+      "slug": "knowledge_content_hash",
+      "checksum": "9b6013ab07d458bfbe8761a7d8fcef78ab875cef61c5e57b5a4e51d8badd918a",
+      "transactional": true
+    },
+    {
+      "file": "20260925120000_0410_catalogo_requesty.sql",
+      "version": "20260925120000",
+      "sequence": 410,
+      "slug": "catalogo_requesty",
+      "checksum": "2df9bc8ef6022538be83d636fb06be7c1df5abc407c32b9d211bb0c142b00ebf",
+      "transactional": true
+    },
+    {
+      "file": "20260925150000_0412_birthdate_na_proposta_de_dado.sql",
+      "version": "20260925150000",
+      "sequence": 412,
+      "slug": "birthdate_na_proposta_de_dado",
+      "checksum": "ccce85adde0b843277c7518b3e7b955c1061d114df30d32bbef8d55c628cc777",
+      "transactional": true
+    },
+    {
+      "file": "20260925163550_0413_provedor_personalizado.sql",
+      "version": "20260925163550",
+      "sequence": 413,
+      "slug": "provedor_personalizado",
+      "checksum": "daef4b49441d2e1cb11d4b9834dff71dc2d97f8727d7a67cd778cbc4df758eed",
+      "transactional": true
+    },
+    {
+      "file": "20260925170000_0414_redact_unificado_chama_a_cascata.sql",
+      "version": "20260925170000",
+      "sequence": 414,
+      "slug": "redact_unificado_chama_a_cascata",
+      "checksum": "9fb4fd88dad063c50fb27d0ac7382f7929d7dfd5a794d4ae83f83f80fe56403c",
+      "transactional": true
+    },
+    {
+      "file": "20260925180000_0415_teto_de_tokens_ativos_por_organizacao.sql",
+      "version": "20260925180000",
+      "sequence": 415,
+      "slug": "teto_de_tokens_ativos_por_organizacao",
+      "checksum": "121b61e65ce78415c1416c0297f720b7a7ad2e3464ee0246001028e2086e14fa",
+      "transactional": true
+    },
+    {
+      "file": "20260925200000_0416_autoria_em_nome_de_na_mensagem.sql",
+      "version": "20260925200000",
+      "sequence": 416,
+      "slug": "autoria_em_nome_de_na_mensagem",
+      "checksum": "852b9f5a83648846be8e9030e884ffe6c956ec3e1df2fb4ec58a86142f709c5d",
+      "transactional": true
+    },
+    {
+      "file": "20260925223000_0417_message_failed_vira_gatilho.sql",
+      "version": "20260925223000",
+      "sequence": 417,
+      "slug": "message_failed_vira_gatilho",
+      "checksum": "4b7df1af5a71f14009f289d04d00587093c55b24c3101a24ec4bdf99056ee3c4",
+      "transactional": true
+    },
+    {
+      "file": "20260925235500_0418_publicar_com_provedor_personalizado.sql",
+      "version": "20260925235500",
+      "sequence": 418,
+      "slug": "publicar_com_provedor_personalizado",
+      "checksum": "39cde87740e31b15a33ad3003b63af9148202a89400d193088f41c8ea0974e33",
+      "transactional": true
+    },
+    {
+      "file": "20260926022806_0419_rascunho_sugerido_por_integracao.sql",
+      "version": "20260926022806",
+      "sequence": 419,
+      "slug": "rascunho_sugerido_por_integracao",
+      "checksum": "6ce0e603712a527ec6176c8005dba6b02837c14f0e244616ef166cea64371197",
+      "transactional": true
+    },
+    {
+      "file": "20260926030000_0421_jev_observacoes.sql",
+      "version": "20260926030000",
+      "sequence": 421,
+      "slug": "jev_observacoes",
+      "checksum": "ed529d38efabed8c2f62563a32792f5eb390a706a5f89895b932ab921148c974",
+      "transactional": true
+    },
+    {
+      "file": "20260926035000_0420_motivo_de_ganho.sql",
+      "version": "20260926035000",
+      "sequence": 420,
+      "slug": "motivo_de_ganho",
+      "checksum": "15bfb116ee9f27d0772f4678f33c977036803688576ea3fb329a5d06ee4c56be",
+      "transactional": true
+    },
+    {
+      "file": "20260926040000_0422_skill_pointers_legados.sql",
+      "version": "20260926040000",
+      "sequence": 422,
+      "slug": "skill_pointers_legados",
+      "checksum": "1c3d4ca976c80dc0a62fbaa94fbe635d2ac3311be14c136f7973ed23a2a2b20c",
+      "transactional": true
+    },
+    {
+      "file": "20260926040100_0423_hardening_fn_espelha_nome.sql",
+      "version": "20260926040100",
+      "sequence": 423,
+      "slug": "hardening_fn_espelha_nome",
+      "checksum": "5b73c13b95355a55836286f031e46079cb2dfaac456e064e3891056d957bf145",
+      "transactional": true
+    },
+    {
+      "file": "20260926040200_0424_skill_versions_legadas_preservadas.sql",
+      "version": "20260926040200",
+      "sequence": 424,
+      "slug": "skill_versions_legadas_preservadas",
+      "checksum": "9ef4d6a80c6d404ea74d85ac4f868fc1bc504210ffa6f169410a54a8588254c8",
+      "transactional": true
+    },
+    {
+      "file": "20260926120000_0425_retomada_como_novo_negocio.sql",
+      "version": "20260926120000",
+      "sequence": 425,
+      "slug": "retomada_como_novo_negocio",
+      "checksum": "a878e01547a74bce171efd5fb6a86f5e25dbbb41327bce1c38c897f17f185080",
+      "transactional": true
+    },
+    {
+      "file": "20260926150000_0426_motivo_de_perda_com_categoria.sql",
+      "version": "20260926150000",
+      "sequence": 426,
+      "slug": "motivo_de_perda_com_categoria",
+      "checksum": "ef5e5548184d1f25d946d8aa60a9f6efddce369a79d0f033512502162d2555a6",
+      "transactional": true
+    },
+    {
+      "file": "20260926160000_0427_probabilidade_de_ganho_por_etapa.sql",
+      "version": "20260926160000",
+      "sequence": 427,
+      "slug": "probabilidade_de_ganho_por_etapa",
+      "checksum": "4ea0b794be57da6279f680d27f2b96b1718bca2c1cf4f957dfc10609d7123765",
+      "transactional": true
+    },
+    {
+      "file": "20260926170000_0428_candidatos_ao_golden_na_tabela.sql",
+      "version": "20260926170000",
+      "sequence": 428,
+      "slug": "candidatos_ao_golden_na_tabela",
+      "checksum": "f067290d1381317e41b592d2766c089a6c7e0ee049d4b26bedbfbd511381f140",
+      "transactional": true
+    },
+    {
+      "file": "20260926200200_0432_poda_de_midia.sql",
+      "version": "20260926200200",
+      "sequence": 432,
+      "slug": "poda_de_midia",
+      "checksum": "c7a4d6c0f916da04e976978469ed2d2452bd668dbb6a8c7ab1e8b2524797e886",
+      "transactional": true
+    },
+    {
+      "file": "20260926223000_0434_reenfileiramento_de_midia.sql",
+      "version": "20260926223000",
+      "sequence": 434,
+      "slug": "reenfileiramento_de_midia",
+      "checksum": "a044d0e4feb37d8431fc5fe81f08efda55e1be8c82b9ff089c69e87c35a06a80",
+      "transactional": true
+    },
+    {
+      "file": "20260927015500_0435_contagem_do_expurgo_da_fila.sql",
+      "version": "20260927015500",
+      "sequence": 435,
+      "slug": "contagem_do_expurgo_da_fila",
+      "checksum": "e75b448bcf3399b1f8c21bda5e390e083892a4ef9b91ed5896993259c61103b7",
+      "transactional": true
+    },
+    {
+      "file": "20260927100000_0436_conversao_google_por_etapa.sql",
+      "version": "20260927100000",
+      "sequence": 436,
+      "slug": "conversao_google_por_etapa",
+      "checksum": "5d9772c7b6a961f78b3e83ab22c65133f22205af24ad1a20f9755045750e1752",
+      "transactional": true
+    },
+    {
+      "file": "20260927110000_0437_links_rastreaveis.sql",
+      "version": "20260927110000",
+      "sequence": 437,
+      "slug": "links_rastreaveis",
+      "checksum": "8335483afee785b104b4484d7cd2514294ab620b58e358758659aebcc878580c",
+      "transactional": true
+    },
+    {
+      "file": "20260927120000_0438_aviso_de_caso_ignora_conexao_arquivada.sql",
+      "version": "20260927120000",
+      "sequence": 438,
+      "slug": "aviso_de_caso_ignora_conexao_arquivada",
+      "checksum": "ad628584d6fb2c1a5e7d0ae53d73454702f6ddbb459dcb3263534d7224f628e4",
+      "transactional": true
+    },
+    {
+      "file": "20260927130000_0439_aviso_de_caso_confere_o_destino_no_envio.sql",
+      "version": "20260927130000",
+      "sequence": 439,
+      "slug": "aviso_de_caso_confere_o_destino_no_envio",
+      "checksum": "d897430b02e9d5cb2c8d8a9efdbd3477001194301454fba822f7ab295e52eceb",
+      "transactional": true
+    },
+    {
+      "file": "20260927140100_0440_etapa_avisa_na_central.sql",
+      "version": "20260927140100",
+      "sequence": 440,
+      "slug": "etapa_avisa_na_central",
+      "checksum": "e2bde9a46a18397e249fac2b963d046f2b1ca9c5041d7c0087949ea6aaa2009e",
+      "transactional": true
+    },
+    {
+      "file": "20260927140200_0441_sons_dos_avisos.sql",
+      "version": "20260927140200",
+      "sequence": 441,
+      "slug": "sons_dos_avisos",
+      "checksum": "fe08c507321fc0e39e53cb90830d06f67ecb24fd7a9d487c16a86356a1b2825c",
+      "transactional": true
+    },
+    {
+      "file": "20260927140300_0442_aviso_da_central_no_barramento.sql",
+      "version": "20260927140300",
+      "sequence": 442,
+      "slug": "aviso_da_central_no_barramento",
+      "checksum": "dcd5ad95fe6e397a13d0d1d9d7f0f901d27c6ab2ec479bd288afd2c8cb9afca3",
+      "transactional": true
+    },
+    {
+      "file": "20260927160000_0443_icone_da_aba.sql",
+      "version": "20260927160000",
+      "sequence": 443,
+      "slug": "icone_da_aba",
+      "checksum": "1999367c461cd1cf855ccc69d84e0a53e171f64494e08f9e74f4e46cdc6c42fc",
+      "transactional": true
+    },
+    {
+      "file": "20260928120000_0444_relatorio_financeiro_por_moeda.sql",
+      "version": "20260928120000",
+      "sequence": 444,
+      "slug": "relatorio_financeiro_por_moeda",
+      "checksum": "0d2d0be49638f879d93bc57334466a2fb3b22b8e39995751cb9a00466dfb42be",
+      "transactional": true
+    },
+    {
+      "file": "20260928132000_0448_empresas_pessoas_importacao.sql",
+      "version": "20260928132000",
+      "sequence": 448,
+      "slug": "empresas_pessoas_importacao",
+      "checksum": "06a1bcb843b036ff002715a80a39f0185f752b5d9150e3d8562c177b7d19cbb1",
+      "transactional": true
+    },
+    {
+      "file": "20260928132100_0449_lgpd_alcanca_empresas_e_pessoas.sql",
+      "version": "20260928132100",
+      "sequence": 449,
+      "slug": "lgpd_alcanca_empresas_e_pessoas",
+      "checksum": "0603f4260f5802c51d8ce15a3280a8910ac551cbe9508c887924adb16240825b",
+      "transactional": true
+    },
+    {
+      "file": "20260928140000_0462_configuracoes_de_propostas.sql",
+      "version": "20260928140000",
+      "sequence": 462,
+      "slug": "configuracoes_de_propostas",
+      "checksum": "11f292da15b6b3a0f495f3b9140cba146c21e1ba9ce3debbb74550f429b72705",
+      "transactional": true
+    },
+    {
+      "file": "20260928140100_0463_proposta_ai_draft_enabled.sql",
+      "version": "20260928140100",
+      "sequence": 463,
+      "slug": "proposta_ai_draft_enabled",
+      "checksum": "ec9a2391100f1dc1ed103f1c3a6af82ecc4ac578a8df01ca13570a1fcc5a2554",
+      "transactional": true
+    },
+    {
+      "file": "20260928140200_0464_proposta_comercial.sql",
+      "version": "20260928140200",
+      "sequence": 464,
+      "slug": "proposta_comercial",
+      "checksum": "5f193652058abf0b6a8ef424ceb4209310acab0c564e203fd5ea415e8e0fb77a",
+      "transactional": true
+    },
+    {
+      "file": "20260928140300_0465_a_proposta_nao_aponta_para_outra_organizacao.sql",
+      "version": "20260928140300",
+      "sequence": 465,
+      "slug": "a_proposta_nao_aponta_para_outra_organizacao",
+      "checksum": "713587fa69e7a02041948f4c27192a168336b5d339a62f41e0382b955cbb48ef",
+      "transactional": true
+    },
+    {
+      "file": "20260928140400_0466_c2_numeracao_envio_e_sobrevivencia.sql",
+      "version": "20260928140400",
+      "sequence": 466,
+      "slug": "c2_numeracao_envio_e_sobrevivencia",
+      "checksum": "6525e88130f4c45288a6d84b44ed4b2bf9def0ef11358d907c084e4ed13dc1d0",
+      "transactional": true
+    },
+    {
+      "file": "20260928140500_0467_c3_precificacao_e_rascunho_unico.sql",
+      "version": "20260928140500",
+      "sequence": 467,
+      "slug": "c3_precificacao_e_rascunho_unico",
+      "checksum": "4d790daca517aaf5eca78e4ddf4222fb1f8401edeffdfc8caa9c377b4bac2855",
+      "transactional": true
+    },
+    {
+      "file": "20260928140600_0468_m0_proposta_referencia_modelo.sql",
+      "version": "20260928140600",
+      "sequence": 468,
+      "slug": "m0_proposta_referencia_modelo",
+      "checksum": "67dd2eac64aa960d396191425dc0cf1f08b60000dde30c897fcddd8da6a4afc3",
+      "transactional": true
+    },
+    {
+      "file": "20260928140700_0469_c4_revisao_por_versao_e_auditoria.sql",
+      "version": "20260928140700",
+      "sequence": 469,
+      "slug": "c4_revisao_por_versao_e_auditoria",
+      "checksum": "d3d102c2078f12eaa9c9c177ab1eebd49b7a0b6ad31de6783fd731e1a938224e",
+      "transactional": true
+    },
+    {
+      "file": "20260928140800_0470_e1_followup_e_orcamento.sql",
+      "version": "20260928140800",
+      "sequence": 470,
+      "slug": "e1_followup_e_orcamento",
+      "checksum": "d4128bdc578566a1fd6809e21c5b30ad5616bec1c2e153790581f6c882852854",
+      "transactional": true
+    },
+    {
+      "file": "20260928140900_0471_m0_tabela_de_modelos.sql",
+      "version": "20260928140900",
+      "sequence": 471,
+      "slug": "m0_tabela_de_modelos",
+      "checksum": "17c0f82dcba8ec731dce3aeec60871119167126c94205c84195e0d60193ec35f",
+      "transactional": true
+    },
+    {
+      "file": "20260928141000_0472_m1_briefing_e_revisao.sql",
+      "version": "20260928141000",
+      "sequence": 472,
+      "slug": "m1_briefing_e_revisao",
+      "checksum": "a78f674738258719a70afb674ce87d21c1392ec0b2e67c777204c385f1d11c91",
+      "transactional": true
+    },
+    {
+      "file": "20260928141100_0473_m3_secoes_editadas.sql",
+      "version": "20260928141100",
+      "sequence": 473,
+      "slug": "m3_secoes_editadas",
+      "checksum": "54caefce18f91c6718becde1ee80cae6c178c79bc8e26030ca4616a2672bccfd",
+      "transactional": true
+    },
+    {
+      "file": "20260928141200_0474_ia_sugere_modelo_da_proposta.sql",
+      "version": "20260928141200",
+      "sequence": 474,
+      "slug": "ia_sugere_modelo_da_proposta",
+      "checksum": "4d85050a6bde7deef961b436563adbf9220c8602464c2f28e8c2ebfcddeb6b1e",
+      "transactional": true
+    },
+    {
+      "file": "20260928141300_0475_proposta_pronta_para_revisao.sql",
+      "version": "20260928141300",
+      "sequence": 475,
+      "slug": "proposta_pronta_para_revisao",
+      "checksum": "a9c3eb52a7849800d7e8ca378d5256cb0ad5388c9f4109942f9a88675855e755",
+      "transactional": true
+    },
+    {
+      "file": "20260928141400_0476_modelos_de_proposta_da_empresa.sql",
+      "version": "20260928141400",
+      "sequence": 476,
+      "slug": "modelos_de_proposta_da_empresa",
+      "checksum": "bcf2a4b9dcadb6fef2e44f4575bede4361a2988256d17da8d88d269850598dc5",
+      "transactional": true
+    },
+    {
+      "file": "20260928141500_0477_redact_alcanca_crm_proposals.sql",
+      "version": "20260928141500",
+      "sequence": 477,
+      "slug": "redact_alcanca_crm_proposals",
+      "checksum": "9f2536ed55613727d5455c7a577cbf8ae532b189c389738b25a1df31ba49e58b",
+      "transactional": true
+    },
+    {
+      "file": "20260928150000_0478_notas_internas_realtime_e_visibilidade.sql",
+      "version": "20260928150000",
+      "sequence": 478,
+      "slug": "notas_internas_realtime_e_visibilidade",
+      "checksum": "991fef75e5e7371ceb2b8cbb1413907c35c8405565a2122c0685952daf71ad92",
+      "transactional": true
+    },
+    {
+      "file": "20260928150200_0480_honorarios_modulo_oficial.sql",
+      "version": "20260928150200",
+      "sequence": 480,
+      "slug": "honorarios_modulo_oficial",
+      "checksum": "15831c3dce1686dcd37a5eeb1be53c7631fa5e53165844a67952e094a17b7cbe",
+      "transactional": true
+    },
+    {
+      "file": "20260928150300_0481_indice_cooldown_de_silencio.sql",
+      "version": "20260928150300",
+      "sequence": 481,
+      "slug": "indice_cooldown_de_silencio",
+      "checksum": "32de690f70b81e8a06b5e7d6c36c22cca1d31f44df441a2a6bf3dbac694adc41",
+      "transactional": true
+    },
+    {
+      "file": "20260928150400_0482_grupos_na_inbox.sql",
+      "version": "20260928150400",
+      "sequence": 482,
+      "slug": "grupos_na_inbox",
+      "checksum": "76671b5d2c0d9c9ae98dd816c972ac9ca7b7f0b3bd1908c8faa25d3e002957c5",
+      "transactional": true
+    },
+    {
+      "file": "20260928184045_0483_anexo_na_nota_interna.sql",
+      "version": "20260928184045",
+      "sequence": 483,
+      "slug": "anexo_na_nota_interna",
+      "checksum": "aeacf541eaa70fa2cd9785b9d9d68451c8ffe14f2710c8412e0882fe0a3020e9",
+      "transactional": true
+    },
+    {
+      "file": "20260928200400_0484_busca_humana_entra_na_telemetria.sql",
+      "version": "20260928200400",
+      "sequence": 484,
+      "slug": "busca_humana_entra_na_telemetria",
+      "checksum": "2a701646c50744512226b0c5638feccf9c25351a4f716c8bccf140caa892f483",
+      "transactional": true
+    },
+    {
+      "file": "20260928214705_0485_lgpd_alcanca_secoes_de_modulo.sql",
+      "version": "20260928214705",
+      "sequence": 485,
+      "slug": "lgpd_alcanca_secoes_de_modulo",
+      "checksum": "86f4cce9cef1c1f06784ea5358b1ed4a7e20f8b6e010604cb5cec7a6d4bf1f12",
+      "transactional": true
+    },
+    {
+      "file": "20260929020337_0486_o_playbook_da_agenda_aprende_os_dois_passos.sql",
+      "version": "20260929020337",
+      "sequence": 486,
+      "slug": "o_playbook_da_agenda_aprende_os_dois_passos",
+      "checksum": "5d8fa2d98ea22ea82474f06d4e94235fba060825624c68757028265e7f14ed36",
+      "transactional": true
+    },
+    {
+      "file": "20260929053040_0488_exclusao_de_contato_sem_perder_historico.sql",
+      "version": "20260929053040",
+      "sequence": 488,
+      "slug": "exclusao_de_contato_sem_perder_historico",
+      "checksum": "b31db38741ae9c97d960a2477b6ff107b9d7d52b7997556a76a083975b0f2012",
+      "transactional": true
+    },
+    {
+      "file": "20260929060000_0489_followup_rls_por_operacao.sql",
+      "version": "20260929060000",
+      "sequence": 489,
+      "slug": "followup_rls_por_operacao",
+      "checksum": "e9d193523b10229f383a90868e995f51564bcf821b965347276b2db0ce97a291",
+      "transactional": true
+    },
+    {
+      "file": "20260929080000_0490_followup_trilha_e_versoes_rls_por_operacao.sql",
+      "version": "20260929080000",
+      "sequence": 490,
+      "slug": "followup_trilha_e_versoes_rls_por_operacao",
+      "checksum": "b50db6a191c36f435e5b3e42166c32520827051720cae5a658f2f651f0e00919",
+      "transactional": true
+    },
+    {
+      "file": "20260929115848_0491_dedupe_de_event_dead_atomico.sql",
+      "version": "20260929115848",
+      "sequence": 491,
+      "slug": "dedupe_de_event_dead_atomico",
+      "checksum": "9a22129db28fa05c53d94fa74a920c97161da096ffb01b493021bb7aeafb776a",
+      "transactional": true
+    },
+    {
+      "file": "20260930010300_0494_lgpd_cascata_banco_alcanca_notas_itens.sql",
+      "version": "20260930010300",
+      "sequence": 494,
+      "slug": "lgpd_cascata_banco_alcanca_notas_itens",
+      "checksum": "b89e53e7daf6d1b24d5164ec1d37a42b99163124f8a10312699b19e414545d03",
+      "transactional": true
+    },
+    {
+      "file": "20260930120000_0495_janela_de_resposta_separada.sql",
+      "version": "20260930120000",
+      "sequence": 495,
+      "slug": "janela_de_resposta_separada",
+      "checksum": "bbc909039b227130ea84d6e33ccd27cc60af7047bb6a7e6b33a87df17eda19df",
+      "transactional": true
+    },
+    {
+      "file": "20260930140000_0497_lgpd_anonimizar_apaga_transcricao.sql",
+      "version": "20260930140000",
+      "sequence": 497,
+      "slug": "lgpd_anonimizar_apaga_transcricao",
+      "checksum": "8fa816d77a92a273e3610e18c0a7c90357953420e552c00f53411cf9ffdf5800",
+      "transactional": true
+    },
+    {
+      "file": "20260930150000_0498_debounce_rajada_configuravel.sql",
+      "version": "20260930150000",
+      "sequence": 498,
+      "slug": "debounce_rajada_configuravel",
+      "checksum": "6b6ee3c464f771d3db21f97769692f167d951ecf0c25d285e53ce8fc95c55029",
+      "transactional": true
+    },
+    {
+      "file": "20260930160000_0499_atraso_humano_por_conexao.sql",
+      "version": "20260930160000",
+      "sequence": 499,
+      "slug": "atraso_humano_por_conexao",
+      "checksum": "aaed49fc9027df00547e995b32dca66e4ada1c7f8f7ff749c0a9029aa0e9f790",
+      "transactional": true
+    },
+    {
+      "file": "20260930170000_0500_avisos_do_jev_na_central.sql",
+      "version": "20260930170000",
+      "sequence": 500,
+      "slug": "avisos_do_jev_na_central",
+      "checksum": "cee866b414ea34288bf0e52892c3df25baec01cb92e96842b03af1a809a75d5f",
+      "transactional": true
+    },
+    {
+      "file": "20260930180000_0501_org_operante_e_suspensao_tipada.sql",
+      "version": "20260930180000",
+      "sequence": 501,
+      "slug": "org_operante_e_suspensao_tipada",
+      "checksum": "557114984c29ab4b7ab9bcad9d3b90e2214911a8af28a3c43510ffacea99f3b8",
+      "transactional": true
+    },
+    {
+      "file": "20261001180000_0502_protocolo_de_atendimento.sql",
+      "version": "20261001180000",
+      "sequence": 502,
+      "slug": "protocolo_de_atendimento",
+      "checksum": "a497277843bf47333dea99372516af699324e9c4635a093d4544c31111296bd6",
+      "transactional": true
+    },
+    {
+      "file": "20261001190000_0503_canal_telegram_bot.sql",
+      "version": "20261001190000",
+      "sequence": 503,
+      "slug": "canal_telegram_bot",
+      "checksum": "03c4601c0e6c3e258a5d4537d241c76b89a3007f8048716e5dbbd48a67028e84",
+      "transactional": true
+    },
+    {
+      "file": "20261001200000_0504_canal_email_inbox.sql",
+      "version": "20261001200000",
+      "sequence": 504,
+      "slug": "canal_email_inbox",
+      "checksum": "5d31ae4e63a5ce9b0d6acfd1eba235373334b15a3283d65eb2584329d0224cc1",
+      "transactional": true
+    },
+    {
+      "file": "20261001210000_0505_campanhas_multicanal.sql",
+      "version": "20261001210000",
+      "sequence": 505,
+      "slug": "campanhas_multicanal",
+      "checksum": "cb5788d4bfbe93db47a2325a2fe955dd5e1c40bc70e96f50cd2b1a77b15ed5ef",
+      "transactional": true
+    },
+    {
+      "file": "20261001220000_0506_instagram_tiktok_direct.sql",
+      "version": "20261001220000",
+      "sequence": 506,
+      "slug": "instagram_tiktok_direct",
+      "checksum": "ee7d1b5784e31a975759e165f1f51ed8333e26fe9d1b414583520f9b079c6c2e",
+      "transactional": true
+    },
+    {
+      "file": "20261001230000_0507_telegram_usuario_mtproto.sql",
+      "version": "20261001230000",
+      "sequence": 507,
+      "slug": "telegram_usuario_mtproto",
+      "checksum": "e6b4d038f102575cbb95a02a8454bb36c64b1ab320e4549f29dcdf825a7bec54",
+      "transactional": true
+    },
+    {
+      "file": "20261003190000_0508_correcao_seguranca_e_auditoria.sql",
+      "version": "20261003190000",
+      "sequence": 508,
+      "slug": "correcao_seguranca_e_auditoria",
+      "checksum": "33d41b2f4c26a2b537988bdf227a49c0055aace5f9b2d32fb4a821745415269e",
+      "transactional": true
+    },
+    {
+      "file": "20261004120000_0509_protecao_atomica_quota_usuarios.sql",
+      "version": "20261004120000",
+      "sequence": 509,
+      "slug": "protecao_atomica_quota_usuarios",
+      "checksum": "b1addae7222858d15827f911911bf26765f613db9b2ab5ecaa1cbc95a56faab2",
+      "transactional": true
+    },
+    {
+      "file": "20261005120000_0510_protecao_atomica_sobreposicao_agenda.sql",
+      "version": "20261005120000",
+      "sequence": 510,
+      "slug": "protecao_atomica_sobreposicao_agenda",
+      "checksum": "4bcac182ee020da2b81781576d1df0d6439ddb2756ec8238fba1001b859d4731",
+      "transactional": true
+    }
+  ]
+}

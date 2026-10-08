@@ -36,8 +36,8 @@ export default defineConfig([
     },
   },
   {
-    // Script CLI do gov-loop (roda via tsx, fora do bundle) — require() ok.
-    files: ["loop/**/*.ts"],
+    // Script CLI do gov-loop e scripts operacionais/migrator Node.js puro — require() ok.
+    files: ["loop/**/*.ts", "scripts/**/*.js", "scripts/migrator/**/*.js"],
     rules: { "@typescript-eslint/no-require-imports": "off" },
   },
 ]);
