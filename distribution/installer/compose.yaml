@@ -1,0 +1,48 @@
+# Compose Comercial do Clientix Agência
+# Todos os serviços executam a partir de imagens publicadas/pre-buildadas.
+# Zero compilação local, zero acesso a repositório git.
+
+services:
+  app:
+    image: ${APP_IMAGE:-ghcr.io/rafaelbravik/clientix-app:1.0.0}
+    restart: unless-stopped
+    mem_limit: 768m
+    env_file: .env
+    ports:
+      - "${PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('net').connect(3000,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - clientix-net
+
+  worker:
+    image: ${WORKER_IMAGE:-ghcr.io/rafaelbravik/clientix-worker:1.0.0}
+    restart: unless-stopped
+    mem_limit: 512m
+    env_file: .env
+    networks:
+      - clientix-net
+
+  scheduler:
+    image: ${SCHEDULER_IMAGE:-ghcr.io/rafaelbravik/clientix-scheduler:1.0.0}
+    restart: unless-stopped
+    mem_limit: 256m
+    env_file: .env
+    networks:
+      - clientix-net
+
+  voice-agent:
+    image: ${VOICE_AGENT_IMAGE:-ghcr.io/rafaelbravik/clientix-voice-agent:1.0.0}
+    restart: unless-stopped
+    mem_limit: 512m
+    env_file: .env
+    networks:
+      - clientix-net
+
+networks:
+  clientix-net:
+    driver: bridge
