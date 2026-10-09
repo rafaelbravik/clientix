@@ -1,555 +1,422 @@
 <div align="center">
 
-🇧🇷 Português · [🇺🇸 English](README.en.md) · [🇪🇸 Español](README.es.md)
-
 # 🛠️ Clientix Agência
 
-### Plataforma SaaS Multi-Tenant de Atendimento, CRM, Automação e IA
+### Plataforma Comercial e Operacional de Atendimento, CRM, Automação e IA
 
-**Plataforma de atendimento e operações inteligentes com CRM, automação multicanal, integrações e IA nativa, arquitetura self-hosted e isolamento multi-tenant.**
-**Sem limites de assentos por licença de terceiros, controle total de dados, arquitetura self-hosted em VPS e multi-tenant com isolamento RLS nativo.**
+**Sistema operacional de vendas e relacionamento com arquitetura multi-tenant, suporte a operação 100% humana ou com IA nativa, distribuição por artefatos assinados e modelo self-hosted em infraestrutura do cliente.**
 
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org)
+[![React 19](https://img.shields.io/badge/React-19-blue?logo=react)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript)](https://www.typescriptlang.org)
-[![Supabase](https://img.shields.io/badge/Supabase-Postgres%2BAuth%2BStorage-3ecf8e?logo=supabase)](https://supabase.com)
-[![Self-hosted](https://img.shields.io/badge/self--hosted-1%20comando-orange)](hostgator-setup-kit/)
-[![CI](https://github.com/rafaelbravik/clientix-agencia/actions/workflows/ci.yml/badge.svg)](https://github.com/rafaelbravik/clientix-agencia/actions/workflows/ci.yml)
+[![Tailwind 4](https://img.shields.io/badge/Tailwind-4-38bdf8?logo=tailwindcss)](https://tailwindcss.com)
+[![Supabase Postgres](https://img.shields.io/badge/Supabase-Postgres%20%7C%20RLS-3ecf8e?logo=supabase)](https://supabase.com)
+[![Docker](https://img.shields.io/badge/Docker-Compose%20v2-2496ed?logo=docker)](https://www.docker.com)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-[**⚡ Instalar**](#-instalar-na-sua-vps-o-caminho-principal) · [**🔄 Atualizar**](#-atualizar) · [**🧭 Visão**](VISION.md) · [**🏗️ Arquitetura**](ARCHITECTURE.md) · [**🤝 Contribuir**](CONTRIBUTING.md) · [**🗺️ Roadmap**](#%EF%B8%8F-roadmap)
+[**⚡ Instalação Comercial**](#-instalação-comercial-oficial) · [**🔄 Atualizações**](#-atualização-e-manutenção) · [**🏗️ Arquitetura**](#%EF%B8%8F-arquitetura) · [**🔑 Licenciamento**](#-licenciamento-comercial) · [**🧑‍💻 Desenvolvimento**](#-ambiente-de-desenvolvimento) · [**📜 Legal**](#-aspectos-jurídicos-e-licenciamento)
 
 </div>
 
 ---
 
-> ### ☁️ Executar o Clientix em ambiente self-hosted
+> ### ⚠️ Aviso Importante sobre Instalação e Distribuição Comercial
 >
-> O Clientix Agência é uma plataforma SaaS multi-tenant voltada para atendimento, CRM,
-> automação de processos, canais digitais e operações inteligentes com IA.
-> O kit de automação de instalação ([`hostgator-setup-kit/`](hostgator-setup-kit/)) configura a stack
-> completa (app + WhatsApp + banco) em qualquer VPS com Docker com um único comando.
->
-> *Nota: Alguns identificadores internos legados permanecem preservados por compatibilidade operacional.*
+> As instalações comerciais em clientes finais e parceiros devem utilizar **exclusivamente o instalador oficial (`distribution/installer/`)** e os **artefatos de release assinados** com verificação criptográfica de digest.
+> As instruções de compilação a partir do código fonte (`git clone`, `pnpm install`, `pnpm dev`) destinam-se exclusivamente ao ambiente interno de desenvolvimento e contribuição técnica.
+> A distribuição comercial não requer nem concede acesso ao repositório de código fonte.
 
 ---
 
-## ⚡ Instalar na sua VPS (o caminho principal)
+## 🧭 Visão Geral
 
-### 1. Entre na sua VPS
+O **Clientix Agência** é uma plataforma robusta de operações comerciais, gestão de relacionamento (CRM), automação de processos e atendimento multicanal (WhatsApp/WAHA, voz e mensageria digital) com isolamento nativo multi-tenant e suporte a agentes de IA integrados.
 
-Abra o **Terminal** no seu computador (no Windows, o **PowerShell**; no Mac ou Linux, o
-**Terminal**) e conecte com o IP e a porta que a hospedagem te mandou por e-mail:
+Projetado sob o modelo **self-hosted**, o sistema é executado diretamente na infraestrutura de servidores (VPS) de propriedade e controle do cliente ou agência parceira. Isso garante soberania de dados, conformidade com a LGPD e ausência de restrições arbitrárias de assentos cobradas por terceiros.
 
-```bash
-ssh -p PORTA root@SEU_IP
-```
-
-Troque `PORTA` e `SEU_IP` pelos seus. Se a hospedagem não mencionou porta nenhuma, é a padrão
-(22) e você pode omitir: `ssh root@SEU_IP`.
-
-Ele pede a senha. **Ao digitar, não aparece nada na tela — nem asteriscos.** Isso não é
-travamento: é o terminal escondendo a senha. Digite (ou cole) e dê Enter.
-
-> Na primeira conexão ele pergunta `Are you sure you want to continue connecting?` — responda
-> `yes`. É o servidor se apresentando pela primeira vez.
-
-### 2. Rode o instalador
-
-Já dentro da VPS:
-
-```bash
-git clone https://github.com/rafaelbravik/clientix-agencia.git
-cd clientix-agencia
-bash hostgator-setup-kit/install.sh
-```
-
-É isso. **Você não instala Node, nem pnpm, nem compila nada** — a imagem do app já vem pronta.
-Se faltar Docker, o instalador pergunta e instala sozinho.
-
-### O que você precisa ter em mãos
-
-| Item | Onde conseguir |
-|---|---|
-| **VPS com Docker** | Qualquer VPS com Docker (HostGator, Hostinger, Hetzner, AWS, etc.). 4 GB de RAM recomendados |
-| **Domínio** | Um registro **A** apontando pro IP da VPS (ex.: `crm.suaempresa.com.br`) |
-| **Banco** | Conta grátis no [supabase.com](https://supabase.com) — 3 chaves + connection string do **Session pooler** |
-| **IA** | Uma chave de **OpenRouter**, **Anthropic** ou **OpenAI** — o instalador pergunta qual você quer |
-| **WhatsApp** | Seu número, conectado por QR code no onboarding (ou o canal oficial da Meta) |
-
-O instalador também atende VPS ARM64/aarch64, como a Oracle Ampere A1, e escolhe a imagem
-NOWEB oficial do WAHA compatível com essa arquitetura. Vale para os dois caminhos: com Supabase
-externo e com o Supabase na mesma VPS (as imagens do Supabase self-hosted fixadas pelo kit também
-são publicadas para `linux/arm64`). Nada é compilado na VPS.
-
-> 💡 **O Supabase pode ser criado pelo próprio instalador.** Exporte um
-> `SUPABASE_ACCESS_TOKEN` antes de rodar e ele cria o projeto, espera o banco ficar saudável,
-> busca as 4 credenciais e descobre o host do pooler testando conexão real — sem copiar e colar.
-
-### O que o instalador faz por você
-
-Ele **pergunta só o que é seu** (domínio, chaves, senha do admin), **valida cada resposta antes
-de seguir** — chave errada ele recusa na hora, não três passos depois — e cuida do resto:
-
-1. Gera todos os segredos técnicos sozinho (você não inventa senha nenhuma).
-2. Cria as extensões do Postgres e aplica o schema completo (`supabase/baseline.sql`).
-3. Cria o primeiro admin com o e-mail e a senha que você escolheu.
-4. Sobe a stack inteira com **HTTPS automático** e confere a saúde no fim.
-5. Instala o **cron das automações** (sem ele, as regras QUANDO/SE/ENTÃO ficam paradas na fila)
-   e o **agente de atualização**, que é o que faz o botão "Atualizar agora" existir na tela.
-
-**Rodar de novo não quebra nada** — o `install.sh` é idempotente: não duplica cron, não recria
-usuário, retoma de onde parou.
-
-> **Modo não-interativo:** copie `.env.hostgator.example` para `.env`, preencha e rode
-> `bash hostgator-setup-kit/install.sh --yes`.
-
-### Outra hospedagem? (Hostinger, Coolify, Dokploy, CapRover…)
-
-Funciona. Se a sua VPS já vem com um **proxy reverso próprio** ocupando as portas 80/443, o
-instalador **detecta isso sozinho** e publica o CRM através dele, em vez de tentar subir um
-Caddy que não caberia. Num caso específico — proxy em `--network host`, como faz a Hostinger —
-ele **pergunta em vez de adivinhar**, porque publicar atrás do proxy errado instala "com
-sucesso" um site mudo. Detalhes em [`hostgator-setup-kit/README.md`](hostgator-setup-kit/README.md#vps-que-já-vem-com-proxy-próprio-hostinger-coolify-dokploy).
-
-### Primeiro acesso
-
-Abra `https://<seu-domínio>` (o cadeado leva ~1 min pra aparecer), entre com o admin, e tenha o
-**Google Authenticator** ou **Authy** à mão *se* você quiser ligar a verificação em duas etapas — ela é **opcional** e fica em Configurações › Segurança; o primeiro login **não** a exige. No onboarding,
-escaneie o QR code com o WhatsApp do seu número.
-
-### 🤖 Prefere que uma IA instale pra você?
-
-O repositório traz **guias do assistente** que carregam sozinhos no Claude Code, Codex, Cursor,
-OpenCode ou Antigravity: instalar, montar um cliente por nicho, analisar métricas, afinar o prompt
-do agente e contribuir. Para tê-los em **qualquer pasta** — inclusive antes de clonar, no seu
-computador —, rode uma vez:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/rafaelbravik/clientix-agencia/main/scripts/instalar-guias.sh | bash
-```
-
-Depois abra uma sessão nova do seu assistente e diga *"quero instalar o CRM na minha VPS"*: pedir o
-assunto em português aciona o guia certo em qualquer um dos cinco. Para chamar um guia pelo nome,
-cada um tem o seu jeito — `/deskcomm-instalar` no Claude Code, no Cursor e no Antigravity;
-`$deskcomm-instalar` no Codex; no OpenCode, peça pelo nome, em linguagem natural.
-
-Os guias **não** se atualizam sozinhos: rodar o mesmo comando de novo traz a versão nova. Para
-desfazer:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/rafaelbravik/clientix-agencia/main/scripts/instalar-guias.sh | bash -s -- --remover
-```
-
-Com o repositório já clonado, os guias vêm dentro dele (`.agents/skills/`) e nem isso é preciso. Se
-você rodou o comando mesmo assim, saiba que no Claude Code o guia instalado vale mais que o do clone
-— e fica na versão do dia em que rodou, até rodar de novo (ou desfazer).
-Também funciona o jeito antigo: jogar só a pasta `hostgator-setup-kit/` no chat do **Claude Code**
-dentro da VPS — ele lê o [`CLAUDE.md`](hostgator-setup-kit/CLAUDE.md) do kit e conduz tudo em português.
+A plataforma combina flexibilidade de vocabulário e funis de vendas para múltiplos nichos (agências, clínicas, imobiliárias, infoprodutos, e-commerce e serviços corporativos), mantendo governança rigorosa de acessos por papéis (RBAC) e proteção em profundidade via Row Level Security (RLS) no PostgreSQL.
 
 ---
 
-## 🔄 Atualizar
+## ✨ Principais Capacidades e Módulos
 
-Saiu versão nova? Há dois caminhos, e o primeiro **não exige terminal**.
+Todos os módulos abaixo possuem implementação real no código da aplicação (`app/app/` e `app/api/v1/`):
 
-### Pela tela (recomendado)
+- 💬 **Inbox e Atendimento Multicanal:** Atendimento em tempo real com painel integrado, suporte a múltiplos números, fila com rodízio, transferência auditada e coexistência transparente entre operadores humanos e agentes autônomos.
+- 👥 **Operação 100% Humana Suportada:** A utilização de inteligência artificial é estritamente opcional. A plataforma opera de forma completa e estável em modo puramente humano, sem exigir chaves de API externas de LLM para suas funções essenciais de CRM, mensageria e automação.
+- 📊 **CRM e Kanban Comercial:** Gestão de oportunidades em pipelines visuais, ordenação contínua (`fractional indexing`), vocabulário configurável por nicho (_Lead/Cliente/Paciente_, _Ganho/Fechado/Agendado_) e motivos estruturados de perda.
+- 📇 **Contatos, Empresas e Customer 360:** Base unificada de clientes com histórico de interações, campos personalizados, etiquetas (tags), notas internas e controle de consentimento LGPD.
+- 📅 **Agenda e Agendamentos:** Gestão de compromissos com suporte a sincronização bidirecional com Google Calendar e buffers de atendimento.
+- 🤖 **Agentes de IA e RAG por Tenant:** Automação inteligente opcional alimentada por busca semântica em base de conhecimento própria (`pgvector`), memória da organização, execução de competências operacionais (skills) e transferência orientada por regras (handoff com gate humano).
+- 🔁 **Radar e Follow-up Contínuo:** Monitoramento proativo de negociações e conversas estagnadas, prevenindo perda de oportunidades sem atendimento.
+- ⚡ **Webhooks e Automações QUANDO/SE/ENTÃO:** Captura de leads via endpoints públicos dedicados (`/api/v1/webhooks/in/<token>`) integráveis a formulários, landing pages e ferramentas externas, com execução assíncrona desacoplada via `event_log`.
+- 🛡️ **Segurança e Conformidade LGPD:** Autenticação robusta (`@supabase/ssr` com cookies `SameSite=Strict`), MFA TOTP opcional para administradores, trilha de auditoria append-only, fluxos de exportação e expurgo/anonimização de dados pessoais.
+- 🏷️ **White-Label e Marca Própria:** Capacidade comercial regulada por licença que permite a agências parceiras personalizar logotipos, identidade visual e domínios para seus clientes finais.
 
-Quando existe versão nova, o rodapé do menu lateral acende **"Nova versão"** — só pro dono do
-servidor, porque avisar quem não pode atualizar é ruído. Clique e você cai em
-**Configurações → Atualização**, que mostra o que muda, faz **backup do banco sozinha** e
-acompanha cada fase (backup → código → banco → no ar) até terminar. Nada de SSH.
+---
 
-Se a versão nova subir quebrada, o agente **volta pra imagem anterior sozinho** e grava essa
-volta no `.env` — sem isso, o próximo restart traria o app quebrado de novo, em silêncio.
+## 🏗️ Arquitetura
 
-> Por baixo: o app só registra o pedido; quem executa é o agente que o `install.sh` deixou na
-> sua VPS, num cron que confere **a cada 5 minutos** — então a atualização começa em até 5
-> minutos depois do clique. Se esse agente estiver fora do ar, a tela avisa
-> **"Atualização automática indisponível"** e mostra o comando abaixo — ela não finge que deu certo.
+O sistema adota uma separação arquitetural rigorosa entre o ambiente do cliente e os serviços do fornecedor:
 
-### Pelo terminal
+```mermaid
+flowchart TD
+    subgraph CP ["Vendor Control Plane (Serviços do Fornecedor)"]
+        CP_API["Control Plane API / Licensing Service"]
+        AGW["Artifact Gateway (S3-Compatible Storage)"]
+        ADMIN_PORTAL["Platform Admin Licensing Portal"]
+    end
 
-```bash
-cd /caminho/do/clientix-agencia
-bash hostgator-setup-kit/update.sh
+    subgraph CLIENT_VPS ["Customer VPS (Infraestrutura do Cliente)"]
+        direction TB
+        INST["clientix-installer (CLI & Lifecycle)"]
+        MIG["clientix-migrator (0510 Certified)"]
+
+        subgraph COMPOSE ["Docker Compose Services"]
+            APP["clientix-app (Port 3000 / Next.js 16)"]
+            WORKER["clientix-worker (Agent & Event Processing)"]
+            SCHEDULER["clientix-scheduler (Cron & Follow-up)"]
+            VOICE["clientix-voice-agent (Voice & WebRTC)"]
+        end
+
+        DB[("PostgreSQL 15 / 17 + RLS + pgvector")]
+        REDIS[("Redis / Upstash (Fila & Locks)")]
+        WAHA["WAHA Engine (Container Separado)"]
+    end
+
+    CP_API -- "Signed License Document (Ed25519)" --> INST
+    AGW -- "Signed Artifacts (AMD64 Digested)" --> INST
+    INST --> MIG
+    MIG --> DB
+    INST --> COMPOSE
+    APP --> DB
+    WORKER --> DB
+    APP --> WAHA
+    APP --> REDIS
 ```
 
-O comando faz, nesta ordem: (1) confere se há mesmo versão nova — se não houver, sai na hora;
-(2) **faz backup do banco antes de tocar em qualquer coisa**; (3) baixa o código novo;
-(4) atualiza o banco re-aplicando o `baseline.sql`, que é idempotente e **auto-curativo**
-(conserta sozinho dados bagunçados por versões antigas); (5) puxa a imagem nova do app;
-(6) confere a saúde no fim.
+### Componentes Principais:
 
-**O alvo é a última versão publicada** (`v1.2.3`), não o topo da `main` — atualizar leva sempre
-a uma versão marcada e descrita no [`CHANGELOG.md`](CHANGELOG.md), nunca a um commit não testado.
-Ele **recusa** voltar pra uma versão anterior à instalada (isso desligaria coisas que você já tem);
-pra isso existe `--force`, de propósito.
+1. **Customer VPS:**
+   - **`clientix-app`:** Aplicação principal (App Router Next.js 16, UI e API REST versionada).
+   - **`clientix-worker`:** Processamento em segundo plano da fila de eventos (`event_log`), execuções de automação e RAG.
+   - **`clientix-scheduler`:** Agendador de tarefas periódicas, crons do sistema e rotinas de follow-up.
+   - **`clientix-voice-agent`:** Processamento de mídia e integração de chamadas de voz.
+   - **`clientix-migrator`:** Utilitário standalone certificado para aplicação idempotente de schema e diagnósticos de banco.
+   - **PostgreSQL com RLS:** Banco relacional com isolamento estrito entre organizações e extensão `pgvector`.
+2. **Vendor Control Plane (Externo à VPS do Cliente):**
+   - **Licensing Service:** Emissão de documentos de licença assinados criptograficamente, verificação de quotas e controle de leases temporários.
+   - **Artifact Gateway:** Distribuição de releases com grants temporários opacos e verificação de integridade por digest imutável.
+   - **Platform Admin Licensing Portal:** Gestão centralizada de clientes, licenças comerciais e auditoria de ativações.
 
-**Coisas normais que você vai ver:** um monte de `already exists` / `multiple primary keys` na
-parte do banco — **é esperado e inofensivo**, são coisas que já existiam. O script filtra esse
-ruído e mostra `✓ banco atualizado`. Se o banco estiver ocupado com o CRM atendendo, ele aplica de
-novo sozinho (até 3 passadas) e conta isso na tela — isso vale a partir da atualização seguinte à
-que instalar esta correção. Se aparecer `⚠ Apareceram avisos no banco que NÃO são os esperados`, aí sim guarde a
-mensagem: o **fim** da saída diz o que fazer em cada caso (repetir com `--force` quando foi o banco
-ocupado, declarar `SUPABASE_DB_ADMIN_URL` quando foi permissão). Restaurar o backup é o último recurso.
+---
 
-**Deu ruim?** `bash hostgator-setup-kit/restore.sh` volta pro backup.
-**Quer só diagnosticar?** `bash hostgator-setup-kit/healthcheck.sh`.
+## 🧱 Stack Tecnológica
 
-> ⚠️ **Numa instalação antiga que ainda não tem o agente da tela**, rode `update.sh` **duas
-> vezes**: a primeira execução ainda é a do script velho (que baixa o novo); a segunda instala
-> o agente e liga o botão.
+| Camada                     | Tecnologia                                                              | Justificativa Técnica                                                                           |
+| -------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| **Framework Web**          | Next.js 16 (App Router, Turbopack)                                      | Server Components e Route Handlers integrados no mesmo repositório                              |
+| **Interface & UI**         | React 19 + TypeScript (strict)                                          | Concorrência moderna, tipagem estrita (`noUncheckedIndexedAccess`)                              |
+| **Estilização**            | Tailwind CSS 4 + shadcn/ui (`new-york`)                                 | Configuração via CSS tokens, sem dependência de temas externos proprietários                    |
+| **Banco de Dados**         | PostgreSQL (versões 15 e 17 certificadas)                               | Supabase Postgres, RLS nativo para isolamento multi-tenant, pgvector                            |
+| **Autenticação**           | Supabase Auth via `@supabase/ssr`                                       | Cookies HttpOnly protegidos com política SameSite estrita (Strict padrão / Lax em fluxos OAuth) |
+| **Comunicação Tempo Real** | Supabase Realtime                                                       | Notificações de mensagens (`postgres_changes`) e broadcast                                      |
+| **Mensageria WhatsApp**    | WAHA (engine NOWEB) + Meta Cloud API                                    | Integração via container segregado por chamadas HTTP REST / Webhooks                            |
+| **IA & Embeddings**        | Vercel AI SDK (`@ai-sdk/anthropic`, `@ai-sdk/openai`, `@ai-sdk/google`) | Catálogo multi-provedor (OpenRouter, Anthropic, OpenAI, Google) configurável pela tela          |
+| **Filas & Eventos**        | Tabela `event_log` + Workers dedicados                                  | Padrão event sourcing leve; triggers de banco nunca executam chamadas HTTP                      |
+| **Cache & Locks**          | Redis / Upstash                                                         | Controle de concorrência, rate limiting e leases de distribuição                                |
+| **Validação de Dados**     | Zod 4                                                                   | Validação estrita de contratos de entrada na borda da API e env vars                            |
+| **Observabilidade**        | Sentry SDK (Node/Next.js)                                               | Monitoramento opcional com higienização estrita de dados sensíveis na origem                    |
+| **Runtime de Produção**    | Docker + Docker Compose v2                                              | Empacotamento em contêineres imutáveis com digest pinning                                       |
 
-Passo a passo em linguagem simples: [`docs/ATUALIZANDO.md`](docs/ATUALIZANDO.md).
+---
 
-### Outros comandos do kit
+## 📦 Modelo de Artefatos de Release
 
-| Script | Função |
-|---|---|
-| `install.sh` | Instala tudo (idempotente — pode rodar de novo) |
-| `update.sh` | Atualiza pra versão nova, com backup automático |
-| `backup.sh` | Backup do banco + sessões de WhatsApp |
-| `restore.sh` | Restaura um backup |
-| `reset-password.sh` | Redefine a senha de um usuário |
-| `reset-mfa.sh` | Remove o MFA de quem perdeu o celular |
-| `healthcheck.sh` | Diagnóstico de todos os serviços de uma vez |
+O Clientix Agência é empacotado e distribuído em 5 imagens de contêineres oficiais:
 
-> **Backup importa:** o plano grátis do Supabase **não faz backup sozinho**. Vale agendar
-> `backup.sh` no cron diariamente. O `update.sh` já roda um backup antes de cada atualização.
+| Artefato        | Imagem de Referência         | Função no Sistema                                          |
+| --------------- | ---------------------------- | ---------------------------------------------------------- |
+| **App**         | `clientix-app:1.0.0`         | Interface do usuário e API REST pública/autenticada        |
+| **Worker**      | `clientix-worker:1.0.0`      | Dreno da fila de eventos, rotinas assíncronas e automações |
+| **Scheduler**   | `clientix-scheduler:1.0.0`   | Disparos temporais, sincronizações periódicas e crons      |
+| **Voice Agent** | `clientix-voice-agent:1.0.0` | Processamento de streaming de áudio e telefonia            |
+| **Migrator**    | `clientix-migrator:1.0.0`    | Utilitário isolado para aplicação e validação de schema    |
 
-### 🧹 Desinstalar (tirar esta aplicação do Docker)
+### Suporte de Arquitetura:
 
-Para parar e apagar **somente os recursos Docker desta instalação**, na raiz do repositório:
+- **`linux/amd64`:** **Oficialmente suportado e certificado** para ambientes de produção.
+- **`linux/arm64`:** **Experimental / Parcial** (suporte técnico restrito; não recomendado para ambientes de produção comercial crítica).
+
+---
+
+## ⚡ Instalação Comercial Oficial
+
+> 🔒 O processo de instalação comercial é **idempotente, atômico e não requer compilação de código**. O cliente ou operador nunca necessita de credenciais de repositório Git ou tokens de acesso ao código fonte.
+
+### 1. Requisitos Mínimos de Servidor (VPS)
+
+- **CPU:** 2 vCPUs (x86_64 / amd64).
+- **Memória RAM:** 4 GB de memória física disponível (mínimo recomendado para app, workers e Postgres).
+- **Armazenamento:** 20 GB SSD livre.
+- **Sistema Operacional:** Ubuntu 22.04 LTS ou Debian 12 com Docker Engine v24+ e Docker Compose v2 instalados.
+- **Rede e Conectividade:** Endereço IP público com registro DNS tipo **A** configurado apontando para a máquina.
+
+### 2. Fluxo de Instalação Comercial
+
+No servidor de produção do cliente, execute o utilitário oficial:
 
 ```bash
-bash desinstalar_docker.sh
+# Navegue até o diretório do instalador oficial
+cd /opt/clientix/installer
+
+# Execute o instalador oficial (suporta verificações de pré-vôo e setup de banco)
+bash install.sh install
 ```
 
-Ele descobre o projeto pelo label que o Docker Compose grava e remove apenas os containers,
-volumes e redes internas **deste** projeto. Outras aplicações do mesmo servidor, imagens,
-cache de build, a rede externa do proxy reverso, o código, o `.env`, os backups e um Supabase
-externo não são tocados.
+O instalador executa automaticamente as seguintes etapas:
 
-O modo interativo mostra quantos recursos encontrou e exige a confirmação
-`REMOVER-<nome-do-projeto>` antes de remover qualquer coisa. Para uma rotina de descarte de
-ambiente, `bash desinstalar_docker.sh --force` pula a pergunta. Use `--project-name NOME`
-só quando a instalação tiver um `COMPOSE_PROJECT_NAME` personalizado que não esteja mais no
-`.env`.
-
-> **Os volumes vão junto** — inclusive as sessões locais do WhatsApp. Rode `backup.sh` antes se
-> precisar preservá-las.
+1. **Preflight Checks:** Valida espaço em disco (mínimo 2 GB livres), arquitetura (`amd64`), daemon Docker ativo e Compose v2.
+2. **Inicialização de Segredos:** Gera credenciais e segredos locais via CSPRNG (`NEXTAUTH_SECRET`, `ENCRYPTION_KEY`, `INTERNAL_CRON_SECRET`), garantindo a geração atômica e persistência do `installation_id` exclusivo do servidor.
+3. **Validação do Manifesto de Release:** Confere o manifesto assinado da release (`release-manifest.json`), verificando a versão alvo (`1.0.0`), schema (`0510`) e os digests SHA-256 das 5 imagens.
+4. **Download e Verificação de Imagens:** Realiza o pull dos contêineres e valida os hashes SHA-256 contra o manifesto assinado.
+5. **Aplicação do Migrator:** Executa `clientix-migrator status` e, caso o banco esteja limpo, executa `clientix-migrator install`.
+6. **Boot e Validação de Saúde:** Inicia os serviços via Docker Compose (com a porta de aplicação configurada por `${PORT:-3000}` no compose comercial) e aguarda resposta positiva dos probes HTTP (`/login` e `/api/v1/health`).
+7. **Promoção de Estado Atômico:** Registra o estado da instalação em `/opt/clientix/state/release.json`.
 
 ---
 
-**Clientix Agência** é a plataforma completa de operação comercial e atendimento omnichannel para agências, clínicas, empresas e prestadores de serviços, operada por atendentes humanos e agentes autônomos de IA integrados.
+## 🔑 Licenciamento Comercial
 
-> *Nota de linhagem técnica: Este projeto evoluiu a partir da base open source DeskcommCRM, consolidando arquitetura multi-tenant robusta, automações multicanal e segurança avançada.*
+O Clientix Agência opera sob um modelo de licença comercial validado localmente com criptografia assimétrica de curva elíptica:
 
-O projeto atende com excelência **agências, clínicas, imobiliárias, infoprodutos, e-commerces e prestadores de serviços** — qualquer operação moderna de atendimento e vendas. A plataforma oferece um **sistema operacional comercial completo**: agentes de IA com RAG por tenant atendem, qualificam, movem leads no funil, disparam automações e sabem a hora exata de transferir para um atendente humano — com o CRM inteiro exposto via **MCP** para agentes operarem com ferramentas reais. A visão estratégica detalhada está em [`VISION.md`](VISION.md).
+- **Identificador de Instalação (`installation_id`):** Identificador exclusivo gerado no primeiro setup (`inst_<UUIDv4>`). O runtime adota resolução determinística: a variável de ambiente `INSTALLATION_ID` (injetada via `.env` do contêiner) é a autoridade prioritária; na sua ausência, o arquivo persistente em `/opt/clientix/state/installation_id` opera como fonte autoritativa atômica com trava de concorrência. O registro em `release.json` atua estritamente como snapshot de auditoria de deploy. Divergências ou arquivos vazios disparam parada imediata (_fail-closed_).
+- **Assinatura Assimétrica Ed25519:** Todas as licenças emitidas contêm assinaturas digitais verificáveis pela chave pública do fornecedor embarcada no código, sem necessidade de consultas síncronas bloqueantes a servidores externos.
 
-### Diferenciais
-
-- 🤖 **Agentes de IA que operam o CRM** — RAG por tenant, skills que o agente executa sozinho durante o atendimento, memória da operação, análise de sentimento, handoff IA→humano auditado, IA como assignee de primeira classe e teto de gasto por organização. Não é chatbot decorativo: o agente atende, qualifica e move o funil.
-- 🔁 **Nada morre no silêncio** — follow-up que retoma a conversa esfriada (com tempo adaptativo e gatilhos por etapa do funil), radar do que está em risco de morrer sem resposta, e central de avisos pro que precisa de decisão humana.
-- 🧠 **Agentes que se auto-aprimoram** — conversas resolvidas viram conhecimento novo; a tela de **Evolução da IA** mostra se o agente está melhorando, onde erra e o que falta ensinar; **Propostas** são melhorias que a IA sugere pra si mesma, aplicáveis como versão nova — sempre com gate humano.
-- 🧩 **Multi-nicho por design** — vocabulário configurável por pipeline: lead vira *Cliente*, *Paciente* ou *Comprador*; won vira *Pago*, *Agendado* ou *Fechado*. O mesmo core serve e-commerce (nosso berço, com integração Nuvemshop), clínica, imobiliária ou infoproduto.
-- 💬 **WhatsApp de duas formas** — por **QR code** (WAHA, multi-número, com anti-banimento: throttle + jitter + janela de horário) ou pelo **canal oficial da Meta** (Cloud API, com templates aprovados e sincronizados). Mídia via Storage, STOP detection.
-- 🔀 **Escolha sua IA** — OpenRouter, Anthropic ou OpenAI, decidido na instalação e trocável depois pela tela, **por parte do sistema** (o que conversa não precisa ser o que indexa).
-- 👥 **Governança de atendimento** — RBAC server-side de verdade, atribuição/transferência auditada, fila com rodízio, roteamento automático por intenção e escopo de visualização por papel.
-- 🏢 **Multi-tenant + LGPD by-design** — RLS em toda tabela tenant-aware com teste de isolamento como gate de CI; anonimização preferida sobre delete; audit append-only com retenção 5 anos.
-- 🖥️ **Self-hosted de verdade** — seus dados na sua VPS; instalação e atualização com 1 comando (ou 1 clique); sem versão paga, sem feature travada.
-
-### 🔌 Webhooks & Automações
-
-Todo tenant pode criar **fontes de captação**: um endereço público (`/api/v1/webhooks/in/<token>`) que recebe leads de landing pages, formulários próprios ou ferramentas como Zapier/n8n via POST (JSON ou `application/x-www-form-urlencoded`) e já entra direto no funil/estágio escolhido — sem código, sem integração customizada por tenant. Em cima dessas fontes (e dos outros eventos do CRM — lead mudou de etapa, ganhou tag, chegou mensagem no WhatsApp), o tenant monta **automações**: regras no formato QUANDO/SE/ENTÃO que disparam ações como adicionar tag, mover o lead no funil, atribuir a um atendente, mandar uma mensagem de WhatsApp ou avisar outro sistema via webhook de saída.
-
-Na UI, tudo mora em **Webhooks** na sidebar (visível só pra quem tem papel `manager`/`admin`). A tela tem três abas: **Receber dados** (criar fonte, copiar o endereço/formulário pronto, disparar um lead de teste, ver os últimos recebimentos), **Automações** (montar a regra, que sempre nasce pausada até você revisar e ligar) e **Atividade** (timeline de cada execução, com o resultado de cada ação e reenvio manual quando uma chamada externa falha).
-
-Por baixo, cada evento vira uma linha em `event_log` — nenhum trigger de banco faz chamada HTTP diretamente. Quem drena essa fila é a rota `/api/v1/cron/event-log-drain`, chamada a cada minuto. **O `install.sh`/`update.sh` já configuram esse cron sozinhos** — sem ele, as automações são criadas normalmente mas nunca rodam.
+- **Entitlements Contratuais:** As permissões da instância são definidas estritamente pelos _entitlements_ expressos no documento de licença, e não apenas pelo nome do plano:
+  - `max_installations`: Número de servidores autorizados para o cliente.
+  - `max_tenants`: Quantidade máxima de organizações/empresas atendidas (inteiro positivo ou ilimitado).
+  - `resale_allowed`: Autorização comercial para sublicenciamento e revenda de acessos.
+  - `white_label`: Autorização para personalização visual completa da interface e relatórios.
+  - `features`: Matriz de funcionalidades corporativas liberadas para a instância.
+- **Ciclo de Vida da Licença:**
+  - `VALID`: Licença em vigência com operação regular de todos os recursos.
+  - `GRACE`: Período de tolerância temporário para renovação contratual.
+  - `EXPIRED` / `SUSPENDED`: Suspensão de automações e envios proativos externos, **mantendo o acesso administrativo local integral para geração de backups e exportação de dados**.
+  - `REVOKED`: Licença cancelada administrativamente por violação contratual grave.
+- **Operação Offline:** O motor de validação (`lib/licensing/`) valida a validade temporal diretamente no documento assinado local (`/opt/clientix/licenses/license.json`), permitindo resiliência operacional mesmo durante instabilidades momentâneas de conexão com o Control Plane.
 
 ---
 
-## 🖥️ O que você opera (as telas)
+## 🏢 Planos de Organização (Tenant Plans)
 
-| Grupo | Telas |
-|---|---|
-| **Atendimento** | **Inbox** (conversas de WhatsApp, você e a IA lado a lado) · **Radar** (quem esfriou e ainda está aberto) · **Respostas rápidas** |
-| **CRM** | **Kanban** (onde cada negócio está no funil) · **Contatos** · **Funis** (etapas, vocabulário do negócio e motivos de perda) |
-| **Agente de IA** | **Agentes** · **Follow-ups** · **Roteadores** · **Provedores** e **Credenciais** · **Conhecimento** (RAG) · **Memória** · **Skills** · **Casos** · **Alertas** · **Propostas** · **Execuções** · **Uso e orçamento** |
-| **Canais** | **Conexões** (QR ou canal oficial da Meta, com saúde, reconexão e templates) · **Nuvemshop** · **Webhooks** |
-| **Análise** | **Desempenho** (funil e performance por atendente) · **Evolução da IA** · **Audit Log** |
-| **Organização** | **Equipe** · **Distribuição de atendimento** · **Organização** · **LGPD** · **API Tokens** · **Segurança** (MFA, códigos de recuperação, sessões) · Perfil, Notificações, Billing |
+Dentro de uma instalação licenciada, cada organização/empresa cadastrada pode ser vinculada a um plano operacional (`lib/tenant/plan-limits.ts`):
 
-Toda tela tem porta na navegação — o CI reprova tela que existe mas em que só se chega digitando a URL.
+| Plano          | Limite Padrão de Assentos | Canais Permitidos            | Recursos Inclusos                                               |
+| -------------- | ------------------------- | ---------------------------- | --------------------------------------------------------------- |
+| **Standard**   | Até 3 usuários            | 1 canal (WhatsApp ou E-mail) | Inbox, CRM/Kanban, Atendimento Humano, RAG Básico               |
+| **Pro**        | Até 10 usuários           | Até 5 canais simultâneos     | Campanhas, Automações Avançadas, Agentes de IA, Chamadas de Voz |
+| **Enterprise** | Ilimitado (customizado)   | Ilimitado                    | Múltiplos funis, limites ampliados, integrações corporativas    |
 
----
-
-## 🧱 Stack
-
-| Camada | Escolha | Por quê |
-|---|---|---|
-| **Frontend** | Next.js 16 App Router (Turbopack) + React 19 + TypeScript 6 estrito | Server Components + Route Handlers no mesmo repo |
-| **Estilo** | Tailwind + shadcn/ui (`new-york`, neutral) | Customizável sem lock-in |
-| **DB** | Supabase (Postgres + RLS + `vector`) | Multi-tenant nativo, embedding pra RAG |
-| **Auth** | Supabase Auth via `@supabase/ssr` | Cookie SameSite=Strict, HttpOnly |
-| **Realtime** | Supabase Realtime | postgres_changes + broadcast |
-| **Storage** | Supabase Storage (URLs assinadas) | Bucket privado `whatsapp-media` |
-| **WhatsApp** | WAHA Plus (engine NOWEB) + Meta Cloud API | QR pra começar rápido; canal oficial pra escala |
-| **Filas** | `event_log` table + workers (cron) | Trigger de banco nunca faz HTTP |
-| **Rate limit** | Upstash Redis (sliding window) | Serverless, free tier suficiente |
-| **AI** | Vercel AI SDK v7 — OpenRouter, Requesty, Anthropic, OpenAI e Google | Instalador pergunta qual; troca depois pela tela |
-| **Validação** | Zod | Input externo, env, payloads |
-| **Observability** | Sentry (scrub em erro, transação, span e breadcrumb) | Telemetria opt-in no install |
-| **Hospedagem** | VPS com Docker | App + WhatsApp + workers na sua máquina |
-
-Detalhes: [`ARCHITECTURE.md`](ARCHITECTURE.md).
+> 💡 **Nota de Isolamento:** Os limites da organização (_Tenant Plan_) gerenciam cotas de uso do CRM, enquanto a _Licença de Instalação_ regula a operação legal do servidor como um todo.
 
 ---
 
-## 🧑‍💻 Desenvolvimento (só pra contribuir com o código)
+## 🔄 Atualização e Manutenção
 
-> ⚠️ **Se você quer USAR o CRM, não é aqui** — use o [instalador da VPS](#-instalar-na-sua-vps-o-caminho-principal).
-> Esta seção é pra quem vai mexer no código.
+As atualizações de versão do Clientix Agência são projetadas para serem previsíveis e seguras, com backup preventivo mandatório:
 
 ```bash
+# Executa a atualização atômica para a versão especificada no manifesto
+bash /opt/clientix/installer/install.sh update
+```
+
+### Sequência do Procedimento de Atualização:
+
+1. **Preflight e Verificação de Manifesto:** Confere requisitos e integridade da versão de destino.
+2. **Download Preventivo de Imagens:** Todas as imagens da nova versão são baixadas e verificadas via digest antes de qualquer alteração no sistema existente.
+3. **Backup Lógico Automático:** O utilitário executa um dump binário customizado (`pg_dump -Fc`) do banco de dados e valida sua legibilidade via `pg_restore --list`. Se o backup falhar, a atualização é abortada imediatamente.
+4. **Migrações Incrementais de Banco:** O `clientix-migrator` aplica as migrations pendentes de forma sequencial com confirmação de backup (`--backup-ack`).
+5. **Atualização de Contêineres:** Os contêineres são reiniciados sob a nova definição do Compose.
+6. **Validação de Saúde:** Probes HTTP verificam a resposta dos serviços por até 45 segundos.
+7. **Promoção de Estado:** O arquivo de estado é atualizado com o hash da versão e o caminho do backup correspondente.
+
+### Política de Rollback:
+
+- O rollback da aplicação para a versão de contêiner anterior é suportado de forma imediata quando as alterações de schema de banco forem retrocompatíveis.
+- **Rollback de Banco de Dados:** Não há reversão automática destrutiva de schema de banco de dados. Caso seja necessário retornar a um estado anterior incompatível, deve-se realizar o restore manual a partir do arquivo de backup gerado.
+
+---
+
+## 💾 Backup e Restauração
+
+### 1. Rotina de Backup
+
+Os backups lógicos são gerados no formato binário comprimido do PostgreSQL (`-Fc`) no diretório `/opt/clientix/backups/`:
+
+```bash
+# Backup manual utilizando contêiner utilitário
+docker run --rm \
+  --network host \
+  postgres:17-alpine \
+  pg_dump "$DATABASE_URL" -Fc > "/opt/clientix/backups/backup_manual_$(date +%Y%m%d_%H%M%S).dump"
+```
+
+A política padrão do instalador mantém retidos os últimos 5 backups (`KEEP_LAST_N_BACKUPS=5`), removendo versões mais antigas de forma segura.
+
+### 2. Validação e Restauração
+
+Para verificar o catálogo de integridade de um arquivo de backup antes da restauração:
+
+```bash
+docker run --rm \
+  -v /opt/clientix/backups:/backups:ro \
+  postgres:17-alpine \
+  pg_restore --list /backups/NOME_DO_ARQUIVO.dump
+```
+
+A restauração de um backup sobrescreve o schema de dados e deve ser realizada com os serviços da aplicação paralisados (`docker compose down`).
+
+---
+
+## 🛡️ Segurança e Privacidade
+
+- **Isolamento de Dados Multi-Tenant:** Implementado via Row Level Security (RLS) no PostgreSQL em todas as tabelas contendo dados de organizações. As políticas utilizam funções seguras `SECURITY DEFINER` (`fn_user_org_ids()`).
+- **Comunicação e Sessões:** Autenticação gerenciada via `@supabase/ssr` com cookies protegidos (`HttpOnly`, `Secure` em HTTPS e `SameSite=Strict` como regra padrão do produto, com `SameSite=Lax` reservado estritamente para callbacks OAuth externos). Rotas administrativas contam com guards específicos de autorização RBAC.
+- **Criptografia de Credenciais e Segredos:** Chaves de API de provedores de IA (`ai_provider_credentials`) e conexões de bancos externos são armazenadas cifradas no banco via AES-256-GCM com IV de 12 bytes e tag de 16 bytes gerenciados pelo Node.js crypto (`lib/crypto/aes_gcm.ts`), utilizando a chave simétrica de produção `AI_CRED_AES_KEY` (32 bytes em base64). Segredos operacionais locais adicionais são protegidos pelas respectivas chaves da instalação (`ENCRYPTION_KEY` e chaves específicas de integração).
+
+- **Assinaturas Criptográficas:** Assinatura digital Ed25519 em documentos de licenciamento e manifestos de release.
+- **Trilha de Auditoria:** Registro append-only de eventos sensíveis (logins, alterações de permissão, acessos LGPD e criação de licenças).
+- **Suspensão Não-Destrutiva:** Em caso de expiração ou suspensão comercial de licença, o sistema restringe fluxos automatizados, mas **nunca destrói dados nem impede a extração de cópias de segurança**.
+
+---
+
+## 🧑‍💻 Ambiente de Desenvolvimento
+
+Esta seção destina-se **exclusivamente a engenheiros e mantenedores** que desenvolvem ou corrigem o código fonte do Clientix Agência.
+
+### 1. Pré-requisitos de Desenvolvimento
+
+- **Node.js:** Versão 22 LTS ou superior.
+- **Gerenciador de Pacotes:** `pnpm` (versão 9.15+ recomendada).
+- **Docker & Docker Compose:** Para execução de serviços locais de teste (Postgres e WAHA).
+
+### 2. Instalação e Inicialização Local
+
+```bash
+# Clone do repositório
 git clone https://github.com/rafaelbravik/clientix-agencia.git
 cd clientix-agencia
 
-nvm use                     # Node 22
-npm install -g pnpm && pnpm install
+# Instalação rigorosa de dependências
+pnpm install
 
-cp .env.example .env.local  # guia completo em docs/SETUP.md
+# Configuração do ambiente local
+cp .env.example .env.local
 
-docker compose up -d        # WAHA local (opcional em dev sem WhatsApp)
+# Inicialização da stack local com PostgreSQL e dependências
+pnpm local:up
 
-# Schema: aplique o baseline, NÃO as migrations.
-# As migrations 0001-0009 e 0013 são stubs `SELECT 1;` — a cadeia não sobe do zero.
-# O schema real vive no baseline.sql, o mesmo que o install.sh aplica na VPS.
-# `supabase db push` "passa" e deixa o banco vazio.
-supabase link --project-ref <seu-ref>
-
-# Num projeto Supabase NOVO, habilite antes as extensões que o schema usa —
-# sem elas o baseline para em `type public.vector does not exist`.
-psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -c \
-  'create extension if not exists vector with schema public;
-   create extension if not exists citext with schema public;
-   create extension if not exists pg_trgm with schema public;'
-
-psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/baseline.sql
-
+# Execução do servidor de desenvolvimento Next.js
 pnpm dev
 ```
 
-App: <http://localhost:3000> · Health check: <http://localhost:3000/api/v1/health>
+A aplicação de desenvolvimento estará disponível em:
 
-[`docs/SETUP.md`](docs/SETUP.md) é o tutorial completo de **todas as integrações** (Supabase, WAHA, provedores de IA, Upstash, Sentry, Resend, Nuvemshop) — ~60–90 min do zero ao app rodando.
+- **Aplicação:** `http://localhost:3000`
+- **Health Check da API:** `http://localhost:3000/api/v1/health`
 
 ---
 
-## 📁 Estrutura
+## 🧪 Suíte de Testes e Governança Técnica
+
+O repositório adota testes automatizados e verificações estritas de integridade arquitetural:
+
+### Comandos de Testes e Verificação:
+
+```bash
+# Verificação unificada de governança (TypeScript + Linters + Testes Unitários)
+pnpm gov:verify
+
+# Verificações individuais:
+pnpm typecheck       # Verificação de tipos TypeScript estrita via tsconfig.typecheck.json
+pnpm lint            # Verificação com ESLint 9/10 flat config
+pnpm lint:channels   # Auditoria arquitetural de abstração de canais
+pnpm lint:role-rank  # Validação de hierarquia de papéis RBAC
+pnpm test:unit       # Execução da suíte de testes unitários via Vitest
+pnpm test:db         # Verificação de isolamento RLS e idempotência de banco (requer Docker)
+```
+
+O comando de governança `pnpm gov:verify` executa, nesta ordem:
+
+1. `typecheck` (compilação estrita sem emissão de código).
+2. `lint` (conformidade de código).
+3. `lint:channels` (garantia de abstração de provedores de mensageria).
+4. `lint:role-rank` (verificação de guards RBAC).
+5. `test:unit` (testes de unidade).
+
+---
+
+## 📁 Estrutura do Repositório
 
 ```
 clientix-agencia/
-├── app/                    # Next.js App Router
-│   ├── (admin)/            # Rotas super-admin (impersonate, tenants)
-│   ├── (public)/           # Login, recovery
-│   ├── app/                # Rotas autenticadas: inbox, radar, kanban, contacts,
-│   │                       #   connections, ai/*, integrations, metrics, lgpd,
-│   │                       #   audit, team, settings
-│   └── api/v1/             # API REST canônica
-├── components/             # React (ui/, inbox/, kanban/, shell/, ...)
-├── lib/                    # supabase/, waha/, channels/, ai/, agent-engine/,
-│                           #   api/, routing/, navigation/, env.ts
-├── workers/                # consumers de event_log (IA, RAG, LGPD, mídia, rotinas)
-├── supabase/migrations/    # SQL versionado (+ baseline.sql pro self-host)
-├── tests/{e2e,unit,invariants,shell}/
-├── scripts/                # seeds, qa-waves, manutenção
-├── docs/                   # PRDs, specs, runbooks, SETUP.md, ATUALIZANDO.md
-└── hostgator-setup-kit/    # instalação e atualização self-host
+├── app/                    # Next.js App Router (UI pública, tenant app e admin portal)
+│   ├── (admin)/            # Portal de administração de plataforma e gestão de licenças
+│   ├── (public)/           # Telas públicas de login e recuperação de credenciais
+│   ├── app/                # Aplicação autenticada de CRM, atendimento e automações
+│   └── api/v1/             # Rotas de API REST com versionamento canônico
+├── components/             # Componentes React compartilhados (UI, inbox, kanban, shell)
+├── control-plane/          # Serviços centrais de licenciamento, release e artifact gateway
+├── distribution/           # Instalador oficial de produção, compose e release manifest
+├── legal/                  # Documentação jurídica preliminar e minutas contratuais (DRAFT)
+├── lib/                    # Lógica de domínio (licensing, auth, supabase, ai, waha, channels)
+├── supabase/               # Schema relacional, migrations versionadas e baseline.sql
+├── tests/                  # Suítes de testes automatizados (unit, invariants, e2e, shell)
+├── workers/                # Processamento em background de eventos e crons
+└── package.json            # Manifesto de dependências e scripts de automação
 ```
 
 ---
 
-## 🧪 Testes
+## 📜 Aspectos Jurídicos e Licenciamento
 
-```bash
-pnpm typecheck     # tsc --noEmit -p tsconfig.typecheck.json (inclui tests/)
-pnpm lint          # eslint next/core-web-vitals
-pnpm test:unit     # Vitest (NÃO inclui tests/invariants/**)
-pnpm test:db       # Postgres efêmero + baseline install/update + invariantes
-pnpm test:e2e      # Playwright (requer dev server)
-```
+- **Licença do Repositório Raiz:** O código base deste repositório é distribuído sob os termos da licença **MIT License** (preservando o copyright original no arquivo [`LICENSE`](LICENSE)).
+- **Atribuição do Código Aberto Upstream:** A licença MIT original permanece respeitada em todas as cópias ou partes substanciais do software herdado.
+- **Módulos Proprietários e Distribuição Comercial:** Os módulos adicionais desenvolvidos especificamente pela iniciativa Clientix Agência (incluindo o Control Plane, motor de licenciamento, empacotamento assinado e instalador de produção) destinam-se ao modelo de distribuição comercial.
+- **Status da Liberação Comercial:** A certificação de engenharia dos artefatos comerciais (Release Candidate AMD64) foi concluída com sucesso. A distribuição comercial em larga escala sob novos termos proprietários permanece condicionada à validação e conclusão da revisão jurídica formal por assessoria especializada.
 
-**Estes checks são obrigatórios** pra mergear na `main`. A lista abaixo já disse "quatro" e depois "cinco" — **meça, não confie nela**:
+### Documentação Jurídica em Preparação (`legal/`):
 
-```bash
-gh api repos/melgarafael/DeskcommCRM/branches/main/protection \
-  --jq '.required_status_checks.contexts|join(", ")'
-# em 2026-08-14: verify, build-and-size, invariants, e2e, imagens-ok
-```
+As minutas e relatórios técnicos elaborados para subsidiar a assessoria jurídica encontram-se organizados no diretório `legal/`, abrangendo:
 
+- Relatório de licença atual e direitos de terceiros (`01_CURRENT_LICENSE_REPORT.md`).
+- Matriz de classificação de autoria e linhagem de código (`02_CODE_ORIGIN_MATRIX.md`).
+- Minuta da licença comercial com cláusula de ressalva de código aberto (_Savings Clause_ — `04_LICENSE_COMMERCIAL_DRAFT.md`).
+- Minuta do EULA / Termo de Adesão B2B (`05_EULA_DRAFT.md`).
+- Checklist de diligência com 12 questões formais para o parecer da assessoria (`21_LEGAL_DUE_DILIGENCE_CHECKLIST.md`).
+- Sumário executivo consolidado para o advogado (`25_COUNSEL_HANDOFF_SUMMARY.md`).
 
-| Check | O que faz |
-|---|---|
-| `verify` | typecheck + lint + `lint:channels` + `test:unit` + `test:shell` |
-| `invariants` | sobe um Postgres limpo, aplica o `baseline.sql` em modo **install** e depois em modo **update** — as duas passadas com `ON_ERROR_STOP=1`, que é o que torna a segunda uma prova de idempotência e não só um "terminou" —, e roda os invariantes de RBAC, atribuição, escopo, roteamento, follow-up, webhooks e automações |
-| `build-and-size` | `pnpm build` em Node 22 |
-| `e2e` | sobe Supabase local, aplica o `baseline.sql` e roda pelo frontend todas as specs Playwright menos as que `FORA_DO_CI` declara |
-| `imagens-ok` | reprova quando qualquer uma das três imagens Docker (`app`, `worker`, `scheduler`) não constrói — é o artefato que o self-hoster instala |
-
-Quais specs ficam de fora é pergunta de comando, não de leitura — esta linha já afirmou que a única era `vps-fresh-onboarding`, e desde o PR #983 ela roda no CI:
-
-```bash
-git show origin/main:.github/workflows/e2e.yml | python3 -c "import sys,re; y=sys.stdin.read(); print(sorted({s for _,c in re.findall(r'(FORA_DO_CI):\s*>-\n((?:[ ]{8,}.*\n)+)',y) for s in re.findall(r'[a-z0-9-]+\.spec\.ts',c)}))"
-```
-
-`vps-fresh-onboarding` segue sendo a **P0** da nossa doutrina de QA visual, porque a instalação fresca é o produto que se vende. Ter gate não dispensa a prova pela tela: gate prova que não regrediu, não que a experiência ficou boa.
-
-Entre os invariantes está o **teste de isolamento RLS**: cria 2 organizações, simula os claims JWT pelo mesmo caminho `auth.uid()` / `fn_user_org_ids()` que as policies de produção usam, e prova que um usuário da org A enxerga **zero linhas** da org B em `conversations`, `messages`, `contacts` e `crm_leads`. Antes disso, um caso de controle prova que as linhas da org B realmente existem — sem ele, o teste passaria com a tabela vazia.
+> _Nota de Conformidade: Todos os documentos reunidos no diretório `legal/` constituem minutas e relatórios técnicos de engenharia em status `[READY FOR COUNSEL REVIEW]`, não representando parecer jurídico final ou aprovação regulatória automática._
 
 ---
 
-## 📚 Documentação
+## 🙏 Reconhecimento e Atribuição do Upstream
 
-| Doc | O que tem |
-|---|---|
-| [`hostgator-setup-kit/README.md`](hostgator-setup-kit/README.md) | **Instalação self-host** — o kit, os scripts, as hospedagens com proxy próprio |
-| [`docs/ATUALIZANDO.md`](docs/ATUALIZANDO.md) | **Como atualizar** sua instalação, em linguagem simples |
-| [`VISION.md`](VISION.md) | **Visão e posicionamento** — o que o projeto é, no que acredita e pra onde vai |
-| [`CHANGELOG.md`](CHANGELOG.md) | O que mudou em cada versão — **leia a seção da versão antes de atualizar** |
-| [`docs/SETUP.md`](docs/SETUP.md) | Setup de desenvolvimento, passo a passo de todas as integrações |
-| [`docs/white-label.md`](docs/white-label.md) | **Instalar para clientes** — trocar a marca, uma instalação por cliente vs compartilhada, revenda |
-| [`docs/runbooks/waha-hostgator.md`](docs/runbooks/waha-hostgator.md) | Runbook de WAHA em produção (dimensionamento, recuperação) |
-| [`docs/runbooks/deploy.md`](docs/runbooks/deploy.md) | Deploy em produção |
-| [`CLAUDE.md`](CLAUDE.md) | Convenções não-negociáveis (leitura obrigatória pra contribuir) |
-| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Visão de 1 página da arquitetura |
-| [`docs/index.md`](docs/index.md) | Índice geral da documentação, com a regra de precedência |
-| [`docs/handoffs/`](docs/handoffs/) | Diário dos épicos (`HANDOFF*.md`), com o índice em [`docs/handoffs/README.md`](docs/handoffs/README.md) |
-| [`docs/prd/`](docs/prd/) · [`docs/specs/`](docs/specs/) | PRDs e specs técnicas (schema SQL, payloads, MCP, governança) |
+O **Clientix Agência** reconhece e preserva a linhagem tecnológica herdada do projeto open source original **DeskcommCRM**, idealizado e desenvolvido sob a liderança de **Rafael Melgaço** juntamente com a comunidade de colaboradores do código aberto. As modificações e novos módulos comerciais desenvolvidos representam uma evolução arquitetural voltada para empacotamento corporativo, governança de licenças e atendimento a agências parceiras.
 
----
+Agradecemos igualmente aos projetos e fornecedores das tecnologias de fundação:
 
-## 🤝 Contribuindo
-
-Esse projeto é open source pra comunidade. Toda contribuição é bem-vinda — desde fix de typo em doc até feature nova.
-
-**Antes de abrir PR:**
-
-1. Leia [`CLAUDE.md`](CLAUDE.md) (~5 min) — convenções não-negociáveis (multi-tenancy, RLS, audit, LGPD).
-2. Leia [`CONTRIBUTING.md`](CONTRIBUTING.md) — fluxo de branches, commits, epic-executor.
-3. Siga o [Código de Conduta](CODE_OF_CONDUCT.md).
-
-**Fluxo curto:**
-
-```bash
-git checkout -b feat/short-slug
-# implementa + testes
-pnpm typecheck && pnpm lint && pnpm lint:channels && pnpm test:unit && pnpm test:shell && pnpm build
-pnpm test:db   # precisa de Docker — é o job `invariants`, obrigatório no merge
-git commit -m "feat(escopo): descrição"
-# abre PR — o template já traz o checklist de Definition of Done
-```
-
-Essas duas linhas são **tudo o que dá para rodar na sua máquina**, de propósito: rodar só metade e
-descobrir o resto como surpresa vermelha depois de horas de espera é a pior primeira experiência
-que este repositório sabe entregar.
-
-Dois gates obrigatórios **não** cabem aí e só rodam no CI: o `e2e` (precisa de Supabase local) e
-o `imagens-ok` (constrói as três imagens Docker). Verde na sua máquina não é verde no merge.
-
-**Definition of Done:** typecheck zero, lint zero, testes relevantes verdes, RLS testada se toca tabela tenant-aware, audit log emitido em mutações, migration versionada **+ apêndice no `baseline.sql`** se muda schema (senão a mudança não chega em quem se auto-hospeda). Detalhes em [`CLAUDE.md`](CLAUDE.md#definition-of-done).
-
----
-
-## 🐛 Reportando bugs
-
-Abra uma [issue](https://github.com/rafaelbravik/clientix-agencia/issues/new/choose) — o template pede o que precisamos (ambiente, `/api/v1/health`, steps). Rodar `bash hostgator-setup-kit/healthcheck.sh` e colar a saída ajuda muito.
-
-Pra **vulnerabilidades de segurança**, **NÃO abra issue pública** — use o [relato privado de vulnerabilidades](https://github.com/rafaelbravik/clientix-agencia/security/advisories/new). Detalhes em [`SECURITY.md`](SECURITY.md).
-
----
-
-## 🗺️ Roadmap
-
-### ✅ Entregue
-
-- **Fundação & plataforma** — auth (MFA pra admin), multi-tenancy com RLS + teste de isolamento, RBAC 4 papéis, audit log append-only, onboarding de tenant.
-- **Atendimento WhatsApp** — inbox 3 painéis em tempo real, conexões multi-número por **QR (WAHA)** ou **canal oficial da Meta** (templates aprovados e sincronizados), mídia via Storage, anti-banimento (throttle + jitter + janela de horário), STOP detection.
-- **CRM & pedidos** — kanban com vocabulário configurável por nicho (fractional indexing), gestão de funis pela tela, customer 360, contatos, tags, integração Nuvemshop.
-- **IA nativa** — agentes com RAG por tenant (pgvector), **skills** que o agente executa sozinho, **memória da organização**, roteador de intenção por número, análise de sentimento, handoff IA→humano, teto de gasto por org, MCP server interno.
-- **Escolha de provedor de IA** — OpenRouter, Anthropic ou OpenAI, decidido na instalação e trocável por parte do sistema pela tela.
-- **Follow-up vivo** — retomada de conversa esfriada com tempo adaptativo, gatilhos por etapa do funil e por caso, fila com rodízio, e o Radar do que corre risco de morrer sem resposta.
-- **LGPD** — export e redact via workers, anonimização em cascata, consentimento auditado.
-- **Self-host** — `hostgator-setup-kit` (app + WhatsApp + banco com 1 comando), `baseline.sql` auto-curativo, **atualização pela tela** com backup automático, runbook de produção.
-- **Webhooks & automação** — fontes de captação + regras QUANDO/SE/ENTÃO + gatilhos pra sistemas externos.
-- **Governança de atendimento** — RBAC server-side em toda a API, atribuição e transferência auditadas (IA como assignee de 1ª classe), visualização por papel (RLS) + métricas por atendente, roteamento automático com fila e painel de gestão, e contrato de governança pra agentes de IA externos ([`docs/specs/14`](docs/specs/14-contrato-governanca-agentes-externos.md)).
-- **Operação visível** — motivo da retenção anti-ban traduzido na conversa, central de avisos com severidade, aviso de mensagem presa, controle de proteção de envio (janela/ritmo/teto), capacidades declaradas do agente e propostas do flywheel aplicáveis como versão nova (com gate humano).
-
-### 🔮 Próximo
-
-- **MCP público** — capabilities do CRM expostas pro ecossistema de agentes: plugue o agente que quiser e ele opera o Clientix.
-- **Templates por nicho** — pipelines e vocabulários prontos pra clínica, imobiliária, infoproduto e serviços (e-commerce já entregue).
-- **Integrações** — VTEX e Shopify via adapter pattern (Nuvemshop já entregue).
-- **Identity probabilística** — unificação de contatos entre canais.
-
----
-
-## 💬 Comunidade
-
-- **Discussões:** [GitHub Discussions](https://github.com/rafaelbravik/clientix-agencia/discussions) — pra perguntas, ideias, showcase.
-- **Issues:** [GitHub Issues](https://github.com/rafaelbravik/clientix-agencia/issues) — bugs e tasks.
-
----
-
-## 📜 Licença
-
-Distribuído sob a licença **MIT** — veja [`LICENSE`](LICENSE). Você pode usar, modificar
-e distribuir livremente, inclusive comercialmente. O software é fornecido **"como está",
-sem garantias** (ver cláusula de isenção no `LICENSE`).
-
----
-
-## 🛟 Suporte & responsabilidades (self-host)
-
-Este é um projeto **self-host**: cada pessoa roda o CRM na **própria infraestrutura**
-(VPS, banco Supabase e chave de IA próprios). Isso implica:
-
-- **Suporte é comunitário e "as-is".** Dúvidas e bugs entram como
-  [Issues](https://github.com/rafaelbravik/clientix-agencia/issues) ou
-  [Discussions](https://github.com/rafaelbravik/clientix-agencia/discussions). Não há SLA nem
-  suporte garantido — é open source mantido por boa vontade.
-- **Você é responsável pela sua instalação.** Atualizações não são automáticas (você clica
-  ou roda `update.sh` quando quiser), e manter/backup do seu servidor é com você.
-- **LGPD — atenção:** quem **hospeda** a instância é o **controlador** dos dados pessoais
-  ali tratados (clientes, conversas, pedidos), com as obrigações legais decorrentes. Os
-  mantenedores do projeto **não são** controladores nem operadores da sua instância, e não
-  têm acesso ao seu banco, ao seu WhatsApp nem ao seu storage. A única coisa que pode sair
-  da sua máquina para nós é o relatório de erro descrito abaixo — e só se você deixar.
-- **Telemetria (Sentry):** o `install.sh` **pergunta** durante a instalação e respeita a
-  sua resposta; em modo não-interativo, sem `SENTRY_DSN` definido, a telemetria fica
-  **desligada**. Se você aceitar o Sentry da comunidade, o que é enviado são **relatórios
-  de erro** (stack trace) com CPF, telefone e e-mail substituídos, cabeçalhos sensíveis
-  removidos, e token de webhook/convite redigido da URL — **sem** rastreamento de
-  performance e **sem** replay de sessão, que ficam em 0 nesse caminho. Para desligar a
-  qualquer momento: `SENTRY_DSN=off` no `.env`. Para mandar ao **seu** Sentry (aí sim com
-  performance e replay): `SENTRY_DSN=<seu-dsn>`. O que é redigido, e por quê, está em
-  [`lib/sentry/scrub.ts`](lib/sentry/scrub.ts); a resolução do DSN em
-  [`lib/sentry/dsn.ts`](lib/sentry/dsn.ts).
-
----
-
-## 🙏 Agradecimentos
-
-- **WAHA** ([devlikeapro](https://waha.devlikeapro.com/)) — engine WhatsApp.
-- **Supabase** — Postgres + Auth + Storage + Realtime numa stack só.
-- **Anthropic**, **OpenAI** e **OpenRouter** — os provedores de IA que o CRM sabe usar.
-- **shadcn/ui** — base de componentes.
-- A comunidade e clientes que levaram a plataforma do e-commerce pra clínicas, imobiliárias, infoprodutos e além.
+- **WAHA (WhatsApp HTTP API)** por DevLikePro (integração via microserviço HTTP segregado).
+- **Supabase** pela infraestrutura unificada de PostgreSQL, Auth, Realtime e Storage.
+- **Vercel** pelo Next.js e pela interface unificada do AI SDK.
+- **shadcn/ui** e comunidade Tailwind pelos padrões de componentes de interface.
 
 ---
 
 <div align="center">
 
-**Built with ☕ in Brasil** · **Clientix Agência**
+**Clientix Agência** · Operações Comerciais Inteligentes e Atendimento Omnichannel  
+_Desenvolvido e mantido para implantações de alta performance._
 
 </div>
