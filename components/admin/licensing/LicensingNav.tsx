@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/IdiomaProvider";
 
 const TABS = [
   { href: "/admin/licensing/licenses", label: "Licenças" },
@@ -12,6 +13,7 @@ const TABS = [
 
 export function LicensingNav() {
   const pathname = usePathname();
+  const t = useT();
 
   return (
     <div className="flex border-b border-border space-x-6 mb-6">
@@ -28,7 +30,7 @@ export function LicensingNav() {
                 : "border-transparent text-muted-foreground hover:text-foreground"
             )}
           >
-            {tab.label}
+            {t(tab.label)}
           </Link>
         );
       })}

@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
+import { useT } from "@/lib/i18n/IdiomaProvider";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { LicensingNav } from "@/components/admin/licensing/LicensingNav";
@@ -14,6 +15,7 @@ interface CustomerOption {
 }
 
 export default function NewLicensePage() {
+  const t = useT();
   const router = useRouter();
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [loadingCustomers, setLoadingCustomers] = useState(true);
@@ -22,7 +24,9 @@ export default function NewLicensePage() {
 
   // Form states
   const [customerId, setCustomerId] = useState("");
-  const [licenseType, setLicenseType] = useState<"enterprise" | "partner" | "internal">("enterprise");
+  const [licenseType, setLicenseType] = useState<"enterprise" | "partner" | "internal">(
+    "enterprise",
+  );
   const [maxInstallations, setMaxInstallations] = useState(1);
   const [maxTenants, setMaxTenants] = useState<string>("");
   const [validFrom, setValidFrom] = useState(() => new Date().toISOString().slice(0, 10));
@@ -86,20 +90,20 @@ export default function NewLicensePage() {
 
       const json = await res.json();
       if (!res.ok) {
-        setError(json.error?.message || "Erro ao criar licença.");
+        setError(json.error?.message || t("Erro ao criar licença."));
         return;
       }
 
       router.push(`/admin/licensing/licenses/${json.data.id}`);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Erro desconhecido");
+      setError(err instanceof Error ? err.message : t("Erro desconhecido"));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="max-w-2xl space-y-6">
       <div className="flex items-center gap-3">
         <Button asChild variant="outline" size="icon">
           <Link href="/admin/licensing/licenses">
@@ -107,9 +111,9 @@ export default function NewLicensePage() {
           </Link>
         </Button>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Emitir Nova Licença</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t("Emitir Nova Licença")}</h1>
           <p className="text-sm text-muted-foreground">
-            Configure parâmetros comerciais, vigência e limites de instalação.
+            {t("Configure parâmetros comerciais, vigência e limites de instalação.")}
           </p>
         </div>
       </div>
@@ -117,27 +121,27 @@ export default function NewLicensePage() {
       <LicensingNav />
 
       {error && (
-        <div className="p-3 text-sm rounded-md bg-rose-500/10 text-rose-500 border border-rose-500/20">
+        <div className="rounded-md border border-rose-500/20 bg-rose-500/10 p-3 text-sm text-rose-500">
           {error}
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="border rounded-lg bg-card p-6 space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4 rounded-lg border bg-card p-6">
         <div>
-          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-1">
+          <label className="mb-1 block text-xs font-medium tracking-wider text-muted-foreground uppercase">
             Cliente Comercial
           </label>
           {loadingCustomers ? (
             <div className="text-sm text-muted-foreground">Carregando clientes...</div>
           ) : customers.length === 0 ? (
             <div className="text-sm text-amber-500">
-              Nenhum cliente cadastrado. Cadastre um cliente primeiro em Clientes.
+              {t("Nenhum cliente cadastrado. Cadastre um cliente primeiro em Clientes.")}
             </div>
           ) : (
             <select
               value={customerId}
               onChange={(e) => setCustomerId(e.target.value)}
-              className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm text-foreground focus:outline-hidden focus:ring-1 focus:ring-ring"
+              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground focus:ring-1 focus:ring-ring focus:outline-hidden"
               required
             >
               {customers.map((c) => (
@@ -151,13 +155,15 @@ export default function NewLicensePage() {
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-1">
-              Tipo de Licença
+            <label className="mb-1 block text-xs font-medium tracking-wider text-muted-foreground uppercase">
+              {t("Tipo de Licença")}
             </label>
             <select
               value={licenseType}
-              onChange={(e) => setLicenseType(e.target.value as "enterprise" | "partner" | "internal")}
-              className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm text-foreground focus:outline-hidden focus:ring-1 focus:ring-ring"
+              onChange={(e) =>
+                setLicenseType(e.target.value as "enterprise" | "partner" | "internal")
+              }
+              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground focus:ring-1 focus:ring-ring focus:outline-hidden"
             >
               <option value="enterprise">Enterprise</option>
               <option value="partner">Partner</option>
@@ -166,8 +172,8 @@ export default function NewLicensePage() {
           </div>
 
           <div>
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-1">
-              Máx. Instalações
+            <label className="mb-1 block text-xs font-medium tracking-wider text-muted-foreground uppercase">
+              {t("Máx. Instalações")}
             </label>
             <Input
               type="number"
@@ -181,8 +187,8 @@ export default function NewLicensePage() {
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-1">
-              Válido a partir de
+            <label className="mb-1 block text-xs font-medium tracking-wider text-muted-foreground uppercase">
+              {t("Válido a partir de")}
             </label>
             <Input
               type="date"
@@ -193,8 +199,8 @@ export default function NewLicensePage() {
           </div>
 
           <div>
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-1">
-              Data de Expiração
+            <label className="mb-1 block text-xs font-medium tracking-wider text-muted-foreground uppercase">
+              {t("Data de Expiração")}
             </label>
             <Input
               type="date"
@@ -207,8 +213,8 @@ export default function NewLicensePage() {
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-1">
-              Dias de Carência (Grace)
+            <label className="mb-1 block text-xs font-medium tracking-wider text-muted-foreground uppercase">
+              {t("Dias de Carência (Grace)")}
             </label>
             <Input
               type="number"
@@ -221,8 +227,8 @@ export default function NewLicensePage() {
           </div>
 
           <div>
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-1">
-              Máx. Tenants (Vazio = Ilimitado)
+            <label className="mb-1 block text-xs font-medium tracking-wider text-muted-foreground uppercase">
+              {t("Máx. Tenants (Vazio = Ilimitado)")}
             </label>
             <Input
               type="number"
@@ -235,8 +241,8 @@ export default function NewLicensePage() {
         </div>
 
         <div>
-          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-1">
-            Features / Entitlements (separadas por vírgula)
+          <label className="mb-1 block text-xs font-medium tracking-wider text-muted-foreground uppercase">
+            {t("Features / Entitlements (separadas por vírgula)")}
           </label>
           <Input
             value={features}
@@ -246,7 +252,7 @@ export default function NewLicensePage() {
         </div>
 
         <div className="flex items-center gap-6 pt-2">
-          <label className="flex items-center gap-2 text-sm cursor-pointer">
+          <label className="flex cursor-pointer items-center gap-2 text-sm">
             <input
               type="checkbox"
               checked={whiteLabel}
@@ -256,7 +262,7 @@ export default function NewLicensePage() {
             White Label Autorizado
           </label>
 
-          <label className="flex items-center gap-2 text-sm cursor-pointer">
+          <label className="flex cursor-pointer items-center gap-2 text-sm">
             <input
               type="checkbox"
               checked={resaleAllowed}
@@ -267,13 +273,13 @@ export default function NewLicensePage() {
           </label>
         </div>
 
-        <div className="pt-4 flex justify-end gap-3 border-t">
+        <div className="flex justify-end gap-3 border-t pt-4">
           <Button asChild variant="outline" type="button">
             <Link href="/admin/licensing/licenses">Cancelar</Link>
           </Button>
           <Button type="submit" disabled={submitting || customers.length === 0}>
-            {submitting && <CircleNotch className="h-4 w-4 animate-spin mr-1.5" />}
-            Emitir Licença
+            {submitting && <CircleNotch className="mr-1.5 h-4 w-4 animate-spin" />}
+            {t("Emitir Licença")}
           </Button>
         </div>
       </form>

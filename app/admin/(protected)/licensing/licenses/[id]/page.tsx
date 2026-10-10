@@ -1,11 +1,13 @@
 "use client";
 import React, { useState, useEffect } from "react";
+import { useT } from "@/lib/i18n/IdiomaProvider";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { LicensingNav } from "@/components/admin/licensing/LicensingNav";
 import { StatusBadge, TemporalStateBadge } from "@/components/admin/licensing/Badges";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { copyToClipboard as copyTextToClipboard } from "@/lib/clipboard";
 import {
   ArrowLeft,
   CircleNotch,
@@ -77,6 +79,7 @@ interface LicenseDetailData {
 }
 
 export default function LicenseDetailPage() {
+  const t = useT();
   const tag = useTagDeIdioma();
   const params = useParams();
   const id = params?.id as string;
@@ -108,11 +111,11 @@ export default function LicenseDetailPage() {
         const json = await res.json();
         setData(json.data);
       } else {
-        setError("Licença não encontrada.");
+        setError(t("Licença não encontrada."));
       }
     } catch (err) {
       console.error(err);
-      setError("Erro ao carregar licença.");
+      setError(t("Erro ao carregar licença."));
     } finally {
       setLoading(false);
     }
@@ -123,7 +126,8 @@ export default function LicenseDetailPage() {
   }, [id]);
 
   const handleRenew = async () => {
-    if (!confirm("Deseja renovar esta licença por mais 1 ano a partir de hoje/expiração?")) return;
+    if (!confirm(t("Deseja renovar esta licença por mais 1 ano a partir de hoje/expiração?")))
+      return;
     setActionLoading(true);
     try {
       const res = await fetch(`/api/v1/admin/licensing/licenses/${id}/renew`, {
@@ -141,7 +145,14 @@ export default function LicenseDetailPage() {
   };
 
   const handleSuspend = async () => {
-    if (!confirm("Deseja suspender esta licença? Instalações associadas terão renovação e downloads bloqueados.")) return;
+    if (
+      !confirm(
+        t(
+          "Deseja suspender esta licença? Instalações associadas terão renovação e downloads bloqueados.",
+        ),
+      )
+    )
+      return;
     setActionLoading(true);
     try {
       const res = await fetch(`/api/v1/admin/licensing/licenses/${id}/suspend`, {
@@ -198,7 +209,7 @@ export default function LicenseDetailPage() {
         setGeneratedCode(json.data.raw_activation_code);
         await loadData();
       } else {
-        alert(json.error?.message || "Erro ao gerar código");
+        alert(json.error?.message || t("Erro ao gerar código"));
       }
     } finally {
       setActionLoading(false);
@@ -206,7 +217,7 @@ export default function LicenseDetailPage() {
   };
 
   const handleRevokeCode = async (codeId: string) => {
-    if (!confirm("Deseja revogar este código de ativação?")) return;
+    if (!confirm(t("Deseja revogar este código de ativação?"))) return;
     try {
       const res = await fetch(`/api/v1/admin/licensing/activation-codes/${codeId}/revoke`, {
         method: "POST",
@@ -217,16 +228,21 @@ export default function LicenseDetailPage() {
     }
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
+  const copyToClipboard = async (text: string) => {
+    const copied = await copyTextToClipboard(text);
+    if (!copied) {
+      alert(t("Não foi possível copiar o conteúdo."));
+      return;
+    }
     setCopiedCode(true);
     setTimeout(() => setCopiedCode(false), 2000);
   };
 
   if (loading) {
     return (
-      <div className="p-8 text-center flex items-center justify-center text-muted-foreground">
-        <CircleNotch className="h-5 w-5 animate-spin mr-2" /> Carregando detalhes da licença...
+      <div className="flex items-center justify-center p-8 text-center text-muted-foreground">
+        <CircleNotch className="mr-2 h-5 w-5 animate-spin" />{" "}
+        {t("Carregando detalhes da licença...")}
       </div>
     );
   }
@@ -239,7 +255,9 @@ export default function LicenseDetailPage() {
             <ArrowLeft className="mr-1.5 h-4 w-4" /> Voltar
           </Link>
         </Button>
-        <div className="p-4 rounded-md bg-rose-500/10 text-rose-500">{error || "Não encontrada"}</div>
+        <div className="rounded-md bg-rose-500/10 p-4 text-rose-500">
+          {error || t("Não encontrada")}
+        </div>
       </div>
     );
   }
@@ -249,7 +267,7 @@ export default function LicenseDetailPage() {
   return (
     <div className="space-y-6">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div className="flex items-center gap-3">
           <Button asChild variant="outline" size="icon">
             <Link href="/admin/licensing/licenses">
@@ -262,7 +280,7 @@ export default function LicenseDetailPage() {
               <StatusBadge status={license.status} />
               <TemporalStateBadge state={license.temporal_state} />
             </div>
-            <p className="text-xs text-muted-foreground font-mono mt-0.5">ID: {license.id}</p>
+            <p className="mt-0.5 font-mono text-xs text-muted-foreground">ID: {license.id}</p>
           </div>
         </div>
 
@@ -270,12 +288,7 @@ export default function LicenseDetailPage() {
         <div className="flex items-center gap-2">
           {license.status !== "REVOKED" && (
             <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRenew}
-                disabled={actionLoading}
-              >
+              <Button variant="outline" size="sm" onClick={handleRenew} disabled={actionLoading}>
                 <ArrowsClockwise className="mr-1.5 h-3.5 w-3.5" /> Renovar
               </Button>
 
@@ -318,30 +331,30 @@ export default function LicenseDetailPage() {
       <LicensingNav />
 
       {/* Grid: Details & Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
         {/* Card 1: Informações da Licença */}
-        <div className="border rounded-lg bg-card p-5 space-y-3">
-          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Contrato & Vigência
+        <div className="space-y-3 rounded-lg border bg-card p-5">
+          <h2 className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+            {t("Contrato & Vigência")}
           </h2>
           <div className="space-y-1.5 text-sm">
-            <div className="flex justify-between py-1 border-b border-border/50">
-              <span className="text-muted-foreground">Tipo de Licença:</span>
+            <div className="flex justify-between border-b border-border/50 py-1">
+              <span className="text-muted-foreground">{t("Tipo de Licença:")}</span>
               <span className="font-medium capitalize">{license.license_type}</span>
             </div>
-            <div className="flex justify-between py-1 border-b border-border/50">
-              <span className="text-muted-foreground">Válido a partir de:</span>
+            <div className="flex justify-between border-b border-border/50 py-1">
+              <span className="text-muted-foreground">{t("Válido a partir de:")}</span>
               <span>{new Date(license.valid_from).toLocaleDateString(tag)}</span>
             </div>
-            <div className="flex justify-between py-1 border-b border-border/50">
-              <span className="text-muted-foreground">Data de Expiração:</span>
+            <div className="flex justify-between border-b border-border/50 py-1">
+              <span className="text-muted-foreground">{t("Data de Expiração:")}</span>
               <span>{new Date(license.expires_at).toLocaleDateString(tag)}</span>
             </div>
-            <div className="flex justify-between py-1 border-b border-border/50">
-              <span className="text-muted-foreground">Período de Carência:</span>
+            <div className="flex justify-between border-b border-border/50 py-1">
+              <span className="text-muted-foreground">{t("Período de Carência:")}</span>
               <span>{license.grace_days} dias</span>
             </div>
-            <div className="flex justify-between py-1 border-b border-border/50">
+            <div className="flex justify-between border-b border-border/50 py-1">
               <span className="text-muted-foreground">Chave de Assinatura:</span>
               <span className="font-mono text-xs">{license.signing_key_id}</span>
             </div>
@@ -353,40 +366,44 @@ export default function LicenseDetailPage() {
         </div>
 
         {/* Card 2: Entitlements */}
-        <div className="border rounded-lg bg-card p-5 space-y-3">
-          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+        <div className="space-y-3 rounded-lg border bg-card p-5">
+          <h2 className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
             Capacidades & Limites
           </h2>
           <div className="space-y-1.5 text-sm">
-            <div className="flex justify-between py-1 border-b border-border/50">
-              <span className="text-muted-foreground">Instalações Ativas:</span>
+            <div className="flex justify-between border-b border-border/50 py-1">
+              <span className="text-muted-foreground">{t("Instalações Ativas:")}</span>
               <span className="font-semibold">
                 {license.active_installations_count} / {license.max_installations}
               </span>
             </div>
-            <div className="flex justify-between py-1 border-b border-border/50">
-              <span className="text-muted-foreground">Máx. Tenants / Org:</span>
+            <div className="flex justify-between border-b border-border/50 py-1">
+              <span className="text-muted-foreground">{t("Máx. Tenants / Org:")}</span>
               <span>{license.max_tenants ?? "Ilimitado"}</span>
             </div>
-            <div className="flex justify-between py-1 border-b border-border/50">
+            <div className="flex justify-between border-b border-border/50 py-1">
               <span className="text-muted-foreground">White Label:</span>
-              <span>{license.white_label ? "Sim" : "Não"}</span>
+              <span>{license.white_label ? "Sim" : t("Não")}</span>
             </div>
-            <div className="flex justify-between py-1 border-b border-border/50">
+            <div className="flex justify-between border-b border-border/50 py-1">
               <span className="text-muted-foreground">Revenda Autorizada:</span>
-              <span>{license.resale_allowed ? "Sim" : "Não"}</span>
+              <span>{license.resale_allowed ? "Sim" : t("Não")}</span>
             </div>
             <div className="pt-1">
-              <span className="text-muted-foreground text-xs block mb-1">Features Habilitadas:</span>
+              <span className="mb-1 block text-xs text-muted-foreground">
+                Features Habilitadas:
+              </span>
               <div className="flex flex-wrap gap-1">
                 {license.features && license.features.length > 0 ? (
                   license.features.map((f: string) => (
-                    <span key={f} className="px-2 py-0.5 rounded-md text-xs bg-muted font-mono">
+                    <span key={f} className="rounded-md bg-muted px-2 py-0.5 font-mono text-xs">
                       {f}
                     </span>
                   ))
                 ) : (
-                  <span className="text-xs text-muted-foreground">Nenhuma feature restrita</span>
+                  <span className="text-xs text-muted-foreground">
+                    {t("Nenhuma feature restrita")}
+                  </span>
                 )}
               </div>
             </div>
@@ -394,26 +411,28 @@ export default function LicenseDetailPage() {
         </div>
 
         {/* Card 3: Cliente */}
-        <div className="border rounded-lg bg-card p-5 space-y-3">
-          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+        <div className="space-y-3 rounded-lg border bg-card p-5">
+          <h2 className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
             Dados do Cliente
           </h2>
           <div className="space-y-1.5 text-sm">
-            <div className="flex justify-between py-1 border-b border-border/50">
-              <span className="text-muted-foreground">Razão Social:</span>
+            <div className="flex justify-between border-b border-border/50 py-1">
+              <span className="text-muted-foreground">{t("Razão Social:")}</span>
               <span>{customer.legal_name || "—"}</span>
             </div>
-            <div className="flex justify-between py-1 border-b border-border/50">
+            <div className="flex justify-between border-b border-border/50 py-1">
               <span className="text-muted-foreground">E-mail Financeiro:</span>
               <span>{customer.billing_email}</span>
             </div>
-            <div className="flex justify-between py-1 border-b border-border/50">
-              <span className="text-muted-foreground">País:</span>
+            <div className="flex justify-between border-b border-border/50 py-1">
+              <span className="text-muted-foreground">{t("País:")}</span>
               <span>{customer.country || "—"}</span>
             </div>
             <div className="pt-2">
               <Button asChild variant="outline" size="sm" className="w-full">
-                <Link href={`/admin/licensing/customers/${customer.id}`}>Ver Perfil do Cliente</Link>
+                <Link href={`/admin/licensing/customers/${customer.id}`}>
+                  Ver Perfil do Cliente
+                </Link>
               </Button>
             </div>
           </div>
@@ -421,12 +440,14 @@ export default function LicenseDetailPage() {
       </div>
 
       {/* Activation Codes Section */}
-      <div className="border rounded-lg bg-card p-6 space-y-4">
+      <div className="space-y-4 rounded-lg border bg-card p-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-base font-semibold">Códigos de Ativação</h2>
+            <h2 className="text-base font-semibold">{t("Códigos de Ativação")}</h2>
             <p className="text-xs text-muted-foreground">
-              Códigos pré-gerados para vincular instalações à licença via Proof-of-Possession.
+              {t(
+                "Códigos pré-gerados para vincular instalações à licença via Proof-of-Possession.",
+              )}
             </p>
           </div>
           {license.status !== "REVOKED" && (
@@ -437,25 +458,25 @@ export default function LicenseDetailPage() {
                 setShowCodeModal(true);
               }}
             >
-              <Key className="mr-1.5 h-3.5 w-3.5" /> Gerar Novo Código
+              <Key className="mr-1.5 h-3.5 w-3.5" /> {t("Gerar Novo Código")}
             </Button>
           )}
         </div>
 
         {activationCodes.length === 0 ? (
-          <div className="text-center py-6 text-sm text-muted-foreground border border-dashed rounded-lg">
-            Nenhum código de ativação gerado para esta licença.
+          <div className="rounded-lg border border-dashed py-6 text-center text-sm text-muted-foreground">
+            {t("Nenhum código de ativação gerado para esta licença.")}
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-muted/40 text-muted-foreground text-xs uppercase border-b">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b bg-muted/40 text-xs text-muted-foreground uppercase">
                 <tr>
-                  <th className="px-3 py-2">ID do Código</th>
+                  <th className="px-3 py-2">{t("ID do Código")}</th>
                   <th className="px-3 py-2">Usos</th>
-                  <th className="px-3 py-2">Válido até</th>
+                  <th className="px-3 py-2">{t("Válido até")}</th>
                   <th className="px-3 py-2">Status</th>
-                  <th className="px-3 py-2 text-right">Ação</th>
+                  <th className="px-3 py-2 text-right">{t("Ação")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -470,11 +491,15 @@ export default function LicenseDetailPage() {
                     </td>
                     <td className="px-3 py-2.5">
                       {code.revoked_at ? (
-                        <span className="text-xs text-rose-500 font-medium">REVOGADO</span>
+                        <span className="text-xs font-medium text-rose-500">REVOGADO</span>
                       ) : code.is_valid ? (
-                        <span className="text-xs text-emerald-500 font-medium">DISPONÍVEL</span>
+                        <span className="text-xs font-medium text-emerald-500">
+                          {t("DISPONÍVEL")}
+                        </span>
                       ) : (
-                        <span className="text-xs text-amber-500 font-medium">EXPIRADO / ESGOTADO</span>
+                        <span className="text-xs font-medium text-amber-500">
+                          EXPIRADO / ESGOTADO
+                        </span>
                       )}
                     </td>
                     <td className="px-3 py-2.5 text-right">
@@ -482,7 +507,7 @@ export default function LicenseDetailPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="text-rose-500 hover:text-rose-600 h-7 text-xs"
+                          className="h-7 text-xs text-rose-500 hover:text-rose-600"
                           onClick={() => handleRevokeCode(code.id)}
                         >
                           Revogar
@@ -498,29 +523,29 @@ export default function LicenseDetailPage() {
       </div>
 
       {/* Installations Section */}
-      <div className="border rounded-lg bg-card p-6 space-y-4">
+      <div className="space-y-4 rounded-lg border bg-card p-6">
         <div>
-          <h2 className="text-base font-semibold">Instalações Vinculadas</h2>
+          <h2 className="text-base font-semibold">{t("Instalações Vinculadas")}</h2>
           <p className="text-xs text-muted-foreground">
-            Instalações autenticadas por chave Ed25519 e certificadas pelo Control Plane.
+            {t("Instalações autenticadas por chave Ed25519 e certificadas pelo Control Plane.")}
           </p>
         </div>
 
         {installations.length === 0 ? (
-          <div className="text-center py-6 text-sm text-muted-foreground border border-dashed rounded-lg">
-            Nenhuma instalação conectada ainda com esta licença.
+          <div className="rounded-lg border border-dashed py-6 text-center text-sm text-muted-foreground">
+            {t("Nenhuma instalação conectada ainda com esta licença.")}
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-muted/40 text-muted-foreground text-xs uppercase border-b">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b bg-muted/40 text-xs text-muted-foreground uppercase">
                 <tr>
-                  <th className="px-3 py-2">ID da Instalação</th>
+                  <th className="px-3 py-2">{t("ID da Instalação")}</th>
                   <th className="px-3 py-2">Fingerprint Ed25519</th>
                   <th className="px-3 py-2">Status</th>
-                  <th className="px-3 py-2">Versão</th>
-                  <th className="px-3 py-2">Último Heartbeat</th>
-                  <th className="px-3 py-2 text-right">Ação</th>
+                  <th className="px-3 py-2">{t("Versão")}</th>
+                  <th className="px-3 py-2">{t("Último Heartbeat")}</th>
+                  <th className="px-3 py-2 text-right">{t("Ação")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -537,11 +562,13 @@ export default function LicenseDetailPage() {
                     <td className="px-3 py-2.5 text-xs text-muted-foreground">
                       {inst.last_heartbeat_at
                         ? new Date(inst.last_heartbeat_at).toLocaleString(tag)
-                        : "Nunca"}
+                        : t("Nunca")}
                     </td>
                     <td className="px-3 py-2.5 text-right">
                       <Button asChild variant="outline" size="sm" className="h-7 text-xs">
-                        <Link href={`/admin/licensing/installations/${inst.id}`}>Detalhes</Link>
+                        <Link href={`/admin/licensing/installations/${inst.id}`}>
+                          {t("Detalhes")}
+                        </Link>
                       </Button>
                     </td>
                   </tr>
@@ -555,10 +582,10 @@ export default function LicenseDetailPage() {
       {/* Code Generation Modal */}
       {showCodeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="bg-card border rounded-lg max-w-md w-full p-6 space-y-4 shadow-xl">
+          <div className="w-full max-w-md space-y-4 rounded-lg border bg-card p-6 shadow-xl">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold">
-                {generatedCode ? "Código Gerado com Sucesso" : "Novo Código de Ativação"}
+                {generatedCode ? t("Código Gerado com Sucesso") : t("Novo Código de Ativação")}
               </h3>
               <Button
                 variant="ghost"
@@ -574,21 +601,27 @@ export default function LicenseDetailPage() {
 
             {generatedCode ? (
               <div className="space-y-4">
-                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-md text-xs text-amber-500">
-                  <Warning className="inline-block mr-1 h-3.5 w-3.5" />
-                  <strong>ATENÇÃO:</strong> Este código é exibido apenas UMA VEZ. Copie agora e envie
-                  ao operador da instalação. Apenas o hash HMAC-SHA256 foi salvo no banco.
+                <div className="rounded-md border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-500">
+                  <Warning className="mr-1 inline-block h-3.5 w-3.5" />
+                  <strong>{t("ATENÇÃO:")}</strong>{" "}
+                  {t(
+                    "Este código é exibido apenas UMA VEZ. Copie agora e envie ao operador da instalação. Apenas o hash HMAC-SHA256 foi salvo no banco.",
+                  )}
                 </div>
 
-                <div className="flex items-center gap-2 p-3 bg-muted rounded-md border font-mono text-xs break-all">
+                <div className="flex items-center gap-2 rounded-md border bg-muted p-3 font-mono text-xs break-all">
                   <span>{generatedCode}</span>
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="shrink-0 h-8 w-8 ml-auto"
+                    className="ml-auto h-8 w-8 shrink-0"
                     onClick={() => copyToClipboard(generatedCode)}
                   >
-                    {copiedCode ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
+                    {copiedCode ? (
+                      <Check className="h-4 w-4 text-emerald-500" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
                   </Button>
                 </div>
 
@@ -606,8 +639,8 @@ export default function LicenseDetailPage() {
             ) : (
               <form onSubmit={handleCreateCode} className="space-y-4">
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-1">
-                    Máximo de Usos
+                  <label className="mb-1 block text-xs font-medium tracking-wider text-muted-foreground uppercase">
+                    {t("Máximo de Usos")}
                   </label>
                   <Input
                     type="number"
@@ -619,8 +652,8 @@ export default function LicenseDetailPage() {
                 </div>
 
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-1">
-                    Data Limite de Expiração
+                  <label className="mb-1 block text-xs font-medium tracking-wider text-muted-foreground uppercase">
+                    {t("Data Limite de Expiração")}
                   </label>
                   <Input
                     type="date"
@@ -630,17 +663,13 @@ export default function LicenseDetailPage() {
                   />
                 </div>
 
-                <div className="flex justify-end gap-2 pt-2 border-t">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setShowCodeModal(false)}
-                  >
+                <div className="flex justify-end gap-2 border-t pt-2">
+                  <Button type="button" variant="outline" onClick={() => setShowCodeModal(false)}>
                     Cancelar
                   </Button>
                   <Button type="submit" disabled={actionLoading}>
-                    {actionLoading && <CircleNotch className="h-4 w-4 animate-spin mr-1.5" />}
-                    Gerar Código
+                    {actionLoading && <CircleNotch className="mr-1.5 h-4 w-4 animate-spin" />}
+                    {t("Gerar Código")}
                   </Button>
                 </div>
               </form>
@@ -652,17 +681,19 @@ export default function LicenseDetailPage() {
       {/* Revocation Modal */}
       {showRevokeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="bg-card border rounded-lg max-w-md w-full p-6 space-y-4 shadow-xl">
-            <h3 className="text-lg font-bold text-rose-500 flex items-center gap-2">
-              <Warning className="h-5 w-5" /> Revogação Permanente de Licença
+          <div className="w-full max-w-md space-y-4 rounded-lg border bg-card p-6 shadow-xl">
+            <h3 className="flex items-center gap-2 text-lg font-bold text-rose-500">
+              <Warning className="h-5 w-5" /> {t("Revogação Permanente de Licença")}
             </h3>
             <p className="text-sm text-muted-foreground">
-              A revogação de uma licença é <strong>permanente e irreversível</strong>. Todas as
-              instalações perderão autorização de renewal e download de atualizações.
+              {t("A revogação de uma licença é")} <strong>{t("permanente e irreversível")}</strong>
+              {t(
+                ". Todas as instalações perderão autorização de renewal e download de atualizações.",
+              )}
             </p>
             <div>
-              <label className="text-xs font-medium text-muted-foreground block mb-1">
-                Digite <strong>REVOKE</strong> para confirmar:
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                Digite <strong>REVOKE</strong> {t("para confirmar:")}
               </label>
               <Input
                 value={revokeConfirmText}
@@ -670,7 +701,7 @@ export default function LicenseDetailPage() {
                 placeholder="REVOKE"
               />
             </div>
-            <div className="flex justify-end gap-2 pt-2 border-t">
+            <div className="flex justify-end gap-2 border-t pt-2">
               <Button variant="outline" onClick={() => setShowRevokeModal(false)}>
                 Cancelar
               </Button>
@@ -679,8 +710,8 @@ export default function LicenseDetailPage() {
                 disabled={revokeConfirmText !== "REVOKE" || actionLoading}
                 onClick={handleRevoke}
               >
-                {actionLoading && <CircleNotch className="h-4 w-4 animate-spin mr-1.5" />}
-                Confirmar Revogação
+                {actionLoading && <CircleNotch className="mr-1.5 h-4 w-4 animate-spin" />}
+                {t("Confirmar Revogação")}
               </Button>
             </div>
           </div>

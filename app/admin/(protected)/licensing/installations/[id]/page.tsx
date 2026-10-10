@@ -1,20 +1,14 @@
 "use client";
 import React, { useState, useEffect } from "react";
+import { useT } from "@/lib/i18n/IdiomaProvider";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { LicensingNav } from "@/components/admin/licensing/LicensingNav";
 import { StatusBadge } from "@/components/admin/licensing/Badges";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  ArrowLeft,
-  CircleNotch,
-  Pause,
-  Play,
-  Warning,
-  Copy,
-  Check,
-} from "@/lib/ui/icons";
+import { copyToClipboard as copyTextToClipboard } from "@/lib/clipboard";
+import { ArrowLeft, CircleNotch, Pause, Play, Warning, Copy, Check } from "@/lib/ui/icons";
 import { useTagDeIdioma } from "@/hooks/i18n/useLocaleDeData";
 
 interface InstallationEvent {
@@ -57,6 +51,7 @@ interface InstallationDetailData {
 }
 
 export default function InstallationDetailPage() {
+  const t = useT();
   const tag = useTagDeIdioma();
   const params = useParams();
   const id = params?.id as string;
@@ -78,11 +73,11 @@ export default function InstallationDetailPage() {
         const json = await res.json();
         setData(json.data);
       } else {
-        setError("Instalação não encontrada.");
+        setError(t("Instalação não encontrada."));
       }
     } catch (err) {
       console.error(err);
-      setError("Erro ao carregar dados da instalação.");
+      setError(t("Erro ao carregar dados da instalação."));
     } finally {
       setLoading(false);
     }
@@ -93,7 +88,7 @@ export default function InstallationDetailPage() {
   }, [id]);
 
   const handleSuspend = async () => {
-    if (!confirm("Deseja suspender esta instalação?")) return;
+    if (!confirm(t("Deseja suspender esta instalação?"))) return;
     setActionLoading(true);
     try {
       const res = await fetch(`/api/v1/admin/licensing/installations/${id}/suspend`, {
@@ -118,7 +113,10 @@ export default function InstallationDetailPage() {
   };
 
   const handleForceDeactivate = async () => {
-    if (!confirm("Deseja desativar forçadamente esta instalação? O slot de licença será liberado.")) return;
+    if (
+      !confirm(t("Deseja desativar forçadamente esta instalação? O slot de licença será liberado."))
+    )
+      return;
     setActionLoading(true);
     try {
       const res = await fetch(`/api/v1/admin/licensing/installations/${id}/deactivate`, {
@@ -146,16 +144,21 @@ export default function InstallationDetailPage() {
     }
   };
 
-  const copyPublicKey = (keyText: string) => {
-    navigator.clipboard.writeText(keyText);
+  const copyPublicKey = async (keyText: string) => {
+    const copied = await copyTextToClipboard(keyText);
+    if (!copied) {
+      alert(t("Não foi possível copiar o conteúdo."));
+      return;
+    }
     setCopiedKey(true);
     setTimeout(() => setCopiedKey(false), 2000);
   };
 
   if (loading) {
     return (
-      <div className="p-8 text-center flex items-center justify-center text-muted-foreground">
-        <CircleNotch className="h-5 w-5 animate-spin mr-2" /> Carregando detalhes da instalação...
+      <div className="flex items-center justify-center p-8 text-center text-muted-foreground">
+        <CircleNotch className="mr-2 h-5 w-5 animate-spin" />{" "}
+        {t("Carregando detalhes da instalação...")}
       </div>
     );
   }
@@ -168,7 +171,9 @@ export default function InstallationDetailPage() {
             <ArrowLeft className="mr-1.5 h-4 w-4" /> Voltar
           </Link>
         </Button>
-        <div className="p-4 rounded-md bg-rose-500/10 text-rose-500">{error || "Não encontrada"}</div>
+        <div className="rounded-md bg-rose-500/10 p-4 text-rose-500">
+          {error || t("Não encontrada")}
+        </div>
       </div>
     );
   }
@@ -177,7 +182,7 @@ export default function InstallationDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div className="flex items-center gap-3">
           <Button asChild variant="outline" size="icon">
             <Link href="/admin/licensing/installations">
@@ -189,8 +194,8 @@ export default function InstallationDetailPage() {
               <h1 className="text-2xl font-bold tracking-tight">{installation.id}</h1>
               <StatusBadge status={installation.status} />
             </div>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Cliente: {customer.name} | Licença: {license.id.slice(0, 8)}...
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Cliente: {customer.name} {t("| Licença:")} {license.id.slice(0, 8)}...
             </p>
           </div>
         </div>
@@ -226,7 +231,7 @@ export default function InstallationDetailPage() {
                   onClick={handleForceDeactivate}
                   disabled={actionLoading}
                 >
-                  Forçar Desativação
+                  {t("Forçar Desativação")}
                 </Button>
               )}
 
@@ -249,38 +254,39 @@ export default function InstallationDetailPage() {
       <LicensingNav />
 
       {/* Grid: Overview & Crypto Details */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         {/* Card 1: Informações da Instalação */}
-        <div className="border rounded-lg bg-card p-5 space-y-3">
-          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+        <div className="space-y-3 rounded-lg border bg-card p-5">
+          <h2 className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
             Telemetria & Ambiente
           </h2>
           <div className="space-y-1.5 text-sm">
-            <div className="flex justify-between py-1 border-b border-border/50">
+            <div className="flex justify-between border-b border-border/50 py-1">
               <span className="text-muted-foreground">Ambiente:</span>
               <span className="font-medium capitalize">{installation.environment}</span>
             </div>
-            <div className="flex justify-between py-1 border-b border-border/50">
-              <span className="text-muted-foreground">Versão da Aplicação:</span>
+            <div className="flex justify-between border-b border-border/50 py-1">
+              <span className="text-muted-foreground">{t("Versão da Aplicação:")}</span>
               <span className="font-mono">{installation.app_version || "—"}</span>
             </div>
-            <div className="flex justify-between py-1 border-b border-border/50">
-              <span className="text-muted-foreground">Último Heartbeat:</span>
+            <div className="flex justify-between border-b border-border/50 py-1">
+              <span className="text-muted-foreground">{t("Último Heartbeat:")}</span>
               <span>
                 {installation.last_heartbeat_at
                   ? new Date(installation.last_heartbeat_at).toLocaleString(tag)
-                  : "Nunca"}
+                  : t("Nunca")}
               </span>
             </div>
-            <div className="flex justify-between py-1 border-b border-border/50">
+            <div className="flex justify-between border-b border-border/50 py-1">
               <span className="text-muted-foreground">Registrada em:</span>
               <span>{new Date(installation.created_at).toLocaleString(tag)}</span>
             </div>
             <div className="flex justify-between py-1">
               <span className="text-muted-foreground">Contrato Vinculado:</span>
-              <Button asChild variant="link" size="sm" className="p-0 h-auto">
+              <Button asChild variant="link" size="sm" className="h-auto p-0">
                 <Link href={`/admin/licensing/licenses/${license.id}`}>
-                  Ver Licença ({license.license_type})
+                  {t("Ver Licença (")}
+                  {license.license_type})
                 </Link>
               </Button>
             </div>
@@ -288,30 +294,34 @@ export default function InstallationDetailPage() {
         </div>
 
         {/* Card 2: Identidade Criptográfica PoP */}
-        <div className="border rounded-lg bg-card p-5 space-y-3">
-          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Identidade Criptográfica (Ed25519)
+        <div className="space-y-3 rounded-lg border bg-card p-5">
+          <h2 className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+            {t("Identidade Criptográfica (Ed25519)")}
           </h2>
           <div className="space-y-2 text-sm">
             <div>
-              <span className="text-muted-foreground text-xs block mb-1">
-                Fingerprint SHA-256 da Chave Pública:
+              <span className="mb-1 block text-xs text-muted-foreground">
+                {t("Fingerprint SHA-256 da Chave Pública:")}
               </span>
-              <div className="p-2 rounded-md bg-muted font-mono text-xs break-all border">
+              <div className="rounded-md border bg-muted p-2 font-mono text-xs break-all">
                 {installation.public_key_fingerprint}
               </div>
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-muted-foreground text-xs">Chave Pública PEM:</span>
+              <div className="mb-1 flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">{t("Chave Pública PEM:")}</span>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-6 text-xs px-2"
+                  className="h-6 px-2 text-xs"
                   onClick={() => copyPublicKey(installation.public_key)}
                 >
-                  {copiedKey ? <Check className="h-3.5 w-3.5 text-emerald-500 mr-1" /> : <Copy className="h-3.5 w-3.5 mr-1" />}
+                  {copiedKey ? (
+                    <Check className="mr-1 h-3.5 w-3.5 text-emerald-500" />
+                  ) : (
+                    <Copy className="mr-1 h-3.5 w-3.5" />
+                  )}
                   {copiedKey ? "Copiada" : "Copiar"}
                 </Button>
               </div>
@@ -319,7 +329,7 @@ export default function InstallationDetailPage() {
                 readOnly
                 value={installation.public_key}
                 rows={3}
-                className="w-full p-2 rounded-md bg-muted/60 font-mono text-xs border resize-none focus:outline-hidden"
+                className="w-full resize-none rounded-md border bg-muted/60 p-2 font-mono text-xs focus:outline-hidden"
               />
             </div>
           </div>
@@ -327,22 +337,22 @@ export default function InstallationDetailPage() {
       </div>
 
       {/* Installation Events */}
-      <div className="border rounded-lg bg-card p-6 space-y-4">
+      <div className="space-y-4 rounded-lg border bg-card p-6">
         <div>
           <h2 className="text-base font-semibold">Eventos Operacionais</h2>
           <p className="text-xs text-muted-foreground">
-            Trilha de ativação, renovação, heartbeat e status desta instalação.
+            {t("Trilha de ativação, renovação, heartbeat e status desta instalação.")}
           </p>
         </div>
 
         {events.length === 0 ? (
-          <div className="text-center py-6 text-sm text-muted-foreground border border-dashed rounded-lg">
-            Nenhum evento registrado para esta instalação.
+          <div className="rounded-lg border border-dashed py-6 text-center text-sm text-muted-foreground">
+            {t("Nenhum evento registrado para esta instalação.")}
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-muted/40 text-muted-foreground text-xs uppercase border-b">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b bg-muted/40 text-xs text-muted-foreground uppercase">
                 <tr>
                   <th className="px-3 py-2">Data / Hora</th>
                   <th className="px-3 py-2">Tipo de Evento</th>
@@ -353,12 +363,12 @@ export default function InstallationDetailPage() {
               <tbody className="divide-y divide-border">
                 {events.map((evt) => (
                   <tr key={evt.id} className="hover:bg-muted/10">
-                    <td className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
+                    <td className="px-3 py-2.5 text-xs whitespace-nowrap text-muted-foreground">
                       {new Date(evt.created_at).toLocaleString(tag)}
                     </td>
                     <td className="px-3 py-2.5 font-mono text-xs font-medium">{evt.event_type}</td>
                     <td className="px-3 py-2.5 text-xs text-muted-foreground">{evt.actor}</td>
-                    <td className="px-3 py-2.5 font-mono text-xs text-muted-foreground max-w-md truncate">
+                    <td className="max-w-md truncate px-3 py-2.5 font-mono text-xs text-muted-foreground">
                       {JSON.stringify(evt.payload)}
                     </td>
                   </tr>
@@ -372,17 +382,18 @@ export default function InstallationDetailPage() {
       {/* Revocation Modal */}
       {showRevokeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="bg-card border rounded-lg max-w-md w-full p-6 space-y-4 shadow-xl">
-            <h3 className="text-lg font-bold text-rose-500 flex items-center gap-2">
-              <Warning className="h-5 w-5" /> Revogação Permanente de Instalação
+          <div className="w-full max-w-md space-y-4 rounded-lg border bg-card p-6 shadow-xl">
+            <h3 className="flex items-center gap-2 text-lg font-bold text-rose-500">
+              <Warning className="h-5 w-5" /> {t("Revogação Permanente de Instalação")}
             </h3>
             <p className="text-sm text-muted-foreground">
-              A revogação desta instalação rejeitará permanentemente assinaturas criptográficas PoP
-              desta chave Ed25519.
+              {t(
+                "A revogação desta instalação rejeitará permanentemente assinaturas criptográficas PoP desta chave Ed25519.",
+              )}
             </p>
             <div>
-              <label className="text-xs font-medium text-muted-foreground block mb-1">
-                Digite <strong>REVOKE</strong> para confirmar:
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                Digite <strong>REVOKE</strong> {t("para confirmar:")}
               </label>
               <Input
                 value={revokeConfirmText}
@@ -390,7 +401,7 @@ export default function InstallationDetailPage() {
                 placeholder="REVOKE"
               />
             </div>
-            <div className="flex justify-end gap-2 pt-2 border-t">
+            <div className="flex justify-end gap-2 border-t pt-2">
               <Button variant="outline" onClick={() => setShowRevokeModal(false)}>
                 Cancelar
               </Button>
@@ -399,8 +410,8 @@ export default function InstallationDetailPage() {
                 disabled={revokeConfirmText !== "REVOKE" || actionLoading}
                 onClick={handleRevoke}
               >
-                {actionLoading && <CircleNotch className="h-4 w-4 animate-spin mr-1.5" />}
-                Confirmar Revogação
+                {actionLoading && <CircleNotch className="mr-1.5 h-4 w-4 animate-spin" />}
+                {t("Confirmar Revogação")}
               </Button>
             </div>
           </div>

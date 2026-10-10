@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
+import { useT } from "@/lib/i18n/IdiomaProvider";
 import Link from "next/link";
 import { LicensingNav } from "@/components/admin/licensing/LicensingNav";
 import { StatusBadge, TemporalStateBadge } from "@/components/admin/licensing/Badges";
@@ -23,6 +24,7 @@ interface LicenseItem {
 }
 
 export default function AdminLicensesPage() {
+  const t = useT();
   const tag = useTagDeIdioma();
   const [licenses, setLicenses] = useState<LicenseItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,17 +63,17 @@ export default function AdminLicensesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Licenciamento & Releases</h1>
           <p className="text-sm text-muted-foreground">
-            Gestão operacional de clientes, licenças emitidas, ativações e instalações.
+            {t("Gestão operacional de clientes, licenças emitidas, ativações e instalações.")}
           </p>
         </div>
         <Button asChild size="sm">
           <Link href="/admin/licensing/licenses/new">
             <Plus className="mr-1.5 h-4 w-4" />
-            Nova Licença
+            {t("Nova Licença")}
           </Link>
         </Button>
       </div>
@@ -79,8 +81,8 @@ export default function AdminLicensesPage() {
       <LicensingNav />
 
       {/* Filters */}
-      <div className="flex flex-col md:flex-row gap-3 items-center justify-between">
-        <form onSubmit={handleSearchSubmit} className="flex gap-2 w-full md:w-auto flex-1 max-w-sm">
+      <div className="flex flex-col items-center justify-between gap-3 md:flex-row">
+        <form onSubmit={handleSearchSubmit} className="flex w-full max-w-sm flex-1 gap-2 md:w-auto">
           <Input
             placeholder="Buscar por cliente ou ID..."
             value={search}
@@ -91,13 +93,13 @@ export default function AdminLicensesPage() {
           </Button>
         </form>
 
-        <div className="flex gap-2 w-full md:w-auto">
+        <div className="flex w-full gap-2 md:w-auto">
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="h-9 px-3 rounded-md border border-input bg-background text-sm text-foreground focus:outline-hidden focus:ring-1 focus:ring-ring"
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground focus:ring-1 focus:ring-ring focus:outline-hidden"
           >
-            <option value="ALL">Status: Todos</option>
+            <option value="ALL">{t("Status: Todos")}</option>
             <option value="ACTIVE">Ativas</option>
             <option value="SUSPENDED">Suspensas</option>
             <option value="REVOKED">Revogadas</option>
@@ -106,9 +108,9 @@ export default function AdminLicensesPage() {
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
-            className="h-9 px-3 rounded-md border border-input bg-background text-sm text-foreground focus:outline-hidden focus:ring-1 focus:ring-ring"
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground focus:ring-1 focus:ring-ring focus:outline-hidden"
           >
-            <option value="ALL">Tipo: Todos</option>
+            <option value="ALL">{t("Tipo: Todos")}</option>
             <option value="enterprise">Enterprise</option>
             <option value="partner">Partner</option>
             <option value="internal">Internal</option>
@@ -117,26 +119,26 @@ export default function AdminLicensesPage() {
       </div>
 
       {/* Licenses Table */}
-      <div className="border rounded-lg bg-card overflow-hidden">
+      <div className="overflow-hidden rounded-lg border bg-card">
         {loading ? (
-          <div className="p-8 text-center flex items-center justify-center text-muted-foreground">
-            <CircleNotch className="h-5 w-5 animate-spin mr-2" /> Carregando licenças...
+          <div className="flex items-center justify-center p-8 text-center text-muted-foreground">
+            <CircleNotch className="mr-2 h-5 w-5 animate-spin" /> {t("Carregando licenças...")}
           </div>
         ) : licenses.length === 0 ? (
-          <div className="p-8 text-center text-muted-foreground text-sm">
-            Nenhuma licença encontrada com os filtros aplicados.
+          <div className="p-8 text-center text-sm text-muted-foreground">
+            {t("Nenhuma licença encontrada com os filtros aplicados.")}
           </div>
         ) : (
-          <table className="w-full text-sm text-left">
-            <thead className="bg-muted/40 text-muted-foreground font-medium border-b text-xs uppercase tracking-wider">
+          <table className="w-full text-left text-sm">
+            <thead className="border-b bg-muted/40 text-xs font-medium tracking-wider text-muted-foreground uppercase">
               <tr>
                 <th className="px-4 py-3">Cliente / ID</th>
                 <th className="px-4 py-3">Tipo</th>
                 <th className="px-4 py-3">Status Admin</th>
                 <th className="px-4 py-3">Status Temporal</th>
-                <th className="px-4 py-3">Instalações</th>
+                <th className="px-4 py-3">{t("Instalações")}</th>
                 <th className="px-4 py-3">Validade</th>
-                <th className="px-4 py-3 text-right">Ação</th>
+                <th className="px-4 py-3 text-right">{t("Ação")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -144,7 +146,9 @@ export default function AdminLicensesPage() {
                 <tr key={lic.id} className="hover:bg-muted/20">
                   <td className="px-4 py-3">
                     <div className="font-medium text-foreground">{lic.customer_name}</div>
-                    <div className="text-xs text-muted-foreground font-mono">{lic.id.slice(0, 8)}...</div>
+                    <div className="font-mono text-xs text-muted-foreground">
+                      {lic.id.slice(0, 8)}...
+                    </div>
                   </td>
                   <td className="px-4 py-3">
                     <span className="capitalize">{lic.license_type}</span>
@@ -157,16 +161,17 @@ export default function AdminLicensesPage() {
                   </td>
                   <td className="px-4 py-3">
                     <span className="font-mono">{lic.active_installations_count}</span>
-                    <span className="text-muted-foreground font-mono"> / {lic.max_installations}</span>
+                    <span className="font-mono text-muted-foreground">
+                      {" "}
+                      / {lic.max_installations}
+                    </span>
                   </td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">
                     {new Date(lic.expires_at).toLocaleDateString(tag)}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <Button asChild variant="outline" size="sm">
-                      <Link href={`/admin/licensing/licenses/${lic.id}`}>
-                        Detalhes
-                      </Link>
+                      <Link href={`/admin/licensing/licenses/${lic.id}`}>{t("Detalhes")}</Link>
                     </Button>
                   </td>
                 </tr>

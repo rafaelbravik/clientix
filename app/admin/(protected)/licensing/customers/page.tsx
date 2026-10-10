@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
+import { useT } from "@/lib/i18n/IdiomaProvider";
 import Link from "next/link";
 import { LicensingNav } from "@/components/admin/licensing/LicensingNav";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ interface CustomerItem {
 }
 
 export default function AdminCustomersPage() {
+  const t = useT();
   const tag = useTagDeIdioma();
   const [customers, setCustomers] = useState<CustomerItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -84,7 +86,7 @@ export default function AdminCustomersPage() {
         setCreateError(json.error?.message || "Erro ao cadastrar cliente.");
       }
     } catch (err: unknown) {
-      setCreateError(err instanceof Error ? err.message : "Erro desconhecido");
+      setCreateError(err instanceof Error ? err.message : t("Erro desconhecido"));
     } finally {
       setSubmitting(false);
     }
@@ -92,11 +94,11 @@ export default function AdminCustomersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Clientes Comerciais</h1>
           <p className="text-sm text-muted-foreground">
-            Entidades contratantes de licenças DeskcommCRM / Clientix.
+            {t("Entidades contratantes de licenças comerciais.")}
           </p>
         </div>
         <Button size="sm" onClick={() => setShowCreateModal(true)}>
@@ -107,9 +109,9 @@ export default function AdminCustomersPage() {
       <LicensingNav />
 
       {/* Search */}
-      <form onSubmit={handleSearchSubmit} className="flex gap-2 max-w-sm">
+      <form onSubmit={handleSearchSubmit} className="flex max-w-sm gap-2">
         <Input
-          placeholder="Buscar por nome, razão social ou e-mail..."
+          placeholder={t("Buscar por nome, razão social ou e-mail...")}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -119,24 +121,24 @@ export default function AdminCustomersPage() {
       </form>
 
       {/* Table */}
-      <div className="border rounded-lg bg-card overflow-hidden">
+      <div className="overflow-hidden rounded-lg border bg-card">
         {loading ? (
-          <div className="p-8 text-center flex items-center justify-center text-muted-foreground">
-            <CircleNotch className="h-5 w-5 animate-spin mr-2" /> Carregando clientes...
+          <div className="flex items-center justify-center p-8 text-center text-muted-foreground">
+            <CircleNotch className="mr-2 h-5 w-5 animate-spin" /> Carregando clientes...
           </div>
         ) : customers.length === 0 ? (
-          <div className="p-8 text-center text-muted-foreground text-sm">
-            Nenhum cliente cadastrado.
+          <div className="p-8 text-center text-sm text-muted-foreground">
+            {t("Nenhum cliente cadastrado.")}
           </div>
         ) : (
-          <table className="w-full text-sm text-left">
-            <thead className="bg-muted/40 text-muted-foreground font-medium border-b text-xs uppercase tracking-wider">
+          <table className="w-full text-left text-sm">
+            <thead className="border-b bg-muted/40 text-xs font-medium tracking-wider text-muted-foreground uppercase">
               <tr>
-                <th className="px-4 py-3">Nome / Razão Social</th>
+                <th className="px-4 py-3">{t("Nome / Razão Social")}</th>
                 <th className="px-4 py-3">E-mail Financeiro</th>
-                <th className="px-4 py-3">País</th>
+                <th className="px-4 py-3">{t("País")}</th>
                 <th className="px-4 py-3">Cadastrado em</th>
-                <th className="px-4 py-3 text-right">Ação</th>
+                <th className="px-4 py-3 text-right">{t("Ação")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -155,7 +157,7 @@ export default function AdminCustomersPage() {
                   </td>
                   <td className="px-4 py-3 text-right">
                     <Button asChild variant="outline" size="sm">
-                      <Link href={`/admin/licensing/customers/${c.id}`}>Detalhes</Link>
+                      <Link href={`/admin/licensing/customers/${c.id}`}>{t("Detalhes")}</Link>
                     </Button>
                   </td>
                 </tr>
@@ -168,7 +170,7 @@ export default function AdminCustomersPage() {
       {/* Create Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="bg-card border rounded-lg max-w-md w-full p-6 space-y-4 shadow-xl">
+          <div className="w-full max-w-md space-y-4 rounded-lg border bg-card p-6 shadow-xl">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold">Cadastrar Cliente Comercial</h3>
               <Button variant="ghost" size="icon" onClick={() => setShowCreateModal(false)}>
@@ -177,38 +179,38 @@ export default function AdminCustomersPage() {
             </div>
 
             {createError && (
-              <div className="p-3 text-xs rounded-md bg-rose-500/10 text-rose-500 border border-rose-500/20">
+              <div className="rounded-md border border-rose-500/20 bg-rose-500/10 p-3 text-xs text-rose-500">
                 {createError}
               </div>
             )}
 
             <form onSubmit={handleCreateCustomer} className="space-y-3">
               <div>
-                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-1">
+                <label className="mb-1 block text-xs font-medium tracking-wider text-muted-foreground uppercase">
                   Nome Fantasia / Empresa
                 </label>
                 <Input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Ex: Agência Alfa"
+                  placeholder={t("Ex: Agência Alfa")}
                   required
                 />
               </div>
 
               <div>
-                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-1">
-                  Razão Social (Opcional)
+                <label className="mb-1 block text-xs font-medium tracking-wider text-muted-foreground uppercase">
+                  {t("Razão Social (Opcional)")}
                 </label>
                 <Input
                   value={legalName}
                   onChange={(e) => setLegalName(e.target.value)}
-                  placeholder="Ex: Alfa Soluções Digitais LTDA"
+                  placeholder={t("Ex: Alfa Soluções Digitais LTDA")}
                 />
               </div>
 
               <div>
-                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-1">
-                  E-mail Financeiro / Cobrança
+                <label className="mb-1 block text-xs font-medium tracking-wider text-muted-foreground uppercase">
+                  {t("E-mail Financeiro / Cobrança")}
                 </label>
                 <Input
                   type="email"
@@ -220,8 +222,8 @@ export default function AdminCustomersPage() {
               </div>
 
               <div>
-                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-1">
-                  País (Código ISO 2 Letras)
+                <label className="mb-1 block text-xs font-medium tracking-wider text-muted-foreground uppercase">
+                  {t("País (Código ISO 2 Letras)")}
                 </label>
                 <Input
                   maxLength={2}
@@ -231,12 +233,12 @@ export default function AdminCustomersPage() {
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-3 border-t">
+              <div className="flex justify-end gap-2 border-t pt-3">
                 <Button type="button" variant="outline" onClick={() => setShowCreateModal(false)}>
                   Cancelar
                 </Button>
                 <Button type="submit" disabled={submitting}>
-                  {submitting && <CircleNotch className="h-4 w-4 animate-spin mr-1.5" />}
+                  {submitting && <CircleNotch className="mr-1.5 h-4 w-4 animate-spin" />}
                   Salvar Cliente
                 </Button>
               </div>

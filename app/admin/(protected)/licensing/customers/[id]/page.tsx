@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
+import { useT } from "@/lib/i18n/IdiomaProvider";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { LicensingNav } from "@/components/admin/licensing/LicensingNav";
@@ -33,6 +34,7 @@ interface CustomerDetailData {
 }
 
 export default function CustomerDetailPage() {
+  const t = useT();
   const tag = useTagDeIdioma();
   const params = useParams();
   const id = params?.id as string;
@@ -61,7 +63,7 @@ export default function CustomerDetailPage() {
         setBillingEmail(json.data.customer.billing_email);
         setCountry(json.data.customer.country || "");
       } else {
-        setError("Cliente não encontrado.");
+        setError(t("Cliente não encontrado."));
       }
     } catch (err) {
       console.error(err);
@@ -106,8 +108,8 @@ export default function CustomerDetailPage() {
 
   if (loading) {
     return (
-      <div className="p-8 text-center flex items-center justify-center text-muted-foreground">
-        <CircleNotch className="h-5 w-5 animate-spin mr-2" /> Carregando perfil do cliente...
+      <div className="flex items-center justify-center p-8 text-center text-muted-foreground">
+        <CircleNotch className="mr-2 h-5 w-5 animate-spin" /> Carregando perfil do cliente...
       </div>
     );
   }
@@ -120,7 +122,9 @@ export default function CustomerDetailPage() {
             <ArrowLeft className="mr-1.5 h-4 w-4" /> Voltar
           </Link>
         </Button>
-        <div className="p-4 rounded-md bg-rose-500/10 text-rose-500">{error || "Não encontrado"}</div>
+        <div className="rounded-md bg-rose-500/10 p-4 text-rose-500">
+          {error || t("Não encontrado")}
+        </div>
       </div>
     );
   }
@@ -129,7 +133,7 @@ export default function CustomerDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div className="flex items-center gap-3">
           <Button asChild variant="outline" size="icon">
             <Link href="/admin/licensing/customers">
@@ -138,7 +142,7 @@ export default function CustomerDetailPage() {
           </Button>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">{customer.name}</h1>
-            <p className="text-xs text-muted-foreground font-mono">ID: {customer.id}</p>
+            <p className="font-mono text-xs text-muted-foreground">ID: {customer.id}</p>
           </div>
         </div>
 
@@ -148,7 +152,7 @@ export default function CustomerDetailPage() {
           </Button>
           <Button asChild size="sm">
             <Link href={`/admin/licensing/licenses/new`}>
-              <Plus className="mr-1.5 h-3.5 w-3.5" /> Nova Licença
+              <Plus className="mr-1.5 h-3.5 w-3.5" /> {t("Nova Licença")}
             </Link>
           </Button>
         </div>
@@ -157,22 +161,22 @@ export default function CustomerDetailPage() {
       <LicensingNav />
 
       {/* Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="border rounded-lg bg-card p-5 space-y-3">
-          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <div className="space-y-3 rounded-lg border bg-card p-5">
+          <h2 className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
             Dados Cadastrais
           </h2>
           <div className="space-y-1.5 text-sm">
-            <div className="flex justify-between py-1 border-b border-border/50">
-              <span className="text-muted-foreground">Razão Social:</span>
+            <div className="flex justify-between border-b border-border/50 py-1">
+              <span className="text-muted-foreground">{t("Razão Social:")}</span>
               <span>{customer.legal_name || "—"}</span>
             </div>
-            <div className="flex justify-between py-1 border-b border-border/50">
+            <div className="flex justify-between border-b border-border/50 py-1">
               <span className="text-muted-foreground">E-mail de Faturamento:</span>
               <span className="font-medium">{customer.billing_email}</span>
             </div>
-            <div className="flex justify-between py-1 border-b border-border/50">
-              <span className="text-muted-foreground">País (ISO):</span>
+            <div className="flex justify-between border-b border-border/50 py-1">
+              <span className="text-muted-foreground">{t("País (ISO):")}</span>
               <span className="font-mono">{customer.country || "—"}</span>
             </div>
             <div className="flex justify-between py-1">
@@ -182,23 +186,23 @@ export default function CustomerDetailPage() {
           </div>
         </div>
 
-        <div className="border rounded-lg bg-card p-5 space-y-3">
-          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+        <div className="space-y-3 rounded-lg border bg-card p-5">
+          <h2 className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
             Resumo de Contratos
           </h2>
           <div className="space-y-1.5 text-sm">
-            <div className="flex justify-between py-1 border-b border-border/50">
-              <span className="text-muted-foreground">Total de Licenças:</span>
+            <div className="flex justify-between border-b border-border/50 py-1">
+              <span className="text-muted-foreground">{t("Total de Licenças:")}</span>
               <span className="font-semibold">{licenses.length}</span>
             </div>
-            <div className="flex justify-between py-1 border-b border-border/50">
-              <span className="text-muted-foreground">Licenças Ativas:</span>
+            <div className="flex justify-between border-b border-border/50 py-1">
+              <span className="text-muted-foreground">{t("Licenças Ativas:")}</span>
               <span className="font-semibold text-emerald-500">
                 {licenses.filter((l) => l.status === "ACTIVE").length}
               </span>
             </div>
             <div className="flex justify-between py-1">
-              <span className="text-muted-foreground">Instalações em Operação:</span>
+              <span className="text-muted-foreground">{t("Instalações em Operação:")}</span>
               <span className="font-semibold">
                 {licenses.reduce((acc: number, l) => acc + (l.active_installations_count || 0), 0)}
               </span>
@@ -208,30 +212,30 @@ export default function CustomerDetailPage() {
       </div>
 
       {/* Licenses list */}
-      <div className="border rounded-lg bg-card p-6 space-y-4">
+      <div className="space-y-4 rounded-lg border bg-card p-6">
         <div>
-          <h2 className="text-base font-semibold">Licenças Emitidas</h2>
+          <h2 className="text-base font-semibold">{t("Licenças Emitidas")}</h2>
           <p className="text-xs text-muted-foreground">
-            Todas as licenças atribuídas a este cliente comercial.
+            {t("Todas as licenças atribuídas a este cliente comercial.")}
           </p>
         </div>
 
         {licenses.length === 0 ? (
-          <div className="text-center py-6 text-sm text-muted-foreground border border-dashed rounded-lg">
-            Nenhuma licença emitida para este cliente.
+          <div className="rounded-lg border border-dashed py-6 text-center text-sm text-muted-foreground">
+            {t("Nenhuma licença emitida para este cliente.")}
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-muted/40 text-muted-foreground text-xs uppercase border-b">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b bg-muted/40 text-xs text-muted-foreground uppercase">
                 <tr>
                   <th className="px-3 py-2">ID</th>
                   <th className="px-3 py-2">Tipo</th>
                   <th className="px-3 py-2">Status Admin</th>
                   <th className="px-3 py-2">Status Temporal</th>
-                  <th className="px-3 py-2">Instalações</th>
-                  <th className="px-3 py-2">Expiração</th>
-                  <th className="px-3 py-2 text-right">Ação</th>
+                  <th className="px-3 py-2">{t("Instalações")}</th>
+                  <th className="px-3 py-2">{t("Expiração")}</th>
+                  <th className="px-3 py-2 text-right">{t("Ação")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -253,7 +257,7 @@ export default function CustomerDetailPage() {
                     </td>
                     <td className="px-3 py-2.5 text-right">
                       <Button asChild variant="outline" size="sm" className="h-7 text-xs">
-                        <Link href={`/admin/licensing/licenses/${lic.id}`}>Ver Licença</Link>
+                        <Link href={`/admin/licensing/licenses/${lic.id}`}>{t("Ver Licença")}</Link>
                       </Button>
                     </td>
                   </tr>
@@ -267,7 +271,7 @@ export default function CustomerDetailPage() {
       {/* Edit Modal */}
       {showEditModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="bg-card border rounded-lg max-w-md w-full p-6 space-y-4 shadow-xl">
+          <div className="w-full max-w-md space-y-4 rounded-lg border bg-card p-6 shadow-xl">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold">Editar Dados do Cliente</h3>
               <Button variant="ghost" size="icon" onClick={() => setShowEditModal(false)}>
@@ -276,35 +280,28 @@ export default function CustomerDetailPage() {
             </div>
 
             {editError && (
-              <div className="p-3 text-xs rounded-md bg-rose-500/10 text-rose-500 border border-rose-500/20">
+              <div className="rounded-md border border-rose-500/20 bg-rose-500/10 p-3 text-xs text-rose-500">
                 {editError}
               </div>
             )}
 
             <form onSubmit={handleUpdate} className="space-y-3">
               <div>
-                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-1">
+                <label className="mb-1 block text-xs font-medium tracking-wider text-muted-foreground uppercase">
                   Nome Fantasia
                 </label>
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                />
+                <Input value={name} onChange={(e) => setName(e.target.value)} required />
               </div>
 
               <div>
-                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-1">
-                  Razão Social
+                <label className="mb-1 block text-xs font-medium tracking-wider text-muted-foreground uppercase">
+                  {t("Razão Social")}
                 </label>
-                <Input
-                  value={legalName}
-                  onChange={(e) => setLegalName(e.target.value)}
-                />
+                <Input value={legalName} onChange={(e) => setLegalName(e.target.value)} />
               </div>
 
               <div>
-                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-1">
+                <label className="mb-1 block text-xs font-medium tracking-wider text-muted-foreground uppercase">
                   E-mail Financeiro
                 </label>
                 <Input
@@ -316,8 +313,8 @@ export default function CustomerDetailPage() {
               </div>
 
               <div>
-                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-1">
-                  País (Código ISO 2 Letras)
+                <label className="mb-1 block text-xs font-medium tracking-wider text-muted-foreground uppercase">
+                  {t("País (Código ISO 2 Letras)")}
                 </label>
                 <Input
                   maxLength={2}
@@ -326,12 +323,12 @@ export default function CustomerDetailPage() {
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-3 border-t">
+              <div className="flex justify-end gap-2 border-t pt-3">
                 <Button type="button" variant="outline" onClick={() => setShowEditModal(false)}>
                   Cancelar
                 </Button>
                 <Button type="submit" disabled={submitting}>
-                  {submitting && <CircleNotch className="h-4 w-4 animate-spin mr-1.5" />}
+                  {submitting && <CircleNotch className="mr-1.5 h-4 w-4 animate-spin" />}
                   Atualizar
                 </Button>
               </div>

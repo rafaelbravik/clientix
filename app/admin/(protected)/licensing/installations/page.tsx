@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
+import { useT } from "@/lib/i18n/IdiomaProvider";
 import Link from "next/link";
 import { LicensingNav } from "@/components/admin/licensing/LicensingNav";
 import { StatusBadge } from "@/components/admin/licensing/Badges";
@@ -23,6 +24,7 @@ interface InstallationItem {
 }
 
 export default function AdminInstallationsPage() {
+  const t = useT();
   const tag = useTagDeIdioma();
   const [installations, setInstallations] = useState<InstallationItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,11 +61,11 @@ export default function AdminInstallationsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Instalações Vinculadas</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t("Instalações Vinculadas")}</h1>
           <p className="text-sm text-muted-foreground">
-            Instâncias ativas do DeskcommCRM conectadas ao Control Plane com Proof-of-Possession.
+            {t("Instâncias ativas conectadas ao Control Plane com Proof-of-Possession.")}
           </p>
         </div>
       </div>
@@ -71,8 +73,8 @@ export default function AdminInstallationsPage() {
       <LicensingNav />
 
       {/* Filters */}
-      <div className="flex flex-col md:flex-row gap-3 items-center justify-between">
-        <form onSubmit={handleSearchSubmit} className="flex gap-2 w-full md:w-auto flex-1 max-w-sm">
+      <div className="flex flex-col items-center justify-between gap-3 md:flex-row">
+        <form onSubmit={handleSearchSubmit} className="flex w-full max-w-sm flex-1 gap-2 md:w-auto">
           <Input
             placeholder="Buscar por ID, fingerprint ou cliente..."
             value={search}
@@ -86,9 +88,9 @@ export default function AdminInstallationsPage() {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="h-9 px-3 rounded-md border border-input bg-background text-sm text-foreground focus:outline-hidden focus:ring-1 focus:ring-ring"
+          className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground focus:ring-1 focus:ring-ring focus:outline-hidden"
         >
-          <option value="ALL">Status: Todos</option>
+          <option value="ALL">{t("Status: Todos")}</option>
           <option value="ACTIVE">Ativas</option>
           <option value="SUSPENDED">Suspensas</option>
           <option value="DEACTIVATED">Desativadas</option>
@@ -97,34 +99,32 @@ export default function AdminInstallationsPage() {
       </div>
 
       {/* Table */}
-      <div className="border rounded-lg bg-card overflow-hidden">
+      <div className="overflow-hidden rounded-lg border bg-card">
         {loading ? (
-          <div className="p-8 text-center flex items-center justify-center text-muted-foreground">
-            <CircleNotch className="h-5 w-5 animate-spin mr-2" /> Carregando instalações...
+          <div className="flex items-center justify-center p-8 text-center text-muted-foreground">
+            <CircleNotch className="mr-2 h-5 w-5 animate-spin" /> {t("Carregando instalações...")}
           </div>
         ) : installations.length === 0 ? (
-          <div className="p-8 text-center text-muted-foreground text-sm">
-            Nenhuma instalação encontrada com os filtros selecionados.
+          <div className="p-8 text-center text-sm text-muted-foreground">
+            {t("Nenhuma instalação encontrada com os filtros selecionados.")}
           </div>
         ) : (
-          <table className="w-full text-sm text-left">
-            <thead className="bg-muted/40 text-muted-foreground font-medium border-b text-xs uppercase tracking-wider">
+          <table className="w-full text-left text-sm">
+            <thead className="border-b bg-muted/40 text-xs font-medium tracking-wider text-muted-foreground uppercase">
               <tr>
-                <th className="px-4 py-3">ID da Instalação</th>
+                <th className="px-4 py-3">{t("ID da Instalação")}</th>
                 <th className="px-4 py-3">Cliente / Contrato</th>
                 <th className="px-4 py-3">Fingerprint Ed25519</th>
                 <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Versão</th>
-                <th className="px-4 py-3">Último Heartbeat</th>
-                <th className="px-4 py-3 text-right">Ação</th>
+                <th className="px-4 py-3">{t("Versão")}</th>
+                <th className="px-4 py-3">{t("Último Heartbeat")}</th>
+                <th className="px-4 py-3 text-right">{t("Ação")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {installations.map((inst) => (
                 <tr key={inst.id} className="hover:bg-muted/20">
-                  <td className="px-4 py-3 font-mono text-xs text-foreground">
-                    {inst.id}
-                  </td>
+                  <td className="px-4 py-3 font-mono text-xs text-foreground">{inst.id}</td>
                   <td className="px-4 py-3">
                     <div className="font-medium">{inst.customer_name}</div>
                     <div className="text-xs text-muted-foreground capitalize">
@@ -141,11 +141,13 @@ export default function AdminInstallationsPage() {
                   <td className="px-4 py-3 text-xs text-muted-foreground">
                     {inst.last_heartbeat_at
                       ? new Date(inst.last_heartbeat_at).toLocaleString(tag)
-                      : "Nunca"}
+                      : t("Nunca")}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <Button asChild variant="outline" size="sm">
-                      <Link href={`/admin/licensing/installations/${inst.id}`}>Detalhes</Link>
+                      <Link href={`/admin/licensing/installations/${inst.id}`}>
+                        {t("Detalhes")}
+                      </Link>
                     </Button>
                   </td>
                 </tr>
