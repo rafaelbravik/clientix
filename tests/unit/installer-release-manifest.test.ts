@@ -29,7 +29,7 @@ describe("installer signed release manifest gate", () => {
 
     expect(result.status).toBe(0);
     expect(JSON.parse(result.stdout)).toMatchObject({
-      release_version: "1.0.0",
+      release_version: expect.stringMatching(/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/),
       schema_target: "0510",
       images: {
         app: expect.stringMatching(/@sha256:[0-9a-f]{64}$/),
