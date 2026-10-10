@@ -1,3 +1,4 @@
+import { requireSupportWrite } from "@/lib/impersonate/support";
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
@@ -52,6 +53,8 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     return falhaDaEscritaDePlatformAdmin(err, requestId);
   }
+  const supportDenied = await requireSupportWrite();
+  if (supportDenied) return supportDenied;
 
   let body: unknown;
   try {

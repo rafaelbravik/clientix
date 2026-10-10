@@ -2,6 +2,38 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import type { User } from "@supabase/supabase-js";
 
+const mocks = vi.hoisted(() => {
+  const adminService = {
+    listCustomers: vi.fn().mockResolvedValue([]),
+    createCustomer: vi.fn().mockResolvedValue({ id: "cust_123" }),
+    updateCustomer: vi.fn().mockResolvedValue({ id: "cust_123" }),
+    getCustomer: vi.fn().mockResolvedValue({}),
+    listLicenses: vi.fn().mockResolvedValue([]),
+    createLicense: vi.fn().mockResolvedValue({ id: "lic_123" }),
+    getLicenseDetail: vi.fn().mockResolvedValue({}),
+    renewLicense: vi.fn().mockResolvedValue({ id: "lic_123" }),
+    suspendLicense: vi.fn().mockResolvedValue({ id: "lic_123" }),
+    reactivateLicense: vi.fn().mockResolvedValue({ id: "lic_123" }),
+    revokeLicense: vi.fn().mockResolvedValue({ id: "lic_123" }),
+    listInstallations: vi.fn().mockResolvedValue([]),
+    getInstallationDetail: vi.fn().mockResolvedValue({}),
+    forceDeactivateInstallation: vi.fn().mockResolvedValue({ id: "inst_123" }),
+    reactivateInstallation: vi.fn().mockResolvedValue({ id: "inst_123" }),
+    suspendInstallation: vi.fn().mockResolvedValue({ id: "inst_123" }),
+    revokeInstallation: vi.fn().mockResolvedValue({ id: "inst_123" }),
+    listActivationCodes: vi.fn().mockResolvedValue([]),
+    createActivationCode: vi.fn().mockResolvedValue({ id: "code_123" }),
+    revokeActivationCode: vi.fn().mockResolvedValue({ id: "code_123" }),
+    listAuditEvents: vi.fn().mockResolvedValue([]),
+  };
+
+  return {
+    loadAuthUser: vi.fn(),
+    getControlPlaneAdminService: vi.fn(() => adminService),
+    adminService,
+  };
+});
+
 vi.mock("@/lib/auth/requirePlatformAdmin", () => ({
   requirePlatformAdmin: vi.fn(),
   requirePlatformAdminEscrita: vi.fn(),
@@ -13,29 +45,179 @@ vi.mock("@/lib/auth/requirePlatformAdmin", () => ({
   }),
 }));
 
+vi.mock("@/lib/auth/server", () => ({ loadAuthUser: mocks.loadAuthUser }));
+
 vi.mock("@/control-plane/src/admin-service-provider", () => ({
-  getControlPlaneAdminService: vi.fn(() => ({
-    listCustomers: vi.fn().mockResolvedValue([]),
-    createCustomer: vi.fn().mockResolvedValue({ id: "cust_123" }),
-    listLicenses: vi.fn().mockResolvedValue([]),
-    createLicense: vi.fn().mockResolvedValue({ id: "lic_123" }),
-    listInstallations: vi.fn().mockResolvedValue([]),
-    listAuditEvents: vi.fn().mockResolvedValue([]),
-  })),
+  getControlPlaneAdminService: mocks.getControlPlaneAdminService,
 }));
 
 import {
   requirePlatformAdmin,
   requirePlatformAdminEscrita,
 } from "@/lib/auth/requirePlatformAdmin";
+import { loadAuthUser } from "@/lib/auth/server";
 import { GET as getCustomers, POST as postCustomer } from "@/app/api/v1/admin/licensing/customers/route";
 import { GET as getLicenses, POST as postLicense } from "@/app/api/v1/admin/licensing/licenses/route";
 import { GET as getInstallations } from "@/app/api/v1/admin/licensing/installations/route";
 import { GET as getAudit } from "@/app/api/v1/admin/licensing/audit/route";
+import { POST as revokeActivationCode } from "@/app/api/v1/admin/licensing/activation-codes/[id]/revoke/route";
+import { PATCH as patchCustomer } from "@/app/api/v1/admin/licensing/customers/[id]/route";
+import { POST as deactivateInstallation } from "@/app/api/v1/admin/licensing/installations/[id]/deactivate/route";
+import { POST as reactivateInstallation } from "@/app/api/v1/admin/licensing/installations/[id]/reactivate/route";
+import { POST as revokeInstallation } from "@/app/api/v1/admin/licensing/installations/[id]/revoke/route";
+import { POST as suspendInstallation } from "@/app/api/v1/admin/licensing/installations/[id]/suspend/route";
+import { POST as createActivationCode } from "@/app/api/v1/admin/licensing/licenses/[id]/activation-codes/route";
+import { POST as reactivateLicense } from "@/app/api/v1/admin/licensing/licenses/[id]/reactivate/route";
+import { POST as renewLicense } from "@/app/api/v1/admin/licensing/licenses/[id]/renew/route";
+import { POST as revokeLicense } from "@/app/api/v1/admin/licensing/licenses/[id]/revoke/route";
+import { POST as suspendLicense } from "@/app/api/v1/admin/licensing/licenses/[id]/suspend/route";
+
+const id = "11111111-1111-4111-8111-111111111111";
+const context = { params: Promise.resolve({ id }) };
+const supportReadonly = {
+  id,
+  organization_id: "22222222-2222-4222-8222-222222222222",
+  actor_user_id: id,
+  auth_session_id: "33333333-3333-4333-8333-333333333333",
+  previous_organization_id: null,
+  expires_at: "2027-01-01T00:00:00.000Z",
+  name: "Support",
+  locale: "pt-BR",
+  access_mode: "support_readonly",
+  status: "active",
+};
+
+const mutacoesLicenciamento: { nome: string; executar: () => Promise<Response> }[] = [
+  {
+    nome: "criar cliente",
+    executar: () =>
+      postCustomer(
+        new NextRequest("http://localhost/api/v1/admin/licensing/customers", { method: "POST" }),
+      ),
+  },
+  {
+    nome: "atualizar cliente",
+    executar: () =>
+      patchCustomer(
+        new NextRequest("http://localhost/api/v1/admin/licensing/customers/customer-id", {
+          method: "PATCH",
+        }),
+        context,
+      ),
+  },
+  {
+    nome: "desativar instalação",
+    executar: () =>
+      deactivateInstallation(
+        new NextRequest("http://localhost/api/v1/admin/licensing/installations/id/deactivate", {
+          method: "POST",
+        }),
+        context,
+      ),
+  },
+  {
+    nome: "reativar instalação",
+    executar: () =>
+      reactivateInstallation(
+        new NextRequest("http://localhost/api/v1/admin/licensing/installations/id/reactivate", {
+          method: "POST",
+        }),
+        context,
+      ),
+  },
+  {
+    nome: "revogar instalação",
+    executar: () =>
+      revokeInstallation(
+        new NextRequest("http://localhost/api/v1/admin/licensing/installations/id/revoke", {
+          method: "POST",
+        }),
+        context,
+      ),
+  },
+  {
+    nome: "suspender instalação",
+    executar: () =>
+      suspendInstallation(
+        new NextRequest("http://localhost/api/v1/admin/licensing/installations/id/suspend", {
+          method: "POST",
+        }),
+        context,
+      ),
+  },
+  {
+    nome: "emitir código de ativação",
+    executar: () =>
+      createActivationCode(
+        new NextRequest("http://localhost/api/v1/admin/licensing/licenses/id/activation-codes", {
+          method: "POST",
+        }),
+        context,
+      ),
+  },
+  {
+    nome: "reativar licença",
+    executar: () =>
+      reactivateLicense(
+        new NextRequest("http://localhost/api/v1/admin/licensing/licenses/id/reactivate", {
+          method: "POST",
+        }),
+        context,
+      ),
+  },
+  {
+    nome: "renovar licença",
+    executar: () =>
+      renewLicense(
+        new NextRequest("http://localhost/api/v1/admin/licensing/licenses/id/renew", {
+          method: "POST",
+        }),
+        context,
+      ),
+  },
+  {
+    nome: "revogar licença",
+    executar: () =>
+      revokeLicense(
+        new NextRequest("http://localhost/api/v1/admin/licensing/licenses/id/revoke", {
+          method: "POST",
+        }),
+        context,
+      ),
+  },
+  {
+    nome: "suspender licença",
+    executar: () =>
+      suspendLicense(
+        new NextRequest("http://localhost/api/v1/admin/licensing/licenses/id/suspend", {
+          method: "POST",
+        }),
+        context,
+      ),
+  },
+  {
+    nome: "criar licença",
+    executar: () =>
+      postLicense(
+        new NextRequest("http://localhost/api/v1/admin/licensing/licenses", { method: "POST" }),
+      ),
+  },
+  {
+    nome: "revogar código de ativação",
+    executar: () =>
+      revokeActivationCode(
+        new NextRequest("http://localhost/api/v1/admin/licensing/activation-codes/id/revoke", {
+          method: "POST",
+        }),
+        context,
+      ),
+  },
+];
 
 describe("Admin Licensing Routes Security & RBAC Guards", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(loadAuthUser).mockReset().mockResolvedValue(null as never);
   });
 
   describe("GET endpoints: requirePlatformAdmin()", () => {
@@ -118,6 +300,8 @@ describe("Admin Licensing Routes Security & RBAC Guards", () => {
       const res = await postCustomer(req);
 
       expect(res.status).toBe(201);
+      expect(loadAuthUser).toHaveBeenCalledTimes(1);
+      expect(mocks.getControlPlaneAdminService).toHaveBeenCalledTimes(1);
     });
 
     it("denies non-full scope on license POST", async () => {
@@ -135,6 +319,67 @@ describe("Admin Licensing Routes Security & RBAC Guards", () => {
       const res = await postLicense(req);
 
       expect(res.status).toBe(403);
+    });
+  });
+
+  describe("support_readonly: licensing read and write contract", () => {
+    it("allows support_readonly to read while preserving the platform-admin read guard", async () => {
+      vi.mocked(requirePlatformAdmin).mockResolvedValueOnce({
+        user: { id: "support_user_id", email: "support@clientix.com" } as unknown as User,
+        platformAdmin: {
+          user_id: "support_user_id",
+          scope: "support_readonly",
+          mfa_required: true,
+        },
+      });
+      vi.mocked(loadAuthUser).mockResolvedValueOnce({ support: supportReadonly } as never);
+
+      const res = await getCustomers(
+        new NextRequest("http://localhost/api/v1/admin/licensing/customers"),
+      );
+
+      expect(res.status).toBe(200);
+      expect(mocks.getControlPlaneAdminService).toHaveBeenCalledTimes(1);
+    });
+
+    it.each(mutacoesLicenciamento)(
+      "$nome: nega support_readonly antes de acessar o Control Plane",
+      async ({ executar }) => {
+        vi.mocked(requirePlatformAdminEscrita).mockResolvedValue({
+          user: { id: "support_user_id", email: "support@clientix.com" } as unknown as User,
+          platformAdmin: {
+            user_id: "support_user_id",
+            scope: "full",
+            mfa_required: true,
+          },
+        });
+        vi.mocked(loadAuthUser).mockResolvedValue({ support: supportReadonly } as never);
+
+        const res = await executar();
+
+        expect(res.status).toBe(403);
+        expect((await res.json()).error.code).toBe("forbidden");
+        expect(loadAuthUser).toHaveBeenCalledTimes(1);
+        expect(mocks.getControlPlaneAdminService).not.toHaveBeenCalled();
+      },
+    );
+
+    it("allows a full-scope platform admin to mutate outside a readonly support session", async () => {
+      vi.mocked(requirePlatformAdminEscrita).mockResolvedValueOnce({
+        user: { id: "admin_user_id", email: "admin@clientix.com" } as unknown as User,
+        platformAdmin: { user_id: "admin_user_id", scope: "full", mfa_required: true },
+      });
+
+      const res = await postCustomer(
+        new NextRequest("http://localhost/api/v1/admin/licensing/customers", {
+          method: "POST",
+          body: JSON.stringify({ name: "Acme", billing_email: "a@b.com" }),
+        }),
+      );
+
+      expect(res.status).toBe(201);
+      expect(loadAuthUser).toHaveBeenCalledTimes(1);
+      expect(mocks.getControlPlaneAdminService).toHaveBeenCalledTimes(1);
     });
   });
 
