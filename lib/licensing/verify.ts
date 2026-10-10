@@ -14,13 +14,12 @@ import { verifyEd25519Signature } from "./crypto";
 import { computeTemporalLicenseState } from "./state";
 
 /**
- * Built-in trusted public keys registry for key rotation.
- * In production, keys can be supplied via environment variable (CLIENTIX_TRUSTED_LICENSE_KEYS)
- * or built into this configuration.
+ * Built-in vendor public keys registry for production key rotation.
+ * Environment overrides are limited to development and test environments.
  */
 export const DEFAULT_TRUSTED_KEYS: Record<string, string> = {
-  // Key ID placeholders or production public keys can be registered here.
-  // In development/test, options.trustedKeys can be supplied explicitly.
+  // Production license trust root. Public key only; private key remains outside the repository.
+  "clientix-license-2026-01": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEABdvNnKrV2W9R1h047Ur/i8aovRQujYvxydKqjyxsIGI=\n-----END PUBLIC KEY-----",
 };
 
 /**

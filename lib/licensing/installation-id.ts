@@ -3,25 +3,20 @@ import fs from "fs/promises";
 import path from "path";
 import type { InstallationIdStorage } from "./types";
 
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const PREFIX = "inst_";
+const CANONICAL_INSTALLATION_ID_REGEX = /^inst_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 /**
  * Validates whether a string matches the required `inst_<UUID>` format.
  */
 export function isValidInstallationId(id: string): boolean {
-  if (!id.startsWith(PREFIX)) {
-    return false;
-  }
-  const uuidPart = id.slice(PREFIX.length);
-  return UUID_REGEX.test(uuidPart);
+  return typeof id === "string" && CANONICAL_INSTALLATION_ID_REGEX.test(id);
 }
 
 /**
  * Generates a brand new cryptographically random installation ID in the format `inst_<UUIDv4>`.
  */
 export function generateInstallationId(): string {
-  return `${PREFIX}${crypto.randomUUID()}`;
+  return `inst_${crypto.randomUUID()}`;
 }
 
 /**

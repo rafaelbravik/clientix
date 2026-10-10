@@ -17,18 +17,20 @@
  */
 
 import WebSocket from "ws";
+import { loadVoiceAgentEnv } from "@/workers/voice-agent/env";
 
-const ARI_URL = process.env.ARI_URL!;
-const ARI_USERNAME = process.env.ARI_USERNAME!;
-const ARI_PASSWORD = process.env.ARI_PASSWORD!;
-const ARI_APP = process.env.ARI_APP ?? "voice-agent";
+function voiceEnv() {
+  return loadVoiceAgentEnv();
+}
 
 function authHeader() {
+  const { ARI_USERNAME, ARI_PASSWORD } = voiceEnv();
   const token = Buffer.from(`${ARI_USERNAME}:${ARI_PASSWORD}`).toString("base64");
   return { Authorization: `Basic ${token}` };
 }
 
 async function ariFetch(path: string, init: RequestInit = {}) {
+  const { ARI_URL } = voiceEnv();
   const res = await fetch(`${ARI_URL}${path}`, {
     ...init,
     headers: { ...authHeader(), "Content-Type": "application/json", ...(init.headers ?? {}) },
@@ -170,7 +172,8 @@ export interface AriEvent {
 export type AriEventHandler = (event: AriEvent) => void | Promise<void>;
 
 export function connectAriEvents(onEvent: AriEventHandler): WebSocket {
-  const wsUrl = `${process.env.ARI_WS_URL}?app=${ARI_APP}&api_key=${ARI_USERNAME}:${ARI_PASSWORD}&subscribeAll=true`;
+  const { ARI_WS_URL, ARI_APP, ARI_USERNAME, ARI_PASSWORD } = voiceEnv();
+  const wsUrl = `${ARI_WS_URL}?app=${ARI_APP}&api_key=${ARI_USERNAME}:${ARI_PASSWORD}&subscribeAll=true`;
   const ws = new WebSocket(wsUrl);
 
   ws.on("message", (raw) => {

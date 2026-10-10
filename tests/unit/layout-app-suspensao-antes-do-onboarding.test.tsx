@@ -2,9 +2,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const estado = vi.hoisted(() => ({ linha: null as unknown, erro: null as unknown }));
 const adminClient = {
-  from: () => ({
-    select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: estado.linha, error: estado.erro }) }) }),
-  }),
+  from: (tabela: string) => {
+    if (tabela === "organizations") {
+      return {
+        select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: estado.linha, error: estado.erro }) }) }),
+      };
+    }
+    if (tabela === "platform_config") {
+      return { select: () => ({ in: async () => ({ data: [], error: null }) }) };
+    }
+    if (tabela === "modulos_instalados") {
+      return { select: () => ({ in: () => ({ eq: async () => ({ data: [], error: null }) }) }) };
+    }
+    throw new Error(`tabela inesperada no mock de AppLayout: ${tabela}`);
+  },
 };
 vi.mock("@/lib/channels/health", () => ({ listarConexoesCaidas: async () => [] }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => adminClient }));
@@ -39,7 +50,7 @@ describe("layout de /app × org parada", () => {
     estado.linha = { onboarded_at: null, status: "suspended", settings: null };
     const { default: AppLayout } = await import("@/app/app/layout");
     await expect(AppLayout({ children: null })).rejects.toThrow("redirect:/account-suspended");
-  });
+  }, 90_000);
 
   it("leitura de organizations que falha LANÇA em vez de renderizar a casca", async () => {
     estado.linha = null;

@@ -41,6 +41,9 @@ const MODULOS = [
  * vermelho em algum lugar — e no lugar certo, separado do laço.
  */
 const MODULO_TARDIO = "@/lib/lgpd/pdf-renderer";
+// O filho tem um teto próprio de 60 s; o caso externo precisa de margem para
+// reportar o exit code em vez de ser encerrado antes pelo timeout padrão.
+const TIMEOUT_IMPORT_TSX_MS = 65_000;
 
 function importaSobTsx(modulo: string): { ok: boolean; saida: string } {
   const script = `import(${JSON.stringify(modulo)}).then(()=>process.exit(0)).catch(e=>{console.error(String(e&&e.message||e));process.exit(1)})`;
@@ -67,11 +70,11 @@ describe("o laço rápido do event_log carrega as dependências sob tsx", () => 
     it(`${modulo} resolve sob tsx`, () => {
       const r = importaSobTsx(modulo);
       expect(r.ok, `não resolveu sob tsx:\n${r.saida}`).toBe(true);
-    });
+    }, TIMEOUT_IMPORT_TSX_MS);
   }
 
   it(`${MODULO_TARDIO} resolve sob tsx (o import tardio do worker de LGPD)`, () => {
     const r = importaSobTsx(MODULO_TARDIO);
     expect(r.ok, `não resolveu sob tsx:\n${r.saida}`).toBe(true);
-  });
+  }, TIMEOUT_IMPORT_TSX_MS);
 });

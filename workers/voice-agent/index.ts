@@ -56,6 +56,10 @@ import { garantirLeadDaConversa } from "@/lib/leads/nascimento-do-lead";
 import { buscarConhecimento, resolverAcervoDoAgente } from "@/lib/ai/knowledge/busca";
 import { ehOperante } from "@/lib/organizacao/operante";
 import { getInstallationLicenseStatus } from "@/lib/licensing";
+import { loadVoiceAgentEnv } from "./env";
+
+// Fail immediately if this optional profile was enabled without its external ARI.
+loadVoiceAgentEnv();
 
 const supabaseAdmin = createAdminClient();
 

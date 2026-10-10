@@ -1,16 +1,13 @@
 import crypto from "crypto";
 import fs from "fs/promises";
 import path from "path";
+import { isValidInstallationId } from "./installation-id";
 
 /**
  * Canonically validates whether an installation ID matches the Clientix format:
  * `inst_<UUIDv4>`
  */
-export const CANONICAL_INSTALLATION_ID_REGEX = /^inst_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-export function isValidCanonicalInstallationId(id: string): boolean {
-  return typeof id === "string" && CANONICAL_INSTALLATION_ID_REGEX.test(id);
-}
+export const isValidCanonicalInstallationId = isValidInstallationId;
 
 /**
  * Standard Key Formats:

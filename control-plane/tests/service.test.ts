@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import crypto from "crypto";
+import { execFileSync } from "node:child_process";
 import { ControlPlaneService } from "../src/service";
 import { StaticVendorSignerProvider, KeySelectionVendorSignerProvider } from "../src/signer";
 import { PostgresNonceStore } from "../src/nonce-store";
@@ -9,6 +10,7 @@ import {
   generateInstallationKeyPair,
   createInstallationRequestSignature,
   deriveActivationCodeDigest,
+  isValidCanonicalInstallationId,
   normalizeCanonicalPath,
   verifyInstallationRequestSignature,
 } from "@/lib/licensing/installation-auth";
@@ -377,13 +379,39 @@ describe("L8.1F Control Plane Core Endpoints & Licensing Lifecycle", () => {
       });
 
       const instKeyPair = generateInstallationKeyPair();
-      const instId = "inst_123e4567-e89b-42d3-a456-426614174000";
+      const instId = execFileSync("bash", ["distribution/installer/installation-id.sh"], {
+        cwd: process.cwd(),
+        encoding: "utf8",
+      }).trim();
+      expect(isValidCanonicalInstallationId(instId)).toBe(true);
+
+      const timestamp = 1760000000;
+      const nonce = "aabbccddeeff00112233445566778899";
+      const proofSignature = createInstallationRequestSignature({
+        installationId: instId,
+        timestamp,
+        nonce,
+        method: "GET",
+        path: "/api/v1/license/status",
+        privateKeyPem: instKeyPair.privateKeyPem,
+      });
+      const proof = await verifyInstallationRequestSignature({
+        installationId: instId,
+        timestamp,
+        nonce,
+        method: "GET",
+        path: "/api/v1/license/status",
+        signatureBase64url: proofSignature,
+        publicKeyPem: instKeyPair.publicKeyPem,
+        currentTimestampUnixSeconds: timestamp,
+      });
+      expect(proof.ok).toBe(true);
 
       const actResult = await service.activate({
         installation_id: instId,
         installation_public_key: instKeyPair.publicKeyPem,
         activation_code: codeRes.raw_activation_code,
-        timestamp: 1760000000,
+        timestamp,
         nonce: "11223344556677889900aabbccddeeff",
       });
 
@@ -1462,5 +1490,4 @@ describe("L8.1F Control Plane Core Endpoints & Licensing Lifecycle", () => {
     });
   });
 });
-
 

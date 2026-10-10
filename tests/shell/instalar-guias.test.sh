@@ -21,13 +21,13 @@
 #  11. "nenhum guia" diz como sair dali.
 #  12. Edição à mão pela pasta global não trava a atualização.
 #  13. DESKCOMM_GUIAS_HOME: pasta alheia é recusada intacta; caminho relativo vira absoluto.
-#  14. --help imprime o cabeçalho INTEIRO — também pelo pipe que o README ensina —, e ele não
+#  14. --help imprime o cabeçalho INTEIRO, também pela entrada padrão, e ele não
 #      promete o que --fonte não cumpre.
 #  15. --fonte com link segue a árvore viva do clone (é a exceção que o cabeçalho declara).
 #  16. Cópia feita por uma versão anterior (sem a marca) é adotada, não recusada.
 #  17. A adoção não passa por um clone de trabalho — um caso por sinal que a segura.
 #  18. --remover apaga o que este script ligou e poupa o link que a pessoa fez à mão.
-#  19. O comando de desfazer que o README e a nota da versão ensinam roda de verdade.
+#  19. O comando de desfazer que a documentação atual publica roda de verdade.
 #  20. Trocar de fonte (cópia → --fonte, e o inverso) não deixa guia da fonte anterior ligado,
 #      nem para a varredura nem para o --remover — e o link feito à mão segue intacto.
 #  21. Uma troca de fonte interrompida no meio não tira do --remover o que ela já ligou.
@@ -214,8 +214,8 @@ mkdir -p "$TMP/relativo/cwd"
 checa "[ -f \"\$HOME/.claude/skills/deskcomm-instalar/SKILL.md\" ]" "caminho relativo: o link resolve (vira absoluto)"
 
 echo "14. --help"
-# Pelo pipe o script chega pela entrada padrão e `$0` vale `bash`: um --help que relê o próprio
-# arquivo saía vazio, com exit 0, justamente no caminho que o README ensina.
+# Pela entrada padrão, `$0` vale `bash`: um --help que relê o próprio arquivo saía vazio, com
+# exit 0, justamente no caminho alternativo que esta suíte protege.
 for modo in arquivo pipe; do
   if [ "$modo" = arquivo ]; then saida="$(bash "$SCRIPT" --help 2>&1)"; code=$?
   # Pela entrada padrão, sem `cat |`: com pipefail, o `cat` leva SIGPIPE quando o bash sai do --help
@@ -294,14 +294,13 @@ bash "$SCRIPT" >/dev/null 2>&1
 saida="$(bash "$SCRIPT" --remover 2>&1)"
 checa "grep -q 'ok: 6 ligação' <<<\"\$saida\" && [ -L \"\$HOME/.claude/skills/deskcomm-meu-fork\" ] && [ ! -e \"\$HOME/.agents/skills/deskcomm-instalar\" ]" "com instalação, --remover tira as 6 ligações e o link da pessoa fica"
 
-echo "19. o comando de desfazer que a documentação ensina"
+echo "19. o comando de desfazer que a documentação ainda publica"
 cenario documentacao
 # Não é grep de frase: o comando é EXTRAÍDO do documento e EXECUTADO, trocando só o curl pelo
-# script deste repo. `| bash --remover` — o que os dois documentos diziam — faz o próprio bash
-# recusar a opção, e nada do que está instalado sai.
+# script deste repo. A forma `| bash --remover` é inválida e deixa a instalação intacta.
 # O fragmento some quando a release é cortada, e o mesmo texto passa a viver no CHANGELOG (o
-# corte copia o corpo). Por isso a varredura é por documento QUE MENCIONA o comando, com piso
-# de dois — senão, no dia do corte, o gate viraria verde por não ter mais o que ler.
+# corte copia o corpo). O README deixou de ser um manual de instalação dos guias; exigir duas
+# cópias ou a prosa antiga faria o teste reintroduzir instruções obsoletas.
 documentos=0
 for doc in "$RAIZ/README.md" "$RAIZ/CHANGELOG.md" "$RAIZ"/.changes/*.md; do
   [ -f "$doc" ] || continue
@@ -313,10 +312,11 @@ for doc in "$RAIZ/README.md" "$RAIZ/CHANGELOG.md" "$RAIZ"/.changes/*.md; do
   saida="$(cat "$SCRIPT" | eval "$desfaz" 2>&1)"; code=$?
   checa "[ $code = 0 ] && [ ! -e \"\$HOME/.agents/skills/deskcomm-instalar\" ]" "o comando de $(basename "$doc") desfaz de verdade (é: $desfaz)"
 done
-checa "[ $documentos -ge 2 ]" "o comando foi lido de pelo menos dois documentos (guarda de vacuidade)"
-# A outra metade que só vive em prosa: a forma de chamar em cada CLI e a defasagem da cópia.
-checa "grep -qF '\$deskcomm-instalar' \"\$RAIZ/README.md\" && ! grep -qE 'digite .?/deskcomm-' \"\$RAIZ/README.md\"" "o README ensina a forma do Codex e não manda digitar / em todos"
-checa "grep -q 'se atualizam sozinhos' \"\$RAIZ/README.md\" && grep -q 'vale mais que o do clone' \"\$RAIZ/README.md\"" "o README diz que a cópia não se atualiza sozinha e que no Claude Code ela vence o clone"
+checa "[ $documentos -ge 1 ]" "há ao menos um documento atual com o comando executável"
+# O README não deve voltar a carregar o comando de instalação e os exemplos de
+# skill que pertenciam ao manual antigo; a saída atual do script já é cobrada
+# acima (incluindo o formato de chamada específico de cada CLI).
+checa "! grep -qF 'melgarafael/DeskcommCRM' \"\$RAIZ/README.md\" && ! grep -qF '/deskcomm-instalar' \"\$RAIZ/README.md\"" "o README não reintroduz a origem nem os comandos legados dos guias"
 
 # Os deskcomm-* que sobraram nas três pastas, fora o link que a pessoa fez à mão.
 # shellcheck disable=SC2329  # chamada de dentro das condições que o `checa` avalia

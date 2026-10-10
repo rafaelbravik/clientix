@@ -36,13 +36,23 @@ function scriptDoImagensOk(): string {
 
 const DESFECHOS = "success failure skipped cancelled";
 
-// A matriz inteira numa invocação só de bash (4096 processos filhos do Node
-// custavam minutos numa máquina carregada). Cada combinação roda o script num
-// SUBSHELL, e o código de saída é lido FORA de um `if`: dentro da condição de
-// um `if` o bash desliga o `set -e` do subshell, e o `[ ]` que falhou deixaria
-// de reprovar — a sonda aceitaria tudo.
+// Executa as 4096 combinações em uma única invocação de bash e no mesmo shell.
+// O trap ERR interrompe o eval no primeiro comando que reprovar, captura seu
+// status e devolve o controle ao laço sem criar um subshell por combinação.
+// O job é chamado como comando simples, nunca como condição de `if`/`&&`, para
+// que o `set -e` do script real continue valendo durante o eval.
 function combinacoesAceitas(): string[] {
   const programa = `
+set +e
+executarJob() {
+  local status
+  trap 'status=$?; trap - ERR; set +e; return "$status"' ERR
+  eval "$SCRIPT_DO_JOB" >/dev/null 2>&1
+  status=$?
+  trap - ERR
+  return "$status"
+}
+
 for EVENTO in pull_request push; do
  for ALCANCE in sim nao; do
   for PORTAO in ${DESFECHOS}; do
@@ -51,9 +61,10 @@ for EVENTO in pull_request push; do
      for APP in ${DESFECHOS}; do
       for FUNDO in ${DESFECHOS}; do
       export EVENTO ALCANCE PORTAO BUILD MANIFESTO APP FUNDO
-      ( eval "$SCRIPT_DO_JOB" ) >/dev/null 2>&1
+      set +e
+      executarJob
       rc=$?
-      [ $rc -eq 0 ] && echo "$EVENTO $ALCANCE $PORTAO $BUILD $MANIFESTO $APP $FUNDO"
+      [ "$rc" -eq 0 ] && echo "$EVENTO $ALCANCE $PORTAO $BUILD $MANIFESTO $APP $FUNDO"
       done
       done
      done
@@ -81,7 +92,6 @@ describe("imagens-ok só aceita o pulo declarado", () => {
 
   it(
     "da matriz inteira de desfechos (4096), passa exatamente o que foi declarado",
-    { timeout: 180_000 },
     () => {
     const passam = combinacoesAceitas();
     expect(passam.sort()).toEqual(

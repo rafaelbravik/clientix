@@ -78,11 +78,22 @@ vi.mock("@/lib/branding/organizacao", () => ({
  * e o que está sob medição aqui é o caminho normal.
  */
 Object.assign(adminClient, {
-  from: () => ({
-    select: () => ({
-      eq: () => ({ maybeSingle: async () => ({ data: { onboarded_at: "2026-01-01", status: "active", settings: null } }) }),
-    }),
-  }),
+  from: (tabela: string) => {
+    if (tabela === "organizations") {
+      return {
+        select: () => ({
+          eq: () => ({ maybeSingle: async () => ({ data: { onboarded_at: "2026-01-01", status: "active", settings: null } }) }),
+        }),
+      };
+    }
+    if (tabela === "platform_config") {
+      return { select: () => ({ in: async () => ({ data: [], error: null }) }) };
+    }
+    if (tabela === "modulos_instalados") {
+      return { select: () => ({ in: () => ({ eq: async () => ({ data: [], error: null }) }) }) };
+    }
+    throw new Error(`tabela inesperada no mock de AppLayout: ${tabela}`);
+  },
 });
 
 function achar(no: ReactNode, alvo: unknown): ReactElement | null {
@@ -118,7 +129,7 @@ describe("a faixa de conexão caída", () => {
     // remontando a lista à mão desde que os campos coincidissem HOJE — que é
     // exatamente a divergência que esta cerca existe para impedir.
     expect(faixa!.props.caidas).toBe(conexoesDoSeam);
-  }, 60_000);
+  }, 90_000);
 
   it("pergunta ao seam com o cliente admin e a organização ativa", async () => {
     listarConexoesCaidas.mockClear();

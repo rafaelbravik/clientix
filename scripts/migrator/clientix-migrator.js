@@ -182,6 +182,56 @@ async function inspectDatabaseState(client) {
   return { type: 'TRACKED_INSTALLATION', applied: rows.rows };
 }
 
+function formatSchemaSequence(sequence) {
+  if (!Number.isSafeInteger(sequence) || sequence < 0 || sequence > 999999) return null;
+  return String(sequence).padStart(4, '0');
+}
+
+function deriveCurrentSchema(state, manifest) {
+  const manifestTarget = formatSchemaSequence(Number(manifest.baseline?.incorporated_through_sequence));
+  if (!manifestTarget || manifestTarget !== manifest.schema_target) {
+    return { valid: false, currentSchema: null, error: 'MIGRATOR_SCHEMA_TARGET_INVALID' };
+  }
+  if (state.type === 'FRESH_DATABASE') {
+    return { valid: true, currentSchema: null, error: null };
+  }
+  if (state.type !== 'TRACKED_INSTALLATION') {
+    return { valid: false, currentSchema: null, error: 'CURRENT_SCHEMA_UNAVAILABLE' };
+  }
+
+  const markerRows = state.applied.filter((row) => typeof row.version === 'string' && row.version.startsWith('baseline:'));
+  if (markerRows.length !== 1) {
+    return { valid: false, currentSchema: null, error: 'BASELINE_MARKER_MISSING_OR_AMBIGUOUS' };
+  }
+  const markerMatch = markerRows[0].version.match(/^baseline:(\d{4,6})$/);
+  if (!markerMatch) {
+    return { valid: false, currentSchema: null, error: 'BASELINE_MARKER_INVALID' };
+  }
+
+  let currentSequence = Number(markerMatch[1]);
+  if (!Number.isSafeInteger(currentSequence) || currentSequence > 999999) {
+    return { valid: false, currentSchema: null, error: 'BASELINE_MARKER_INVALID' };
+  }
+  const targetSequence = Number(manifest.baseline?.incorporated_through_sequence);
+  if (currentSequence === targetSequence && markerRows[0].checksum !== manifest.baseline.checksum) {
+    return { valid: false, currentSchema: null, error: 'BASELINE_CHECKSUM_MISMATCH' };
+  }
+
+  const migrationsByVersion = new Map((manifest.migrations || []).map((migration) => [migration.version, migration]));
+  for (const row of state.applied) {
+    if (row === markerRows[0]) continue;
+    const migration = migrationsByVersion.get(row.version);
+    if (!migration || migration.checksum !== row.checksum || !Number.isSafeInteger(migration.sequence)) {
+      return { valid: false, currentSchema: null, error: 'APPLIED_MIGRATION_UNKNOWN_OR_INCONSISTENT' };
+    }
+    currentSequence = Math.max(currentSequence, migration.sequence);
+  }
+
+  const currentSchema = formatSchemaSequence(currentSequence);
+  if (!currentSchema) return { valid: false, currentSchema: null, error: 'CURRENT_SCHEMA_INVALID' };
+  return { valid: true, currentSchema, error: null };
+}
+
 async function runVerification(client, verifySqlPath) {
   if (!fs.existsSync(verifySqlPath)) return;
   const sql = fs.readFileSync(verifySqlPath, 'utf8');
@@ -198,15 +248,18 @@ async function cmdStatus(jsonMode = false) {
   try {
     const state = await inspectDatabaseState(client);
     let pending = [];
-    let isCompatible = true;
     let checksumOk = true;
+    const schemaEvidence = deriveCurrentSchema(state, manifest);
+    if (!schemaEvidence.valid) checksumOk = false;
 
     if (state.type === 'TRACKED_INSTALLATION') {
       const appliedMap = new Map(state.applied.map((r) => [r.version, r]));
       
       // Verifica baseline incorporado
-      const baselineRow = appliedMap.get('baseline:0510');
-      if (baselineRow && baselineRow.checksum !== manifest.baseline.checksum) {
+      const baselineVersion = formatSchemaSequence(Number(manifest.baseline.incorporated_through_sequence));
+      const baselineRow = baselineVersion ? appliedMap.get('baseline:' + baselineVersion) : undefined;
+      if (baselineRow && baselineRow.checksum !== manifest.baseline.checksum &&
+          baselineVersion === manifest.schema_target) {
         checksumOk = false;
       }
 
@@ -231,6 +284,9 @@ async function cmdStatus(jsonMode = false) {
       database_url: redactUrl(dbUrl),
       state_type: state.type,
       target_baseline: manifest.schema_target,
+      current_schema: schemaEvidence.currentSchema,
+      schema_evidence_valid: schemaEvidence.valid,
+      schema_evidence_error: schemaEvidence.error,
       baseline_checksum: manifest.baseline.checksum,
       checksum_consistent: checksumOk,
       applied_count: state.applied ? state.applied.length : 0,
@@ -281,7 +337,8 @@ async function cmdCheck() {
 
     // Valida checksums das registradas
     const appliedMap = new Map(state.applied.map((r) => [r.version, r]));
-    const baselineRow = appliedMap.get('baseline:0510');
+    const baselineSequence = formatSchemaSequence(Number(manifest.baseline.incorporated_through_sequence));
+    const baselineRow = baselineSequence ? appliedMap.get('baseline:' + baselineSequence) : undefined;
     if (baselineRow && baselineRow.checksum !== manifest.baseline.checksum) {
       logError(`CHECKSUM_MISMATCH: Baseline modificado! Registrado=${baselineRow.checksum}, Esperado=${manifest.baseline.checksum}`);
       process.exit(3);
@@ -419,11 +476,13 @@ async function cmdInstall() {
     log('Criando tabela de controle clientix_schema_migrations...');
     await ensureMetadataTable(client);
 
-    log('Registrando marcador do baseline 0510...');
+    const baselineSequence = formatSchemaSequence(Number(manifest.baseline.incorporated_through_sequence));
+    if (!baselineSequence) throw new Error('MIGRATOR_SCHEMA_TARGET_INVALID');
+    log('Registrando marcador do baseline ' + baselineSequence + '...');
     await client.query(
       `INSERT INTO public.clientix_schema_migrations (version, name, checksum, execution_time_ms)
        VALUES ($1, $2, $3, $4);`,
-      ['baseline:0510', 'baseline_cumulativo_0510', manifest.baseline.checksum, executionTimeMs]
+      ['baseline:' + baselineSequence, 'baseline_cumulativo_' + baselineSequence, manifest.baseline.checksum, executionTimeMs]
     );
 
     log('Executando verificações pós-instalação...');
@@ -464,17 +523,19 @@ async function cmdAdopt() {
       ) AS future_exists;
     `);
     if (versionCheck.rows[0].future_exists) {
-      logError('DATABASE_NEWER_THAN_MIGRATOR: Banco contém artefatos de versão mais recente que este migrador (0510).');
+      logError('DATABASE_NEWER_THAN_MIGRATOR: Banco contém artefatos de versão mais recente que este migrador (' + manifest.schema_target + ').');
       process.exit(8);
     }
 
-    log('Banco compatível! Criando tabela de metadados e registrando marcador canônico baseline:0510...');
+    const baselineSequence = formatSchemaSequence(Number(manifest.baseline.incorporated_through_sequence));
+    if (!baselineSequence) throw new Error('MIGRATOR_SCHEMA_TARGET_INVALID');
+    log('Banco compatível! Criando tabela de metadados e registrando marcador canônico baseline:' + baselineSequence + '...');
     await ensureMetadataTable(client);
     await client.query(
       `INSERT INTO public.clientix_schema_migrations (version, name, checksum, execution_time_ms)
        VALUES ($1, $2, $3, $4)
        ON CONFLICT (version) DO NOTHING;`,
-      ['baseline:0510', 'baseline_cumulativo_0510 (ADOPTED)', manifest.baseline.checksum, 0]
+      ['baseline:' + baselineSequence, 'baseline_cumulativo_' + baselineSequence + ' (ADOPTED)', manifest.baseline.checksum, 0]
     );
 
     log('ADOÇÃO CONCLUÍDA COM SUCESSO. Instalação agora está sob controle do Clientix Migrator.');
@@ -618,4 +679,8 @@ async function main() {
   }
 }
 
-main();
+module.exports = { formatSchemaSequence, deriveCurrentSchema };
+
+if (require.main === module) {
+  main();
+}

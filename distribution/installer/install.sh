@@ -5,11 +5,16 @@ set -euo pipefail
 
 INSTALL_DIR="${CLIENTIX_DIR:-/opt/clientix}"
 INSTALLER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$INSTALLER_DIR/installation-id.sh"
 STATE_FILE="$INSTALL_DIR/state/release.json"
 ENV_FILE="$INSTALL_DIR/.env"
 COMPOSE_FILE="$INSTALL_DIR/compose.yaml"
 BACKUP_DIR="$INSTALL_DIR/backups"
 MANIFEST_FILE="$INSTALLER_DIR/release-manifest.json"
+MANIFEST_VERIFIER="$INSTALLER_DIR/verify-release-manifest.mjs"
+MANIFEST_TRUST_ROOT="$INSTALLER_DIR/trust/release-manifest"
+INSTALLER_VERSION_FILE="$INSTALLER_DIR/VERSION"
+INSTALLER_CURRENT_VERSION=""
 
 # Redaction helper
 redact() {
@@ -20,7 +25,7 @@ redact() {
 log() {
   local clean
   clean="$(redact "$*")"
-  echo "[clientix-installer] $(date -u +'%Y-%m-%dT%H:%M:%SZ') $clean"
+  echo "[clientix-installer] $(date -u +'%Y-%m-%dT%H:%M:%SZ') $clean" >&2
 }
 
 log_err() {
@@ -53,6 +58,14 @@ preflight() {
   # Compose
   docker compose version >/dev/null 2>&1 || die "DOCKER_COMPOSE_AUSENTE: Docker Compose v2 é obrigatório."
 
+  # Node é usado apenas pelo verificador Ed25519 local, antes de puxar qualquer imagem.
+  command -v node >/dev/null 2>&1 || die "NODE_AUSENTE: Node.js 22+ é obrigatório para verificar o manifesto assinado."
+  local node_major
+  node_major="$(node -p 'Number(process.versions.node.split(".")[0])' 2>/dev/null || echo 0)"
+  [ "$node_major" -ge 22 ] || die "NODE_DESATUALIZADO: Node.js 22+ é obrigatório para verificar o manifesto assinado."
+
+  command -v curl >/dev/null 2>&1 || die "CURL_AUSENTE: curl é obrigatório para o preflight de dependências externas."
+
   # Espaço em disco (mínimo 2 GB livres no diretório de instalação)
   if [ -d "$INSTALL_DIR" ] || [ -d "$(dirname "$INSTALL_DIR")" ]; then
     local check_path="$INSTALL_DIR"
@@ -70,36 +83,110 @@ preflight() {
 # 2. Inicialização de Estrutura de Diretórios
 init_directories() {
   mkdir -p "$INSTALL_DIR/data" "$INSTALL_DIR/backups" "$INSTALL_DIR/state" "$INSTALL_DIR/licenses" "$INSTALL_DIR/logs"
-  chmod 700 "$INSTALL_DIR/state" "$INSTALL_DIR/licenses" || true
+  chown 1001:1001 "$INSTALL_DIR/state" "$INSTALL_DIR/licenses" || die "RUNTIME_DIRECTORY_OWNERSHIP_FAILED: não foi possível preparar os volumes para o usuário não-root do app."
+  chmod 2750 "$INSTALL_DIR/state" "$INSTALL_DIR/licenses" || die "RUNTIME_DIRECTORY_PERMISSIONS_FAILED: não foi possível preparar os volumes de runtime."
+  if [ -f "$INSTALL_DIR/licenses/license.json" ]; then
+    chown 1001:1001 "$INSTALL_DIR/licenses/license.json" || die "LICENSE_FILE_OWNERSHIP_FAILED: não foi possível preparar a licença para leitura do worker."
+    chmod 640 "$INSTALL_DIR/licenses/license.json" || die "LICENSE_FILE_PERMISSIONS_FAILED: não foi possível preparar a licença para leitura do worker."
+  fi
 }
 
-# 3. Geração ou Preservação de Secrets e installation_id
-setup_env() {
-  if [ ! -f "$ENV_FILE" ]; then
-    log "Criando novo arquivo .env com secrets gerados criptograficamente..."
-    local inst_id nextauth enc_key cron_sec app_sec
-    inst_id="$(od -x /dev/urandom 2>/dev/null | head -1 | awk '{print $2$3"-"$4"-"$5"-"$6"-"$7$8$9}' || date +%s%N)"
-    nextauth="$(openssl rand -hex 32 2>/dev/null || echo "clx_sec_$(date +%s)")"
-    enc_key="$(openssl rand -hex 32 2>/dev/null || echo "clx_enc_$(date +%s)")"
-    cron_sec="$(openssl rand -hex 24 2>/dev/null || echo "clx_cron_$(date +%s)")"
-    app_sec="$(openssl rand -hex 24 2>/dev/null || echo "clx_app_$(date +%s)")"
+write_installation_id_file() {
+  local installation_id="$1" target="$INSTALL_DIR/state/installation_id" tmp="$INSTALL_DIR/state/installation_id.tmp.$$"
+  is_valid_canonical_installation_id "$installation_id" || die "INSTALLATION_ID_INVALID: não é possível persistir um ID fora do contrato inst_<UUIDv4>."
+  printf '%s\n' "$installation_id" > "$tmp" || die "INSTALLATION_ID_WRITE_FAILED: falha ao gravar o ID persistente."
+  chown 1001:1001 "$tmp" || die "INSTALLATION_ID_OWNERSHIP_FAILED: não foi possível entregar o ID ao runtime."
+  chmod 640 "$tmp" || die "INSTALLATION_ID_PERMISSIONS_FAILED: não foi possível proteger o ID persistente."
+  mv -f "$tmp" "$target" || die "INSTALLATION_ID_PROMOTION_FAILED: não foi possível promover o ID persistente."
+}
 
-    sed \
-      -e "s/^INSTALLATION_ID=.*/INSTALLATION_ID=${inst_id}/" \
-      -e "s/^NEXTAUTH_SECRET=.*/NEXTAUTH_SECRET=${nextauth}/" \
-      -e "s/^ENCRYPTION_KEY=.*/ENCRYPTION_KEY=${enc_key}/" \
-      -e "s/^INTERNAL_CRON_SECRET=.*/INTERNAL_CRON_SECRET=${cron_sec}/" \
-      -e "s/^INTERNAL_API_SECRET=.*/INTERNAL_API_SECRET=${app_sec}/" \
-      -e "s/^IMPERSONATE_COOKIE_SECRET=.*/IMPERSONATE_COOKIE_SECRET=${nextauth}/" \
-      "$INSTALLER_DIR/.env.example" > "$ENV_FILE"
-    chmod 600 "$ENV_FILE"
-  else
-    log "Preservando arquivo .env e secrets existentes."
-    # Fail-closed em caso de corrupção do INSTALLATION_ID em instalação existente
-    if ! grep -q "^INSTALLATION_ID=" "$ENV_FILE" || [ -z "$(grep "^INSTALLATION_ID=" "$ENV_FILE" | cut -d= -f2)" ]; then
-      die "CORRUPTED_INSTALLATION_ID: INSTALLATION_ID ausente ou vazio no .env de instalação existente. Intervenção manual obrigatória."
-    fi
+validate_installation_id_binding() {
+  local env_id="${INSTALLATION_ID:-}" state_path="$INSTALL_DIR/state/installation_id" state_id
+  is_valid_canonical_installation_id "$env_id" || die "LEGACY_INSTALLATION_ID_REQUIRES_REBIND: INSTALLATION_ID atual não é inst_<UUIDv4>; nenhuma atualização foi aplicada."
+  if [ -f "$state_path" ]; then
+    state_id="$(tr -d '\r\n' < "$state_path")"
+    is_valid_canonical_installation_id "$state_id" || die "INSTALLATION_ID_STATE_INVALID: ID persistido está corrompido; nenhuma atualização foi aplicada."
+    [ "$state_id" = "$env_id" ] || die "INSTALLATION_ID_MISMATCH: .env e state/installation_id divergem; nenhuma atualização foi aplicada."
   fi
+}
+
+# Atualização atômica de uma variável do arquivo de ambiente.
+set_env_value() {
+  local key="$1" value="$2" tmp value_file
+  umask 077
+  tmp="$(mktemp "${ENV_FILE}.tmp.XXXXXX")" || die "ENV_WRITE_FAILED: Falha ao preparar arquivo temporário do .env."
+  value_file="$(mktemp "${ENV_FILE}.value.XXXXXX")" || { rm -f "$tmp"; die "ENV_WRITE_FAILED: Falha ao preparar valor temporário do .env."; }
+  printf '%s' "$value" > "$value_file" || { rm -f "$tmp" "$value_file"; die "ENV_WRITE_FAILED: Falha ao preparar o valor de configuração."; }
+  awk -v key="$key" -v value_file="$value_file" '
+    BEGIN { found = 0; getline value < value_file; close(value_file) }
+    { sub(/\r$/, "") }
+    index($0, key "=") == 1 {
+      if (!found) print key "=" value
+      found = 1
+      next
+    }
+    { print }
+    END { if (!found) print key "=" value }
+  ' "$ENV_FILE" > "$tmp" || { rm -f "$tmp" "$value_file"; die "ENV_WRITE_FAILED: Falha ao preparar atualização do .env."; }
+  rm -f "$value_file"
+  chmod 600 "$tmp" 2>/dev/null || true
+  mv "$tmp" "$ENV_FILE"
+}
+
+read_env_value() {
+  local key="$1"
+  awk -v key="$key" 'index($0, key "=") == 1 { sub(/\r$/, ""); print substr($0, length(key) + 2); exit }' "$ENV_FILE"
+}
+
+random_hex() {
+  local bytes="$1" value
+  value="$(od -An -N"$bytes" -tx1 /dev/urandom 2>/dev/null | tr -d ' \n')"
+  [ "${#value}" -eq "$((bytes * 2))" ] || die "CSPRNG_UNAVAILABLE: Falha ao gerar segredo criptograficamente seguro."
+  printf '%s' "$value"
+}
+
+# 3. Geração ou preservação de secrets e installation_id.
+setup_env() {
+  [ -f "$ENV_FILE" ] || die "ENV_FILE_REQUIRED: copie $INSTALLER_DIR/.env.example para $ENV_FILE, preencha os endpoints e credenciais externos, e rode novamente. Nenhuma instalação foi alterada."
+
+  local inst_id secret key state_id state_path="$INSTALL_DIR/state/installation_id"
+  inst_id="$(read_env_value INSTALLATION_ID)"
+  state_id=""
+  if [ -f "$state_path" ]; then
+    state_id="$(tr -d '\r\n' < "$state_path")"
+    [ -n "$state_id" ] || die "INSTALLATION_ID_STATE_INVALID: ID persistido está vazio; nenhuma instalação foi alterada."
+  fi
+  if [ -n "$inst_id" ]; then
+    is_valid_canonical_installation_id "$inst_id" || die "LEGACY_INSTALLATION_ID_REQUIRES_REBIND: INSTALLATION_ID existente não é inst_<UUIDv4>. Ele foi preservado; obtenha uma revinculação de licença antes de migrar."
+    if [ -n "$state_id" ] && [ "$state_id" != "$inst_id" ]; then
+      die "INSTALLATION_ID_MISMATCH: .env e state/installation_id divergem; nenhuma instalação foi alterada."
+    fi
+  elif [ -n "$state_id" ]; then
+    is_valid_canonical_installation_id "$state_id" || die "INSTALLATION_ID_STATE_INVALID: ID persistido está corrompido; nenhuma instalação foi alterada."
+    inst_id="$state_id"
+    set_env_value INSTALLATION_ID "$inst_id"
+  else
+    inst_id="$(generate_installation_id)" || die "CSPRNG_UNAVAILABLE: não foi possível gerar INSTALLATION_ID."
+    is_valid_canonical_installation_id "$inst_id" || die "INSTALLATION_ID_GENERATION_FAILED: gerador retornou ID fora do contrato inst_<UUIDv4>."
+    set_env_value INSTALLATION_ID "$inst_id"
+  fi
+  [ -f "$state_path" ] || write_installation_id_file "$inst_id"
+
+  for key in INTERNAL_SECRET INTERNAL_CRON_SECRET CPF_ENCRYPTION_KEY WAHA_BYO_ENCRYPTION_KEY; do
+    secret="$(read_env_value "$key")"
+    if [ -z "$secret" ]; then
+      secret="$(random_hex 32)"
+      set_env_value "$key" "$secret"
+    fi
+  done
+
+  secret="$(read_env_value AI_CRED_AES_KEY)"
+  if [ -z "$secret" ]; then
+    secret="$(head -c 32 /dev/urandom 2>/dev/null | base64 | tr -d '\n')"
+    [ "${#secret}" -ge 40 ] || die "CSPRNG_UNAVAILABLE: falha ao gerar AI_CRED_AES_KEY."
+    set_env_value AI_CRED_AES_KEY "$secret"
+  fi
+  chmod 600 "$ENV_FILE" 2>/dev/null || true
 }
 
 # 4. Carrega Variáveis de Ambiente
@@ -107,38 +194,95 @@ load_env() {
   [ -f "$ENV_FILE" ] || die "ENV_FILE_AUSENTE: $ENV_FILE não encontrado."
   set -a
   # shellcheck source=/dev/null
-  source "$ENV_FILE"
+  # Normaliza CRLF sem alterar o arquivo de origem.
+  source <(sed 's/\r$//' "$ENV_FILE")
   set +a
 }
 
 # 5. Validação de Evolução de Configuração (Check de Variáveis Obrigatórias)
 validate_config_evolution() {
   log "Verificando consistência de variáveis obrigatórias contra .env.example..."
-  local example="$INSTALLER_DIR/.env.example"
-  if [ -f "$example" ] && [ -f "$ENV_FILE" ]; then
-    local missing=()
-    while IFS= read -r line || [ -n "$line" ]; do
-      case "$line" in
-        \#*|"") continue ;;
-        *=*)
-          local key="${line%%=*}"
-          # Se for variável estritamente obrigatória
-          case "$key" in
-            DATABASE_URL|NEXTAUTH_SECRET|ENCRYPTION_KEY|INTERNAL_CRON_SECRET|INTERNAL_API_SECRET|INSTALLATION_ID)
-              if ! grep -q "^${key}=" "$ENV_FILE" || [ -z "$(grep "^${key}=" "$ENV_FILE" | cut -d= -f2-)" ]; then
-                missing+=("$key")
-              fi
-              ;;
-          esac
-          ;;
-      esac
-    done < "$example"
-
-    if [ ${#missing[@]} -gt 0 ]; then
-      die "MISSING_REQUIRED_CONFIG: Variáveis obrigatórias ausentes no .env: ${missing[*]}"
-    fi
+  local missing=() key
+  local required=(INSTALLATION_ID NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY INTERNAL_SECRET CPF_ENCRYPTION_KEY WAHA_BYO_ENCRYPTION_KEY AI_CRED_AES_KEY SUPABASE_DB_URL SUPABASE_DB_ADMIN_URL WAHA_API_BASE_URL WAHA_API_KEY WAHA_WEBHOOK_BASE_URL UPSTASH_REDIS_REST_URL UPSTASH_REDIS_REST_TOKEN APP_IMAGE WORKER_IMAGE SCHEDULER_IMAGE VOICE_AGENT_IMAGE MIGRATOR_IMAGE)
+  for key in "${required[@]}"; do
+    if [ -z "${!key:-}" ]; then missing+=("$key"); fi
+  done
+  if [[ ",${COMPOSE_PROFILES:-}," == *,telefonia,* ]]; then
+    for key in ARI_URL ARI_WS_URL ARI_USERNAME ARI_PASSWORD OPENAI_API_KEY; do
+      if [ -z "${!key:-}" ]; then missing+=("$key"); fi
+    done
   fi
+  [ ${#missing[@]} -eq 0 ] || die "MISSING_REQUIRED_CONFIG: Variáveis obrigatórias ausentes no .env: ${missing[*]}"
   log "Validação de configuração concluída: OK."
+}
+
+# Credenciais e URLs de serviços independentes do pacote comercial. Nenhum
+# endpoint recebe defaults locais: o Supabase, Upstash e WAHA são externos.
+validate_external_config() {
+  local missing=() key
+  local required=(NEXT_PUBLIC_APP_URL NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY SUPABASE_DB_URL SUPABASE_DB_ADMIN_URL WAHA_API_BASE_URL WAHA_API_KEY WAHA_WEBHOOK_BASE_URL UPSTASH_REDIS_REST_URL UPSTASH_REDIS_REST_TOKEN)
+  for key in "${required[@]}"; do
+    if [ -z "${!key:-}" ]; then missing+=("$key"); fi
+  done
+  if [[ ",${COMPOSE_PROFILES:-}," == *,telefonia,* ]]; then
+    for key in ARI_URL ARI_WS_URL ARI_USERNAME ARI_PASSWORD OPENAI_API_KEY; do
+      if [ -z "${!key:-}" ]; then missing+=("$key"); fi
+    done
+  fi
+  if [ "${WAHA_WEBHOOK_REQUIRE_SIGNATURE:-false}" = "true" ] && [ -z "${WAHA_HMAC_SECRET:-}" ]; then
+    missing+=(WAHA_HMAC_SECRET)
+  fi
+  [ ${#missing[@]} -eq 0 ] || die "MISSING_EXTERNAL_CONFIG: configure no .env as dependências externas: ${missing[*]}"
+}
+
+validate_existing_runtime_config() {
+  local missing=() key
+  local required=(INSTALLATION_ID INTERNAL_SECRET CPF_ENCRYPTION_KEY WAHA_BYO_ENCRYPTION_KEY AI_CRED_AES_KEY)
+  for key in "${required[@]}"; do
+    if [ -z "${!key:-}" ]; then missing+=("$key"); fi
+  done
+  [ ${#missing[@]} -eq 0 ] || die "MISSING_RUNTIME_CONFIG: instalação existente sem configuração runtime: ${missing[*]}"
+}
+
+# A instalação só avança se os três serviços externos estiverem alcançáveis.
+# Respostas e URLs não são impressas; tokens seguem apenas em headers.
+curl_config_quote() {
+  local value="$1"
+  case "$value" in
+    *$'\n'*|*$'\r'*) return 1 ;;
+  esac
+  value="${value//\\/\\\\}"
+  value="${value//\"/\\\"}"
+  printf '"%s"' "$value"
+}
+
+check_external_dependencies() {
+  local supabase_url="${NEXT_PUBLIC_SUPABASE_URL%/}"
+  local upstash_code waha_code supabase_code
+  supabase_code="$( { curl --silent --show-error --output /dev/null --write-out '%{http_code}' --max-time 10 --config - 2>/dev/null || true; } <<EOF
+url = $(curl_config_quote "$supabase_url/auth/v1/health")
+header = $(curl_config_quote "apikey: $NEXT_PUBLIC_SUPABASE_ANON_KEY")
+EOF
+  )"
+  [[ "$supabase_code" =~ ^2[0-9][0-9]$ ]] || die "SUPABASE_UNREACHABLE: Supabase externo não respondeu ao health check. Verifique URL e conectividade."
+
+  upstash_code="$( { curl --silent --show-error --output /dev/null --write-out '%{http_code}' --max-time 10 \
+    --request POST --data '["PING"]' --config - 2>/dev/null || true; } <<EOF
+url = $(curl_config_quote "$UPSTASH_REDIS_REST_URL")
+header = $(curl_config_quote "Authorization: Bearer $UPSTASH_REDIS_REST_TOKEN")
+header = "Content-Type: application/json"
+EOF
+  )"
+  [[ "$upstash_code" =~ ^2[0-9][0-9]$ ]] || die "UPSTASH_UNREACHABLE: Upstash Redis REST não respondeu ao PING. Verifique URL e conectividade."
+
+  local waha_url="${WAHA_API_BASE_URL%/}"
+  waha_code="$( { curl --silent --show-error --output /dev/null --write-out '%{http_code}' --max-time 10 --config - 2>/dev/null || true; } <<EOF
+url = $(curl_config_quote "$waha_url/api/sessions")
+header = $(curl_config_quote "X-Api-Key: $WAHA_API_KEY")
+EOF
+  )"
+  [[ "$waha_code" =~ ^2[0-9][0-9]$ ]] || die "WAHA_UNREACHABLE: WAHA externo não respondeu ao health check. Verifique URL e conectividade."
+  log "Preflight de dependências externas concluído."
 }
 
 # 6. Autenticação Privada de Registro
@@ -160,90 +304,102 @@ registry_logout() {
 # 7. Validação de Manifesto de Release
 validate_manifest() {
   [ -f "$MANIFEST_FILE" ] || die "MANIFEST_AUSENTE: release-manifest.json não encontrado."
-  local ver target_schema
-  ver="$(grep '"release_version":' "$MANIFEST_FILE" | awk -F'"' '{print $4}')"
-  target_schema="$(grep '"schema_target":' "$MANIFEST_FILE" | awk -F'"' '{print $4}')"
-  [ -n "$ver" ] || die "INVALID_MANIFEST: release_version não definida."
-  [ -n "$target_schema" ] || die "INVALID_MANIFEST: schema_target não definido."
+  [ -f "$INSTALLER_VERSION_FILE" ] || die "INSTALLER_VERSION_UNAVAILABLE: arquivo VERSION do instalador não encontrado."
+  INSTALLER_CURRENT_VERSION="$(tr -d '\r' < "$INSTALLER_VERSION_FILE")"
+  [ -n "$INSTALLER_CURRENT_VERSION" ] || die "INSTALLER_VERSION_UNAVAILABLE: arquivo VERSION do instalador está vazio."
+  local verified
+  if ! verified="$(node "$MANIFEST_VERIFIER" verify "$MANIFEST_FILE" "$MANIFEST_TRUST_ROOT" "$INSTALLER_CURRENT_VERSION" 2>&1)"; then
+    die "$verified"
+  fi
+  VERIFIED_MANIFEST_JSON="$verified"
+  VERIFIED_RELEASE_VERSION="$(node -e 'const d=JSON.parse(process.argv[1]); process.stdout.write(d.release_version)' "$VERIFIED_MANIFEST_JSON")"
+  VERIFIED_SCHEMA_TARGET="$(node -e 'const d=JSON.parse(process.argv[1]); process.stdout.write(d.schema_target)' "$VERIFIED_MANIFEST_JSON")"
+  VERIFIED_IMAGE_APP="$(node -e 'const d=JSON.parse(process.argv[1]); process.stdout.write(d.images.app)' "$VERIFIED_MANIFEST_JSON")"
+  VERIFIED_IMAGE_WORKER="$(node -e 'const d=JSON.parse(process.argv[1]); process.stdout.write(d.images.worker)' "$VERIFIED_MANIFEST_JSON")"
+  VERIFIED_IMAGE_SCHEDULER="$(node -e 'const d=JSON.parse(process.argv[1]); process.stdout.write(d.images.scheduler)' "$VERIFIED_MANIFEST_JSON")"
+  VERIFIED_IMAGE_VOICE_AGENT="$(node -e 'const d=JSON.parse(process.argv[1]); process.stdout.write(d.images.voice_agent)' "$VERIFIED_MANIFEST_JSON")"
+  VERIFIED_IMAGE_MIGRATOR="$(node -e 'const d=JSON.parse(process.argv[1]); process.stdout.write(d.images.migrator)' "$VERIFIED_MANIFEST_JSON")"
+  log "Manifesto assinado validado: Release $VERIFIED_RELEASE_VERSION (schema $VERIFIED_SCHEMA_TARGET; installer $INSTALLER_CURRENT_VERSION)."
+}
 
-  # Valida se todas as 5 imagens canônicas estão declaradas
-  for img_key in app worker scheduler voice_agent migrator; do
-    if ! grep -q "\"$img_key\":" "$MANIFEST_FILE"; then
-      die "INVALID_MANIFEST: Imagem obrigatória '$img_key' ausente no release-manifest.json."
-    fi
-  done
-  log "Manifesto validado: Release $ver (Schema alvo: $target_schema)."
+check_schema_compatibility() {
+  local status_json="$1"
+  local result
+  if ! result="$(printf '%s' "$status_json" | node "$MANIFEST_VERIFIER" schema-check \
+      "$MANIFEST_FILE" "$MANIFEST_TRUST_ROOT" "$INSTALLER_CURRENT_VERSION" - 2>&1)"; then
+    die "$result"
+  fi
+  log "Compatibilidade de schema confirmada: $result"
 }
 
 # 8. Verificação e Pull de Imagens Target com Validação de Digest
 ensure_target_images() {
   log "Verificando disponibilidade e integridade das imagens do release..."
-  local ver
-  ver="$(grep '"release_version":' "$MANIFEST_FILE" | awk -F'"' '{print $4}')"
-
-  # Mapeamento de chaves e imagens
-  local images=("app" "worker" "scheduler" "voice_agent" "migrator")
-  
-  for img in "${images[@]}"; do
-    local repo
-    repo="$(grep -A3 "\"$img\":" "$MANIFEST_FILE" | grep '"repository":' | awk -F'"' '{print $4}')"
-    local expected_digest
-    expected_digest="$(grep -A4 "\"$img\":" "$MANIFEST_FILE" | grep '"digest":' | awk -F'"' '{print $4}')"
-
-    if [ "${USE_LOCAL_IMAGES:-0}" = "1" ]; then
-      local local_name="clientix-${img//_/-}:dev"
-      [ "$img" = "app" ] && local_name="clientix-app:local-hardened"
-      [ "$img" = "worker" ] && local_name="clientix-worker:local-hardened-v2"
-      [ "$img" = "scheduler" ] && local_name="clientix-scheduler:local-hardened"
-      [ "$img" = "voice_agent" ] && local_name="clientix-voice-agent:local-hardened-v2"
-      [ "$img" = "migrator" ] && local_name="clientix-migrator:dev"
-
-      log "Modo local: verificando imagem $local_name..."
-      if ! docker image inspect "$local_name" >/dev/null 2>&1; then
-        die "TARGET_IMAGE_UNAVAILABLE: Imagem local '$local_name' não encontrada no Docker daemon."
-      fi
-      continue
-    fi
-
-    local full_ref="$repo:$ver"
-    if [ -n "$expected_digest" ]; then
-      full_ref="$repo@$expected_digest"
-    fi
-
+  local images=("$VERIFIED_IMAGE_APP" "$VERIFIED_IMAGE_WORKER" "$VERIFIED_IMAGE_SCHEDULER" "$VERIFIED_IMAGE_VOICE_AGENT" "$VERIFIED_IMAGE_MIGRATOR")
+  local full_ref repo expected_digest repo_digests
+  for full_ref in "${images[@]}"; do
+    repo="${full_ref%@*}"
+    expected_digest="${full_ref#*@}"
     log "Realizando pull da imagem: $full_ref..."
     if ! docker pull "$full_ref" >/dev/null 2>&1; then
       die "TARGET_IMAGE_UNAVAILABLE: Falha ao obter imagem '$full_ref' do registro."
     fi
 
-    # Verificação de digest se declarado
-    if [ -n "$expected_digest" ]; then
-      local actual_digest
-      actual_digest="$(docker image inspect "$full_ref" --format '{{if .RepoDigests}}{{index .RepoDigests 0}}{{end}}' 2>/dev/null | sed 's/.*@//' || true)"
-      if [ -n "$actual_digest" ] && [ "$actual_digest" != "$expected_digest" ]; then
-        die "IMAGE_DIGEST_MISMATCH: Digest da imagem $repo diverge do manifesto! Esperado: $expected_digest, Real: $actual_digest"
-      fi
-    fi
+    repo_digests="$(docker image inspect "$full_ref" --format '{{range .RepoDigests}}{{println .}}{{end}}' 2>/dev/null || true)"
+    grep -Fxq "$repo@$expected_digest" <<<"$repo_digests" || die "IMAGE_DIGEST_MISMATCH: digest verificado da imagem $repo não corresponde ao manifesto assinado."
   done
 
   log "Todas as imagens do release foram validadas com sucesso."
 }
 
+persist_verified_image_refs() {
+  set_env_value APP_IMAGE "$VERIFIED_IMAGE_APP"
+  set_env_value WORKER_IMAGE "$VERIFIED_IMAGE_WORKER"
+  set_env_value SCHEDULER_IMAGE "$VERIFIED_IMAGE_SCHEDULER"
+  set_env_value VOICE_AGENT_IMAGE "$VERIFIED_IMAGE_VOICE_AGENT"
+  set_env_value MIGRATOR_IMAGE "$VERIFIED_IMAGE_MIGRATOR"
+  load_env
+  validate_config_evolution
+}
+
+# Credenciais do PostgreSQL entram no container por arquivo temporário protegido,
+# nunca como argumento visível na linha de comando do processo do host.
+run_docker_with_database() (
+  local database_url="$1"
+  shift
+  local env_file
+  umask 077
+  env_file="$(mktemp "${TMPDIR:-/tmp}/clientix-migrator-env.XXXXXX")" || exit 1
+  trap 'rm -f -- "$env_file"' EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  {
+    printf 'DATABASE_URL=%s\n' "$database_url"
+    printf 'BACKUP_ACK=%s\n' "${BACKUP_ACK:-1}"
+  } > "$env_file" || exit 1
+  chmod 600 "$env_file" || exit 1
+  docker run --rm \
+    --network "${DOCKER_NETWORK:-host}" \
+    --env-file "$env_file" \
+    "$@"
+)
+
 # 9. Execução do Standalone Migrator
 run_migrator() {
   local cmd="$1"
   shift || true
-  local mig_img="${MIGRATOR_IMAGE:-ghcr.io/rafaelbravik/clientix-migrator:1.0.0}"
   log "Executando clientix-migrator: $cmd..."
+  run_docker_with_database "$SUPABASE_DB_ADMIN_URL" "$VERIFIED_IMAGE_MIGRATOR" "$cmd" "$@"
+}
 
-  if [ "${USE_LOCAL_IMAGES:-0}" = "1" ]; then
-    mig_img="clientix-migrator:dev"
-  fi
-
-  docker run --rm \
-    --network "${DOCKER_NETWORK:-host}" \
-    -e DATABASE_URL="$DATABASE_URL" \
-    -e BACKUP_ACK="${BACKUP_ACK:-1}" \
-    "$mig_img" "$cmd" "$@"
+run_runtime_db_preflight() {
+  log "Validando a conexão PostgreSQL usada pelo runtime..."
+  run_docker_with_database "$SUPABASE_DB_URL" \
+    --entrypoint node "$VERIFIED_IMAGE_MIGRATOR" \
+    -e 'const { Client } = require("pg"); const client = new Client({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 10000 }); client.connect().then(() => client.query("SELECT 1")).then(() => client.end()).catch(async () => { try { await client.end(); } catch {} process.exit(1); });' \
+    || die "RUNTIME_DATABASE_UNREACHABLE: a conexão PostgreSQL do runtime falhou; nenhuma migration foi aplicada."
+  log "Conexão PostgreSQL do runtime validada."
 }
 
 # 10. Backup Lógico do Banco de Dados
@@ -255,10 +411,9 @@ run_backup() {
   local bkp_file="$BACKUP_DIR/backup_${current_ver}_to_${target_ver}_${ts}.dump"
   log "Iniciando backup antes de mutação de banco: $bkp_file..."
 
-  docker run --rm \
-    --network "${DOCKER_NETWORK:-host}" \
-    postgres:17-alpine \
-    pg_dump "$DATABASE_URL" -Fc > "$bkp_file" || die "BACKUP_FAILED: Falha ao executar pg_dump do banco."
+  run_docker_with_database "$SUPABASE_DB_ADMIN_URL" \
+    --entrypoint sh "$VERIFIED_IMAGE_MIGRATOR" \
+    -c 'exec pg_dump "$DATABASE_URL" -Fc' > "$bkp_file" || die "BACKUP_FAILED: Falha ao executar pg_dump do banco."
 
   if [ ! -s "$bkp_file" ]; then
     die "BACKUP_INVALID: Arquivo de backup está vazio ou não foi gerado."
@@ -266,9 +421,9 @@ run_backup() {
 
   # Valida integridade via pg_restore --list
   docker run --rm \
+    --entrypoint pg_restore \
     -v "$BACKUP_DIR:/backups:ro" \
-    postgres:17-alpine \
-    pg_restore --list "/backups/$(basename "$bkp_file")" >/dev/null 2>&1 || die "BACKUP_CORRUPTED: pg_restore falhou ao ler o catálogo do backup."
+    "$VERIFIED_IMAGE_MIGRATOR" --list "/backups/$(basename "$bkp_file")" >/dev/null 2>&1 || die "BACKUP_CORRUPTED: pg_restore falhou ao ler o catálogo do backup."
 
   # Calcula checksum sha256 do arquivo de backup
   local bkp_sha256
@@ -295,10 +450,11 @@ check_health() {
   local port="${PORT:-3000}"
 
   while [ $elapsed -lt $timeout ]; do
-    # Probe HTTP real (200 OK ou redirect esperado)
+    # A rota pública de saúde consulta as dependências que o app realmente usa;
+    # `/login` sozinho só prova que o Next devolveu uma página.
     local http_code
-    http_code="$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:${port}/login" 2>/dev/null || true)"
-    if [ "$http_code" = "200" ] || [ "$http_code" = "307" ] || [ "$http_code" = "308" ]; then
+    http_code="$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:${port}/api/v1/health" 2>/dev/null || true)"
+    if [ "$http_code" = "200" ]; then
       log "Aplicação Clientix respondendo com sucesso (HTTP $http_code)."
       
       # Verifica se contêineres vitais continuam ativos sem loop de restart
@@ -319,53 +475,57 @@ check_health() {
 # 12. Comando: install
 cmd_install() {
   preflight
-  init_directories
-  setup_env
+  [ ! -f "$STATE_FILE" ] || die "ALREADY_INSTALLED: Instalação existente detectada no estado. Para atualizar, use 'clientix-installer update'."
   load_env
-  validate_config_evolution
+  validate_external_config
   validate_manifest
-
-  cp "$INSTALLER_DIR/compose.yaml" "$COMPOSE_FILE"
-
-  if [ -f "$STATE_FILE" ]; then
-    log "ALREADY_INSTALLED: Instalação existente detectada no estado. Para atualizar, use 'clientix-installer update'."
-    exit 0
-  fi
+  check_external_dependencies
 
   registry_auth
   ensure_target_images
   registry_logout
 
+  run_runtime_db_preflight
   log "Verificando estado do banco de dados..."
   local status_json
   status_json="$(run_migrator status --json)"
   local state_type
-  state_type="$(printf '%s' "$status_json" | grep '"state_type":' | awk -F'"' '{print $4}')"
+  state_type="$(node -e 'try { const d=JSON.parse(process.argv[1]); process.stdout.write(String(d.state_type || "")); } catch { process.exit(2); }' "$status_json")" || die "MIGRATOR_STATUS_INVALID: resposta de status do banco não é JSON válido."
+  [ -n "$state_type" ] || die "MIGRATOR_STATUS_INVALID: resposta de status do banco não contém state_type."
+  check_schema_compatibility "$status_json"
 
   log "Estado do banco detectado: $state_type"
   if [ "$state_type" = "FRESH_DATABASE" ]; then
-    run_migrator install
+    local db_action="install"
   elif [ "$state_type" = "EXISTING_UNTRACKED_INSTALLATION" ]; then
     if [ "${ALLOW_ADOPT:-0}" = "1" ] || [ "${1:-}" = "--adopt" ]; then
       log "Adotando instalação existente expressamente permitida..."
-      run_migrator adopt
+      local db_action="adopt"
     else
       die "EXISTING_DATABASE_REQUIRES_CONFIRMATION: Banco existente não rastreado. Execute com '--adopt' ou defina ALLOW_ADOPT=1."
     fi
-  else
+  elif [ "$state_type" = "TRACKED_INSTALLATION" ]; then
     log "Banco já rastreado. Executando check de sanidade..."
-    run_migrator check
+    local db_action="check"
+  else
+    die "DATABASE_STATE_UNSUPPORTED: estado de banco '$state_type' não é suportado pelo instalador."
   fi
+
+  # Só agora, após validar dependências, assinatura, digests e estado real do
+  # banco, o instalador cria arquivos e segredos locais.
+  init_directories
+  setup_env
+  persist_verified_image_refs
+  cp "$INSTALLER_DIR/compose.yaml" "$COMPOSE_FILE"
+  run_migrator "$db_action"
 
   log "Subindo serviços Clientix..."
   docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d
 
   check_health 45
 
-  local ver="1.0.0"
-  ver="$(grep '"release_version":' "$MANIFEST_FILE" | awk -F'"' '{print $4}')"
-  local schema_ver
-  schema_ver="$(grep '"schema_target":' "$MANIFEST_FILE" | awk -F'"' '{print $4}')"
+  local ver="$VERIFIED_RELEASE_VERSION"
+  local schema_ver="$VERIFIED_SCHEMA_TARGET"
 
   cat <<EOF > "$STATE_FILE.tmp"
 {
@@ -386,17 +546,17 @@ EOF
 # 13. Comando: update
 cmd_update() {
   preflight
-  load_env
-  validate_config_evolution
-  validate_manifest
-
   [ -f "$STATE_FILE" ] || die "ESTADO_NAO_ENCONTRADO: Nenhuma instalação anterior encontrada para atualizar."
+  load_env
+  validate_external_config
+  validate_existing_runtime_config
+  validate_manifest
+  check_external_dependencies
+  validate_installation_id_binding
   local current_ver
   current_ver="$(grep '"installed_version":' "$STATE_FILE" | awk -F'"' '{print $4}')"
-  local target_ver
-  target_ver="$(grep '"release_version":' "$MANIFEST_FILE" | awk -F'"' '{print $4}')"
-  local schema_ver
-  schema_ver="$(grep '"schema_target":' "$MANIFEST_FILE" | awk -F'"' '{print $4}')"
+  local target_ver="$VERIFIED_RELEASE_VERSION"
+  local schema_ver="$VERIFIED_SCHEMA_TARGET"
 
   log "Iniciando processo de atualização de $current_ver para $target_ver..."
 
@@ -405,6 +565,13 @@ cmd_update() {
   ensure_target_images
   registry_logout
 
+  run_runtime_db_preflight
+  local status_json state_type
+  status_json="$(run_migrator status --json)"
+  state_type="$(node -e 'try { const d=JSON.parse(process.argv[1]); process.stdout.write(String(d.state_type || "")); } catch { process.exit(2); }' "$status_json")" || die "MIGRATOR_STATUS_INVALID: resposta de status do banco não é JSON válido."
+  [ "$state_type" = "TRACKED_INSTALLATION" ] || die "DATABASE_STATE_MISMATCH: o banco não está numa instalação rastreada; nenhuma atualização foi aplicada."
+  check_schema_compatibility "$status_json"
+
   # Backup obrigatório pré-migration
   local bkp_path
   bkp_path="$(run_backup "$target_ver" "$current_ver")"
@@ -412,9 +579,14 @@ cmd_update() {
   bkp_sha256="$(sha256sum "$bkp_path" 2>/dev/null | awk '{print $1}' || echo "uncalculated")"
 
   # Executa migrações incrementais
+  init_directories
+  [ -f "$INSTALL_DIR/state/installation_id" ] || write_installation_id_file "$INSTALLATION_ID"
+  chown 1001:1001 "$INSTALL_DIR/state/installation_id" 2>/dev/null || die "INSTALLATION_ID_OWNERSHIP_FAILED: não foi possível entregar o ID ao runtime."
+  chmod 640 "$INSTALL_DIR/state/installation_id" || die "INSTALLATION_ID_PERMISSIONS_FAILED: não foi possível proteger o ID persistente."
   run_migrator update --backup-ack
 
   # Atualiza compose e reinicia serviços
+  persist_verified_image_refs
   cp "$INSTALLER_DIR/compose.yaml" "$COMPOSE_FILE"
   docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d
 
@@ -481,23 +653,24 @@ cmd_status() {
 }
 
 # Main CLI Dispatcher
-case "${1:-help}" in
-  install)
-    shift
-    cmd_install "$@"
-    ;;
-  update)
-    shift
-    cmd_update "$@"
-    ;;
-  status)
-    cmd_status
-    ;;
-  help|--help|-h)
-    echo "Uso: clientix-installer <install|update|status|help>"
-    exit 0
-    ;;
-  *)
-    die "Comando desconhecido: ${1:-}"
-    ;;
-esac
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  case "${1:-help}" in
+    install)
+      shift
+      cmd_install "$@"
+      ;;
+    update)
+      shift
+      cmd_update "$@"
+      ;;
+    status)
+      cmd_status
+      ;;
+    help|--help|-h)
+      echo "Uso: clientix-installer <install|update|status|help>"
+      ;;
+    *)
+      die "Comando desconhecido: ${1:-}"
+      ;;
+  esac
+fi

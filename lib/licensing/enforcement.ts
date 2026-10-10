@@ -304,7 +304,9 @@ export async function installLicenseFile(
   await fs.mkdir(dir, { recursive: true });
 
   const tmpPath = `${targetPath}.tmp.${Date.now()}`;
-  await fs.writeFile(tmpPath, rawString, { encoding: "utf-8", mode: 0o600 });
+  // O diretório do volume usa grupo 1001: o app (UID/GID 1001) grava e os
+  // workers não-root leem pelo grupo suplementar, com o volume montado read-only.
+  await fs.writeFile(tmpPath, rawString, { encoding: "utf-8", mode: 0o640 });
   await fs.rename(tmpPath, targetPath);
 
   // 3. Invalidate cache

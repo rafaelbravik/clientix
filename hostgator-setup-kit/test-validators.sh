@@ -2068,6 +2068,31 @@ echo "packaging: a instalação resolve a última versão publicada"
   fi
   printf '  ✓ entre v1.0.0/v1.2.0/v1.9.0/v1.10.0, escolhe 1.10.0 (ordem de VERSÃO, não alfabética)\n'
 
+  # Reproduz a lista de tags grande do remoto real. `head -1` encerrava a
+  # leitura cedo e fazia o produtor receber SIGPIPE; com `pipefail`, a função
+  # devolvia vazio mesmo com um resultado válido no primeiro registro.
+  fake_bin="$repo_falso/fake-bin"; mkdir -p "$fake_bin"
+  cat > "$fake_bin/git" <<'FAKE_GIT'
+#!/usr/bin/env bash
+if [ "${1:-}" = ls-remote ]; then
+  printf 'deadbeef\trefs/tags/v1.10.0\n'
+  i=1
+  while [ "$i" -le 12000 ]; do
+    printf 'deadbeef\trefs/tags/v0.%05d.0\n' "$i"
+    i=$((i+1))
+  done
+  exit 0
+fi
+exec /usr/bin/git "$@"
+FAKE_GIT
+  chmod +x "$fake_bin/git"
+  saida_grande="$(PATH="$fake_bin:$PATH" ultima_versao_publicada 'fixture://tags-grandes')"
+  if [ "$saida_grande" != "1.10.0" ]; then
+    printf '  ✗ lista grande de tags devolveu vazio ou versão errada: "%s"\n' "$saida_grande"
+    rm -rf "$repo_falso" "$trabalho"; exit 1
+  fi
+  printf '  ✓ lista grande de tags mantém a primeira ocorrência sem SIGPIPE sob pipefail\n'
+
   vazio="$(mktemp -d)"; git init --quiet --bare "$vazio/sem-tags.git"
   semtag="$(ultima_versao_publicada "$vazio/sem-tags.git")"
   if [ -n "$semtag" ]; then

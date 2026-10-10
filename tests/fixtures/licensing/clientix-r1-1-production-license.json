@@ -1,0 +1,30 @@
+{
+  "payload": {
+    "license_version": 1,
+    "license_id": "clientix-r1-1-production-trust-test",
+    "customer": {
+      "id": "clientix-r1-1-fixture",
+      "name": "Clientix R1.1 Test Fixture",
+      "email": "r1.1-fixture@example.invalid",
+      "country": "BR"
+    },
+    "license_type": "internal",
+    "installation_id": "inst_123e4567-e89b-42d3-a456-426614174000",
+    "entitlements": {
+      "max_installations": 1,
+      "max_tenants": 1,
+      "resale_allowed": false,
+      "white_label": false,
+      "features": [
+        "r1.1_test"
+      ]
+    },
+    "issued_at": "2026-10-09T00:00:00Z",
+    "valid_from": "2026-10-09T00:00:00Z",
+    "expires_at": "2027-10-09T00:00:00Z",
+    "maintenance_until": "2027-10-09T00:00:00Z"
+  },
+  "signature": "MsnN9EHSjk2KSXX3F3F3rf4pkiejclL19on10iWVO3Dm-UUMIVZTlP6MsRO599rKhYd_DcpHny5tTn5FGfN5BQ",
+  "algorithm": "Ed25519",
+  "key_id": "clientix-license-2026-01"
+}

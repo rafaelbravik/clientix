@@ -1327,8 +1327,11 @@ ultima_versao_publicada() {
   # existe de verdade neste repo). O `--sort=-v:refname` do git põe o prerelease
   # ACIMA do release final quando `versionsort.suffix` não está configurado, e
   # uma instalação nova nasceria num release candidate sem ninguém pedir.
+  # `sed` consome a entrada até EOF. `head -1` fecha o pipe cedo; com uma lista
+  # grande de tags, `git ls-remote` recebe SIGPIPE e `pipefail` transforma uma
+  # consulta válida numa falha silenciosa (APP_IMAGE cai em `:stable`).
   ref="$(git ls-remote --tags --refs --sort=-v:refname "$url" 'v*' 2>/dev/null \
-        | awk '{print $2}' | grep -v -- '-' | head -1)" || return 0
+        | awk '{print $2}' | grep -v -- '-' | sed -n '1p')" || return 0
   [ -n "$ref" ] || return 0
   printf '%s' "${ref#refs/tags/v}"
 }

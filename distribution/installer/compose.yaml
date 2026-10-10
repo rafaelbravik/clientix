@@ -4,17 +4,19 @@
 
 services:
   app:
-    image: ${APP_IMAGE:-ghcr.io/rafaelbravik/clientix-app:1.0.0}
+    image: ${APP_IMAGE:?APP_IMAGE must be set from the verified release manifest}
     restart: unless-stopped
     mem_limit: 768m
     env_file: .env
+    environment:
+      SUPABASE_DB_ADMIN_URL: ""
     ports:
       - "${PORT:-3000}:3000"
     volumes:
-      - ./licenses:/opt/clientix/licenses:ro
+      - ./licenses:/opt/clientix/licenses:rw
       - ./state:/opt/clientix/state:ro
     healthcheck:
-      test: ["CMD", "node", "-e", "require('net').connect(3000,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/v1/health').then(r=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1))"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -23,10 +25,14 @@ services:
       - clientix-net
 
   worker:
-    image: ${WORKER_IMAGE:-ghcr.io/rafaelbravik/clientix-worker:1.0.0}
+    image: ${WORKER_IMAGE:?WORKER_IMAGE must be set from the verified release manifest}
     restart: unless-stopped
     mem_limit: 512m
     env_file: .env
+    environment:
+      SUPABASE_DB_ADMIN_URL: ""
+    group_add:
+      - "1001"
     volumes:
       - ./licenses:/opt/clientix/licenses:ro
       - ./state:/opt/clientix/state:ro
@@ -34,18 +40,25 @@ services:
       - clientix-net
 
   scheduler:
-    image: ${SCHEDULER_IMAGE:-ghcr.io/rafaelbravik/clientix-scheduler:1.0.0}
+    image: ${SCHEDULER_IMAGE:?SCHEDULER_IMAGE must be set from the verified release manifest}
     restart: unless-stopped
     mem_limit: 256m
     env_file: .env
+    environment:
+      SUPABASE_DB_ADMIN_URL: ""
     networks:
       - clientix-net
 
   voice-agent:
-    image: ${VOICE_AGENT_IMAGE:-ghcr.io/rafaelbravik/clientix-voice-agent:1.0.0}
+    profiles: ["telefonia"]
+    image: ${VOICE_AGENT_IMAGE:?VOICE_AGENT_IMAGE must be set from the verified release manifest}
     restart: unless-stopped
     mem_limit: 512m
     env_file: .env
+    environment:
+      SUPABASE_DB_ADMIN_URL: ""
+    group_add:
+      - "1001"
     volumes:
       - ./licenses:/opt/clientix/licenses:ro
       - ./state:/opt/clientix/state:ro

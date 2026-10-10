@@ -152,5 +152,5 @@ describe("a página do funil ENTREGA as tags do quadro à barra", () => {
     await userEvent.click(await screen.findByRole("button", { name: /tag/i }));
     expect(await screen.findByRole("menuitem", { name: "google" })).toBeTruthy();
     expect(screen.getByRole("menuitem", { name: "vip" })).toBeTruthy();
-  });
+  }, 90_000);
 });

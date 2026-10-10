@@ -58,6 +58,15 @@ import type { ThemeToggle as ThemeToggleType } from "@/components/theme/theme-to
 
 vi.mock("react-hotkeys-hook", () => ({ useHotkeys: () => {} }));
 
+// `vi.resetModules()` abaixo simula uma aba nova, mas também descarregaria o
+// barrel de ícones (~1.300 módulos) importado pelo ThemeToggle. Estes testes
+// verificam hidratação e rótulo acessível, não o desenho dos ícones.
+vi.mock("@/lib/ui/icons", () => ({
+  Sun: () => null,
+  Moon: () => null,
+  MonitorPlay: () => null,
+}));
+
 function stubMatchMedia(prefersDark: boolean) {
   window.matchMedia = vi.fn().mockImplementation((query: string) => ({
     matches: query.includes("dark") && prefersDark,

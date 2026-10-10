@@ -5,6 +5,7 @@ node_modules
 .git
 .env
 .env.*
+.e2e-creds.json
 test-results
 tests
 playwright.config.ts

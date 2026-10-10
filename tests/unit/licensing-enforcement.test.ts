@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import crypto from "crypto";
 import fs from "fs/promises";
 import path from "path";
@@ -9,6 +9,7 @@ import {
   requireValidInstallationLicense,
   installLicenseFile,
   resetLicenseCache,
+  verifyLicense,
   type LicensePayload,
 } from "@/lib/licensing";
 import { signLicensePayload } from "../../scripts/licensing/sign-license";
@@ -235,6 +236,23 @@ describe("Licensing Enforcement — Central Guard & Status Inspection", () => {
     expect(status.cryptographic_valid).toBe(false);
   });
 
+  it("continues to ignore injected license keys in production when the vendor trust root is empty", () => {
+    const doc = signLicensePayload(createSamplePayload(mockInstId), {
+      privateKey: keys.privPem,
+      keyId: KEY_ID,
+    });
+
+    try {
+      vi.stubEnv("NODE_ENV", "production");
+      vi.stubEnv("CLIENTIX_TRUSTED_LICENSE_KEYS", JSON.stringify({ [KEY_ID]: keys.pubPem }));
+      const result = verifyLicense(doc, { expectedInstallationId: mockInstId });
+      expect(result.usable).toBe(false);
+      expect(result.state).toBe("UNKNOWN_KEY");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("reports UNSUPPORTED_LICENSE_VERSION and blocks when license version is in the future", async () => {
     const rawPayload = createSamplePayload(mockInstId);
     (rawPayload as unknown as Record<string, unknown>).license_version = 99;
@@ -378,6 +396,10 @@ describe("Licensing Enforcement — Atomic License Replacement & Safeguards", ()
     // Confirm file was written to disk
     const content = await fs.readFile(licensePath, "utf-8");
     expect(content).toContain("lic_atomic_valid");
+    if (process.platform !== "win32") {
+      const mode = (await fs.stat(licensePath)).mode & 0o777;
+      expect(mode).toBe(0o640);
+    }
   });
 
   it("rejects invalid candidate without overwriting or destroying existing valid license", async () => {
@@ -406,6 +428,16 @@ describe("Licensing Enforcement — Atomic License Replacement & Safeguards", ()
         installationIdPath: instIdPath,
         trustedKeys,
       })
+    ).rejects.toThrow("Candidato de licença recusado");
+
+    const tamperedFirstChar = initialDoc.signature[0] === "A" ? "B" : "A";
+    const tamperedDoc = { ...initialDoc, signature: `${tamperedFirstChar}${initialDoc.signature.slice(1)}` };
+    await expect(
+      installLicenseFile(tamperedDoc, {
+        targetPath: licensePath,
+        installationIdPath: instIdPath,
+        trustedKeys,
+      }),
     ).rejects.toThrow("Candidato de licença recusado");
 
     // 3. Verify original license on disk is completely untouched
@@ -484,4 +516,3 @@ describe("Licensing Enforcement — Invariants: Plan Isolation & Recovery", () =
     expect(enforcementCode).not.toMatch(/\brm\s+-rf\b/i);
   });
 });
-

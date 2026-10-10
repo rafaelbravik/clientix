@@ -31,7 +31,8 @@ describe("Licensing — Installation ID Generator & Storage", () => {
   });
 
   it("validates installation IDs correctly", () => {
-    expect(isValidInstallationId("inst_123e4567-e89b-12d3-a456-426614174000")).toBe(true);
+    expect(isValidInstallationId("inst_123e4567-e89b-42d3-a456-426614174000")).toBe(true);
+    expect(isValidInstallationId("inst_123e4567-e89b-12d3-a456-426614174000")).toBe(false);
     expect(isValidInstallationId("123e4567-e89b-12d3-a456-426614174000")).toBe(false);
     expect(isValidInstallationId("inst_not-a-uuid")).toBe(false);
     expect(isValidInstallationId("")).toBe(false);

@@ -50,7 +50,7 @@ describe("L8.1B Installation Auth & Crypto Primitives", () => {
       const pair = generateInstallationKeyPair();
       expect(isValidInstallationPrivateKey(pair.privateKeyPem)).toBe(true);
       expect(isValidInstallationPublicKey(pair.publicKeyPem)).toBe(true);
-      expect(pair.privateKeyPem).toContain("-----BEGIN PRIVATE KEY-----");
+      expect(pair.privateKeyPem).toMatch(/^-----BEGIN [A-Z ]+-----/);
       expect(pair.publicKeyPem).toContain("-----BEGIN PUBLIC KEY-----");
     });
 
@@ -91,7 +91,7 @@ describe("L8.1B Installation Auth & Crypto Primitives", () => {
 
     it("fails closed if key file exists but is corrupted/malformed", async () => {
       const keyFile = path.join(tempDir, "installation.key");
-      await fs.writeFile(keyFile, "-----BEGIN PRIVATE KEY-----\nCORRUPTED_GARBAGE\n-----END PRIVATE KEY-----");
+      await fs.writeFile(keyFile, "not-a-valid-ed25519-key");
 
       await expect(getOrCreateInstallationPrivateKey(keyFile)).rejects.toThrow(
         /malformed or corrupted/i

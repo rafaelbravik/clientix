@@ -66,7 +66,10 @@ baixar_para() {
 # pelo motivo ERRADO — o `curl` recusava o protocolo do arquivo local antes de a validação
 # rodar, e tirar a validação inteira não deixava o teste vermelho. Medido, não suposto.
 catalogo_tem_forma() {
-  jq -e '.format_version == 1 and (.entries | type == "array") and (.origin | type == "string")' \
+  # `jq -e` sozinho pode sair com 0 em jq 1.6 quando o arquivo não contém
+  # nenhum documento. Carregar como sequência torna o caso vazio explícito e
+  # também recusa mais de um documento JSON no mesmo arquivo.
+  jq -e -s 'length == 1 and (.[0] | .format_version == 1 and (.entries | type == "array") and (.origin | type == "string"))' \
     "$1" >/dev/null 2>&1
 }
 
