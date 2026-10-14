@@ -28,6 +28,9 @@ export async function ingestTelegramInbound(
   if (!msg || !msg.from || !msg.chat) {
     return { status: "ignored", reason: "update_sem_mensagem_suportada" };
   }
+  if (msg.chat.type !== "private") {
+    return { status: "ignored", reason: "telegram_bot_api_somente_chat_privado" };
+  }
 
   const orgId = opts.organizationId;
   const fromUser = msg.from;

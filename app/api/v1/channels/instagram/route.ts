@@ -12,6 +12,7 @@ import { basePublicaDaInstalacao } from "@/lib/webhooks/url-publica";
 import { instagramGetAccount } from "@/lib/channels/instagram/client";
 import { checkChannelQuota } from "@/lib/tenant/plan-limits";
 import { invalidateWebhookCacheBySessionId } from "@/lib/channels/webhook-session-cache";
+import { appDaMeta } from "@/lib/channels/meta/app";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -31,7 +32,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const admin = createAdminClient();
   const { data: sessao } = await admin
     .from("channel_sessions")
-    .select("id, instagram_account_id, instagram_username, display_name, status, webhook_path_token, archived_at")
+    .select(
+      "id, instagram_account_id, instagram_username, display_name, status, webhook_path_token, archived_at",
+    )
     .eq("organization_id", authz.org.orgId)
     .eq("provider", "instagram")
     .is("archived_at", null)
@@ -84,6 +87,24 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const { account_id, token, app_secret, display_name } = parsed.data;
+  const metaApp = await appDaMeta();
+  const effectiveAppSecret = app_secret || metaApp.appSecret;
+  if (!effectiveAppSecret || effectiveAppSecret.trim().length < 16) {
+    return fail(
+      "validation_failed",
+      "Informe um App Secret válido para habilitar a verificação dos webhooks do Instagram.",
+      422,
+      { requestId },
+    );
+  }
+  if (!metaApp.verifyToken) {
+    return fail(
+      "integration_unavailable",
+      "Configure o verify token Meta em Admin › API Oficial antes de conectar o Instagram; sem ele o webhook não conclui o handshake.",
+      422,
+      { requestId },
+    );
+  }
 
   // 1. Valida conta e token com a Meta Graph API
   let account;
@@ -108,14 +129,20 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     .maybeSingle();
 
   if (conflito && conflito.organization_id !== authz.org.orgId) {
-    return fail("conflict", "Esta conta do Instagram já está conectada em outra organização.", 409, {
-      requestId,
-    });
+    return fail(
+      "conflict",
+      "Esta conta do Instagram já está conectada em outra organização.",
+      409,
+      {
+        requestId,
+      },
+    );
   }
 
   // 3. Confere quota de canal da organização (exclui a própria sessão caso esteja reconectando/atualizando)
   const quota = await checkChannelQuota(admin, authz.org.orgId, "instagram", {
-    excludeChannelSessionId: conflito?.organization_id === authz.org.orgId ? conflito.id : undefined,
+    excludeChannelSessionId:
+      conflito?.organization_id === authz.org.orgId ? conflito.id : undefined,
   });
   if (!quota.allowed) {
     return fail("quota_exceeded", quota.reason ?? "Limite de conexões do plano atingido.", 403, {
@@ -132,12 +159,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const tokenCifradoBytea = `\\x${tokenCifradoHex}`;
 
   // 5. Cifra o secret de webhook para validação HMAC de inbound
-  const effectiveAppSecret = app_secret || process.env.META_APP_SECRET;
-  let webhookSecretBytea: string | null = null;
-  if (effectiveAppSecret) {
-    const secretHex = await encryptWebhookSecret(admin, effectiveAppSecret);
-    if (secretHex) webhookSecretBytea = `\\x${secretHex}`;
+  const secretHex = await encryptWebhookSecret(admin, effectiveAppSecret);
+  if (!secretHex) {
+    return fail("internal_error", "Erro ao cifrar o segredo do webhook do Instagram.", 500, {
+      requestId,
+    });
   }
+  const webhookSecretBytea = `\\x${secretHex}`;
 
   const pathToken = randomUUID();
 
@@ -160,19 +188,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
     invalidateWebhookCacheBySessionId(conflito.id);
   } else {
-    const { error: errIns } = await admin
-      .from("channel_sessions")
-      .insert({
-        organization_id: authz.org.orgId,
-        provider: "instagram",
-        instagram_account_id: account.id,
-        instagram_username: account.username ?? null,
-        instagram_token_encrypted: tokenCifradoBytea,
-        webhook_secret_encrypted: webhookSecretBytea,
-        display_name: display_name ?? account.name ?? account.username ?? "Instagram Direct",
-        webhook_path_token: pathToken,
-        status: "connected",
-      });
+    const { error: errIns } = await admin.from("channel_sessions").insert({
+      organization_id: authz.org.orgId,
+      provider: "instagram",
+      instagram_account_id: account.id,
+      instagram_username: account.username ?? null,
+      instagram_token_encrypted: tokenCifradoBytea,
+      webhook_secret_encrypted: webhookSecretBytea,
+      display_name: display_name ?? account.name ?? account.username ?? "Instagram Direct",
+      webhook_path_token: pathToken,
+      status: "connected",
+    });
 
     if (errIns) {
       return fail("internal_error", `Falha ao gravar sessão do Instagram: ${errIns.message}`, 500, {

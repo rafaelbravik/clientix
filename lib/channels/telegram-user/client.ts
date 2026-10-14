@@ -1,4 +1,3 @@
-import { logger } from "@/lib/logger";
 import type {
   TelegramUserCheckPasswordParams,
   TelegramUserFloodError,
@@ -16,9 +15,9 @@ import type { TelegramUserCredentials } from "./credentials";
 /**
  * Cliente de transporte para Telegram MTProto (Userbot / Conta de Atendente).
  *
- * Comunica-se com gateway de transporte MTProto configurado em `TELEGRAM_MTPROTO_GATEWAY_URL`
- * ou processa requisições de autenticação e despacho. Trata especificamente limites
- * de Flood do Telegram (FLOOD_WAIT_X e PeerFloodError) para proteger o número contra ban.
+ * Comunica-se com gateway HTTPS de transporte MTProto configurado em
+ * `TELEGRAM_MTPROTO_GATEWAY_URL`. Trata especificamente limites de Flood do Telegram
+ * (FLOOD_WAIT_X e PeerFloodError) para proteger o número contra ban.
  */
 
 function parseFloodWait(errorMessage: string): number | null {
@@ -29,8 +28,72 @@ function parseFloodWait(errorMessage: string): number | null {
   return null;
 }
 
+export class TelegramUserGatewayUnavailableError extends Error {
+  readonly code = "telegram_user_gateway_unavailable";
+
+  constructor() {
+    super("Telegram User/MTProto está indisponível: configure um gateway HTTPS confiável.");
+    this.name = "TelegramUserGatewayUnavailableError";
+  }
+}
+
+function gatewayUrl(): string {
+  const configured = process.env.TELEGRAM_MTPROTO_GATEWAY_URL?.trim();
+  if (!configured) throw new TelegramUserGatewayUnavailableError();
+  return configured.replace(/\/$/, "");
+}
+
+type GatewayRecord = Record<string, unknown>;
+
+function gatewayRecord(value: unknown): GatewayRecord {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Resposta inválida do gateway Telegram.");
+  }
+  return value as GatewayRecord;
+}
+
+function gatewayError(body: GatewayRecord, fallback: string): string {
+  if (typeof body.error === "string" && body.error.trim()) return body.error;
+  if (typeof body.message === "string" && body.message.trim()) return body.message;
+  return fallback;
+}
+
+function requiredGatewayString(value: unknown, field: string): string {
+  if (typeof value === "string" && value.trim()) return value.trim();
+  throw new Error(`Resposta inválida do gateway Telegram: ${field} ausente.`);
+}
+
+function gatewayId(value: unknown, field: string): string {
+  if (typeof value === "number" && Number.isSafeInteger(value) && value > 0) return String(value);
+  return requiredGatewayString(value, field);
+}
+
+function parseGatewayUser(value: unknown, phoneFallback?: string): TelegramUserMe {
+  const user = gatewayRecord(value);
+  return {
+    id: gatewayId(user.id, "user.id"),
+    phone: requiredGatewayString(user.phone ?? phoneFallback, "user.phone"),
+    firstName: requiredGatewayString(user.first_name, "user.first_name"),
+    lastName: typeof user.last_name === "string" ? user.last_name : null,
+    username: typeof user.username === "string" ? user.username : null,
+  };
+}
+
+function parseGatewayMessage(body: GatewayRecord): TelegramUserMessageResult {
+  const messageId = gatewayId(body.id ?? body.message_id, "message.id");
+  const date =
+    typeof body.date === "number" && Number.isFinite(body.date)
+      ? body.date
+      : typeof body.date === "string" && /^\d+$/.test(body.date)
+        ? Number(body.date)
+        : Math.floor(Date.now() / 1000);
+  return { messageId, date };
+}
+
 export function createFloodError(seconds: number): TelegramUserFloodError {
-  const err = new Error(`FLOOD_WAIT_${seconds}: limite de envio atingido no Telegram MTProto. Aguarde ${seconds}s.`) as TelegramUserFloodError;
+  const err = new Error(
+    `FLOOD_WAIT_${seconds}: limite de envio atingido no Telegram MTProto. Aguarde ${seconds}s.`,
+  ) as TelegramUserFloodError;
   err.code = "FLOOD_WAIT";
   err.retryAfterSeconds = seconds;
   return err;
@@ -39,10 +102,9 @@ export function createFloodError(seconds: number): TelegramUserFloodError {
 export async function telegramUserSendCode(
   params: TelegramUserSendCodeParams,
 ): Promise<TelegramUserSendCodeResult> {
-  const gatewayUrl = process.env.TELEGRAM_MTPROTO_GATEWAY_URL;
-
-  if (gatewayUrl) {
-    const res = await fetch(`${gatewayUrl.replace(/\/$/, "")}/auth/sendCode`, {
+  const gateway = gatewayUrl();
+  {
+    const res = await fetch(`${gateway}/auth/sendCode`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -52,37 +114,29 @@ export async function telegramUserSendCode(
       }),
     });
 
-    const body = await res.json();
+    const body = gatewayRecord(await res.json());
     if (!res.ok) {
-      const floodSecs = parseFloodWait(body.error || body.message || "");
+      const floodSecs = parseFloodWait(gatewayError(body, ""));
       if (floodSecs) throw createFloodError(floodSecs);
-      throw new Error(body.error || body.message || `sendCode falhou com status ${res.status}`);
+      throw new Error(gatewayError(body, `sendCode falhou com status ${res.status}`));
     }
 
     return {
-      phoneCodeHash: body.phone_code_hash,
+      phoneCodeHash: requiredGatewayString(body.phone_code_hash, "phone_code_hash"),
       isCodeViaApp: Boolean(body.is_code_via_app),
-      timeout: body.timeout,
+      ...(typeof body.timeout === "number" && Number.isFinite(body.timeout)
+        ? { timeout: body.timeout }
+        : {}),
     };
   }
-
-  // Modo autônomo / fallback
-  const phoneClean = params.phone.replace(/[^\d]/g, "");
-  const hash = Buffer.from(`tgu_hash_${phoneClean}_${Date.now()}`).toString("hex");
-  return {
-    phoneCodeHash: hash,
-    isCodeViaApp: true,
-    timeout: 300,
-  };
 }
 
 export async function telegramUserSignIn(
   params: TelegramUserSignInParams,
 ): Promise<TelegramUserSignInResult> {
-  const gatewayUrl = process.env.TELEGRAM_MTPROTO_GATEWAY_URL;
-
-  if (gatewayUrl) {
-    const res = await fetch(`${gatewayUrl.replace(/\/$/, "")}/auth/signIn`, {
+  const gateway = gatewayUrl();
+  {
+    const res = await fetch(`${gateway}/auth/signIn`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -94,59 +148,39 @@ export async function telegramUserSignIn(
       }),
     });
 
-    const body = await res.json();
+    const body = gatewayRecord(await res.json());
     if (!res.ok) {
-      if (body.error === "SESSION_PASSWORD_NEEDED" || body.message?.includes("2FA")) {
-        return { success: false, passwordNeeded: true, sessionString: body.session_string };
+      if (
+        body.error === "SESSION_PASSWORD_NEEDED" ||
+        (typeof body.message === "string" && body.message.includes("2FA"))
+      ) {
+        return {
+          success: false,
+          passwordNeeded: true,
+          ...(typeof body.session_string === "string" && body.session_string.trim()
+            ? { sessionString: body.session_string }
+            : {}),
+        };
       }
-      const floodSecs = parseFloodWait(body.error || body.message || "");
+      const floodSecs = parseFloodWait(gatewayError(body, ""));
       if (floodSecs) throw createFloodError(floodSecs);
-      throw new Error(body.error || body.message || `signIn falhou com status ${res.status}`);
+      throw new Error(gatewayError(body, `signIn falhou com status ${res.status}`));
     }
 
     return {
       success: true,
-      sessionString: body.session_string,
-      user: {
-        id: String(body.user.id),
-        phone: body.user.phone,
-        firstName: body.user.first_name,
-        lastName: body.user.last_name ?? null,
-        username: body.user.username ?? null,
-      },
+      sessionString: requiredGatewayString(body.session_string, "session_string"),
+      user: parseGatewayUser(body.user, params.phone),
     };
   }
-
-  // Modo autônomo / fallback
-  const phoneClean = params.phone.replace(/[^\d]/g, "");
-  const sessionString = Buffer.from(
-    JSON.stringify({
-      user_id: phoneClean,
-      phone: params.phone,
-      api_id: params.apiId,
-      created_at: Date.now(),
-    }),
-  ).toString("base64");
-
-  return {
-    success: true,
-    sessionString,
-    user: {
-      id: phoneClean,
-      phone: params.phone,
-      firstName: "Atendente Telegram",
-      username: `tg_${phoneClean}`,
-    },
-  };
 }
 
 export async function telegramUserCheckPassword(
   params: TelegramUserCheckPasswordParams,
 ): Promise<TelegramUserSignInResult> {
-  const gatewayUrl = process.env.TELEGRAM_MTPROTO_GATEWAY_URL;
-
-  if (gatewayUrl) {
-    const res = await fetch(`${gatewayUrl.replace(/\/$/, "")}/auth/checkPassword`, {
+  const gateway = gatewayUrl();
+  {
+    const res = await fetch(`${gateway}/auth/checkPassword`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -157,55 +191,25 @@ export async function telegramUserCheckPassword(
       }),
     });
 
-    const body = await res.json();
+    const body = gatewayRecord(await res.json());
     if (!res.ok) {
-      const floodSecs = parseFloodWait(body.error || body.message || "");
+      const floodSecs = parseFloodWait(gatewayError(body, ""));
       if (floodSecs) throw createFloodError(floodSecs);
-      throw new Error(body.error || body.message || `checkPassword falhou com status ${res.status}`);
+      throw new Error(gatewayError(body, `checkPassword falhou com status ${res.status}`));
     }
 
     return {
       success: true,
-      sessionString: body.session_string,
-      user: {
-        id: String(body.user.id),
-        phone: body.user.phone,
-        firstName: body.user.first_name,
-        lastName: body.user.last_name ?? null,
-        username: body.user.username ?? null,
-      },
+      sessionString: requiredGatewayString(body.session_string, "session_string"),
+      user: parseGatewayUser(body.user, params.phone),
     };
   }
-
-  const phoneClean = params.phone.replace(/[^\d]/g, "");
-  const sessionString = Buffer.from(
-    JSON.stringify({
-      user_id: phoneClean,
-      phone: params.phone,
-      api_id: params.apiId,
-      created_at: Date.now(),
-    }),
-  ).toString("base64");
-
-  return {
-    success: true,
-    sessionString,
-    user: {
-      id: phoneClean,
-      phone: params.phone,
-      firstName: "Atendente Telegram",
-      username: `tg_${phoneClean}`,
-    },
-  };
 }
 
-export async function telegramUserGetMe(
-  creds: TelegramUserCredentials,
-): Promise<TelegramUserMe> {
-  const gatewayUrl = process.env.TELEGRAM_MTPROTO_GATEWAY_URL;
-
-  if (gatewayUrl) {
-    const res = await fetch(`${gatewayUrl.replace(/\/$/, "")}/users/getMe`, {
+export async function telegramUserGetMe(creds: TelegramUserCredentials): Promise<TelegramUserMe> {
+  const gateway = gatewayUrl();
+  {
+    const res = await fetch(`${gateway}/users/getMe`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -215,36 +219,22 @@ export async function telegramUserGetMe(
       }),
     });
 
-    const body = await res.json();
+    const body = gatewayRecord(await res.json());
     if (!res.ok) {
-      throw new Error(body.error || body.message || "getMe falhou");
+      throw new Error(gatewayError(body, "getMe falhou"));
     }
 
-    return {
-      id: String(body.id),
-      phone: body.phone,
-      firstName: body.first_name,
-      lastName: body.last_name ?? null,
-      username: body.username ?? null,
-    };
+    return parseGatewayUser(body, creds.phone);
   }
-
-  return {
-    id: creds.userId,
-    phone: creds.phone,
-    firstName: "Atendente MTProto",
-    username: `user_${creds.userId}`,
-  };
 }
 
 export async function telegramUserSendMessage(
   creds: TelegramUserCredentials,
   params: TelegramUserSendMessageParams,
 ): Promise<TelegramUserMessageResult> {
-  const gatewayUrl = process.env.TELEGRAM_MTPROTO_GATEWAY_URL;
-
-  if (gatewayUrl) {
-    const res = await fetch(`${gatewayUrl.replace(/\/$/, "")}/messages/sendMessage`, {
+  const gateway = gatewayUrl();
+  {
+    const res = await fetch(`${gateway}/messages/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -257,39 +247,24 @@ export async function telegramUserSendMessage(
       }),
     });
 
-    const body = await res.json();
+    const body = gatewayRecord(await res.json());
     if (!res.ok) {
-      const floodSecs = parseFloodWait(body.error || body.message || "");
+      const floodSecs = parseFloodWait(gatewayError(body, ""));
       if (floodSecs) throw createFloodError(floodSecs);
-      throw new Error(body.error || body.message || "sendMessage falhou no MTProto");
+      throw new Error(gatewayError(body, "sendMessage falhou no MTProto"));
     }
 
-    return {
-      messageId: String(body.id || body.message_id),
-      date: body.date || Math.floor(Date.now() / 1000),
-    };
+    return parseGatewayMessage(body);
   }
-
-  logger.info("[telegram_user] Mensagem despachada via MTProto", {
-    userId: creds.userId,
-    to: params.to,
-    textLength: params.text.length,
-  });
-
-  return {
-    messageId: String(Date.now()),
-    date: Math.floor(Date.now() / 1000),
-  };
 }
 
 export async function telegramUserSendMedia(
   creds: TelegramUserCredentials,
   params: TelegramUserSendMediaParams,
 ): Promise<TelegramUserMessageResult> {
-  const gatewayUrl = process.env.TELEGRAM_MTPROTO_GATEWAY_URL;
-
-  if (gatewayUrl) {
-    const res = await fetch(`${gatewayUrl.replace(/\/$/, "")}/messages/sendMedia`, {
+  const gateway = gatewayUrl();
+  {
+    const res = await fetch(`${gateway}/messages/sendMedia`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -303,27 +278,13 @@ export async function telegramUserSendMedia(
       }),
     });
 
-    const body = await res.json();
+    const body = gatewayRecord(await res.json());
     if (!res.ok) {
-      const floodSecs = parseFloodWait(body.error || body.message || "");
+      const floodSecs = parseFloodWait(gatewayError(body, ""));
       if (floodSecs) throw createFloodError(floodSecs);
-      throw new Error(body.error || body.message || "sendMedia falhou no MTProto");
+      throw new Error(gatewayError(body, "sendMedia falhou no MTProto"));
     }
 
-    return {
-      messageId: String(body.id || body.message_id),
-      date: body.date || Math.floor(Date.now() / 1000),
-    };
+    return parseGatewayMessage(body);
   }
-
-  logger.info("[telegram_user] Mídia despachada via MTProto", {
-    userId: creds.userId,
-    to: params.to,
-    mediaType: params.mediaType,
-  });
-
-  return {
-    messageId: String(Date.now()),
-    date: Math.floor(Date.now() / 1000),
-  };
 }

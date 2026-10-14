@@ -9,6 +9,7 @@ import { requireSupportWrite } from "@/lib/impersonate/support";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { encryptWebhookSecret } from "@/lib/webhooks/secrets";
 import { checkChannelQuota } from "@/lib/tenant/plan-limits";
+import { env } from "@/lib/env";
 import {
   telegramUserCheckPassword,
   telegramUserSendCode,
@@ -57,6 +58,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const authz = await requireRole("admin", { requestId, resource: "channels_telegram_user" });
   if (!authz.ok) return authz.response;
 
+  if (!env.TELEGRAM_MTPROTO_GATEWAY_URL) {
+    return fail(
+      "integration_unavailable",
+      "Telegram User/MTProto está desativado: configure um gateway HTTPS confiável. O recebimento de mensagens ainda não está integrado.",
+      503,
+      { requestId },
+    );
+  }
+
   const json = await req.json().catch(() => ({}));
   const parsed = authActionSchema.safeParse(json);
   if (!parsed.success) {
@@ -82,10 +92,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     excludeChannelSessionId: sessaoExistente?.id,
   });
   if (!channelQuota.allowed) {
-    return fail("quota_exceeded", channelQuota.reason ?? "Limite de conexões do plano atingido.", 403, {
-      requestId,
-      details: { current: channelQuota.current, max: channelQuota.max },
-    });
+    return fail(
+      "quota_exceeded",
+      channelQuota.reason ?? "Limite de conexões do plano atingido.",
+      403,
+      {
+        requestId,
+        details: { current: channelQuota.current, max: channelQuota.max },
+      },
+    );
   }
 
   if (data.action === "send_code") {

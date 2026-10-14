@@ -47,6 +47,11 @@ export interface InstagramWebhookMessagingEvent {
       type: "image" | "audio" | "video" | "file" | "share";
       payload: {
         url?: string;
+        id?: string;
+        mime_type?: string;
+        filename?: string;
+        name?: string;
+        caption?: string;
       };
     }>;
     reply_to?: {

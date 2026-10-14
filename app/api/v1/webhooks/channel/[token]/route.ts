@@ -30,10 +30,8 @@ import { logger } from "@/lib/logger";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { fail, ok } from "@/lib/api/wrappers";
-import {
-  abrirArquivoDoWebhook,
-  fecharArquivoDoWebhook,
-} from "@/lib/channels/arquivo-de-webhook";
+import { appDaMeta } from "@/lib/channels/meta/app";
+import { abrirArquivoDoWebhook, fecharArquivoDoWebhook } from "@/lib/channels/arquivo-de-webhook";
 import {
   acceptsInboundWebhook,
   handleInboundWebhook,
@@ -77,6 +75,53 @@ export {
   _getSessionToTokenSizeForTest,
   _getTokenEpochsSizeForTest,
 };
+
+/**
+ * Meta webhook verification handshake for a native Instagram session.
+ * The path token resolves the active Instagram tenant/session; the installation
+ * Meta verify token authenticates the handshake, matching the native Meta
+ * webhook contract. Other channel sessions never receive a challenge here.
+ */
+export async function GET(
+  req: NextRequest,
+  ctx: { params: Promise<{ token: string }> },
+): Promise<Response> {
+  const { token } = await ctx.params;
+  const query = req.nextUrl.searchParams;
+  const challenge = query.get("hub.challenge");
+
+  if (!token || token.length < 8) return new NextResponse("not found", { status: 404 });
+
+  try {
+    const { sessao } = await resolveSessionForToken(token, { includeSecret: false });
+    if (!sessao || sessao.archived_at || sessao.provider !== "instagram") {
+      return new NextResponse("not found", { status: 404 });
+    }
+  } catch {
+    return new NextResponse("temporarily unavailable", { status: 503 });
+  }
+
+  // A configuração nativa usa o mesmo verify token da aplicação Meta que o
+  // handshake oficial do WhatsApp. O path token resolve a sessão/tenant; ele
+  // não substitui a credencial `META_WEBHOOK_VERIFY_TOKEN` do protocolo Meta.
+  const { verifyToken } = await appDaMeta();
+  if (
+    query.get("hub.mode") !== "subscribe" ||
+    !verifyToken ||
+    query.get("hub.verify_token") !== verifyToken ||
+    challenge === null
+  ) {
+    return new NextResponse("forbidden", { status: 403 });
+  }
+
+  return new NextResponse(challenge, {
+    status: 200,
+    headers: {
+      "content-type": "text/plain",
+      "cache-control": "no-store",
+    },
+  });
+}
 
 export async function POST(
   req: NextRequest,
@@ -122,15 +167,23 @@ export async function POST(
   // O teto só é aplicado DEPOIS da verificação criptográfica. Bloquear aqui quando
   // o contador está cheio também derrubaria callbacks legítimos e permitiria a
   // qualquer portador do token causar indisponibilidade com dez assinaturas falsas.
-  const signatureFailurePeek = await peekSignatureFailureLimitReached(token, { limit: 10, windowSec: 600 });
+  const signatureFailurePeek = await peekSignatureFailureLimitReached(token, {
+    limit: 10,
+    windowSec: 600,
+  });
   if (signatureFailurePeek.redisUnavailable) {
     // Sem o contador distribuído não é possível impor o teto entre réplicas.
     // Webhooks recebem 503 para que o provider tente de novo; corpo e Postgres
     // permanecem intocados até o rate limiter voltar.
-    return fail("service_unavailable", "Serviço de verificação temporariamente indisponível. Tente novamente.", 503, {
-      requestId,
-      headers: { "Retry-After": "30" },
-    });
+    return fail(
+      "service_unavailable",
+      "Serviço de verificação temporariamente indisponível. Tente novamente.",
+      503,
+      {
+        requestId,
+        headers: { "Retry-After": "30" },
+      },
+    );
   }
   // D. Teto preventivo de Content-Length (256KB)
   const MAX_WEBHOOK_PAYLOAD_BYTES = 256 * 1024;
@@ -152,10 +205,15 @@ export async function POST(
       sessionResult = await resolveSessionForToken(token, { includeSecret: false });
     } catch (err) {
       if (err instanceof Error && err.message === "webhook_session_cache_overloaded") {
-        return fail("service_unavailable", "Serviço temporariamente sobrecarregado. Tente novamente em instantes.", 503, {
-          requestId,
-          headers: { "Retry-After": "5" },
-        });
+        return fail(
+          "service_unavailable",
+          "Serviço temporariamente sobrecarregado. Tente novamente em instantes.",
+          503,
+          {
+            requestId,
+            headers: { "Retry-After": "5" },
+          },
+        );
       }
       throw err;
     }
@@ -229,13 +287,21 @@ export async function POST(
         secret,
       );
       if (!signatureVerification.valid) {
-        const sigDecision = await recordSignatureFailureAtomic(token, { limit: 10, windowSec: 600 });
+        const sigDecision = await recordSignatureFailureAtomic(token, {
+          limit: 10,
+          windowSec: 600,
+        });
         if (!sigDecision.allowed) {
           if (sigDecision.redisUnavailable) {
-            return fail("service_unavailable", "Serviço de verificação temporariamente indisponível. Tente novamente.", 503, {
-              requestId,
-              headers: { "Retry-After": "30" },
-            });
+            return fail(
+              "service_unavailable",
+              "Serviço de verificação temporariamente indisponível. Tente novamente.",
+              503,
+              {
+                requestId,
+                headers: { "Retry-After": "30" },
+              },
+            );
           }
           return fail("rate_limited", "Too many invalid signature attempts.", 429, {
             requestId,
@@ -272,7 +338,14 @@ export async function POST(
         return fail("unauthorized", "bad_signature", 401, { requestId });
       }
 
-      if (!await inboundPayloadBelongsToSession(admin, { session: sessao, rawBody, headers: req.headers, secret })) {
+      if (
+        !(await inboundPayloadBelongsToSession(admin, {
+          session: sessao,
+          rawBody,
+          headers: req.headers,
+          secret,
+        }))
+      ) {
         // Assinatura BOA, conta errada: `validSignature: true` de propósito. Marcar
         // `false` aqui mandaria quem investiga procurar um problema de segredo que
         // não existe — o segredo está certo, o evento é que é de outra conta.

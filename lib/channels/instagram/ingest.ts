@@ -4,6 +4,8 @@ import { resolveInstagramCreds } from "./credentials";
 import { processCommentToDm } from "./comment-to-dm";
 import { marcarConversaComMensagem } from "../marcar-conversa";
 import { aplicarEfeitosPosEntrada } from "../pos-entrada";
+import { findActiveConversationForChannel } from "../conversation-isolation";
+import { instagramMessageType, normalizeInstagramAttachments } from "./media";
 import { logger } from "@/lib/logger";
 
 export async function ingestInstagramWebhook(
@@ -49,7 +51,12 @@ export async function ingestInstagramWebhook(
         }
 
         const externalId = msg.mid;
-        const text = msg.text || (msg.attachments && msg.attachments[0]?.payload?.url ? "[Mídia]" : "");
+        const attachments = normalizeInstagramAttachments(msg);
+        const firstAttachment = attachments[0] ?? null;
+        const text =
+          msg.text ||
+          firstAttachment?.caption ||
+          (firstAttachment ? `[${firstAttachment.type}]` : "");
 
         const socialIdentity = {
           network: "instagram",
@@ -87,15 +94,12 @@ export async function ingestInstagramWebhook(
         }
 
         // Localiza ou abre conversa
-        const { data: conv } = await admin
-          .from("conversations")
-          .select("id, status")
-          .eq("organization_id", orgId)
-          .eq("contact_id", contactId)
-          .is("archived_at", null)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+        const conv = await findActiveConversationForChannel(admin, {
+          organizationId: orgId,
+          contactId,
+          channel: "instagram",
+          channelSessionId: session.id,
+        });
 
         let conversationId = conv?.id;
 
@@ -123,6 +127,7 @@ export async function ingestInstagramWebhook(
         if (!conversationId) continue;
 
         // Insere a mensagem
+        const mediaMime = firstAttachment?.mime_type ?? null;
         const { data: insertedMsg, error: errM } = await admin
           .from("messages")
           .insert({
@@ -133,6 +138,12 @@ export async function ingestInstagramWebhook(
             channel: "instagram",
             external_id: externalId,
             status: "delivered",
+            type: instagramMessageType(firstAttachment),
+            media_url: firstAttachment?.url ?? null,
+            media_mime: mediaMime,
+            metadata: {
+              provider_attachments: attachments,
+            },
           })
           .select("id")
           .single();

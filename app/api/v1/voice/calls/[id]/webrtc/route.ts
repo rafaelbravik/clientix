@@ -13,6 +13,7 @@ import { requireSupportWrite } from "@/lib/impersonate/support";
 import { createClient } from "@/lib/supabase/server";
 import { getWacallsClient, wacallsFriendlyError } from "@/lib/wacalls/client";
 import { podeEncerrar, resolveVoiceCall } from "@/lib/wacalls/calls";
+import { exigirVozLigada } from "@/lib/voice/guarda";
 
 export const dynamic = "force-dynamic";
 
@@ -47,9 +48,15 @@ export async function POST(
   if (!parsed.success) return fail("invalid_body", "sdpOffer é obrigatório.", 400, { requestId });
 
   const wacalls = getWacallsClient();
-  if (!wacalls) return fail("wacalls_not_configured", "Chamada de voz não configurada.", 503, { requestId });
+  if (!wacalls)
+    return fail("wacalls_not_configured", "Chamada de voz não configurada.", 503, { requestId });
 
   const supabase = await createClient();
+  const bloqueio = await exigirVozLigada(supabase, activeOrg.orgId, {
+    requestId,
+    instalacaoOferece: true,
+  });
+  if (bloqueio) return bloqueio;
   const call = await resolveVoiceCall(supabase, activeOrg.orgId, id);
   if (!call) return fail("not_found", "Chamada não encontrada.", 404, { requestId });
 
@@ -58,12 +65,7 @@ export async function POST(
   // colega da organização ligava o próprio microfone e o próprio alto-falante
   // na conversa de outra pessoa com um cliente.
   if (!podeEncerrar(call, user.id)) {
-    return fail(
-      "voice_call_not_yours",
-      "Esta chamada é de outra pessoa.",
-      403,
-      { requestId },
-    );
+    return fail("voice_call_not_yours", "Esta chamada é de outra pessoa.", 403, { requestId });
   }
 
   try {

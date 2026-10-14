@@ -23,6 +23,9 @@ type TelegramBotStatus = {
 
 type TelegramUserStatus = {
   connected: boolean;
+  status?: "partial" | "disabled";
+  gateway_configured?: boolean;
+  inbound_enabled?: boolean;
   phone_number?: string;
   first_name?: string;
   username?: string;
@@ -47,14 +50,16 @@ export function CanalTelegramClient() {
 
   const queryBot = useQuery({
     queryKey: ["channel-telegram-bot"],
-    queryFn: async () => (await apiClient.get<{ data: TelegramBotStatus }>("/api/v1/channels/telegram")).data,
+    queryFn: async () =>
+      (await apiClient.get<{ data: TelegramBotStatus }>("/api/v1/channels/telegram")).data,
   });
 
   const queryUser = useQuery({
     queryKey: ["channel-telegram-user"],
     queryFn: async () => {
       try {
-        return (await apiClient.get<{ data: TelegramUserStatus }>("/api/v1/channels/telegram-user")).data;
+        return (await apiClient.get<{ data: TelegramUserStatus }>("/api/v1/channels/telegram-user"))
+          .data;
       } catch {
         return { connected: false };
       }
@@ -109,10 +114,13 @@ export function CanalTelegramClient() {
     }
     setUserSaving(true);
     try {
-      const res = await apiClient.post<{ data: { phone_code_hash: string } }>("/api/v1/channels/telegram-user/auth", {
-        action: "send_code",
-        phone_number: phone.trim(),
-      });
+      const res = await apiClient.post<{ data: { phone_code_hash: string } }>(
+        "/api/v1/channels/telegram-user/auth",
+        {
+          action: "send_code",
+          phone_number: phone.trim(),
+        },
+      );
       setPhoneCodeHash(res.data.phone_code_hash);
       setStepUser("code");
       toast.success(t("Código enviado para o seu aplicativo Telegram!"));
@@ -155,7 +163,9 @@ export function CanalTelegramClient() {
       <div>
         <h2 className="text-lg font-semibold">{t("Telegram")}</h2>
         <p className="text-sm text-muted-foreground">
-          {t("Conecte um Bot oficial ou uma Conta de Usuário (MTProto) para atender leads e disparar mensagens.")}
+          {t(
+            "Conecte um Bot oficial ou uma Conta de Usuário (MTProto) para atender leads e disparar mensagens.",
+          )}
         </p>
       </div>
 
@@ -167,7 +177,12 @@ export function CanalTelegramClient() {
           </TabsTrigger>
           <TabsTrigger value="user">
             {t("Conta de Usuário (Disparos / Humano)")}
-            {userData?.connected && <Badge className="ml-2 bg-emerald-500 text-white">Conectado</Badge>}
+            <Badge variant="outline" className="ml-2">
+              {userData?.status === "disabled" ? t("Desativado") : t("Parcial")}
+            </Badge>
+            {userData?.connected && (
+              <Badge className="ml-2 bg-emerald-500 text-white">Conectado</Badge>
+            )}
           </TabsTrigger>
         </TabsList>
 
@@ -177,16 +192,24 @@ export function CanalTelegramClient() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between border-b pb-4">
                   <div>
-                    <h3 className="text-base font-medium">{botData.display_name || botData.username || "Bot Conectado"}</h3>
+                    <h3 className="text-base font-medium">
+                      {botData.display_name || botData.username || "Bot Conectado"}
+                    </h3>
                     <p className="text-sm text-muted-foreground">@{botData.username}</p>
                   </div>
                   <Badge variant="outline" className="border-emerald-500 text-emerald-600">
                     {t("Ativo")}
                   </Badge>
                 </div>
-                <div className="text-sm text-muted-foreground space-y-1">
-                  <p><strong>Webhook ativo:</strong> {botData.webhook_url}</p>
-                  <p>{t("As mensagens recebidas pelo bot caem diretamente no Inbox da sua organização.")}</p>
+                <div className="space-y-1 text-sm text-muted-foreground">
+                  <p>
+                    <strong>Webhook ativo:</strong> {botData.webhook_url}
+                  </p>
+                  <p>
+                    {t(
+                      "As mensagens recebidas pelo bot caem diretamente no Inbox da sua organização.",
+                    )}
+                  </p>
                 </div>
                 <div className="pt-2">
                   <Button variant="destructive" onClick={handleDesconectarBot} disabled={botSaving}>
@@ -195,7 +218,7 @@ export function CanalTelegramClient() {
                 </div>
               </div>
             ) : (
-              <form onSubmit={handleSalvarBot} className="space-y-4 max-w-lg">
+              <form onSubmit={handleSalvarBot} className="max-w-lg space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="bot-name">{t("Nome de exibição (opcional)")}</Label>
                   <Input
@@ -216,7 +239,9 @@ export function CanalTelegramClient() {
                     required
                   />
                   <p className="text-xs text-muted-foreground">
-                    {t("Abra o Telegram, procure por @BotFather, envie /newbot e cole o token aqui.")}
+                    {t(
+                      "Abra o Telegram, procure por @BotFather, envie /newbot e cole o token aqui.",
+                    )}
                   </p>
                 </div>
                 <Button type="submit" disabled={botSaving}>
@@ -228,22 +253,34 @@ export function CanalTelegramClient() {
         </TabsContent>
 
         <TabsContent value="user" className="mt-4">
+          <p
+            role="status"
+            className="mb-4 rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm text-muted-foreground"
+          >
+            {t(
+              "Telegram User/MTProto está parcial: autenticação e envio dependem de um gateway HTTPS; mensagens recebidas ainda não entram no dispatcher. O Bot API é o canal Telegram suportado para produção.",
+            )}
+          </p>
           <Card className="p-6">
             {userData?.connected ? (
               <div className="space-y-4">
                 <div className="flex items-center justify-between border-b pb-4">
                   <div>
-                    <h3 className="text-base font-medium">{userData.first_name || userData.phone_number}</h3>
+                    <h3 className="text-base font-medium">
+                      {userData.first_name || userData.phone_number}
+                    </h3>
                     <p className="text-sm text-muted-foreground">{userData.phone_number}</p>
                   </div>
                   <Badge className="bg-emerald-500 text-white">{t("Sessão Ativa")}</Badge>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  {t("Esta conta pode ser utilizada para envio ativo de campanhas e atendimento direto.")}
+                  {t(
+                    "Esta conta pode ser utilizada para envio ativo de campanhas e atendimento direto.",
+                  )}
                 </p>
               </div>
             ) : stepUser === "phone" ? (
-              <form onSubmit={handleEnviarCodigoTelegram} className="space-y-4 max-w-lg">
+              <form onSubmit={handleEnviarCodigoTelegram} className="max-w-lg space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="phone">{t("Número de Telefone")}</Label>
                   <Input
@@ -254,7 +291,9 @@ export function CanalTelegramClient() {
                     required
                   />
                   <p className="text-xs text-muted-foreground">
-                    {t("Você receberá uma mensagem com código de confirmação no seu app do Telegram.")}
+                    {t(
+                      "Você receberá uma mensagem com código de confirmação no seu app do Telegram.",
+                    )}
                   </p>
                 </div>
                 <Button type="submit" disabled={userSaving}>
@@ -262,7 +301,7 @@ export function CanalTelegramClient() {
                 </Button>
               </form>
             ) : (
-              <form onSubmit={handleConfirmarCodigoTelegram} className="space-y-4 max-w-lg">
+              <form onSubmit={handleConfirmarCodigoTelegram} className="max-w-lg space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="code">{t("Código de Verificação")}</Label>
                   <Input

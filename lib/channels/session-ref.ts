@@ -20,7 +20,8 @@ export type ChannelSessionRef =
   | { provider: "telegram_user"; telegram_user_id: string }
   | { provider: "email"; email_address: string }
   | { provider: "instagram"; instagram_account_id: string }
-  | { provider: "tiktok"; tiktok_business_id: string };
+  | { provider: "tiktok"; tiktok_business_id: string }
+  | { provider: "webchat"; webchat_public_id: string };
 
 /**
  * Colunas que um `select` do PostgREST precisa trazer para `resolveSessionRef`
@@ -28,7 +29,7 @@ export type ChannelSessionRef =
  * nomeia coluna de provider, e ela some da feature junto com a decisão.
  */
 export const CHANNEL_SESSION_REF_COLUMNS =
-  "provider, waha_session_name, meta_phone_number_id, zernio_account_id, datafy_phone_number_id, telegram_bot_id, telegram_user_id, email_address, instagram_account_id, tiktok_business_id";
+  "provider, waha_session_name, meta_phone_number_id, zernio_account_id, datafy_phone_number_id, telegram_bot_id, telegram_user_id, email_address, instagram_account_id, tiktok_business_id, webchat_public_id";
 
 export function resolveSessionRef(session: ChannelSessionRef): string {
   switch (session.provider) {
@@ -56,6 +57,8 @@ export function resolveSessionRef(session: ChannelSessionRef): string {
       return session.instagram_account_id;
     case "tiktok":
       return session.tiktok_business_id;
+    case "webchat":
+      return session.webchat_public_id;
   }
 }
 

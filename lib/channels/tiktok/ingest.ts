@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TikTokWebhookPayload } from "./types";
 import { marcarConversaComMensagem } from "../marcar-conversa";
 import { aplicarEfeitosPosEntrada } from "../pos-entrada";
+import { findActiveConversationForChannel } from "../conversation-isolation";
 import { logger } from "@/lib/logger";
 
 export async function ingestTikTokWebhook(
@@ -68,15 +69,12 @@ export async function ingestTikTokWebhook(
     }
 
     // 2. Conversa
-    const { data: conv } = await admin
-      .from("conversations")
-      .select("id, status")
-      .eq("organization_id", orgId)
-      .eq("contact_id", contactId)
-      .is("archived_at", null)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const conv = await findActiveConversationForChannel(admin, {
+      organizationId: orgId,
+      contactId,
+      channel: "tiktok",
+      channelSessionId: session.id,
+    });
 
     let conversationId = conv?.id;
 

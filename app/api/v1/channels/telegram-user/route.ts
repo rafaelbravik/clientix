@@ -8,6 +8,7 @@ import { requireRole } from "@/lib/auth/require-role";
 import { requireSupportWrite } from "@/lib/impersonate/support";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { invalidateWebhookCacheBySessionId } from "@/lib/channels/webhook-session-cache";
+import { env } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -25,7 +26,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const admin = createAdminClient();
   const { data: sessoes, error } = await admin
     .from("channel_sessions")
-    .select("id, telegram_user_id, telegram_phone, telegram_api_id, display_name, status, created_at")
+    .select(
+      "id, telegram_user_id, telegram_phone, telegram_api_id, display_name, status, created_at",
+    )
     .eq("organization_id", authz.org.orgId)
     .eq("provider", "telegram_user")
     .is("archived_at", null)
@@ -39,6 +42,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   return ok(
     {
+      connected: Boolean((sessoes ?? []).length && env.TELEGRAM_MTPROTO_GATEWAY_URL),
+      status: env.TELEGRAM_MTPROTO_GATEWAY_URL ? "partial" : "disabled",
+      gateway_configured: Boolean(env.TELEGRAM_MTPROTO_GATEWAY_URL),
+      inbound_enabled: false,
       sessions: (sessoes ?? []).map((s) => ({
         id: s.id,
         telegram_user_id: s.telegram_user_id,

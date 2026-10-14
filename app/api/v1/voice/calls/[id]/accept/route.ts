@@ -10,6 +10,7 @@ import { requireSupportWrite } from "@/lib/impersonate/support";
 import { createClient } from "@/lib/supabase/server";
 import { getWacallsClient, wacallsFriendlyError } from "@/lib/wacalls/client";
 import { resolveVoiceCall } from "@/lib/wacalls/calls";
+import { exigirVozLigada } from "@/lib/voice/guarda";
 
 export const dynamic = "force-dynamic";
 
@@ -30,9 +31,15 @@ export async function POST(
   const { user, org: activeOrg } = authz;
 
   const wacalls = getWacallsClient();
-  if (!wacalls) return fail("wacalls_not_configured", "Chamada de voz não configurada.", 503, { requestId });
+  if (!wacalls)
+    return fail("wacalls_not_configured", "Chamada de voz não configurada.", 503, { requestId });
 
   const supabase = await createClient();
+  const bloqueio = await exigirVozLigada(supabase, activeOrg.orgId, {
+    requestId,
+    instalacaoOferece: true,
+  });
+  if (bloqueio) return bloqueio;
   const call = await resolveVoiceCall(supabase, activeOrg.orgId, id);
   if (!call) return fail("not_found", "Chamada não encontrada.", 404, { requestId });
 

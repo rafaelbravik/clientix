@@ -35,6 +35,7 @@ import { resolveWacallsSession } from "@/lib/wacalls/session";
 import { getWacallsClient } from "@/lib/wacalls/client";
 import { nomeDaSessaoDeVoz } from "@/lib/wacalls/nome-da-sessao";
 import { env } from "@/lib/env";
+import { exigirVozLigada } from "@/lib/voice/guarda";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +59,11 @@ export async function GET(): Promise<Response> {
   }
 
   const supabase = await createClient();
+  const bloqueio = await exigirVozLigada(supabase, activeOrg.orgId, {
+    requestId,
+    instalacaoOferece: true,
+  });
+  if (bloqueio) return bloqueio;
   const session = await resolveWacallsSession(supabase, activeOrg.orgId);
   // Sem sessão ainda não é erro: é o primeiro pareamento, e a stream precisa
   // estar aberta antes de a sessão existir. O nome fecha a lacuna.
