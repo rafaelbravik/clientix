@@ -151,7 +151,7 @@ describe("fronteiras de política e reserva", () => {
   it("platform admin com fator cadastrado prova MFA nas duas RPCs humanas", async () => {
     const factor="30000000-0000-4000-8000-000000000003";
     await query("insert into platform_admins(user_id,granted_by,scope,mfa_required,reason) values($1,$1,'full',false,'Test')",[admin]);
-    await query("insert into auth.mfa_factors(id,user_id,status,factor_type) values($1,$2,'verified','totp')",[factor,admin]);
+    await query("insert into auth.mfa_factors(id,user_id,status,factor_type,created_at,updated_at) values($1,$2,'verified','totp','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",[factor,admin]);
     try {
       await expect(asUser(admin,"select fn_set_channel_routing($1,$2,$3,false)",[org,channel,[]])).rejects.toThrow("routing_mfa_required");
       await expect(asUser(admin,"select fn_reserve_channel_connection($1,$2,$3)",[org,factor,"c".repeat(64)])).rejects.toThrow("connection_mfa_required");

@@ -1,4 +1,6 @@
 import { createRequire } from "node:module";
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   compareSemVer,
@@ -7,6 +9,8 @@ import {
 
 const require = createRequire(import.meta.url);
 const { deriveCurrentSchema } = require("../../scripts/migrator/clientix-migrator.js");
+const schemaManifest = JSON.parse(readFileSync("supabase/manifest.json", "utf8"));
+const sha256 = (contents) => createHash("sha256").update(contents).digest("hex");
 
 describe("signed installer compatibility contract", () => {
   it("compares SemVer core and prerelease precedence numerically", () => {
@@ -62,28 +66,48 @@ describe("signed installer compatibility contract", () => {
   });
 
   it("derives the current schema from the migrator ledger and fails closed on unknown rows", () => {
-    const baselineChecksum = "a".repeat(64);
-    const migrationChecksum = "b".repeat(64);
-    const manifest = {
-      schema_target: "0510",
-      baseline: { incorporated_through_sequence: 510, checksum: baselineChecksum },
-      migrations: [{ version: "20261006120000", sequence: 511, checksum: migrationChecksum }],
-    };
+    const migration = schemaManifest.migrations.find((entry) => entry.sequence === 511);
+    expect(schemaManifest.schema_target).toBe("0511");
+    expect(schemaManifest.baseline.incorporated_through_sequence).toBe(511);
+    expect(migration).toMatchObject({
+      file: "20261010120000_0511_webchat_widget_bootstrap.sql",
+      version: "20261010120000",
+      sequence: 511,
+    });
+
+    const baseline510Checksum = "a".repeat(64);
     const trackedState = {
       type: "TRACKED_INSTALLATION",
       applied: [
-        { version: "baseline:0510", checksum: baselineChecksum },
-        { version: "20261006120000", checksum: migrationChecksum },
+        { version: "baseline:0510", checksum: baseline510Checksum },
       ],
     };
 
-    expect(deriveCurrentSchema(trackedState, manifest)).toMatchObject({ valid: true, currentSchema: "0511" });
-    expect(deriveCurrentSchema({ type: "FRESH_DATABASE" }, manifest)).toMatchObject({ valid: true, currentSchema: null });
-    expect(deriveCurrentSchema({ type: "EXISTING_UNTRACKED_INSTALLATION" }, manifest).valid).toBe(false);
-    expect(deriveCurrentSchema({ type: "TRACKED_INSTALLATION", applied: [] }, manifest).valid).toBe(false);
+    expect(deriveCurrentSchema(trackedState, schemaManifest)).toMatchObject({ valid: true, currentSchema: "0510" });
+    expect(deriveCurrentSchema({
+      ...trackedState,
+      applied: [...trackedState.applied, { version: migration.version, checksum: migration.checksum }],
+    }, schemaManifest)).toMatchObject({ valid: true, currentSchema: "0511" });
+    expect(deriveCurrentSchema({ type: "FRESH_DATABASE" }, schemaManifest)).toMatchObject({ valid: true, currentSchema: null });
+    expect(deriveCurrentSchema({ type: "EXISTING_UNTRACKED_INSTALLATION" }, schemaManifest).valid).toBe(false);
+    expect(deriveCurrentSchema({ type: "TRACKED_INSTALLATION", applied: [] }, schemaManifest).valid).toBe(false);
     expect(deriveCurrentSchema({
       type: "TRACKED_INSTALLATION",
-      applied: [...trackedState.applied, { version: "unknown-version", checksum: migrationChecksum }],
-    }, manifest).valid).toBe(false);
+      applied: [...trackedState.applied, { version: migration.version, checksum: "b".repeat(64) }],
+    }, schemaManifest).valid).toBe(false);
+    expect(deriveCurrentSchema({
+      type: "TRACKED_INSTALLATION",
+      applied: [...trackedState.applied, { version: "unknown-version", checksum: "b".repeat(64) }],
+    }, schemaManifest).valid).toBe(false);
+  });
+
+  it("keeps the registered baseline and migration checksums tied to their files", () => {
+    const baseline = readFileSync(`supabase/${schemaManifest.baseline.file}`);
+    const migration = schemaManifest.migrations.find((entry) => entry.sequence === 511);
+    const migrationSql = readFileSync(`supabase/migrations/${migration.file}`);
+
+    expect(sha256(baseline)).toBe(schemaManifest.baseline.checksum);
+    expect(baseline.length).toBe(schemaManifest.baseline.size_bytes);
+    expect(sha256(migrationSql)).toBe(migration.checksum);
   });
 });

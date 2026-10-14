@@ -1,9 +1,10 @@
 /**
  * Seed E2E test credentials: 1 org + 5 users (admin, manager, agent, viewer,
  * dono) + 1 ai_agents default.
- * Idempotent: re-runs upsert by email/org name. Também garante um factor TOTP
- * verified no admin com secret CONHECIDO (gravado em .e2e-creds.json) para o
- * Playwright passar o challenge MFA — MFA do admin nunca é desabilitado.
+ * Idempotent: reuses credentials already stored in `.e2e-creds.json`; a fresh
+ * seed generates a random password. `E2E_ROTATE_LOCAL_CREDENTIALS=1` rotates
+ * that password and the admin TOTP factors, only against a loopback Supabase.
+ * MFA is never disabled.
  *
  * ═══ POR QUE EXISTE UM QUINTO USUÁRIO, `dono` ═══
  *
@@ -34,11 +35,12 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
+import { randomBytes } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
 import { generateTotp } from "../tests/e2e/utils/totp";
-import { anunciarDestino, credenciaisSupabaseDeTeste } from "./lib/env-de-teste";
+import { anunciarDestino, credenciaisSupabaseDeTeste, destinoEhLocal } from "./lib/env-de-teste";
 
 // `process.env` VENCE o `.env.local` (ver scripts/lib/env-de-teste.ts).
 //
@@ -53,6 +55,24 @@ const SUPABASE_URL = credenciais.url;
 const SERVICE_ROLE = credenciais.serviceRole;
 const ANON_KEY = credenciais.anonKey;
 const APP_URL = credenciais.appUrl;
+const ROTACAO_LOCAL = process.env.E2E_ROTATE_LOCAL_CREDENTIALS === "1";
+
+if (ROTACAO_LOCAL && !destinoEhLocal(SUPABASE_URL)) {
+  throw new Error("rotação de credenciais E2E exige endpoint Supabase local");
+}
+
+function lerCredenciaisAnteriores(): Record<string, unknown> {
+  try {
+    const valor: unknown = JSON.parse(fs.readFileSync(".e2e-creds.json", "utf8"));
+    return valor !== null && typeof valor === "object" ? (valor as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
+
+const credenciaisAnteriores = lerCredenciaisAnteriores();
+const senhaAnterior =
+  typeof credenciaisAnteriores.password === "string" ? credenciaisAnteriores.password : null;
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE, {
   auth: { autoRefreshToken: false, persistSession: false },
@@ -60,7 +80,8 @@ const admin = createClient(SUPABASE_URL, SERVICE_ROLE, {
 
 const ORG_NAME = "E2E Test Org";
 const ORG_SLUG = "e2e-test-org";
-const PASSWORD = "E2E!Test1234";
+const PASSWORD =
+  ROTACAO_LOCAL || !senhaAnterior ? randomBytes(32).toString("base64url") : senhaAnterior;
 
 /**
  * `chave` é o nome sob o qual o usuário aparece em `creds.users.*`, e existe
@@ -169,6 +190,33 @@ async function ensureUser(email: string, full_name: string): Promise<string> {
   return data.user.id;
 }
 
+async function provarSenhaAntigaNegada(email: string, senhaAntiga: string): Promise<void> {
+  const anon = createClient(SUPABASE_URL, ANON_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const { data, error } = await anon.auth.signInWithPassword({ email, password: senhaAntiga });
+  if (!error) {
+    await anon.auth.signOut({ scope: "global" });
+    throw new Error("prova negativa falhou: senha anterior ainda autenticou");
+  }
+  if (error.status !== 400) {
+    throw new Error("prova negativa inconclusiva: endpoint local não retornou recusa de credencial");
+  }
+  if (data.session) await anon.auth.signOut({ scope: "global" });
+  console.info(`[rotation] senha anterior negada para ${email}`);
+}
+
+async function provarSenhaNova(email: string): Promise<void> {
+  const anon = createClient(SUPABASE_URL, ANON_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const { data, error } = await anon.auth.signInWithPassword({ email, password: PASSWORD });
+  if (error || !data.user) throw new Error("prova positiva de senha local falhou");
+  const { error: signOutErr } = await anon.auth.signOut({ scope: "global" });
+  if (signOutErr) throw new Error("revogação da sessão de prova positiva falhou");
+  console.info(`[rotation] nova senha autenticou e a sessão de prova foi revogada para ${email}`);
+}
+
 async function ensureMembership(userId: string, orgId: string, role: string): Promise<void> {
   const { data: existing } = await admin
     .from("user_organizations")
@@ -264,17 +312,8 @@ async function garantirTotp(
   email: string,
   campoNoCreds: "admin_totp" | "dono_totp",
 ): Promise<AdminTotp> {
-  let prev: AdminTotp | null = null;
-  try {
-    const raw = JSON.parse(fs.readFileSync(".e2e-creds.json", "utf8")) as Record<
-      string,
-      AdminTotp | undefined
-    >;
-    const gravado = raw[campoNoCreds];
-    if (gravado?.factor_id && gravado.secret) prev = gravado;
-  } catch {
-    prev = null; // sem creds anteriores — enroll do zero
-  }
+  const gravado = credenciaisAnteriores[campoNoCreds] as AdminTotp | undefined;
+  const prev = gravado?.factor_id && gravado.secret ? gravado : null;
 
   const { data: listed, error: listErr } = await admin.auth.admin.mfa.listFactors({
     userId,
@@ -282,16 +321,28 @@ async function garantirTotp(
   if (listErr) throw new Error("listFactors: " + listErr.message);
   const factors = listed?.factors ?? [];
 
-  if (prev && factors.some((f) => f.id === prev!.factor_id && f.status === "verified")) {
+  if (
+    !ROTACAO_LOCAL &&
+    prev &&
+    factors.some((f) => f.id === prev.factor_id && f.status === "verified")
+  ) {
     console.log(`[seed] ${campoNoCreds} factor reused: ${prev.factor_id}`);
     return prev;
   }
 
   // Rotaciona: remove factors TOTP existentes (secret desconhecido) e re-enrolla.
+  const fatoresAnteriores = factors.map((f) => f.id);
   for (const f of factors) {
     const { error } = await admin.auth.admin.mfa.deleteFactor({ id: f.id, userId });
     if (error) throw new Error(`deleteFactor ${f.id}: ${error.message}`);
     console.log(`[seed] ${campoNoCreds} factor removed (rotating): ${f.id}`);
+  }
+  if (ROTACAO_LOCAL && fatoresAnteriores.length > 0) {
+    const { data: depois, error: depoisErr } = await admin.auth.admin.mfa.listFactors({ userId });
+    if (depoisErr || depois.factors.some((f) => fatoresAnteriores.includes(f.id))) {
+      throw new Error("rotação TOTP falhou: fator anterior continua registrado");
+    }
+    console.info(`[rotation] fatores TOTP anteriores removidos para ${campoNoCreds}`);
   }
 
   const anon = createClient(SUPABASE_URL, ANON_KEY, {
@@ -337,11 +388,20 @@ async function main(): Promise<void> {
     users[u.chave] = { id: userId, email: u.email, role: u.role };
   }
 
+  if (ROTACAO_LOCAL && senhaAnterior && senhaAnterior !== PASSWORD) {
+    for (const u of USERS) await provarSenhaAntigaNegada(u.email, senhaAnterior);
+  }
+
   const agentId = await ensureAgent(orgId);
   const adminTotp = await garantirTotp(users.admin!.id, users.admin!.email, "admin_totp");
   const donoTotp = await garantirTotp(users.dono!.id, users.dono!.email, "dono_totp");
 
+  if (ROTACAO_LOCAL) {
+    for (const u of USERS) await provarSenhaNova(u.email);
+  }
+
   const creds = {
+    ...credenciaisAnteriores,
     org_id: orgId,
     org_slug: ORG_SLUG,
     org_name: ORG_NAME,

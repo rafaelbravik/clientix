@@ -110,7 +110,7 @@ const resolve = "select fn_google_resolve($1,$2,'1','1',null,'retry')";
 it("MFA da seleção mantém sem fator permitido e exige aal2 depois do cadastro verificado", async () => {
   const factor = randomUUID();
   await asActor(a.owner, selection, [a.org, await revisions(a.org, a.owner!), [a.cal], a.cal]);
-  await pool.query("insert into auth.mfa_factors(id,user_id,status,factor_type) values($1,$2,'verified','totp')", [factor, a.owner]);
+  await pool.query("insert into auth.mfa_factors(id,user_id,status,factor_type,created_at,updated_at) values($1,$2,'verified','totp','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')", [factor, a.owner]);
   try {
     const args = [a.org, await revisions(a.org, a.owner!), [], a.cal];
     const before = await snapshot();
@@ -131,7 +131,7 @@ it.each(["retry", "local"])("MFA da resolução %s nega sem efeito e aceita o me
   await pool.query("update calendar_appointments set google_next_attempt_at=now()+interval '1 day' where id=$1", [f.id]);
   const query = "select fn_google_resolve($1,$2,'1','1',$3,$4)";
   const args = [f.org, f.id, choice === "retry" ? null : "remote", choice];
-  await pool.query("insert into auth.mfa_factors(id,user_id,status,factor_type) values($1,$2,'verified','totp')", [factor, f.owner]);
+  await pool.query("insert into auth.mfa_factors(id,user_id,status,factor_type,created_at,updated_at) values($1,$2,'verified','totp','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')", [factor, f.owner]);
   try {
     const before = await snapshot();
     await expect(asActor(f.owner, query, args, undefined, "aal1")).rejects.toMatchObject({ code: "42501" });

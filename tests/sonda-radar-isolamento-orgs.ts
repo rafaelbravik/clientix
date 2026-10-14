@@ -30,8 +30,11 @@ import { createClient } from "@supabase/supabase-js";
 import { carregaRadarDeRisco } from "@/lib/leads/radar-de-risco";
 
 const URL = "http://127.0.0.1:54321";
-const SERVICE =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU";
+const serviceFromEnvironment = process.env.SUPABASE_SERVICE_ROLE_KEY;
+if (!serviceFromEnvironment) {
+  throw new Error("SUPABASE_SERVICE_ROLE_KEY is required for this local isolation probe");
+}
+const SERVICE = serviceFromEnvironment;
 
 const ORG_A = "50d0a111-0000-4000-8000-00000000000a";
 const ORG_B = "50d0a222-0000-4000-8000-00000000000b";
@@ -94,7 +97,11 @@ async function main(): Promise<void> {
   const idsDeB = new Set(b.sem_proximo_passo.map((d) => d.contact_id));
 
   const casos: Array<[string, boolean, string]> = [
-    ["A1 aberta sem próximo passo aparece em A", a.total_sem_proximo_passo === 1, `total=${a.total_sem_proximo_passo}`],
+    [
+      "A1 aberta sem próximo passo aparece em A",
+      a.total_sem_proximo_passo === 1,
+      `total=${a.total_sem_proximo_passo}`,
+    ],
     // Pertinência (`has`) não distingue: num conjunto que vazou o mundo inteiro
     // ela continua verdadeira. Medido — sob vazamento este caso passava. A
     // asserção certa é de IGUALDADE do conjunto.
@@ -106,9 +113,21 @@ async function main(): Promise<void> {
     ["A2 com próximo passo NÃO aparece", a.total_sem_proximo_passo === 1, "senão seriam 2"],
     ["A3 fechada NÃO aparece", a.total_sem_proximo_passo === 1, "senão seriam 2"],
     ["B1 NÃO vaza para A", !idsDeA.has(CT_B), [...idsDeA].join(",")],
-    ["e a recíproca: A não vaza para B", !idsDeB.has(CT_A) && b.total_sem_proximo_passo === 1, `B total=${b.total_sem_proximo_passo}`],
-    ["nome do contato veio do join", a.sem_proximo_passo[0]?.contact_name === "Contato A", String(a.sem_proximo_passo[0]?.contact_name)],
-    ["horas_aberta calculado", (a.sem_proximo_passo[0]?.horas_aberta ?? -1) >= 9, String(a.sem_proximo_passo[0]?.horas_aberta)],
+    [
+      "e a recíproca: A não vaza para B",
+      !idsDeB.has(CT_A) && b.total_sem_proximo_passo === 1,
+      `B total=${b.total_sem_proximo_passo}`,
+    ],
+    [
+      "nome do contato veio do join",
+      a.sem_proximo_passo[0]?.contact_name === "Contato A",
+      String(a.sem_proximo_passo[0]?.contact_name),
+    ],
+    [
+      "horas_aberta calculado",
+      (a.sem_proximo_passo[0]?.horas_aberta ?? -1) >= 9,
+      String(a.sem_proximo_passo[0]?.horas_aberta),
+    ],
   ];
 
   let falhas = 0;

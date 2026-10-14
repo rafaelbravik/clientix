@@ -1,5 +1,15 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import pg from "pg";
+import type * as AuditModule from "@/lib/audit";
+
+// Este invariante mede a persistência do consentimento em Postgres. O audit
+// before/after é coberto em tests/unit/contato-audit-from-to.test.ts; o banco
+// deste harness não tem PostgREST de propósito. Mockar aqui evita retries de
+// fetch para a porta inalcançável e o Promise leak reportado pelo Vitest.
+vi.mock("@/lib/audit", async (importOriginal) => {
+  const original = await importOriginal<typeof AuditModule>();
+  return { ...original, audit: vi.fn().mockResolvedValue(undefined) };
+});
 
 import { patchContactHandler } from "@/app/api/v1/contacts/_handler";
 import type { HandlerCtx } from "@/lib/api/handlers/types";

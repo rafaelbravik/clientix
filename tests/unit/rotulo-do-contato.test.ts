@@ -261,7 +261,7 @@ describe("a sétima cópia não nasce", () => {
     },
     {
       arquivo: "components/connections/CanalTelegramClient.tsx",
-      trecho: '<h3 className="text-base font-medium">{botData.display_name || botData.username || "Bot Conectado"}</h3>',
+      trecho: 'botData.display_name || botData.username || "Bot Conectado"',
       motivo: "título do card de conexão do bot Telegram (channel_sessions), não de contato",
     },
     {

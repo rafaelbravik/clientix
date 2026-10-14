@@ -122,9 +122,10 @@ describe("o envelope carrega a thread do provider", () => {
     expect(convSelect, "falta a coluna no select da conversa").toContain(
       "provider_conversation_id",
     );
-    // CINCO desde que o envio por media_url (documento/imagem externa — achado
-    // ao investigar o PDF de proposta que saía sem anexo) ganhou call site
-    // próprio: texto, mídia (storage-first), modelo, contato e media_url. O
+    // SEIS depois que a thread passou a acompanhar também o resolver de
+    // destinatário: cinco call sites de envio (texto, mídia storage-first,
+    // modelo, contato e media_url) mais a resolução do destinatário. O caminho
+    // media_url foi identificado ao investigar o PDF de proposta sem anexo. O
     // número é conferido, e não `>= 1`, justamente para obrigar quem acrescenta
     // um call site novo a DECIDIR se ele também carrega a thread — foi assim
     // que este caso pegou a rama de modelo, que a princípio não precisaria
@@ -137,8 +138,8 @@ describe("o envelope carrega a thread do provider", () => {
     const passagens = [...fonte.matchAll(/providerConversationId:\s*c\.provider_conversation_id/g)];
     expect(
       passagens.length,
-      "todos os call sites (texto, mídia, modelo, contato e media_url) precisam passar",
-    ).toBe(5);
+      "todos os call sites de envio e o resolver de destinatário precisam passar",
+    ).toBe(6);
   });
 });
 

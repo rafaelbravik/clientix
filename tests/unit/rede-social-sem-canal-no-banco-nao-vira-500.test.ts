@@ -8,7 +8,7 @@ import { SOCIAL_NETWORKS } from "@/lib/channels/social/catalog";
 /**
  * LIGAR UMA REDE NOVA NÃO PODE VIRAR 500 ETERNO.
  *
- * ## As duas listas que precisavam concordar, e nada as ligava
+ * ## Catálogo social e CHECK do banco
  *
  *   1. `SOCIAL_NETWORKS[].inbox` (TypeScript) — quem pode ter atendimento.
  *   2. `conversations_channel_check` (banco) — o que a coluna aceita.
@@ -24,10 +24,11 @@ import { SOCIAL_NETWORKS } from "@/lib/channels/social/catalog";
  *
  * ## Onde a guarda de verdade mora
  *
- * No invariante `vocabulario-banco-x-typescript`, que compara o CHECK REAL do
- * Postgres com `CANAIS_DE_CONVERSA`. Este arquivo cobre o que aquele não pode
- * cobrir sem banco: que o símbolo é DERIVADO (e não uma terceira lista escrita à
- * mão) e que o caminho de ingestão recusa em vez de estourar.
+ * No invariante `canal-da-conversa-banco-x-catalogo`, que compara o CHECK REAL
+ * do Postgres com `CANAIS_DE_CONVERSA`. Este arquivo cobre o que aquele não
+ * pode cobrir sem banco: que o catálogo social é DERIVADO, que os canais
+ * nativos são declarados explicitamente e que a ingestão recusa em vez de
+ * estourar.
  */
 
 const RAIZ = path.resolve(__dirname, "../..");
@@ -71,8 +72,13 @@ describe("o vocabulário do canal é derivado, não copiado", () => {
     }
   });
 
-  it("`whatsapp` está lá — é o membro que não vem do catálogo social", () => {
-    expect(CANAIS_DE_CONVERSA).toContain("whatsapp");
+  it("os canais nativos ficam explícitos e passam pela mesma guarda", () => {
+    const redesSociais: readonly string[] = SOCIAL_NETWORKS.map((rede) => rede.id);
+    for (const canal of ["whatsapp", "email", "webchat"] as const) {
+      expect(CANAIS_DE_CONVERSA).toContain(canal);
+      expect(ehCanalDeConversa(canal)).toBe(true);
+      expect(redesSociais).not.toContain(canal);
+    }
   });
 
   it("a lista é DERIVADA do catálogo, não escrita à mão", () => {

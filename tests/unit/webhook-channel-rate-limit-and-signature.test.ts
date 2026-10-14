@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import {
   POST,
+  GET as getChannelWebhookHandshake,
   _clearWebhookSessionCacheForTest,
   _getWebhookSessionCacheSizeForTest,
   _getWebhookInFlightSizeForTest,
@@ -22,6 +23,15 @@ import {
 } from "@/lib/ai/dispatcher/rate-limit";
 import { NextRequest } from "next/server";
 import type * as InboundModule from "@/lib/channels/inbound";
+
+const { appDaMetaMock } = vi.hoisted(() => ({
+  appDaMetaMock: vi.fn(async () => ({
+    appSecret: "test-meta-secret",
+    verifyToken: "test-meta-verify-token",
+  })),
+}));
+
+vi.mock("@/lib/channels/meta/app", () => ({ appDaMeta: appDaMetaMock }));
 
 // Simulação de banco e serviços
 let mockSession: {
@@ -101,16 +111,27 @@ vi.mock("@/lib/channels/arquivo-de-webhook", () => ({
     capturedFiles.push(payload);
     return { id: `arquivo-${capturedFiles.length}` };
   },
-  fecharArquivoDoWebhook: async (_admin: unknown, _arquivo: unknown, desfecho: Record<string, unknown>) => {
+  fecharArquivoDoWebhook: async (
+    _admin: unknown,
+    _arquivo: unknown,
+    desfecho: Record<string, unknown>,
+  ) => {
     closedFiles.push(desfecho);
   },
 }));
 
 vi.mock("@/lib/channels/inbound", () => ({
   acceptsInboundWebhook: () => true,
-  verifyAndCreateInternalSignatureProof: (_sessionId: string, _provider: string, _rawBody: string, _headers: Headers, secret: string | null) => {
+  verifyAndCreateInternalSignatureProof: (
+    _sessionId: string,
+    _provider: string,
+    _rawBody: string,
+    _headers: Headers,
+    secret: string | null,
+  ) => {
     verifyCallCount++;
-    return verifySignatureResult && (verifyExpectedSecret === undefined || secret === verifyExpectedSecret)
+    return verifySignatureResult &&
+      (verifyExpectedSecret === undefined || secret === verifyExpectedSecret)
       ? { valid: true, proof: "verified-proof" }
       : { valid: false, proof: null };
   },
@@ -131,7 +152,10 @@ describe("POST /api/v1/webhooks/channel/[token] - Limites Atômicos, Sobrecarga 
     _clearWebhookSessionCacheForTest();
     __limparMemoriaRateLimitParaTeste();
     __setRateLimitRedisForTest(null);
-    setAtomicSignatureFailureDriverForTest(async () => 0, async () => 0);
+    setAtomicSignatureFailureDriverForTest(
+      async () => 0,
+      async () => 0,
+    );
     vi.clearAllMocks();
   });
 
@@ -200,16 +224,23 @@ describe("POST /api/v1/webhooks/channel/[token] - Limites Atômicos, Sobrecarga 
 
     try {
       // 1. Simula falha do Redis cujo .message inclui o token bruto (ex: chave rejeitada pelo servidor)
-      setAtomicSignatureFailureDriverForTest(async () => {
-        throw new Error(`Command eval failed on webhook_sig_fail_zset:${secretToken}: connection reset`);
-      }, async () => 0);
+      setAtomicSignatureFailureDriverForTest(
+        async () => {
+          throw new Error(
+            `Command eval failed on webhook_sig_fail_zset:${secretToken}: connection reset`,
+          );
+        },
+        async () => 0,
+      );
       await recordSignatureFailureAtomic(secretToken, { limit: 10, windowSec: 600 });
 
       // 2. Simula falha do Redis no limitador genérico checkRateLimit onde .message também inclui o token
       // O cliente injetado força o caminho real de catch/fallback e logger.warn.
       __setRateLimitRedisForTest({
         incr: async () => {
-          throw new Error(`Command incr failed on webhook_channel:${secretToken}: connection reset`);
+          throw new Error(
+            `Command incr failed on webhook_channel:${secretToken}: connection reset`,
+          );
         },
         expire: async () => 1,
       } as never);
@@ -254,7 +285,9 @@ describe("POST /api/v1/webhooks/channel/[token] - Limites Atômicos, Sobrecarga 
   it("confirma o segredo de novo após receber o corpo, respeitando uma rotação durante upload lento", async () => {
     const token = "token-rotation-during-upload";
     let releaseBody!: () => void;
-    const bodyGate = new Promise<void>((resolve) => { releaseBody = resolve; });
+    const bodyGate = new Promise<void>((resolve) => {
+      releaseBody = resolve;
+    });
     const body = new ReadableStream<Uint8Array>({
       async pull(controller) {
         await bodyGate;
@@ -286,7 +319,10 @@ describe("POST /api/v1/webhooks/channel/[token] - Limites Atômicos, Sobrecarga 
 
   it("limite cheio rejeita novas assinaturas inválidas, mas deixa passar um webhook válido", async () => {
     const token = "token-saturated-failures";
-    setAtomicSignatureFailureDriverForTest(async () => 11, async () => 10);
+    setAtomicSignatureFailureDriverForTest(
+      async () => 11,
+      async () => 10,
+    );
 
     const validReq = new NextRequest(`http://localhost/api/v1/webhooks/channel/${token}`, {
       method: "POST",
@@ -319,10 +355,10 @@ describe("POST /api/v1/webhooks/channel/[token] - Limites Atômicos, Sobrecarga 
 
     // Chamadas diretas ao limitador atômico por duas "instâncias" sem passar pelo mutex local
     const clientA = Array.from({ length: 8 }).map(() =>
-      recordSignatureFailureAtomic(token, { limit: 10, windowSec: 600 })
+      recordSignatureFailureAtomic(token, { limit: 10, windowSec: 600 }),
     );
     const clientB = Array.from({ length: 7 }).map(() =>
-      recordSignatureFailureAtomic(token, { limit: 10, windowSec: 600 })
+      recordSignatureFailureAtomic(token, { limit: 10, windowSec: 600 }),
     );
 
     const allDecisions = await Promise.all([...clientA, ...clientB]);
@@ -367,7 +403,10 @@ describe("POST /api/v1/webhooks/channel/[token] - Limites Atômicos, Sobrecarga 
 
     // Após 601 segundos, a primeira falha escorregou para fora da janela deslizante -> 1 falha nova é permitida
     __setSignatureRateLimitClockForTest(t0 + 601_000);
-    const allowedAfterWindow = await recordSignatureFailureAtomic(token, { limit: 10, windowSec: 600 });
+    const allowedAfterWindow = await recordSignatureFailureAtomic(token, {
+      limit: 10,
+      windowSec: 600,
+    });
     expect(allowedAfterWindow.allowed).toBe(true);
     __setSignatureRateLimitClockForTest(null);
   });
@@ -376,9 +415,12 @@ describe("POST /api/v1/webhooks/channel/[token] - Limites Atômicos, Sobrecarga 
     const token = "token-redis-down-" + Math.random().toString(36).slice(2);
     verifySignatureResult = false; // Assinatura inválida
 
-    setAtomicSignatureFailureDriverForTest(async () => {
-      throw new Error("Redis ECONNREFUSED");
-    }, async () => 0);
+    setAtomicSignatureFailureDriverForTest(
+      async () => {
+        throw new Error("Redis ECONNREFUSED");
+      },
+      async () => 0,
+    );
 
     const req = new NextRequest(`http://localhost/api/v1/webhooks/channel/${token}`, {
       method: "POST",
@@ -397,9 +439,12 @@ describe("POST /api/v1/webhooks/channel/[token] - Limites Atômicos, Sobrecarga 
 
   it("falha fechada antes do corpo e do Postgres se o Redis distribuído estiver indisponível", async () => {
     const token = "token-peek-redis-down-" + Math.random().toString(36).slice(2);
-    setAtomicSignatureFailureDriverForTest(async () => 0, async () => {
-      throw new Error(`Redis GET failed for webhook_sig_fail_zset:${token}`);
-    });
+    setAtomicSignatureFailureDriverForTest(
+      async () => 0,
+      async () => {
+        throw new Error(`Redis GET failed for webhook_sig_fail_zset:${token}`);
+      },
+    );
 
     const req = new NextRequest(`http://localhost/api/v1/webhooks/channel/${token}`, {
       method: "POST",
@@ -444,12 +489,17 @@ describe("POST /api/v1/webhooks/channel/[token] - Limites Atômicos, Sobrecarga 
     // Limpa latência do mock para provar recuperação
     delayDbMs = 0;
     const recoveryToken = "token-recovered-" + Math.random().toString(36).slice(2);
-    const reqRecovery = new NextRequest(`http://localhost/api/v1/webhooks/channel/${recoveryToken}`, {
-      method: "POST",
-      headers: { "x-forwarded-for": "10.40.1.1" },
-      body: JSON.stringify({ ping: "ok" }),
+    const reqRecovery = new NextRequest(
+      `http://localhost/api/v1/webhooks/channel/${recoveryToken}`,
+      {
+        method: "POST",
+        headers: { "x-forwarded-for": "10.40.1.1" },
+        body: JSON.stringify({ ping: "ok" }),
+      },
+    );
+    const resRecovery = await POST(reqRecovery, {
+      params: Promise.resolve({ token: recoveryToken }),
     });
-    const resRecovery = await POST(reqRecovery, { params: Promise.resolve({ token: recoveryToken }) });
     expect(resRecovery.status).toBe(200);
   });
 
@@ -529,7 +579,9 @@ describe("POST /api/v1/webhooks/channel/[token] - Limites Atômicos, Sobrecarga 
     });
     const failingRes = await POST(failingReq, { params: Promise.resolve({ token: failingToken }) });
     expect(failingRes.status).toBe(500);
-    expect(await failingRes.json()).toMatchObject({ error: { message: "webhook_session_lookup_failed" } });
+    expect(await failingRes.json()).toMatchObject({
+      error: { message: "webhook_session_lookup_failed" },
+    });
     expect(failingReq.bodyUsed).toBe(false);
     expect(capturedFiles).toHaveLength(0);
   });
@@ -547,13 +599,15 @@ describe("POST /api/v1/webhooks/channel/[token] - Limites Atômicos, Sobrecarga 
 
   // ─── Achado 6: Prova Criptográfica Interna vs Forja Externa ───────────────
   it("fronteira interna: prova só é emitida após HMAC válido e fica vinculada ao segredo", async () => {
-    const { verifyAndCreateInternalSignatureProof, handleInboundWebhook } = await vi.importActual<typeof InboundModule>("@/lib/channels/inbound");
+    const { verifyAndCreateInternalSignatureProof, handleInboundWebhook } =
+      await vi.importActual<typeof InboundModule>("@/lib/channels/inbound");
     const sessionId = "session-proof-test-123";
     const provider = "datafy";
     const secret = "whsec_prova_interna_segura";
     const timestamp = "1700000000";
     const payload = JSON.stringify({ message: "teste_prova" });
-    const signature = (await import("node:crypto")).createHmac("sha256", secret)
+    const signature = (await import("node:crypto"))
+      .createHmac("sha256", secret)
       .update(`${timestamp}.${payload}`)
       .digest("hex");
     const headers = new Headers({
@@ -564,7 +618,13 @@ describe("POST /api/v1/webhooks/channel/[token] - Limites Atômicos, Sobrecarga 
     const originalDatafyEnabled = process.env.DATAFY_ENABLED;
     process.env.DATAFY_ENABLED = "true";
     try {
-      const verification = verifyAndCreateInternalSignatureProof(sessionId, provider, payload, headers, secret);
+      const verification = verifyAndCreateInternalSignatureProof(
+        sessionId,
+        provider,
+        payload,
+        headers,
+        secret,
+      );
       expect(verification.valid).toBe(true);
       if (!verification.valid) throw new Error("expected signature to verify");
       expect(verification.proof).toHaveLength(64);
@@ -595,7 +655,8 @@ describe("POST /api/v1/webhooks/channel/[token] - Limites Atômicos, Sobrecarga 
   });
 
   it("handler direto recusa Telegram sem segredo, mesmo sem passar pela rota HTTP", async () => {
-    const { handleInboundWebhook } = await vi.importActual<typeof InboundModule>("@/lib/channels/inbound");
+    const { handleInboundWebhook } =
+      await vi.importActual<typeof InboundModule>("@/lib/channels/inbound");
     const result = await handleInboundWebhook({} as never, {
       session: { id: "telegram-session", organization_id: "org-telegram", provider: "telegram" },
       rawBody: JSON.stringify({ update_id: 1, message: { message_id: 2 } }),
@@ -604,5 +665,57 @@ describe("POST /api/v1/webhooks/channel/[token] - Limites Atômicos, Sobrecarga 
     });
 
     expect(result).toMatchObject({ ok: false, code: "unauthorized", message: "bad_signature" });
+  });
+});
+
+describe("GET /api/v1/webhooks/channel/[token] - handshake nativo do Instagram", () => {
+  const token = "instagram-path-token-123456";
+
+  beforeEach(() => {
+    _clearWebhookSessionCacheForTest();
+    mockSession = {
+      id: "instagram-session",
+      organization_id: "org-instagram",
+      provider: "instagram",
+      display_name: "Instagram",
+      phone_number: null,
+      webhook_secret_encrypted: "encrypted-secret",
+      archived_at: null,
+    };
+    appDaMetaMock.mockResolvedValue({
+      appSecret: "test-meta-secret",
+      verifyToken: "test-meta-verify-token",
+    });
+  });
+
+  it("devolve o challenge cru somente com o verify token Meta configurado e sessão Instagram ativa", async () => {
+    const req = new NextRequest(
+      `https://crm.example/api/v1/webhooks/channel/${token}?hub.mode=subscribe&hub.verify_token=test-meta-verify-token&hub.challenge=challenge-raw`,
+    );
+    const res = await getChannelWebhookHandshake(req, { params: Promise.resolve({ token }) });
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/plain");
+    expect(await res.text()).toBe("challenge-raw");
+  });
+
+  it("recusa verify token incorreto e sessões que não sejam Instagram", async () => {
+    const wrongToken = new NextRequest(
+      `https://crm.example/api/v1/webhooks/channel/${token}?hub.mode=subscribe&hub.verify_token=wrong&hub.challenge=challenge`,
+    );
+    const rejected = await getChannelWebhookHandshake(wrongToken, {
+      params: Promise.resolve({ token }),
+    });
+    expect(rejected.status).toBe(403);
+
+    _clearWebhookSessionCacheForTest();
+    mockSession = { ...mockSession, provider: "telegram" };
+    const wrongProvider = new NextRequest(
+      `https://crm.example/api/v1/webhooks/channel/${token}?hub.mode=subscribe&hub.verify_token=test-meta-verify-token&hub.challenge=challenge`,
+    );
+    const notInstagram = await getChannelWebhookHandshake(wrongProvider, {
+      params: Promise.resolve({ token }),
+    });
+    expect(notInstagram.status).toBe(404);
   });
 });

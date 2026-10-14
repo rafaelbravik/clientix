@@ -965,7 +965,7 @@ describe("quem pode ligar", () => {
   it("I20 · admin com fator TOTP verificado: aal1 recusa pela MFA, aal2 liga", async () => {
     const fator = randomUUID();
     await pool.query(
-      "insert into auth.mfa_factors (id, user_id, status, factor_type) values ($1, $2, 'verified', 'totp')",
+      "insert into auth.mfa_factors (id, user_id, status, factor_type, created_at, updated_at) values ($1, $2, 'verified', 'totp', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')",
       [fator, ADMIN_E],
     );
     try {

@@ -174,7 +174,7 @@ it("porta legada preserva timestamp/retomada e cerca papel, tenant, suporte e MF
   await pool.query("update user_organizations set role='manager' where organization_id=$1 and user_id=$2", [f.org, f.user]);
   await expect(call(f.user)).rejects.toMatchObject({ code: "42501" });
   await pool.query("update user_organizations set role='admin' where organization_id=$1 and user_id=$2", [f.org, f.user]);
-  await pool.query("insert into auth.mfa_factors(id,user_id,status,factor_type) values($1,$2,'verified','totp')", [factor, f.user]);
+  await pool.query("insert into auth.mfa_factors(id,user_id,status,factor_type,created_at,updated_at) values($1,$2,'verified','totp','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')", [factor, f.user]);
   try {
     await expect(call(f.user)).rejects.toMatchObject({ code: "42501" });
     expect(await state(f)).toEqual(original);

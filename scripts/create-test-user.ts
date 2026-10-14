@@ -3,15 +3,27 @@
  * Run: npx tsx scripts/create-test-user.ts <email> [password]
  */
 import { createClient } from "@supabase/supabase-js";
-import { carregarEnvLocal } from "../scripts/lib/env-de-teste";
+import {
+  anunciarDestino,
+  credenciaisSupabaseDeTeste,
+  destinoEhLocal,
+} from "../scripts/lib/env-de-teste";
 
-const env = carregarEnvLocal();
+const env = credenciaisSupabaseDeTeste();
+anunciarDestino("create-test-user", env);
 
-const EMAIL = process.argv[2] ?? "teste@gmail.com";
-const PASSWORD = process.argv[3] ?? "E2E!Test1234";
+if (!destinoEhLocal(env.url)) {
+  throw new Error("create-test-user só pode gravar no Supabase local");
+}
+
+const EMAIL = process.argv[2];
+const PASSWORD = process.env.LOCAL_TEST_USER_PASSWORD;
+if (!EMAIL || !PASSWORD) {
+  throw new Error("informe o e-mail como argumento e LOCAL_TEST_USER_PASSWORD no ambiente");
+}
 const ORG_SLUG = "e2e-test-org";
 
-const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL!, env.SUPABASE_SERVICE_ROLE_KEY!, {
+const admin = createClient(env.url, env.serviceRole, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
@@ -84,7 +96,6 @@ async function main() {
 
   console.log("\n✅ Pronto");
   console.log(`   email:    ${EMAIL}`);
-  console.log(`   password: ${PASSWORD}`);
   console.log(`   user_id:  ${user.id}`);
   console.log(`   org_id:   ${org.id}`);
 }

@@ -1061,7 +1061,7 @@ it("FIX1 I1: RPC direta exige aal2 com TOTP verificado, sem fator preserva acess
   const args = [f.org, f.id, "1", a.meeting_request_id, "retry", null];
   await expect(actor(GOV_AGENT_A, human, args)).resolves.toBeTruthy();
   await pool.query(
-    "insert into auth.mfa_factors(id,user_id,status,factor_type) values($1,$2,'verified','totp')",
+    "insert into auth.mfa_factors(id,user_id,status,factor_type,created_at,updated_at) values($1,$2,'verified','totp','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
     [factor, GOV_AGENT_A],
   );
   try {

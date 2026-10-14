@@ -160,6 +160,7 @@ beforeEach(() => {
   // garante a guarda nas rotas é
   // `tests/unit/voz-consentimento-e-portao-de-verdade.test.ts`.
   respostas["org_voice_calls"] = { data: { enabled: true, risco_aceito_em: null }, error: null };
+  respostas["organizations"] = { data: { settings: { plan: "pro" } }, error: null };
   vi.mocked(createClient).mockResolvedValue(dubleSupabase() as never);
   vi.mocked(getWacallsClient).mockReturnValue(wacalls as never);
 });
@@ -258,7 +259,13 @@ describe("a ponte de eventos grava a ligação antes da rota — e a rota comple
   beforeEach(() => {
     respostas["channel_sessions"] = SESSAO_PAREADA;
     respostas["contacts"] = {
-      data: { id: CONTATO, phone_number: "5511900000000", name: "Fulano", is_blocked: false, is_anonymized: false },
+      data: {
+        id: CONTATO,
+        phone_number: "5511900000000",
+        name: "Fulano",
+        is_blocked: false,
+        is_anonymized: false,
+      },
       error: null,
     };
   });
@@ -322,7 +329,10 @@ describe("a ponte de eventos grava a ligação antes da rota — e a rota comple
     expect(doPainel.length).toBeGreaterThan(0);
     for (const colunas of doPainel) {
       for (const c of ["id", "status", "direction", "owner_user_id", "created_by", "contact_id"]) {
-        expect(colunas.split(",").map((x) => x.trim()), `faltou ${c} em "${colunas}"`).toContain(c);
+        expect(
+          colunas.split(",").map((x) => x.trim()),
+          `faltou ${c} em "${colunas}"`,
+        ).toContain(c);
       }
     }
   });
@@ -332,7 +342,13 @@ describe("a ponte de eventos grava a ligação antes da rota — e a rota comple
     // 553198966398. Discar o do cadastro mandava a oferta para lugar nenhum.
     numeroDiscavel.resolver.mockResolvedValueOnce({ digitos: "553198966398", fonte: "whatsapp" });
     respostas["contacts"] = {
-      data: { id: CONTATO, phone_number: "+5531998966398", name: "Fulano", is_blocked: false, is_anonymized: false },
+      data: {
+        id: CONTATO,
+        phone_number: "+5531998966398",
+        name: "Fulano",
+        is_blocked: false,
+        is_anonymized: false,
+      },
       error: null,
     };
     respostas["voice_calls"] = { data: { id: CHAMADA, status: "starting" }, error: null };
@@ -342,7 +358,9 @@ describe("a ponte de eventos grava a ligação antes da rota — e a rota comple
     expect(numeroDiscavel.resolver).toHaveBeenCalledWith(expect.anything(), ORG, "+5531998966398");
     expect(wacalls.startCall).toHaveBeenCalledWith("sessao-up", EU, "553198966398");
     // O registro guarda o telefone do cadastro, com o nono — é como o CRM lê.
-    expect(inseridas.find((i) => i.tabela === "voice_calls")?.linha.peer_phone).toBe("+5531998966398");
+    expect(inseridas.find((i) => i.tabela === "voice_calls")?.linha.peer_phone).toBe(
+      "+5531998966398",
+    );
   });
 
   it("controle: outro erro de escrita continua sendo erro", async () => {
@@ -383,7 +401,13 @@ describe("o número pareado cujo socket com o WhatsApp caiu", () => {
   beforeEach(() => {
     respostas["channel_sessions"] = SESSAO_PAREADA;
     respostas["contacts"] = {
-      data: { id: CONTATO, phone_number: "5511900000000", name: "Fulano", is_blocked: false, is_anonymized: false },
+      data: {
+        id: CONTATO,
+        phone_number: "5511900000000",
+        name: "Fulano",
+        is_blocked: false,
+        is_anonymized: false,
+      },
       error: null,
     };
   });
@@ -399,7 +423,9 @@ describe("o número pareado cujo socket com o WhatsApp caiu", () => {
     const erro = (await corpo(res)).error as { code: string; message: string };
     expect(erro.code).toBe("wacalls_not_connected");
     expect(erro.message).toContain("sem conexão com o WhatsApp");
-    expect(erro.message).not.toBe("Não foi possível completar a chamada. Tente novamente em instantes.");
+    expect(erro.message).not.toBe(
+      "Não foi possível completar a chamada. Tente novamente em instantes.",
+    );
     // Nada foi discado, então repetir é seguro — é o que torna o 503 honesto.
     expect(inseridas.filter((i) => i.tabela === "voice_calls")).toEqual([]);
   });
@@ -437,14 +463,23 @@ describe("o discador exige o consentimento da organização", () => {
     respostas["org_voice_calls"] = { data: null, error: null };
     respostas["channel_sessions"] = SESSAO_PAREADA;
     respostas["contacts"] = {
-      data: { id: CONTATO, phone_number: "5511900000000", name: "Fulano", is_blocked: false, is_anonymized: false },
+      data: {
+        id: CONTATO,
+        phone_number: "5511900000000",
+        name: "Fulano",
+        is_blocked: false,
+        is_anonymized: false,
+      },
       error: null,
     };
 
     const res = await discar();
     expect(res.status).toBe(422);
     expect((await corpo(res)).error).toMatchObject({ code: "voice_desligada_na_organizacao" });
-    expect(wacalls.startCall, "discou sem a organização ter ligado a chamada de voz").not.toHaveBeenCalled();
+    expect(
+      wacalls.startCall,
+      "discou sem a organização ter ligado a chamada de voz",
+    ).not.toHaveBeenCalled();
     expect(inseridas).toEqual([]);
   });
 
@@ -452,7 +487,13 @@ describe("o discador exige o consentimento da organização", () => {
     respostas["org_voice_calls"] = { data: { enabled: false, risco_aceito_em: null }, error: null };
     respostas["channel_sessions"] = SESSAO_PAREADA;
     respostas["contacts"] = {
-      data: { id: CONTATO, phone_number: "5511900000000", name: "Fulano", is_blocked: false, is_anonymized: false },
+      data: {
+        id: CONTATO,
+        phone_number: "5511900000000",
+        name: "Fulano",
+        is_blocked: false,
+        is_anonymized: false,
+      },
       error: null,
     };
 
@@ -468,7 +509,13 @@ describe("o discador exige o consentimento da organização", () => {
     respostas["org_voice_calls"] = { data: null, error: { message: "conexão caiu" } };
     respostas["channel_sessions"] = SESSAO_PAREADA;
     respostas["contacts"] = {
-      data: { id: CONTATO, phone_number: "5511900000000", name: "Fulano", is_blocked: false, is_anonymized: false },
+      data: {
+        id: CONTATO,
+        phone_number: "5511900000000",
+        name: "Fulano",
+        is_blocked: false,
+        is_anonymized: false,
+      },
       error: null,
     };
 
@@ -476,6 +523,28 @@ describe("o discador exige o consentimento da organização", () => {
     expect(res.status).toBe(503);
     expect((await corpo(res)).error).toMatchObject({ code: "voice_estado_indeterminado" });
     expect(wacalls.startCall).not.toHaveBeenCalled();
+  });
+
+  it("plano sem voice_calls recusa mesmo com consentimento e serviço pareado", async () => {
+    respostas["organizations"] = { data: { settings: { plan: "standard" } }, error: null };
+    respostas["org_voice_calls"] = { data: { enabled: true, risco_aceito_em: null }, error: null };
+    respostas["channel_sessions"] = SESSAO_PAREADA;
+    respostas["contacts"] = {
+      data: {
+        id: CONTATO,
+        phone_number: "5511900000000",
+        name: "Fulano",
+        is_blocked: false,
+        is_anonymized: false,
+      },
+      error: null,
+    };
+
+    const res = await discar();
+    expect(res.status).toBe(403);
+    expect((await corpo(res)).error).toMatchObject({ code: "feature_not_available" });
+    expect(wacalls.startCall).not.toHaveBeenCalled();
+    expect(inseridas).toEqual([]);
   });
 });
 
@@ -537,7 +606,10 @@ describe("só quem está na linha desliga", () => {
     );
     expect(res.status).toBe(200);
     expect(audit).toHaveBeenCalledWith(
-      expect.objectContaining({ action: "voice.call_media_attached", metadata: expect.objectContaining({ aba }) }),
+      expect.objectContaining({
+        action: "voice.call_media_attached",
+        metadata: expect.objectContaining({ aba }),
+      }),
     );
   });
 
@@ -545,7 +617,10 @@ describe("só quem está na linha desliga", () => {
     respostas["voice_calls"] = chamadaNoBanco({ owner_user_id: EU });
     const { POST } = await import("@/app/api/v1/voice/calls/[id]/webrtc/route");
     const res = await POST(
-      new Request("http://x", { method: "POST", body: JSON.stringify({ sdpOffer: "v=0", aba: "<script>" }) }),
+      new Request("http://x", {
+        method: "POST",
+        body: JSON.stringify({ sdpOffer: "v=0", aba: "<script>" }),
+      }),
       { params: Promise.resolve({ id: CHAMADA }) },
     );
     expect(res.status).toBe(400);

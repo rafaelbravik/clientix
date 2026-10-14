@@ -320,8 +320,11 @@ create table if not exists auth.sessions (
  id uuid primary key, user_id uuid not null references auth.users(id),
  aal text, not_after timestamptz
 );
+-- Supabase Auth's mfa_factors timestamps are required and have no defaults
+-- (auth migration 20221003041349_add_mfa_schema.up.sql).
 create table if not exists auth.mfa_factors (
- id uuid primary key, user_id uuid not null references auth.users(id), status text, factor_type text default 'totp'
+ id uuid primary key, user_id uuid not null references auth.users(id), status text not null,
+ factor_type text not null default 'totp', created_at timestamptz not null, updated_at timestamptz not null
 );
 create or replace function auth.jwt() returns jsonb language sql stable as $$
  select coalesce(nullif(current_setting('request.jwt.claim',true),''),nullif(current_setting('request.jwt.claims',true),''))::jsonb;

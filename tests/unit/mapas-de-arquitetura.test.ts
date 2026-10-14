@@ -197,6 +197,39 @@ describe("mapas de arquitetura — coerência interna", () => {
     expect(liga("operante", "motor"), "a régua única não chega ao motor da IA").toBe(true);
   });
 
+  it("o WebChat está no mapa e liga bootstrap, Inbox e retorno ao visitante", () => {
+    const m = JSON.parse(
+      fs.readFileSync(path.join(DIR, "webchat-widget.architecture.json"), "utf8"),
+    ) as Mapa;
+    const arestas = m.edges ?? [];
+    const grau = (id: string) => arestas.filter((e) => e.from === id || e.to === id).length;
+    for (const peca of [
+      "settings",
+      "loader",
+      "iframe",
+      "bootstrap",
+      "session",
+      "contact",
+      "conversation",
+      "first-message",
+      "inbound",
+      "inbox",
+      "reply",
+      "adapter",
+      "poll",
+      "audit",
+    ]) {
+      expect(grau(peca), `${peca} com menos de 2 arestas — é ilha pelo invariante 1`).toBeGreaterThanOrEqual(2);
+    }
+    const liga = (de: string, para: string) => arestas.some((e) => e.from === de && e.to === para);
+    expect(liga("bootstrap", "session"), "o bootstrap não resolve o widget público").toBe(true);
+    expect(liga("bootstrap", "conversation"), "o bootstrap não cria a conversa no tenant resolvido").toBe(true);
+    expect(liga("inbound", "inbox"), "a mensagem inbound não chega ao Inbox").toBe(true);
+    expect(liga("reply", "adapter"), "a resposta não usa o adapter local").toBe(true);
+    expect(liga("poll", "iframe"), "a resposta não retorna ao visitante").toBe(true);
+    expect(liga("inbox", "settings"), "não há laço de retorno para a equipe revisar a configuração").toBe(true);
+  });
+
   it("o Jev está no mapa da escalação, com o laço de retorno", () => {
     // O caso concreto do DoD 13 para o Jev. O genérico cobra ≥1 aresta; o
     // invariante 7 pede o laço de retorno, e é ele que se nomeia aqui: a

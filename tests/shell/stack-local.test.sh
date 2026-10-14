@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Prova as duas garantias do instalador local: ele não apaga o ambiente de
-# quem já usa o clone, e a senha do dono não nasce publicada.
+# Prova as garantias do instalador local: ele não apaga o ambiente de quem já
+# usa o clone, e a senha inicial não nasce publicada nem é gerada em modo
+# interativo sem o conhecimento do operador.
 
 set -uo pipefail
 
@@ -37,10 +38,15 @@ done
 # 127.0.0.1. Qualquer máquina da rede alcançaria o CRM com a senha do GitHub.
 check "a senha do dono não é literal no script" bash -c '
   ! grep -qE "^export OWNER_PASSWORD=\"[^$]" "$1"' _ "$INSTALADOR"
-check "a senha do dono nasce aleatória" bash -c '
-  grep -q "openssl rand" <<<"$(grep "^export OWNER_PASSWORD=" "$1")"' _ "$INSTALADOR"
-check "quem quiser escolher a senha consegue (OWNER_PASSWORD respeitado)" bash -c '
-  grep -q "OWNER_PASSWORD:-" "$1"' _ "$INSTALADOR"
+check "a senha do dono é solicitada em TTY e exigida em modo não interativo" bash -c '
+  grep -qF '\''if [[ -z "${OWNER_PASSWORD:-}" ]]; then'\'' "$1" &&
+  grep -qF '\''if [[ ! -t 0 ]]; then'\'' "$1" &&
+  grep -qF '\''read -r -s -p "Senha inicial do proprietario: " OWNER_PASSWORD'\'' "$1" &&
+  grep -qF '\''Defina OWNER_PASSWORD no ambiente para execucao nao interativa.'\'' "$1" &&
+  grep -qF '\''export OWNER_PASSWORD'\'' "$1"' _ "$INSTALADOR"
+check "OWNER_PASSWORD fornecida pelo operador é preservada" bash -c '
+  grep -qF '\''if [[ -z "${OWNER_PASSWORD:-}" ]]; then'\'' "$1" &&
+  grep -qF '\''export OWNER_PASSWORD'\'' "$1"' _ "$INSTALADOR"
 
 # ── A chave da API do WAHA ─────────────────────────────────────────────────
 #

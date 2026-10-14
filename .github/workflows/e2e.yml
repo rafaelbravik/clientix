@@ -1787,6 +1787,7 @@ jobs:
           # 2. O que a spec fresca exige do ambiente (cabeçalho dela):
           #    WAHA ativo, Redis local, e Resend SEM chave — instalação nova não
           #    tem chave de SaaS nenhuma, e é isso que a spec cobra.
+          redis_test_token="e2e-token-nao-e-segredo"
           {
             # `WAHA_API_KEY` NÃO entra aqui: ela vem do `.env.e2e` (fonte única,
             # já publicada no ambiente do job). Redigitá-la — com outro valor,
@@ -1794,7 +1795,7 @@ jobs:
             # `tests/unit/e2e-workflow-honra-o-env.test.ts` reprova.
             echo "WAHA_API_BASE_URL=http://127.0.0.1:3000"
             echo "UPSTASH_REDIS_REST_URL=http://127.0.0.1:8079"
-            echo "UPSTASH_REDIS_REST_TOKEN=e2e-token-nao-e-segredo"
+            echo "UPSTASH_REDIS_REST_TOKEN=$redis_test_token"
             echo "RESEND_API_BASE_URL=http://127.0.0.1:3997"
             echo "RESEND_API_KEY="
             echo "NUVEMSHOP_AUTH_BASE=http://127.0.0.1:3997"
@@ -1827,7 +1828,7 @@ jobs:
           cat /tmp/env-e2e-sem-parte-4 /tmp/vps-fresca.env > .env.e2e
           cat /tmp/vps-fresca.env >> "$GITHUB_ENV"
           echo "--- o que o app da parte 4 recebe do .env.e2e ---"
-          grep -E "^(${chaves})=" .env.e2e
+          grep -E "^(${chaves})=" .env.e2e | sed -E 's/=.*$/=<redacted>/'
 
           # 3. A cadeia de Redis, provada pelo protocolo que o produto usa: um
           #    comando Upstash REST de verdade, que só responde PONG se o
@@ -1851,7 +1852,7 @@ jobs:
           redis_pronto=""
           for _ in $(seq 1 30); do
             resposta=$(curl -s -X POST \
-              -H "Authorization: Bearer e2e-token-nao-e-segredo" \
+              -H "Authorization: Bearer ${redis_test_token}" \
               -H "Content-Type: application/json" \
               -d '["PING"]' -w ' http=%{http_code}' \
               http://127.0.0.1:8079/ || true)

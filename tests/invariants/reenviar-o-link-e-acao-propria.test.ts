@@ -203,7 +203,7 @@ it("⛔ `resend` NÃO é porta lateral: papel e MFA valem como no `deliver`", as
   // sem plantar o fator este caso ficaria verde por ausência, não por guarda.
   const fator = randomUUID();
   await pool.query(
-    "insert into auth.mfa_factors(id,user_id,status,factor_type) values($1,$2,'verified','totp')",
+    "insert into auth.mfa_factors(id,user_id,status,factor_type,created_at,updated_at) values($1,$2,'verified','totp','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
     [fator, GOV_AGENT_A],
   );
   try {

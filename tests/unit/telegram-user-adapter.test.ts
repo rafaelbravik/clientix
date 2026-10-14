@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { telegramUserAdapter } from "@/lib/channels/adapters/telegram-user";
 import { CHANNEL_CAPABILITIES, CHANNEL_PROVIDER_TELEGRAM_USER } from "@/lib/channels/capabilities";
 import { resolveSessionRef } from "@/lib/channels/session-ref";
@@ -87,33 +87,82 @@ describe("Canal Telegram Usuário (MTProto) - Adapter e Capabilities", () => {
     expect(err.message).toContain("42s");
   });
 
-  it("deve executar fluxo autônomo de autenticação MTProto em duas fases", async () => {
-    const sendResult = await telegramUserSendCode({
-      apiId: 123456,
-      apiHash: "abcdef1234567890abcdef",
-      phone: "+5511999990000",
-    });
-    expect(sendResult.phoneCodeHash).toBeDefined();
-    expect(sendResult.isCodeViaApp).toBe(true);
+  it("deve executar o fluxo de autenticação pelas respostas do gateway HTTPS", async () => {
+    const gatewayCalls: string[] = [];
+    vi.stubEnv("TELEGRAM_MTPROTO_GATEWAY_URL", "https://telegram-gateway.example.test");
+    vi.stubGlobal(
+      "fetch",
+      async (input: RequestInfo | URL): Promise<Response> => {
+        const url = String(input);
+        gatewayCalls.push(url);
 
-    const loginResult = await telegramUserSignIn({
-      apiId: 123456,
-      apiHash: "abcdef1234567890abcdef",
-      phone: "+5511999990000",
-      phoneCodeHash: sendResult.phoneCodeHash,
-      phoneCode: "12345",
-    });
-    expect(loginResult.success).toBe(true);
-    expect(loginResult.sessionString).toBeDefined();
-    expect(loginResult.user).toBeDefined();
+        const responseByEndpoint: Record<string, object> = {
+          "/auth/sendCode": { phone_code_hash: "hash-123", is_code_via_app: true },
+          "/auth/signIn": {
+            session_string: "session-after-code",
+            user: {
+              id: 12345,
+              phone: "+5511999990000",
+              first_name: "Clientix",
+              last_name: null,
+              username: "clientix-user",
+            },
+          },
+          "/auth/checkPassword": {
+            session_string: "session-after-2fa",
+            user: {
+              id: 12345,
+              phone: "+5511999990000",
+              first_name: "Clientix",
+              last_name: null,
+              username: "clientix-user",
+            },
+          },
+        };
+        const endpoint = new URL(url).pathname;
+        return new Response(JSON.stringify(responseByEndpoint[endpoint]), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      },
+    );
 
-    const pwdResult = await telegramUserCheckPassword({
-      apiId: 123456,
-      apiHash: "abcdef1234567890abcdef",
-      phone: "+5511999990000",
-      password: "secret_password",
-    });
-    expect(pwdResult.success).toBe(true);
-    expect(pwdResult.sessionString).toBeDefined();
+    try {
+      const sendResult = await telegramUserSendCode({
+        apiId: 123456,
+        apiHash: "abcdef1234567890abcdef",
+        phone: "+5511999990000",
+      });
+      expect(sendResult.phoneCodeHash).toBe("hash-123");
+      expect(sendResult.isCodeViaApp).toBe(true);
+
+      const loginResult = await telegramUserSignIn({
+        apiId: 123456,
+        apiHash: "abcdef1234567890abcdef",
+        phone: "+5511999990000",
+        phoneCodeHash: sendResult.phoneCodeHash,
+        phoneCode: "12345",
+      });
+      expect(loginResult.success).toBe(true);
+      expect(loginResult.sessionString).toBe("session-after-code");
+      expect(loginResult.user?.id).toBe("12345");
+
+      const pwdResult = await telegramUserCheckPassword({
+        apiId: 123456,
+        apiHash: "abcdef1234567890abcdef",
+        phone: "+5511999990000",
+        password: "secret_password",
+      });
+      expect(pwdResult.success).toBe(true);
+      expect(pwdResult.sessionString).toBe("session-after-2fa");
+      expect(gatewayCalls.map((url) => new URL(url).pathname)).toEqual([
+        "/auth/sendCode",
+        "/auth/signIn",
+        "/auth/checkPassword",
+      ]);
+    } finally {
+      vi.unstubAllGlobals();
+      vi.unstubAllEnvs();
+    }
   });
 });

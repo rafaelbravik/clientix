@@ -26,6 +26,24 @@ describe("Chat Web Widget - Token e Acesso Seguro", () => {
     expect(res.payload?.createdAt).toBeTypeOf("number");
   });
 
+  it("emite token WebChat com widget vinculado e expiração curta", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-10T12:00:00.000Z"));
+    const token = gerarTokenDeAcessoWidget(
+      "11111111-2222-3333-4444-555555555555",
+      "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+      { widgetPublicId: "aaaaaaaa-1111-4111-8111-111111111111" },
+    );
+    const valid = validarTokenDeAcessoWidget(token);
+    expect(valid.valido).toBe(true);
+    expect(valid.payload?.widgetPublicId).toBe("aaaaaaaa-1111-4111-8111-111111111111");
+    expect(valid.payload?.expiresAt).toBeTypeOf("number");
+
+    vi.advanceTimersByTime(24 * 60 * 60 * 1000 + 1);
+    expect(validarTokenDeAcessoWidget(token)).toMatchObject({ valido: false, motivo: "token_expirado" });
+    vi.useRealTimers();
+  });
+
   it("deve rejeitar tokens forjados ou corrompidos", () => {
     const tokenValido = gerarTokenDeAcessoWidget("c1", "o1");
     const [payload, sig] = tokenValido.split(".");
@@ -120,7 +138,6 @@ describe("Chat Web Widget - Token e Acesso Seguro", () => {
         ok: true,
         status: 200,
         json: async () => ({
-          ok: true,
           data: {
             conversation: {
               id: "conv-teste-1",

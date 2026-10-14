@@ -10,6 +10,9 @@ const verifierPath = path.resolve("distribution/installer/verify-release-manifes
 const manifestPath = path.resolve("distribution/installer/release-manifest.json");
 const releaseTrustRoot = path.resolve("distribution/installer/trust/release-manifest");
 const installerVersion = readFileSync(path.resolve("distribution/installer/VERSION"), "utf8").trim();
+const schemaRegistry = JSON.parse(readFileSync(path.resolve("supabase/manifest.json"), "utf8")) as {
+  schema_target: string;
+};
 
 function runSchemaCheck(status: Record<string, unknown>) {
   return spawnSync(
@@ -71,6 +74,19 @@ describe("installer signed release manifest gate", () => {
     expect(JSON.parse(fresh.stdout)).toMatchObject({ allowed: true, current_schema: null });
     expect(atBoundary.status).toBe(0);
     expect(JSON.parse(atBoundary.stdout)).toMatchObject({ allowed: true, current_schema: "0510" });
+  });
+
+  it("fails closed while the signed release target is older than the local schema registry", () => {
+    expect(schemaRegistry.schema_target).toBe("0511");
+    const result = runSchemaCheck({
+      state_type: "FRESH_DATABASE",
+      target_baseline: schemaRegistry.schema_target,
+      current_schema: null,
+      schema_evidence_valid: true,
+    });
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("MIGRATOR_SCHEMA_TARGET_MISMATCH");
   });
 
   it("blocks a tracked schema outside the signed direct-update range", () => {

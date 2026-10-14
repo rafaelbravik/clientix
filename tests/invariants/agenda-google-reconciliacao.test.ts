@@ -674,7 +674,7 @@ it("suporte full conserva dono efetivo; readonly e expirado não decidem nem sel
       [GOV_ORG, f.id],
       session,
     );
-    await pool.query("insert into auth.mfa_factors(id,user_id,status,factor_type) values($1,$2,'verified','totp')", [factor, GOV_AGENT_A]);
+    await pool.query("insert into auth.mfa_factors(id,user_id,status,factor_type,created_at,updated_at) values($1,$2,'verified','totp','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')", [factor, GOV_AGENT_A]);
     const protectedState = async () => (await pool.query("select jsonb_build_object('appointment',(select to_jsonb(a) from calendar_appointments a where id=$1),'calendars',(select jsonb_agg(to_jsonb(k)) from calendar_connection_calendars k where organization_id=$2),'connections',(select jsonb_agg(to_jsonb(c)) from calendar_connections c where organization_id=$2)) state", [f.id, GOV_ORG])).rows[0].state;
     const beforeMfa = await protectedState();
     for (const [sql, values] of [

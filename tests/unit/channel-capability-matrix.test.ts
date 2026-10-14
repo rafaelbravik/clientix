@@ -28,6 +28,7 @@ const PROVIDERS = [
   "email",
   "instagram",
   "tiktok",
+  "webchat",
 ] as const satisfies readonly ProviderDeMensagem[];
 
 /**

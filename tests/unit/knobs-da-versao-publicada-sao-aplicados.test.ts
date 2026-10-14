@@ -54,19 +54,58 @@ function camposDaConfig(): string[] {
   return [...src.slice(ini, fim).matchAll(/^ {2}(\w+)\??:/gm)].map((m) => m[1]!);
 }
 
+/**
+ * Indexa, numa única chamada ao git, os arquivos que leem cada campo fora do
+ * próprio módulo que o carrega. Abrir um processo por campo fez este teste
+ * ultrapassar o timeout quando o projeto cercas executa sob carga do suite.
+ */
+let indiceConsumidores: Map<string, Set<string>> | undefined;
+
+function consumidoresDaConfig(): Map<string, Set<string>> {
+  if (indiceConsumidores) return indiceConsumidores;
+
+  const campos = camposDaConfig();
+  const indice = new Map(campos.map((campo) => [campo, new Set<string>()]));
+  const args = ["grep", "-n", "-F"];
+  for (const campo of campos) {
+    args.push("-e", `agentConfig.${campo}`, "-e", `agentConfig?.${campo}`);
+  }
+  args.push("--", "lib", "workers", "app");
+
+  let saida: string;
+  try {
+    saida = execFileSync("git", args, { cwd: RAIZ, encoding: "utf8" });
+  } catch (error) {
+    // `git grep` sai com 1 quando não encontra nada — ausência, não falha.
+    if (typeof error === "object" && error !== null && "status" in error && error.status === 1) {
+      indiceConsumidores = indice;
+      return indice;
+    }
+    throw error;
+  }
+
+  for (const linha of saida.split("\n")) {
+    const separadorArquivo = linha.indexOf(":");
+    const separadorLinha = linha.indexOf(":", separadorArquivo + 1);
+    if (separadorArquivo < 0 || separadorLinha < 0) continue;
+
+    const arquivo = linha.slice(0, separadorArquivo);
+    if (arquivo.includes("agent-config")) continue;
+    const conteudo = linha.slice(separadorLinha + 1);
+    for (const campo of campos) {
+      if (conteudo.includes(`agentConfig.${campo}`) || conteudo.includes(`agentConfig?.${campo}`)) {
+        indice.get(campo)?.add(arquivo);
+      }
+    }
+  }
+
+  indiceConsumidores = indice;
+  return indice;
+}
+
 /** Arquivos que leem o campo, fora do próprio módulo que o carrega. */
 function consumidoresDe(campo: string): string[] {
-  try {
-    const saida = execFileSync(
-      "git",
-      ["grep", "-l", "-e", `agentConfig.${campo}`, "-e", `agentConfig?.${campo}`, "--", "lib", "workers", "app"],
-      { cwd: RAIZ, encoding: "utf8" },
-    );
-    return saida.split("\n").filter((f) => f !== "" && !f.includes("agent-config"));
-  } catch {
-    // `git grep` sai com 1 quando não encontra nada — ausência, não falha.
-    return [];
-  }
+  return [...(consumidoresDaConfig().get(campo) ?? [])];
 }
 
 describe("knobs da versão publicada", () => {

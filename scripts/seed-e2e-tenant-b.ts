@@ -5,7 +5,7 @@
  * não vaza. Realtime que atravessa tenant é pior que realtime que não funciona:
  * o primeiro é vazamento de dado de cliente, o segundo é só uma feature morta.
  *
- * Cria org B + 1 usuário manager (senha conhecida) + pipeline com 1 lead, para
+ * Cria org B + 1 usuário manager + pipeline com 1 lead, para
  * que o board dele renderize e ASSINE o canal — uma aba que não assina não prova
  * isolamento nenhum, só prova que não estava escutando.
  *
@@ -18,7 +18,7 @@ import { createClient } from "@supabase/supabase-js";
 import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { anunciarDestino, credenciaisSupabaseDeTeste } from "./lib/env-de-teste";
+import { anunciarDestino, credenciaisSupabaseDeTeste, destinoEhLocal } from "./lib/env-de-teste";
 
 // `process.env` VENCE o `.env.local` (ver scripts/lib/env-de-teste.ts).
 //
@@ -27,6 +27,10 @@ import { anunciarDestino, credenciaisSupabaseDeTeste } from "./lib/env-de-teste"
 // injetado no webServer do Playwright: este script nunca olhava para lá.
 const credenciais = credenciaisSupabaseDeTeste();
 anunciarDestino("seed-e2e-tenant-b", credenciais);
+const ROTACAO_LOCAL = process.env.E2E_ROTATE_LOCAL_CREDENTIALS === "1";
+if (ROTACAO_LOCAL && !destinoEhLocal(credenciais.url)) {
+  throw new Error("rotação de credenciais E2E exige endpoint Supabase local");
+}
 const env = {
   NEXT_PUBLIC_SUPABASE_URL: credenciais.url,
   SUPABASE_SERVICE_ROLE_KEY: credenciais.serviceRole,
@@ -43,7 +47,7 @@ const CREDS_PATH = path.join(process.cwd(), ".e2e-creds.json");
 const ORG_SLUG = "e2e-tenant-b";
 const ORG_NAME = "E2E Tenant B";
 const EMAIL = "e2e-b-manager@deskcomm.test";
-const PASSWORD = "E2E!Test1234";
+let PASSWORD = "";
 const LEAD_TITLE = "Lead do Tenant B — nao pode vazar";
 
 /** TOTP RFC-6238 — o produto EXIGE 2FA de admin, e a tela de LGPD é admin-only. */
@@ -75,13 +79,25 @@ async function ensureTotp(
   if (listErr) throw new Error(`listFactors: ${listErr.message}`);
   const factors = listed?.factors ?? [];
 
-  if (anterior && factors.some((f) => f.id === anterior.factor_id && f.status === "verified")) {
+  if (
+    !ROTACAO_LOCAL &&
+    anterior &&
+    factors.some((f) => f.id === anterior.factor_id && f.status === "verified")
+  ) {
     console.info(`[seed-b] TOTP reaproveitado: ${anterior.factor_id}`);
     return anterior;
   }
+  const fatoresAnteriores = factors.map((f) => f.id);
   for (const f of factors) {
     const { error } = await admin.auth.admin.mfa.deleteFactor({ id: f.id, userId });
     if (error) throw new Error(`deleteFactor ${f.id}: ${error.message}`);
+  }
+  if (ROTACAO_LOCAL && fatoresAnteriores.length > 0) {
+    const { data: depois, error: depoisErr } = await admin.auth.admin.mfa.listFactors({ userId });
+    if (depoisErr || depois.factors.some((f) => fatoresAnteriores.includes(f.id))) {
+      throw new Error("rotação TOTP falhou: fator anterior continua registrado");
+    }
+    console.info("[rotation] fatores TOTP anteriores removidos para tenant B");
   }
 
   const anon = createClient(env.NEXT_PUBLIC_SUPABASE_URL!, env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
@@ -151,6 +167,31 @@ async function ensureUser(): Promise<string> {
   if (error || !data?.user) throw new Error(`criar user ${EMAIL}: ${error?.message}`);
   console.info(`[seed-b] user criado: ${data.user.id}`);
   return data.user.id;
+}
+
+async function provarSenhaAntigaNegada(senhaAntiga: string): Promise<void> {
+  const anon = createClient(env.NEXT_PUBLIC_SUPABASE_URL!, env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const { data, error } = await anon.auth.signInWithPassword({ email: EMAIL, password: senhaAntiga });
+  if (!error) {
+    await anon.auth.signOut({ scope: "global" });
+    throw new Error("prova negativa falhou: senha anterior ainda autenticou");
+  }
+  if (error.status !== 400) throw new Error("prova negativa inconclusiva para senha anterior");
+  if (data.session) await anon.auth.signOut({ scope: "global" });
+  console.info("[rotation] senha anterior negada para tenant B");
+}
+
+async function provarSenhaNova(): Promise<void> {
+  const anon = createClient(env.NEXT_PUBLIC_SUPABASE_URL!, env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const { data, error } = await anon.auth.signInWithPassword({ email: EMAIL, password: PASSWORD });
+  if (error || !data.user) throw new Error("prova positiva de senha local falhou para tenant B");
+  const { error: signOutErr } = await anon.auth.signOut({ scope: "global" });
+  if (signOutErr) throw new Error("revogação da sessão de prova positiva falhou para tenant B");
+  console.info("[rotation] nova senha autenticou e sessão de prova foi revogada para tenant B");
 }
 
 async function ensureMembership(userId: string, orgId: string): Promise<void> {
@@ -380,8 +421,20 @@ async function ensurePegadaLgpd(
 
 async function main(): Promise<void> {
   const creds = JSON.parse(fs.readFileSync(CREDS_PATH, "utf8")) as Record<string, unknown>;
+  const anteriorTenantB = creds.tenant_b as
+    | { password?: string; totp?: { factor_id: string; secret: string } }
+    | undefined;
+  const senhaAnterior =
+    typeof anteriorTenantB?.password === "string"
+      ? anteriorTenantB.password
+      : process.env.E2E_PREVIOUS_TENANT_B_PASSWORD ?? null;
+  PASSWORD =
+    ROTACAO_LOCAL || !senhaAnterior ? crypto.randomBytes(32).toString("base64url") : senhaAnterior;
   const orgId = await ensureOrg();
   const userId = await ensureUser();
+  if (ROTACAO_LOCAL && senhaAnterior && senhaAnterior !== PASSWORD) {
+    await provarSenhaAntigaNegada(senhaAnterior);
+  }
   await ensureMembership(userId, orgId);
   const { pipelineId, leadId } = await ensureBoard(orgId);
 
@@ -393,8 +446,9 @@ async function main(): Promise<void> {
     .limit(1)
     .maybeSingle();
   const pegada = await ensurePegadaLgpd(orgId, pipelineId, (stageB as { id: string }).id);
-  const anterior = (creds.tenant_b as { totp?: { factor_id: string; secret: string } } | undefined)?.totp ?? null;
+  const anterior = anteriorTenantB?.totp ?? null;
   const totp = await ensureTotp(userId, anterior);
+  if (ROTACAO_LOCAL) await provarSenhaNova();
 
   creds.tenant_b = {
     org_id: orgId,
@@ -411,7 +465,7 @@ async function main(): Promise<void> {
   };
   fs.writeFileSync(CREDS_PATH, JSON.stringify(creds, null, 2));
   console.info(`\n✅ Tenant B pronto: org=${orgId} pipeline=${pipelineId}`);
-  console.info(`   login: ${EMAIL} / ${PASSWORD}`);
+  console.info(`   login preparado para ${EMAIL}; credencial armazenada no arquivo local ignorado`);
 }
 
 main().catch((err) => {

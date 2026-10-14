@@ -85,7 +85,7 @@ describe("agenda: superfícies humanas e recibo privado têm autorização compo
     await asRole("authenticated", tenant.agent, changeQuery, args);
     const id = await appointment(tenant), factor = randomUUID();
     const snapshot = async () => (await pool.query("select jsonb_build_object('appointment',(select to_jsonb(a) from calendar_appointments a where id=$1),'events',(select jsonb_agg(to_jsonb(e)) from event_log e where entity_id=$1),'notices',(select jsonb_agg(to_jsonb(n)) from agent_inbox_items n where ref_id=$1)) state", [id])).rows[0].state;
-    await pool.query("insert into auth.mfa_factors(id,user_id,status,factor_type) values($1,$2,'verified','totp')", [factor, tenant.agent]);
+    await pool.query("insert into auth.mfa_factors(id,user_id,status,factor_type,created_at,updated_at) values($1,$2,'verified','totp','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')", [factor, tenant.agent]);
     try {
       const before = await snapshot();
       await expect(asRole("authenticated", tenant.agent, changeQuery, [tenant.org, id, { status: "no_show" }], "aal1")).rejects.toMatchObject({ code: "42501" });
@@ -101,7 +101,7 @@ describe("agenda: superfícies humanas e recibo privado têm autorização compo
     const tenant = tenants[0]!, factor = randomUUID();
     const config = { confirmation_delay_minutes: 17, unknown_protection_minutes: 130 };
     await asRole("authenticated", tenant.manager, settingsQuery, [tenant.org, config]);
-    await pool.query("insert into auth.mfa_factors(id,user_id,status,factor_type) values($1,$2,'verified','totp')", [factor, tenant.manager]);
+    await pool.query("insert into auth.mfa_factors(id,user_id,status,factor_type,created_at,updated_at) values($1,$2,'verified','totp','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')", [factor, tenant.manager]);
     const next = { confirmation_delay_minutes: 18, unknown_protection_minutes: 140 };
     try {
       const before = (await pool.query("select settings from organizations where id=$1", [tenant.org])).rows[0].settings;
@@ -116,7 +116,7 @@ describe("agenda: superfícies humanas e recibo privado têm autorização compo
     const a = tenants[0]!, b = tenants[1]!;
     const factor = randomUUID();
     await pool.query(
-      "insert into auth.mfa_factors(id,user_id,status,factor_type) values($1,$2,'verified','totp')",
+      "insert into auth.mfa_factors(id,user_id,status,factor_type,created_at,updated_at) values($1,$2,'verified','totp','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
       [factor, a.manager],
     );
     try {

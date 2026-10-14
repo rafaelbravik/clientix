@@ -40,11 +40,16 @@ while IFS= read -r caminho || [ -n "$caminho" ]; do
       | docs/* | tasks/* | scratchpad/* | .vercel/* | .claude/* | .agents/* \
       | .agent/* | .codex/* | .cursor/* | .opencode/* | .specs/* | .changes/* \
       | evidence/* | .superpowers/*) ;;
+    # Arquivos de teste co-localizados e os dois scripts de validação do kit não
+    # entram nas imagens; alterações neles não exigem rebuild do app.
+    **/*.test.ts | **/*.test.tsx | **/*.test.js | **/*.test.sh \
+      | hostgator-setup-kit/test-validators.sh) ;;
     .github/*.yml | .github/*.yaml | .github/*.md) ;;
     # Daqui para baixo, só arquivo da RAIZ: qualquer outro caminho com `/` alcança.
     */*) echo sim; exit 0 ;;
     # ↓ espelho do .dockerignore — os arquivos da raiz.
-    .env | .env.* | .e2e-creds.json | playwright.config.ts | *.png | *.log | *.tsbuildinfo) ;;
+    .env | .env.* | .e2e-creds.json | playwright.config.ts | ubuntu-local-installer.sh \
+      | *.png | *.log | *.tsbuildinfo) ;;
     *.md) ;;
     *) echo sim; exit 0 ;;
   esac
