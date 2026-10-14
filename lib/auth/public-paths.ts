@@ -154,6 +154,10 @@ export const PUBLIC_PATHS: RegExp[] = [
   /^\/legal\/(terms|privacy)$/,
   // Canal Web Widget (Etapa 2 Clientix): o cliente final acessa sua conversa via link assinado
   /^\/chat\/[^/]+$/,
+  // Loader e iframe público do widget; a autenticação de conversa é o token
+  // curto e vinculado ao widget validado dentro das APIs públicas.
+  /^\/chat\/widget\.js$/,
+  /^\/chat\/embed\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
   /^\/api\/v1\/widget(\/.*)?$/,
 ];
 

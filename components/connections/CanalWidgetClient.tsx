@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,13 +13,69 @@ export function CanalWidgetClient() {
   const t = useT();
   const [titulo, setTitulo] = useState("Atendimento Online");
   const [corPrimaria, setCorPrimaria] = useState("#10B981");
+  const [widgetPublicId, setWidgetPublicId] = useState<string | null>(null);
+  const [enabled, setEnabled] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [appOrigin, setAppOrigin] = useState("");
+  const [erro, setErro] = useState<string | null>(null);
 
-  const snippet = `<script
-  src="${typeof window !== "undefined" ? window.location.origin : "http://localhost:3000"}/chat/widget.js"
-  data-title="${titulo}"
-  data-color="${corPrimaria}"
-  defer
-></script>`;
+  useEffect(() => {
+    setAppOrigin(window.location.origin);
+    void fetch("/api/v1/channels/webchat", { cache: "no-store" })
+      .then(async (response) => {
+        const json: unknown = await response.json();
+        if (!response.ok || !json || typeof json !== "object" || !("data" in json)) {
+          throw new Error(t("Não foi possível carregar a configuração do WebChat."));
+        }
+        const data = json.data as { connected?: boolean; enabled?: boolean; widget_public_id?: string | null };
+        setWidgetPublicId(typeof data.widget_public_id === "string" ? data.widget_public_id : null);
+        setEnabled(data.enabled === true);
+      })
+      .catch((error: unknown) => {
+        setErro(error instanceof Error ? error.message : t("Não foi possível carregar a configuração do WebChat."));
+      })
+      .finally(() => setLoading(false));
+  }, [t]);
+
+  const tituloSeguro = titulo.replace(/[&<>"']/g, (char) => {
+    const entities: Record<string, string> = {
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      "\"": "&quot;",
+      "'": "&#39;",
+    };
+    return entities[char] ?? char;
+  });
+  const corSegura = /^#[0-9a-f]{6}$/i.test(corPrimaria) ? corPrimaria : "#0f766e";
+  const snippet = widgetPublicId && appOrigin
+    ? `<script src="${appOrigin}/chat/widget.js" data-widget-id="${widgetPublicId}" data-title="${tituloSeguro}" data-color="${corSegura}" defer></script>`
+    : "";
+
+  async function alterarAtivacao(nextEnabled: boolean) {
+    setSaving(true);
+    setErro(null);
+    try {
+      const response = await fetch("/api/v1/channels/webchat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: nextEnabled }),
+      });
+      const json: unknown = await response.json();
+      if (!response.ok || !json || typeof json !== "object" || !("data" in json)) {
+        throw new Error(t("Não foi possível atualizar o WebChat."));
+      }
+      const data = json.data as { connected?: boolean; enabled?: boolean; widget_public_id?: string | null };
+      setWidgetPublicId(typeof data.widget_public_id === "string" ? data.widget_public_id : null);
+      setEnabled(data.enabled === true);
+      toast.success(nextEnabled ? t("WebChat ativado.") : t("WebChat desativado."));
+    } catch (error) {
+      setErro(error instanceof Error ? error.message : t("Não foi possível atualizar o WebChat."));
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function copiarCodigo() {
     await copyToClipboard(snippet);
@@ -33,6 +89,16 @@ export function CanalWidgetClient() {
         <p className="text-sm text-muted-foreground">
           {t("Adicione um chat ao vivo nas páginas da sua loja, landing page ou site para conversar com visitantes em tempo real.")}
         </p>
+      </div>
+
+      {erro ? <p role="alert" className="text-sm text-destructive">{erro}</p> : null}
+      <div className="flex items-center gap-3">
+        <Button disabled={loading || saving} onClick={() => void alterarAtivacao(!enabled)}>
+          {loading ? t("Carregando…") : saving ? t("Salvando…") : enabled ? t("Desativar WebChat") : t("Ativar WebChat")}
+        </Button>
+        <span className="text-sm text-muted-foreground">
+          {enabled ? t("Widget ativo") : t("Widget desativado")}
+        </span>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
@@ -64,7 +130,7 @@ export function CanalWidgetClient() {
           <div className="space-y-2 pt-2">
             <Label>{t("Como instalar no seu site")}</Label>
             <p className="text-xs text-muted-foreground">
-              {t("Copie o código ao lado e cole antes do fechamento da tag </body> no seu site (WordPress, Nuvemshop, Shopify, Webflow, etc).")}
+              {t("Copie o código ao lado e cole no seu site (WordPress, Nuvemshop, Shopify ou Webflow).")}
             </p>
           </div>
         </Card>
@@ -72,11 +138,17 @@ export function CanalWidgetClient() {
         <Card className="p-6 space-y-4 flex flex-col justify-between">
           <div>
             <h3 className="text-base font-medium mb-2">{t("Código de Integração")}</h3>
-            <pre className="overflow-x-auto rounded-lg bg-muted p-4 text-xs font-mono text-foreground leading-relaxed whitespace-pre-wrap">
-              {snippet}
-            </pre>
+            {loading ? (
+              <p className="text-sm text-muted-foreground">{t("Carregando configuração…")}</p>
+            ) : widgetPublicId ? (
+              <pre className="overflow-x-auto rounded-lg bg-muted p-4 text-xs font-mono text-foreground leading-relaxed whitespace-pre-wrap">
+                {snippet}
+              </pre>
+            ) : (
+              <p className="text-sm text-muted-foreground">{t("Ative o WebChat para gerar o código de instalação.")}</p>
+            )}
           </div>
-          <Button onClick={copiarCodigo} className="w-full">
+          <Button onClick={copiarCodigo} className="w-full" disabled={!enabled || !snippet}>
             {t("Copiar Código para o Site")}
           </Button>
         </Card>

@@ -33,7 +33,7 @@ interface ChatData {
   messages: MessageItem[];
 }
 
-export function ChatWidgetClient({ token }: { token?: string }) {
+export function ChatWidgetClient({ token, preservePath = false }: { token?: string; preservePath?: boolean }) {
   const t = useT();
   const [data, setData] = useState<ChatData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -47,12 +47,12 @@ export function ChatWidgetClient({ token }: { token?: string }) {
   // 1. Limpeza segura da URL no bootstrap (FASE E: URL Cleanup)
   // Remove o token da barra de endereço para evitar vazamento em histórico e referrer
   useEffect(() => {
-    if (typeof window !== "undefined" && window.location.pathname.startsWith("/chat/")) {
+    if (!preservePath && typeof window !== "undefined" && window.location.pathname.startsWith("/chat/")) {
       const novaUrl = window.location.origin + "/chat/session";
       // Preserva o histórico substituindo o caminho sem recarregar a página
       window.history.replaceState({ sessionBootstrapped: true }, "", novaUrl);
     }
-  }, []);
+  }, [preservePath]);
 
   // 2. Carrega dados do chat via Authorization Bearer e cookie HttpOnly
   const carregarChat = async (isBackground = false): Promise<"ok" | "fatal" | "transient"> => {
@@ -73,11 +73,21 @@ export function ChatWidgetClient({ token }: { token?: string }) {
         return "transient";
       }
       const json = await res.json();
-      if (json.ok && json.data) {
-        setData(json.data);
+      if (
+        json &&
+        typeof json === "object" &&
+        "data" in json &&
+        json.data &&
+        typeof json.data === "object"
+      ) {
+        setData(json.data as ChatData);
         setErro(null);
+        return "ok";
       }
-      return "ok";
+      if (!isBackground) {
+        setErro("Serviço de atendimento temporariamente indisponível.");
+      }
+      return "transient";
     } catch {
       if (!isBackground) {
         setErro("Não foi possível conectar ao servidor de atendimento.");

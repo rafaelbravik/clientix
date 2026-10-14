@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "WebChat incorporável",
+    "subtitle": "Identidade pública resolve tenant; token curto limita a conversa",
+    "output": "webchat-widget.html",
+    "quality_profile": "standard"
+  },
+  "lanes": [
+    { "id": "operator", "label": "Operador" },
+    { "id": "visitor", "label": "Visitante" },
+    { "id": "app", "label": "Aplicativo" },
+    { "id": "db", "label": "Banco" }
+  ],
+  "mainPath": ["settings", "loader", "iframe", "bootstrap", "session", "conversation", "inbound", "inbox", "reply", "adapter", "poll"],
+  "nodes": [
+    { "id": "settings", "lane": "operator", "col": 0, "type": "ui", "label": "Conexões: ativar ou desativar WebChat" },
+    { "id": "loader", "lane": "app", "col": 1, "type": "route", "label": "GET /chat/widget.js: id público, botão e iframe" },
+    { "id": "iframe", "lane": "visitor", "col": 2, "type": "ui", "label": "Iframe isolado do site externo" },
+    { "id": "bootstrap", "lane": "app", "col": 3, "type": "route", "label": "Rate limit + token de conversa de 24h" },
+    { "id": "session", "lane": "db", "col": 4, "type": "database", "label": "channel_sessions: tenant, webchat_public_id, WORKING/STOPPED" },
+    { "id": "contact", "lane": "db", "col": 5, "type": "database", "label": "contacts: identidade anônima sem PII" },
+    { "id": "conversation", "lane": "db", "col": 6, "type": "database", "label": "conversations: tenant + sessão + thread local" },
+    { "id": "first-message", "lane": "visitor", "col": 7, "type": "ui", "label": "Primeira mensagem do visitante" },
+    { "id": "inbound", "lane": "app", "col": 8, "type": "service", "label": "messages + fn_service_inbound" },
+    { "id": "inbox", "lane": "operator", "col": 9, "type": "ui", "label": "Inbox existente: leitura e resposta humana/IA" },
+    { "id": "reply", "lane": "app", "col": 10, "type": "service", "label": "Handler central de mensagens" },
+    { "id": "adapter", "lane": "app", "col": 11, "type": "service", "label": "Adapter local sem transporte externo" },
+    { "id": "poll", "lane": "visitor", "col": 12, "type": "route", "label": "Polling autenticado da conversa limitada" },
+    { "id": "audit", "lane": "db", "col": 13, "type": "database", "label": "Audit de configuração + trilha de mensagens" }
+  ],
+  "edges": [
+    { "from": "settings", "to": "session", "label": "admin + quota + audit; habilitar/desabilitar" },
+    { "from": "session", "to": "settings", "label": "status e id público" },
+    { "from": "settings", "to": "loader", "label": "snippet com identificador público" },
+    { "from": "loader", "to": "iframe", "label": "app origin + widget_public_id" },
+    { "from": "iframe", "to": "bootstrap", "label": "bootstrap sem organization_id" },
+    { "from": "bootstrap", "to": "session", "label": "resolve exatamente a sessão pública ativa" },
+    { "from": "session", "to": "bootstrap", "label": "tenant e estado vêm da linha" },
+    { "from": "bootstrap", "to": "contact", "label": "cria Visitante no tenant resolvido" },
+    { "from": "contact", "to": "conversation", "label": "vínculo da identidade anônima" },
+    { "from": "bootstrap", "to": "conversation", "label": "cria conversa na sessão WebChat" },
+    { "from": "conversation", "to": "first-message", "label": "token assinado limitado à conversa" },
+    { "from": "first-message", "to": "inbound", "label": "Bearer de escopo curto" },
+    { "from": "inbound", "to": "conversation", "label": "atualiza a mesma conversa e aciona serviço" },
+    { "from": "inbound", "to": "inbox", "label": "mensagem aparece para a equipe" },
+    { "from": "inbox", "to": "reply", "label": "resposta humana ou do agente" },
+    { "from": "reply", "to": "adapter", "label": "destino é provider_conversation_id local" },
+    { "from": "adapter", "to": "conversation", "label": "confirmação sem rede externa" },
+    { "from": "conversation", "to": "poll", "label": "token + widget ativo" },
+    { "from": "poll", "to": "iframe", "label": "mensagens persistidas da própria conversa" },
+    { "from": "session", "to": "audit", "label": "mudança administrativa registrada" },
+    { "from": "inbound", "to": "audit", "label": "mensagem e falha de despacho correlacionadas" },
+    { "from": "audit", "to": "inbox", "label": "mensagem/falha observável para a equipe" },
+    { "from": "inbox", "to": "settings", "label": "falha persistente leva operador a revisar estado" }
+  ]
+}

@@ -4,8 +4,10 @@ import { z } from "zod";
 
 import { checkRateLimit } from "@/lib/ai/dispatcher/rate-limit";
 import { fail, ok } from "@/lib/api/wrappers";
+import { CHANNEL_PROVIDER_WEBCHAT } from "@/lib/channels/capabilities";
 import { resolveClientIp } from "@/lib/channels/webhook-ip";
 import { validarTokenDeAcessoWidget } from "@/lib/chat-widget/token";
+import { logger } from "@/lib/logger";
 import { readLimitedBody } from "@/lib/nuvemshop/safe-payload";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -100,13 +102,34 @@ export async function POST(req: NextRequest): Promise<Response> {
   // 1. Carrega dados essenciais da conversa
   const { data: conv, error: convErr } = await db
     .from("conversations")
-    .select("id, organization_id, contact_id, channel_session_id, status")
+    .select("id, organization_id, contact_id, channel_session_id, status, channel_sessions:channel_session_id(provider, status, webchat_public_id, archived_at)")
     .eq("id", conversationId)
     .eq("organization_id", organizationId)
     .maybeSingle();
 
   if (convErr || !conv) {
     return fail("not_found", "Conversa não encontrada.", 404, { requestId });
+  }
+
+  const session = conv.channel_sessions as {
+    provider?: string;
+    status?: string;
+    webchat_public_id?: string | null;
+    archived_at?: string | null;
+  } | null;
+  if (
+    validacao.payload.widgetPublicId !== undefined ||
+    session?.provider === CHANNEL_PROVIDER_WEBCHAT
+  ) {
+    if (
+      !validacao.payload.widgetPublicId ||
+      session?.provider !== CHANNEL_PROVIDER_WEBCHAT ||
+      session.webchat_public_id !== validacao.payload.widgetPublicId ||
+      session.status !== "WORKING" ||
+      session.archived_at
+    ) {
+      return fail("not_found", "Conversa não encontrada.", 404, { requestId });
+    }
   }
 
   const agora = new Date().toISOString();
@@ -122,13 +145,13 @@ export async function POST(req: NextRequest): Promise<Response> {
       contact_id: conv.contact_id,
       channel_session_id: conv.channel_session_id,
       direction: "inbound",
-      kind: "text",
+      type: "text",
       body,
       status: "delivered",
       sent_at: agora,
       metadata: { source: "web_widget" },
     })
-    .select("id, direction, body, kind, sent_at, status")
+    .select("id, direction, body, kind:type, sent_at, status")
     .single();
 
   if (insertErr || !novaMsg) {
@@ -150,9 +173,24 @@ export async function POST(req: NextRequest): Promise<Response> {
 
   // 4. Aciona fn_service_inbound para atualizar a Demanda/Protocolo e orquestração do atendimento
   try {
-    await db.rpc("fn_service_inbound", { p_message: messageId });
-  } catch {
-    // Não interrompe o retorno ao usuário se a trigger auxiliar já tiver rodado
+    const { error } = await db.rpc("fn_service_inbound", { p_message: messageId });
+    if (error) {
+      logger.error("webchat.inbound_dispatch_failed", {
+        request_id: requestId,
+        organization_id: organizationId,
+        conversation_id: conversationId,
+        message_id: messageId,
+        error_code: error.code ?? "unknown",
+      });
+    }
+  } catch (error) {
+    logger.error("webchat.inbound_dispatch_failed", {
+      request_id: requestId,
+      organization_id: organizationId,
+      conversation_id: conversationId,
+      message_id: messageId,
+      error_code: error instanceof Error ? error.name : "unknown",
+    });
   }
 
   return ok(novaMsg, { requestId });

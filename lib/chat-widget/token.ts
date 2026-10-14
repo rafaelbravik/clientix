@@ -24,7 +24,13 @@ export interface WidgetTokenPayload {
   conversationId: string;
   organizationId: string;
   createdAt: number;
+  /** Presente apenas nos tokens curtos emitidos pelo bootstrap WebChat. */
+  widgetPublicId?: string;
+  /** Epoch em milissegundos; obrigatório junto com widgetPublicId. */
+  expiresAt?: number;
 }
+
+export const WEBCHAT_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Gera um token seguro e assinado via HMAC-SHA256 para acesso público do cliente
@@ -33,11 +39,19 @@ export interface WidgetTokenPayload {
 export function gerarTokenDeAcessoWidget(
   conversationId: string,
   organizationId: string,
+  options?: { widgetPublicId: string },
 ): string {
+  const createdAt = Date.now();
   const payload: WidgetTokenPayload = {
     conversationId,
     organizationId,
-    createdAt: Date.now(),
+    createdAt,
+    ...(options
+      ? {
+          widgetPublicId: options.widgetPublicId,
+          expiresAt: createdAt + WEBCHAT_TOKEN_TTL_MS,
+        }
+      : {}),
   };
 
   const payloadB64 = Buffer.from(JSON.stringify(payload)).toString("base64url");
@@ -92,18 +106,40 @@ export function validarTokenDeAcessoWidget(token: string): {
       return { valido: false, motivo: "conteudo_invalido" };
     }
 
-    // Valida expiração: createdAt é estritamente obrigatório e expira em 30 dias
+    // Tokens legados expiram em 30 dias. Os novos do bootstrap têm escopo de
+    // widget e expiração explícita de 24 horas.
     if (!payload.createdAt || typeof payload.createdAt !== "number") {
       return { valido: false, motivo: "token_sem_timestamp" };
     }
 
-    const MAX_TOKEN_AGE_MS = 30 * 24 * 60 * 60 * 1000;
     const agora = Date.now();
-    if (agora - payload.createdAt > MAX_TOKEN_AGE_MS) {
-      return { valido: false, motivo: "token_expirado" };
-    }
     if (payload.createdAt > agora + 60_000) {
       return { valido: false, motivo: "timestamp_futuro" };
+    }
+
+    if (payload.widgetPublicId !== undefined) {
+      if (
+        typeof payload.widgetPublicId !== "string" ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(payload.widgetPublicId) ||
+        typeof payload.expiresAt !== "number"
+      ) {
+        return { valido: false, motivo: "escopo_widget_invalido" };
+      }
+      if (
+        payload.expiresAt <= agora ||
+        payload.expiresAt <= payload.createdAt ||
+        payload.expiresAt - payload.createdAt > WEBCHAT_TOKEN_TTL_MS
+      ) {
+        return { valido: false, motivo: "token_expirado" };
+      }
+    } else {
+      if (payload.expiresAt !== undefined) {
+        return { valido: false, motivo: "escopo_widget_invalido" };
+      }
+      const MAX_TOKEN_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+      if (agora - payload.createdAt > MAX_TOKEN_AGE_MS) {
+        return { valido: false, motivo: "token_expirado" };
+      }
     }
 
     return { valido: true, payload };
