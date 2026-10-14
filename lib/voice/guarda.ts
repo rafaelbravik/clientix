@@ -33,6 +33,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { fail } from "@/lib/api/wrappers";
 import { env } from "@/lib/env";
 import { estadoDaVoz, instalacaoOfereceVoz, type EscolhaDeVoz } from "@/lib/voice/opt-in";
+import { checkFeatureQuota } from "@/lib/tenant/plan-limits";
 
 /**
  * Lê `org_voice_calls.enabled`. `null` = a organização nunca escolheu, e isso é
@@ -89,6 +90,19 @@ export async function exigirVozLigada(
    */
   opts: { requestId?: string; instalacaoOferece?: boolean } = {},
 ): Promise<Response | null> {
+  // Consentimento e disponibilidade da instalação não substituem o plano. A
+  // leitura usa o client já autenticado e escopa a organização explicitamente;
+  // erro/ausência de configuração resulta em recusa pelo helper de quota.
+  const entitlement = await checkFeatureQuota(supabase, organizationId, "voice_calls");
+  if (!entitlement.allowed) {
+    return fail(
+      "feature_not_available",
+      entitlement.reason ?? "Chamadas de voz não estão disponíveis para esta organização.",
+      403,
+      { requestId: opts.requestId },
+    );
+  }
+
   let escolha: EscolhaDeVoz;
   try {
     ({ escolha } = await lerEscolhaDaOrg(supabase, organizationId));

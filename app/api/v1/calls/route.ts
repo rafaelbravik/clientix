@@ -32,6 +32,7 @@ import { requireRole } from "@/lib/auth/require-role";
 import { createCallSchema, listCallsQuerySchema } from "@/lib/schemas/calls";
 import { validateRequest } from "@/lib/schemas/_validate";
 import { createClient } from "@/lib/supabase/server";
+import { checkFeatureQuota } from "@/lib/tenant/plan-limits";
 import { originateCall } from "@/lib/voip/ariClient";
 
 export const dynamic = "force-dynamic";
@@ -77,7 +78,10 @@ export async function GET(req: NextRequest): Promise<Response> {
   const params = Object.fromEntries(new URL(req.url).searchParams.entries());
   const parsed = listCallsQuerySchema.safeParse(params);
   if (!parsed.success) {
-    return fail("validation_failed", "Query inválida.", 422, { requestId, details: parsed.error.flatten() });
+    return fail("validation_failed", "Query inválida.", 422, {
+      requestId,
+      details: parsed.error.flatten(),
+    });
   }
   const q = parsed.data;
 
@@ -151,6 +155,19 @@ export async function POST(req: NextRequest): Promise<Response> {
 
   const supabase = await createClient();
 
+  // Esta rota SIP é uma segunda entrada de voz, fora do fluxo WaCalls. Ela
+  // precisa consultar o mesmo entitlement de plano antes de ler o trunk,
+  // gravar a chamada ou iniciar a discagem.
+  const entitlement = await checkFeatureQuota(supabase, activeOrg.orgId, "voice_calls");
+  if (!entitlement.allowed) {
+    return fail(
+      "feature_not_available",
+      entitlement.reason ?? "Chamadas de voz não estão disponíveis para esta organização.",
+      403,
+      { requestId },
+    );
+  }
+
   // Trunk da organização (Configurações > Trunk SIP) — fallback pro env pra
   // quem ainda não cadastrou nada na tela.
   const { data: trunkConfig } = await supabase
@@ -159,7 +176,9 @@ export async function POST(req: NextRequest): Promise<Response> {
     .eq("organization_id", activeOrg.orgId)
     .maybeSingle();
   const trunkEndpoint =
-    trunkConfig && trunkConfig.is_active ? trunkConfig.endpoint_name : process.env.VOIP_TRUNK_ENDPOINT;
+    trunkConfig && trunkConfig.is_active
+      ? trunkConfig.endpoint_name
+      : process.env.VOIP_TRUNK_ENDPOINT;
   if (!trunkEndpoint) {
     return fail(
       "trunk_not_configured",
@@ -195,7 +214,9 @@ export async function POST(req: NextRequest): Promise<Response> {
     .single();
 
   if (insertError || !callRow) {
-    return fail("internal_error", insertError?.message ?? "failed_to_create_call", 500, { requestId });
+    return fail("internal_error", insertError?.message ?? "failed_to_create_call", 500, {
+      requestId,
+    });
   }
 
   try {
@@ -219,7 +240,12 @@ export async function POST(req: NextRequest): Promise<Response> {
 
     return ok({ callId: callRow.id, channelId: channel.id }, { status: 201, requestId });
   } catch (err) {
-    await supabase.from("voice_calls").update({ status: "ended", end_reason: "failed" }).eq("id", callRow.id);
-    return fail("originate_failed", err instanceof Error ? err.message : "originate_failed", 502, { requestId });
+    await supabase
+      .from("voice_calls")
+      .update({ status: "ended", end_reason: "failed" })
+      .eq("id", callRow.id);
+    return fail("originate_failed", err instanceof Error ? err.message : "originate_failed", 502, {
+      requestId,
+    });
   }
 }

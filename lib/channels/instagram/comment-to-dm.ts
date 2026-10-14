@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { instagramReplyComment, instagramSendMessage } from "./client";
+import { findActiveConversationForChannel } from "../conversation-isolation";
+import { checkFeatureQuota } from "@/lib/tenant/plan-limits";
 import { logger } from "@/lib/logger";
 
 export interface CommentRule {
@@ -59,7 +61,9 @@ export async function processCommentToDm(
 ): Promise<{ triggeredRules: string[]; dmSent: boolean }> {
   const { data: rules, error } = await admin
     .from("instagram_comment_rules")
-    .select("id, name, active, post_id, keyword_mode, keywords, reply_comment, dm_message, agent_id")
+    .select(
+      "id, name, active, post_id, keyword_mode, keywords, reply_comment, dm_message, agent_id",
+    )
     .eq("organization_id", opts.organizationId)
     .eq("channel_session_id", opts.channelSessionId)
     .eq("active", true);
@@ -73,6 +77,15 @@ export async function processCommentToDm(
   );
 
   if (matchedRules.length === 0) {
+    return { triggeredRules: [], dmSent: false };
+  }
+
+  const entitlement = await checkFeatureQuota(admin, opts.organizationId, "comment_to_dm");
+  if (!entitlement.allowed) {
+    logger.info("Instagram comment-to-DM bloqueado pelo entitlement da organização", {
+      organization_id: opts.organizationId,
+      reason: entitlement.reason,
+    });
     return { triggeredRules: [], dmSent: false };
   }
 
@@ -142,15 +155,12 @@ export async function processCommentToDm(
 
       if (contactId) {
         // Encontra ou abre conversa
-        const { data: conv } = await admin
-          .from("conversations")
-          .select("id")
-          .eq("organization_id", opts.organizationId)
-          .eq("contact_id", contactId)
-          .is("archived_at", null)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+        const conv = await findActiveConversationForChannel(admin, {
+          organizationId: opts.organizationId,
+          contactId,
+          channel: "instagram",
+          channelSessionId: opts.channelSessionId,
+        });
 
         let conversationId = conv?.id;
 
