@@ -25,6 +25,8 @@ export function channelBrand(
       return "messenger";
     case "tiktok":
       return "tiktok";
+    case "webchat":
+      return "widget";
     default:
       return "unknown";
   }

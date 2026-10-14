@@ -52,6 +52,7 @@ const FONTE: Record<ProviderDeMensagem, FonteDeTemplates | null> = {
   email: null,
   instagram: null,
   tiktok: null,
+  webchat: null,
 };
 
 /** `null` quando este canal não trabalha com definições aprovadas. */

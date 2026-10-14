@@ -13,6 +13,7 @@ const brands = {
   telegram: { Icon: PaperPlaneTilt, label: "Telegram", color: "text-[#229ed9] dark:text-[#38bdf8]" },
   email: { Icon: EnvelopeSimple, label: "E-mail", color: "text-[#ea4335] dark:text-[#f87171]" },
   tiktok: { Icon: ChatCircle, label: "TikTok", color: "text-foreground" },
+  widget: { Icon: ChatCircle, label: "WebChat", color: "text-primary" },
   unknown: { Icon: ChatCircle, label: "Canal", color: "text-muted-foreground" },
 };
 

@@ -165,6 +165,19 @@ export const CHANNEL_CAPABILITIES: Record<ProviderDeMensagem, ChannelCapabilitie
     costPerMessage: false,
     alteraMensagemEnviada: true,
   },
+  // WebChat é um transporte local da própria aplicação: não usa template,
+  // janela externa, grupos ou custo por mensagem.
+  webchat: {
+    freeformOutsideWindow: true,
+    requiresTemplates: false,
+    canManageTemplates: false,
+    banRisk: false,
+    minIntervalMs: null,
+    voiceNote: "unsupported",
+    groups: "none",
+    costPerMessage: false,
+    alteraMensagemEnviada: false,
+  },
 };
 
 /**
@@ -199,6 +212,8 @@ export const CHANNEL_PROVIDER_INSTAGRAM: ChannelProvider = "instagram";
 export const CHANNEL_PROVIDER_TIKTOK: ChannelProvider = "tiktok";
 /** Canal Telegram Usuário / Userbot (MTProto). */
 export const CHANNEL_PROVIDER_TELEGRAM_USER: ChannelProvider = "telegram_user";
+/** Chat incorporável atendido pelo próprio Inbox do Clientix. */
+export const CHANNEL_PROVIDER_WEBCHAT: ChannelProvider = "webchat";
 /** Chamada de voz WhatsApp (spec 18). Não transporta mensagem — ver abaixo. */
 export const CHANNEL_PROVIDER_WACALLS: ChannelProvider = "wacalls";
 
@@ -228,6 +243,7 @@ export const PROVIDERS_DE_MENSAGEM = [
   "instagram",
   "tiktok",
   "telegram_user",
+  "webchat",
 ] as const satisfies readonly ProviderDeMensagem[];
 
 /**

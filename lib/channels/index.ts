@@ -10,6 +10,7 @@ import { telegramAdapter } from "./adapters/telegram";
 import { telegramUserAdapter } from "./adapters/telegram-user";
 import { tiktokAdapter } from "./adapters/tiktok";
 import { wahaAdapter } from "./adapters/waha";
+import { webchatAdapter } from "./adapters/webchat";
 import { socialAdapter } from "./social/adapter";
 import { zernioAdapter } from "./adapters/zernio";
 import type { ChannelAdapter, ChannelProvider, ProviderDeMensagem } from "./types";
@@ -29,6 +30,7 @@ const ADAPTERS: Record<ProviderDeMensagem, ChannelAdapter | null> = {
   email: emailAdapter,
   instagram: instagramAdapter,
   tiktok: tiktokAdapter,
+  webchat: webchatAdapter,
 };
 
 /**

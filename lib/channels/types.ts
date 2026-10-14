@@ -9,7 +9,7 @@ import type { OutboundMedia } from "@/lib/waha/media-send";
 
 export type { OutboundMedia };
 
-export type ChannelProvider = "waha" | "meta_cloud" | "zernio" | "zernio_social" | "wacalls" | "datafy" | "telegram" | "email" | "instagram" | "tiktok" | "telegram_user";
+export type ChannelProvider = "waha" | "meta_cloud" | "zernio" | "zernio_social" | "wacalls" | "datafy" | "telegram" | "email" | "instagram" | "tiktok" | "telegram_user" | "webchat";
 
 /**
  * Os providers que transportam MENSAGEM — o subconjunto sobre o qual a matriz
@@ -50,7 +50,7 @@ export interface ChannelCapabilities {
   /** Intervalo mínimo imposto PELA PLATAFORMA entre msgs ao mesmo destinatário (ms). */
   minIntervalMs: number | null;
   /** 'server-convert' = o canal converte áudio; 'opus-only' = precisamos entregar ogg/opus. */
-  voiceNote: "server-convert" | "opus-only";
+  voiceNote: "server-convert" | "opus-only" | "unsupported";
   groups: "full" | "limited" | "none";
   /** Mensagem entregue gera custo → decisões de envio precisam considerar orçamento. */
   costPerMessage: boolean;
@@ -71,6 +71,8 @@ export type OutboundKind = SendMessageInput["type"];
 export interface RecipientInput {
   isGroup: boolean;
   groupChatId: string | null;
+  /** Identificador da conversa no provider, quando ela é a própria caixa do canal. */
+  providerConversationId?: string | null;
   phoneNumber: string | null | undefined;
   /** `contacts.wa_identity` (migration 0027): 'phone:+E164' | 'lid:<digits>' | null. */
   waIdentity: string | null | undefined;
