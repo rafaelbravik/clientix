@@ -169,7 +169,19 @@ export OWNER_EMAIL="${OWNER_EMAIL:-admin@admin.com}"
 # o IP da VM na rede (não 127.0.0.1): qualquer máquina da mesma rede alcançaria
 # o CRM com uma credencial que está no GitHub. Quem quiser escolher a senha
 # exporta OWNER_PASSWORD antes de chamar o script.
-export OWNER_PASSWORD="${OWNER_PASSWORD:-$(openssl rand -base64 18)}"
+if [[ -z "${OWNER_PASSWORD:-}" ]]; then
+  if [[ ! -t 0 ]]; then
+    echo "Defina OWNER_PASSWORD no ambiente para execucao nao interativa." >&2
+    exit 1
+  fi
+  read -r -s -p "Senha inicial do proprietario: " OWNER_PASSWORD || {
+    printf "\n" >&2
+    echo "Nao foi possivel ler a senha inicial." >&2
+    exit 1
+  }
+  printf "\n"
+fi
+export OWNER_PASSWORD
 export OWNER_ORG_NAME="Deskcomm Local"
 export APP_LOCALE="pt-BR"
 
@@ -185,5 +197,5 @@ echo "🛑 Parar:  ./scripts/local-stack.sh down"
 echo ""
 echo "🔑 Credenciais do Administrador:"
 echo "   E-mail: $OWNER_EMAIL"
-echo "   Senha:  $OWNER_PASSWORD"
+echo "   Senha: definida (valor omitido)"
 printf '\033[32m================================================================\033[0m\n'

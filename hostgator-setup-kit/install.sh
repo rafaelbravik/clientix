@@ -1775,8 +1775,12 @@ esac
   envq WACALLS_API_TOKEN "$WACALLS_API_TOKEN"
   printf '# "true" exige assinatura em todo webhook do WAHA. O WAHA Core NÃO assina,\n'
   printf '# então ligar isto sem um WAHA Plus (ou proxy que assine) para a ingestão\n'
-  printf '# de mensagens. A rota global já não é publicada na internet (ver Caddyfile).\n'
+  printf '# de mensagens. Com true, WAHA_HMAC_SECRET deve ter >=16 caracteres.\n'
+  printf '# A rota global já não é publicada na internet (ver Caddyfile).\n'
   envq WAHA_WEBHOOK_REQUIRE_SIGNATURE "${WAHA_WEBHOOK_REQUIRE_SIGNATURE:-false}"
+  printf '# Telegram User/MTProto é parcial: sem inbound no dispatcher; gateway vazio = desativado.\n'
+  printf '# Quando configurado, use um gateway HTTPS confiável.\n'
+  envq TELEGRAM_MTPROTO_GATEWAY_URL "${TELEGRAM_MTPROTO_GATEWAY_URL:-}"
   printf '# Retoma as sessões já pareadas quando o contêiner do transporte reinicia.\n'
   printf '# Sem isto o número segue pareado no volume e MUDO até alguém abrir a tela\n'
   printf '# e clicar Reconectar — nada entra nem sai nesse meio-tempo.\n'

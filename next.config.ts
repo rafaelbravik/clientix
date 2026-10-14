@@ -92,6 +92,15 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        // O iframe é a superfície pública do widget incorporável; o restante
+        // da aplicação continua protegido pelo X-Frame-Options global abaixo.
+        source: "/chat/embed/:widgetPublicId",
+        headers: [
+          { key: "Content-Security-Policy", value: "frame-ancestors *" },
+          { key: "X-Frame-Options", value: "" },
+        ],
+      },
+      {
         source: "/notify-sw.js",
         headers: [
           { key: "Cache-Control", value: "no-cache" },

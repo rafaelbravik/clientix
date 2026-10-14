@@ -252,31 +252,12 @@ async function cmdStatus(jsonMode = false) {
     const schemaEvidence = deriveCurrentSchema(state, manifest);
     if (!schemaEvidence.valid) checksumOk = false;
 
-    if (state.type === 'TRACKED_INSTALLATION') {
+    if (state.type === 'TRACKED_INSTALLATION' && schemaEvidence.valid) {
       const appliedMap = new Map(state.applied.map((r) => [r.version, r]));
-      
-      // Verifica baseline incorporado
-      const baselineVersion = formatSchemaSequence(Number(manifest.baseline.incorporated_through_sequence));
-      const baselineRow = baselineVersion ? appliedMap.get('baseline:' + baselineVersion) : undefined;
-      if (baselineRow && baselineRow.checksum !== manifest.baseline.checksum &&
-          baselineVersion === manifest.schema_target) {
-        checksumOk = false;
-      }
-
-      // Migrações incrementais
-      for (const mig of manifest.migrations) {
-        if (mig.sequence <= manifest.baseline.incorporated_through_sequence) {
-          continue; // Já contemplado pelo baseline
-        }
-        const app = appliedMap.get(mig.version);
-        if (!app) {
-          pending.push(mig);
-        } else if (app.checksum !== mig.checksum) {
-          checksumOk = false;
-        }
-      }
-    } else if (state.type === 'FRESH_DATABASE') {
-      pending = manifest.migrations;
+      const currentSequence = Number(schemaEvidence.currentSchema);
+      pending = manifest.migrations.filter((mig) =>
+        mig.sequence > currentSequence && !appliedMap.has(mig.version)
+      );
     }
 
     const payload = {
@@ -337,6 +318,10 @@ async function cmdCheck() {
 
     // Valida checksums das registradas
     const appliedMap = new Map(state.applied.map((r) => [r.version, r]));
+    const schemaEvidence = deriveCurrentSchema(state, manifest);
+    if (!schemaEvidence.valid) {
+      throw new Error(schemaEvidence.error || 'CURRENT_SCHEMA_UNAVAILABLE');
+    }
     const baselineSequence = formatSchemaSequence(Number(manifest.baseline.incorporated_through_sequence));
     const baselineRow = baselineSequence ? appliedMap.get('baseline:' + baselineSequence) : undefined;
     if (baselineRow && baselineRow.checksum !== manifest.baseline.checksum) {
@@ -345,7 +330,6 @@ async function cmdCheck() {
     }
 
     for (const mig of manifest.migrations) {
-      if (mig.sequence <= manifest.baseline.incorporated_through_sequence) continue;
       const app = appliedMap.get(mig.version);
       if (app) {
         if (app.checksum !== mig.checksum) {
@@ -567,8 +551,14 @@ async function cmdUpdate(args = []) {
       process.exit(7);
     }
 
+    const schemaEvidence = deriveCurrentSchema(state, manifest);
+    if (!schemaEvidence.valid || !schemaEvidence.currentSchema) {
+      throw new Error(schemaEvidence.error || 'CURRENT_SCHEMA_UNAVAILABLE');
+    }
+    const currentSequence = Number(schemaEvidence.currentSchema);
     const appliedMap = new Map(state.applied.map((r) => [r.version, r]));
     const pending = [];
+    const registeredByVersion = new Map((manifest.migrations || []).map((migration) => [migration.version, migration]));
 
     // Localiza migrações disponíveis que ainda não foram aplicadas
     const allFiles = fs.readdirSync(paths.migrationsDir).filter((f) => f.endsWith('.sql')).sort();
@@ -577,12 +567,26 @@ async function cmdUpdate(args = []) {
       if (!m) continue;
       const version = m[1];
       const seq = parseInt(m[2], 10);
-      if (seq <= manifest.baseline.incorporated_through_sequence) continue;
+      if (seq <= currentSequence) continue;
 
-      if (!appliedMap.has(version)) {
-        const fullPath = path.join(paths.migrationsDir, f);
-        const content = fs.readFileSync(fullPath);
-        const checksum = crypto.createHash('sha256').update(content).digest('hex');
+      const registered = registeredByVersion.get(version);
+      if (!registered || registered.file !== f || registered.sequence !== seq) {
+        throw new Error('MIGRATION_REGISTRY_MISMATCH: ' + f);
+      }
+
+      const fullPath = path.join(paths.migrationsDir, f);
+      const content = fs.readFileSync(fullPath);
+      const checksum = crypto.createHash('sha256').update(content).digest('hex');
+      if (checksum !== registered.checksum) {
+        throw new Error('MIGRATION_CHECKSUM_MISMATCH: ' + f);
+      }
+
+      const applied = appliedMap.get(version);
+      if (applied) {
+        if (applied.checksum !== checksum) {
+          throw new Error('MIGRATION_CHECKSUM_MISMATCH: ' + f);
+        }
+      } else {
         pending.push({ file: f, version, name: m[3], path: fullPath, checksum });
       }
     }

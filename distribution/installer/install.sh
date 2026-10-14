@@ -212,6 +212,15 @@ validate_config_evolution() {
       if [ -z "${!key:-}" ]; then missing+=("$key"); fi
     done
   fi
+  if [[ ",${COMPOSE_PROFILES:-}," == *,voz,* ]]; then
+    for key in WACALLS_API_BASE_URL WACALLS_API_TOKEN WACALLS_ADMIN_USER WACALLS_ADMIN_PASSWORD; do
+      if [ -z "${!key:-}" ]; then missing+=("$key"); fi
+    done
+    if [[ ! "${WACALLS_WEBRTC_UDP_PORT:-7881}" =~ ^[0-9]+$ ]] ||
+      [ "${WACALLS_WEBRTC_UDP_PORT:-7881}" -lt 1 ] || [ "${WACALLS_WEBRTC_UDP_PORT:-7881}" -gt 65535 ]; then
+      missing+=(WACALLS_WEBRTC_UDP_PORT_must_be_1_to_65535)
+    fi
+  fi
   [ ${#missing[@]} -eq 0 ] || die "MISSING_REQUIRED_CONFIG: Variáveis obrigatórias ausentes no .env: ${missing[*]}"
   log "Validação de configuração concluída: OK."
 }
@@ -219,7 +228,7 @@ validate_config_evolution() {
 # Credenciais e URLs de serviços independentes do pacote comercial. Nenhum
 # endpoint recebe defaults locais: o Supabase, Upstash e WAHA são externos.
 validate_external_config() {
-  local missing=() key
+  local missing=() key webhook_secret="${WAHA_HMAC_SECRET:-}"
   local required=(NEXT_PUBLIC_APP_URL NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY SUPABASE_DB_URL SUPABASE_DB_ADMIN_URL WAHA_API_BASE_URL WAHA_API_KEY WAHA_WEBHOOK_BASE_URL UPSTASH_REDIS_REST_URL UPSTASH_REDIS_REST_TOKEN)
   for key in "${required[@]}"; do
     if [ -z "${!key:-}" ]; then missing+=("$key"); fi
@@ -229,8 +238,15 @@ validate_external_config() {
       if [ -z "${!key:-}" ]; then missing+=("$key"); fi
     done
   fi
-  if [ "${WAHA_WEBHOOK_REQUIRE_SIGNATURE:-false}" = "true" ] && [ -z "${WAHA_HMAC_SECRET:-}" ]; then
+  if [ "${WAHA_WEBHOOK_REQUIRE_SIGNATURE:-false}" != "true" ] && [ "${WAHA_WEBHOOK_REQUIRE_SIGNATURE:-false}" != "false" ]; then
+    missing+=(WAHA_WEBHOOK_REQUIRE_SIGNATURE_must_be_true_or_false)
+  fi
+  if [ "${WAHA_WEBHOOK_REQUIRE_SIGNATURE:-false}" = "true" ] && [ "${#webhook_secret}" -lt 16 ]; then
     missing+=(WAHA_HMAC_SECRET)
+  fi
+  if [ -n "${TELEGRAM_MTPROTO_GATEWAY_URL:-}" ] &&
+    [[ ! "${TELEGRAM_MTPROTO_GATEWAY_URL}" =~ ^https://[^/@?#[:space:]]+(/[^?#[:space:]]*)?$ ]]; then
+    missing+=(TELEGRAM_MTPROTO_GATEWAY_URL_requires_https)
   fi
   [ ${#missing[@]} -eq 0 ] || die "MISSING_EXTERNAL_CONFIG: configure no .env as dependências externas: ${missing[*]}"
 }
