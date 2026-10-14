@@ -9331,7 +9331,8 @@ alter table public.channel_sessions
   add column if not exists telegram_api_hash_encrypted bytea,
   add column if not exists meta_webhook_override_uri text,
   add column if not exists meta_webhook_override_erro text,
-  add column if not exists meta_webhook_override_em timestamptz;
+  add column if not exists meta_webhook_override_em timestamptz,
+  add column if not exists webchat_public_id uuid;
 
 alter table public.channel_sessions
   drop constraint if exists channel_sessions_provider_check;
@@ -9341,7 +9342,7 @@ alter table public.channel_sessions
   -- 'wacalls' (0233), 'zernio_social' (0368), 'datafy' (0387) e canais 0503-0507 somados AQUI —
   -- UM bloco só por constraint (não duplicar drop+add por migration).
   check (provider in (
-    'waha', 'meta_cloud', 'zernio', 'zernio_social', 'wacalls', 'datafy', 'telegram', 'email', 'instagram', 'tiktok', 'telegram_user'
+    'waha', 'meta_cloud', 'zernio', 'zernio_social', 'wacalls', 'datafy', 'telegram', 'email', 'instagram', 'tiktok', 'telegram_user', 'webchat'
   ));
 
 alter table public.channel_sessions
@@ -9360,7 +9361,8 @@ alter table public.channel_sessions
     (provider = 'email'      and email_address is not null) or
     (provider = 'instagram'  and instagram_account_id is not null) or
     (provider = 'tiktok'     and tiktok_business_id is not null) or
-    (provider = 'telegram_user' and telegram_user_id is not null)
+    (provider = 'telegram_user' and telegram_user_id is not null) or
+    (provider = 'webchat' and webchat_public_id is not null)
   );
 
 comment on column public.channel_sessions.zernio_account_id is
@@ -35139,7 +35141,7 @@ comment on column public.contacts.social_identity is
 -- primeira conexão de rede social.
 alter table public.conversations drop constraint if exists conversations_channel_check;
 alter table public.conversations add constraint conversations_channel_check
-  check (channel in ('whatsapp', 'instagram', 'facebook', 'telegram', 'email', 'tiktok'));
+  check (channel in ('whatsapp', 'instagram', 'facebook', 'telegram', 'email', 'tiktok', 'webchat'));
 
 
 -- APÊNDICE 20260921030100_0369_prospeccao_nativa.sql
@@ -46497,3 +46499,45 @@ comment on column public.ai_agent_versions.inbound_debounce_ms is
 alter table public.ai_agent_versions
   add constraint ai_agent_versions_inbound_debounce_ms_check
   check (inbound_debounce_ms is null or (inbound_debounce_ms >= 0 and inbound_debounce_ms <= 60000));
+
+-- ---- WebChat anônimo com sessão limitada por conversa (migration 0511) ----
+-- channel_sessions é a identidade tenant-aware do inbox/canal. O UUID público
+-- dedicado do widget não é credencial; status WORKING habilita.
+alter table public.channel_sessions
+  add column if not exists webchat_public_id uuid;
+
+alter table public.channel_sessions
+  alter column webhook_secret_encrypted drop not null;
+
+alter table public.channel_sessions
+  drop constraint if exists channel_sessions_webhook_secret_provider_check;
+alter table public.channel_sessions
+  add constraint channel_sessions_webhook_secret_provider_check
+  check (provider = 'webchat' or webhook_secret_encrypted is not null);
+
+-- Provider/ref/conversation CHECKs already have one canonical final block above.
+-- It carries the WebChat value; duplicating drop+add here would make baseline
+-- reapplication unsafe for an installation that has already created WebChat rows.
+
+alter table public.channel_sessions
+  drop constraint if exists channel_sessions_webchat_public_id_provider_check;
+alter table public.channel_sessions
+  add constraint channel_sessions_webchat_public_id_provider_check
+  check (provider = 'webchat' or webchat_public_id is null);
+
+create unique index if not exists channel_sessions_webchat_public_id_unique
+  on public.channel_sessions (webchat_public_id)
+  where webchat_public_id is not null;
+
+create unique index if not exists channel_sessions_webchat_org_active_unique
+  on public.channel_sessions (organization_id)
+  where provider = 'webchat' and archived_at is null;
+
+comment on column public.channel_sessions.status is
+  'Para provider webchat, WORKING habilita o widget e STOPPED desabilita; não há provedor externo.';
+comment on column public.channel_sessions.webchat_public_id is
+  'Identificador público não secreto do widget. Resolve uma única sessão WebChat; o tenant vem da linha, nunca do request.';
+comment on constraint channel_sessions_webhook_secret_provider_check on public.channel_sessions is
+  'Todos os providers que recebem webhook exigem webhook_secret_encrypted; WebChat não recebe webhooks.';
+
+grant select (webchat_public_id) on public.channel_sessions to authenticated;

@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "generated_at": "2026-10-08T09:21:35.379Z",
-  "schema_target": "0510",
+  "generated_at": "2026-10-10T22:50:42.605Z",
+  "schema_target": "0511",
   "baseline": {
     "file": "baseline.sql",
-    "checksum": "c5655e5f08cc0e02b7b70bac94c01ce7aa6be4452f6b89c2812568a194da42db",
-    "size_bytes": 2395929,
-    "incorporated_through_sequence": 510
+    "checksum": "056e730d7478ff0734d2628d3e76d8436a777eacf877141805788a423207d64c",
+    "size_bytes": 2398262,
+    "incorporated_through_sequence": 511
   },
   "migrations": [
     {
@@ -3327,6 +3327,14 @@
       "sequence": 510,
       "slug": "protecao_atomica_sobreposicao_agenda",
       "checksum": "4bcac182ee020da2b81781576d1df0d6439ddb2756ec8238fba1001b859d4731",
+      "transactional": true
+    },
+    {
+      "file": "20261010120000_0511_webchat_widget_bootstrap.sql",
+      "version": "20261010120000",
+      "sequence": 511,
+      "slug": "webchat_widget_bootstrap",
+      "checksum": "4b3592d5624049029311fcbd9b4bef82fa5bce91ec56a752bf21e1d211e7f9d3",
       "transactional": true
     }
   ]
