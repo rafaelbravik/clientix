@@ -10,11 +10,11 @@ COPY package.json pnpm-lock.yaml ./
 COPY patches ./patches
 RUN pnpm install --frozen-lockfile
 
-# ---- build: gera .next/standalone ----
-FROM node:22-alpine AS build
+# ---- build-base: fontes e dependências sem credenciais de runtime ----
+FROM deps AS build-base
 WORKDIR /app
-RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
-COPY --from=deps /app/node_modules ./node_modules
+# Herda o store pnpm do estágio `deps` para permitir a instalação offline e
+# isolada da árvore customer sem duplicar dependências nem acessar segredos.
 COPY . .
 
 # IMAGEM GENÉRICA: os NEXT_PUBLIC_* recebem placeholders no build. Os valores
@@ -39,11 +39,15 @@ ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
     NEXT_TELEMETRY_DISABLED=1 \
     NODE_OPTIONS=--max-old-space-size=4096
 
-# Turbopack (`pnpm build`): ~4min vs ~34min do webpack num VPS. O bloco `webpack:`
+# Turbopack: ~4min vs ~34min do webpack num VPS. O bloco `webpack:`
 # do Sentry (tree-shake + upload de sourcemap em build-time) é ignorado, mas o
 # Sentry RUNTIME segue ativo (DSN hardcoded nas configs); aqui o ganho de tempo
 # de build é o que importa pro leigo.
-RUN pnpm build
+
+# ---- build-customer: rotas vendor e fonte do Control Plane fora do projeto Next ----
+FROM build-base AS build-customer
+ENV NEXT_PUBLIC_CLIENTIX_BUILD_TARGET=customer
+RUN pnpm build:customer -- /app/clientix-customer-build-output
 
 # `outputFileTracingIncludes` (next.config.ts) copia o CONTEÚDO de pdfjs-dist e
 # @napi-rs/canvas pro standalone, mas não os DOIS SYMLINKS que pnpm cria e que a
@@ -71,6 +75,18 @@ RUN pnpm build
 # '/app/.next/server/chunks/pdf.worker.mjs'" — um SEGUNDO arquivo ausente,
 # de causa diferente dos dois symlinks, e só aparece testando o bundle real.
 RUN PDFJS_DIR=$(basename node_modules/.pnpm/pdfjs-dist@*) && \
+    cp -a "node_modules/pdfjs-dist" "/app/clientix-customer-build-output/standalone/node_modules/pdfjs-dist" && \
+    mkdir -p "/app/clientix-customer-build-output/standalone/node_modules/.pnpm/$PDFJS_DIR/node_modules/@napi-rs" && \
+    cp -a "node_modules/.pnpm/$PDFJS_DIR/node_modules/@napi-rs/canvas" \
+          "/app/clientix-customer-build-output/standalone/node_modules/.pnpm/$PDFJS_DIR/node_modules/@napi-rs/canvas" && \
+    cp "node_modules/.pnpm/$PDFJS_DIR/node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs" \
+       "/app/clientix-customer-build-output/standalone/.next/server/chunks/pdf.worker.mjs"
+
+# ---- build-vendor: mantém a aplicação integrada de administração/licenciamento ----
+FROM build-base AS build-vendor
+ENV NEXT_PUBLIC_CLIENTIX_BUILD_TARGET=vendor
+RUN pnpm build
+RUN PDFJS_DIR=$(basename node_modules/.pnpm/pdfjs-dist@*) && \
     cp -a "node_modules/pdfjs-dist" ".next/standalone/node_modules/pdfjs-dist" && \
     mkdir -p ".next/standalone/node_modules/.pnpm/$PDFJS_DIR/node_modules/@napi-rs" && \
     cp -a "node_modules/.pnpm/$PDFJS_DIR/node_modules/@napi-rs/canvas" \
@@ -78,8 +94,8 @@ RUN PDFJS_DIR=$(basename node_modules/.pnpm/pdfjs-dist@*) && \
     cp "node_modules/.pnpm/$PDFJS_DIR/node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs" \
        ".next/standalone/.next/server/chunks/pdf.worker.mjs"
 
-# ---- runner: imagem slim de produção ----
-FROM node:22-alpine AS runner
+# ---- runtime-base: imagem slim comum aos dois artefatos ----
+FROM node:22-alpine AS runtime-base
 WORKDIR /app
 
 # Procedência (doutrina de packaging, invariante 2). O CI já injeta os labels
@@ -122,12 +138,22 @@ RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001
 # Declarada AQUI, depois das camadas caras (ver acima).
 ARG APP_VERSION=dev
 ENV APP_VERSION=$APP_VERSION
-# O output standalone NÃO inclui public/ nem .next/static — copiar explicitamente,
-# senão CSS/JS/assets retornam 404 (app "sem estilo").
-COPY --from=build --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=build --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=build --chown=nextjs:nodejs /app/public ./public
 USER nextjs
 EXPOSE 3000
+
+# ---- vendor: artefato integrado para a implantação interna do fornecedor ----
+FROM runtime-base AS vendor
+COPY --from=build-vendor --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=build-vendor --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=build-vendor --chown=nextjs:nodejs /app/public ./public
+CMD ["node", "server.js"]
+
+# ---- runner: imagem padrão do cliente self-host ----
+FROM runtime-base AS runner
+# O output standalone NÃO inclui public/ nem .next/static — copiar explicitamente,
+# senão CSS/JS/assets retornam 404 (app "sem estilo").
+COPY --from=build-customer --chown=nextjs:nodejs /app/clientix-customer-build-output/standalone ./
+COPY --from=build-customer --chown=nextjs:nodejs /app/clientix-customer-build-output/static ./.next/static
+COPY --from=build-customer --chown=nextjs:nodejs /app/clientix-customer-build-output/public ./public
 # server.js é o entrypoint gerado pelo output standalone.
 CMD ["node", "server.js"]

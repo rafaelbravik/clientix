@@ -30,26 +30,47 @@ algum=nao
 while IFS= read -r caminho || [ -n "$caminho" ]; do
   [ -z "$caminho" ] && continue
   algum=sim
+  # Docker normaliza a barra inicial/final dos padrões do .dockerignore; os
+  # caminhos de git diff chegam relativos e sem barras de moldura.
+  caminho="${caminho#/}"
   case "$caminho" in
     .github/workflows/publish-image.yml) echo sim; exit 0 ;;
+    # Código TypeScript sob .github permanece relevante para o typecheck do app.
+    .github/*.ts | .github/**/*.ts) echo sim; exit 0 ;;
     # ↓ espelho do .dockerignore — os diretórios. Padrão de .dockerignore sem
     # barra casa só na RAIZ do contexto, e `*` de `case` atravessa `/`: por
     # isso todo padrão aqui começa pelo nome do diretório da raiz.
-    evidence | .superpowers) ;;
+    evidence | .superpowers | clientix-customer-build-output | .clientix-customer-build-*) ;;
     node_modules/* | .next/* | .git/* | test-results/* | tests/* | .lina/* \
       | docs/* | tasks/* | scratchpad/* | .vercel/* | .claude/* | .agents/* \
       | .agent/* | .codex/* | .cursor/* | .opencode/* | .specs/* | .changes/* \
-      | evidence/* | .superpowers/*) ;;
+      | evidence/* | .superpowers/* | clientix-customer-build-output/* \
+      | .clientix-customer-build-*/*) ;;
+    # Diretórios/arquivos secretos e locais excluídos em qualquer profundidade.
+    */.env | */.env/* | */.env.* | */.env.*/amostra \
+      | */.npmrc | */.npmrc/* | */.pypirc | */.pypirc/* | */.netrc | */.netrc/* \
+      | */*.key | */*.key/* | */*.p8 | */*.p8/* | */*.p12 | */*.p12/* \
+      | */*.pfx | */*.pfx/* | */*.pem | */*.pem/* \
+      | */id_ed25519 | */id_ed25519/* | */id_ecdsa | */id_ecdsa/* \
+      | */id_rsa | */id_rsa/*) ;;
+    .github/*) ;;
     # Arquivos de teste co-localizados e os dois scripts de validação do kit não
     # entram nas imagens; alterações neles não exigem rebuild do app.
     **/*.test.ts | **/*.test.tsx | **/*.test.js | **/*.test.sh \
       | hostgator-setup-kit/test-validators.sh) ;;
     .github/*.yml | .github/*.yaml | .github/*.md) ;;
-    # Daqui para baixo, só arquivo da RAIZ: qualquer outro caminho com `/` alcança.
+    # Artefatos de auditoria/documentação no contexto raiz não são runtime.
+    AUDIT_REPORT.md | AUDIT_REPORT.md/* | CLIENTIX_R*.md | CLIENTIX_R*.md/* \
+      | MANUAL-*.md | MANUAL-*.md/* | REMEDIATION_PLAN.md | REMEDIATION_PLAN.md/* \
+      | ROADMAP-CLIENTIX.md | ROADMAP-CLIENTIX.md/* \
+      | reports | reports/* | manuals | manuals/* | certification | certification/*) ;;
+    # Qualquer caminho aninhado entra na imagem, salvo padrões acima que
+    # representam exclusões em qualquer profundidade.
     */*) echo sim; exit 0 ;;
     # ↓ espelho do .dockerignore — os arquivos da raiz.
-    .env | .env.* | .e2e-creds.json | playwright.config.ts | ubuntu-local-installer.sh \
-      | *.png | *.log | *.tsbuildinfo) ;;
+    .env | .env/* | .env.* | .env.*/amostra | .npmrc | .npmrc/* | .pypirc | .pypirc/* \
+      | .netrc | .netrc/* | .e2e-creds.json | playwright.config.ts \
+      | ubuntu-local-installer.sh | *.png | *.log | *.tsbuildinfo) ;;
     *.md) ;;
     *) echo sim; exit 0 ;;
   esac

@@ -8,8 +8,21 @@ FROM node:22-alpine AS builder
 WORKDIR /build
 RUN npm init -y && npm install pg@8.23.0 --production
 
+# O migrador customer remove as funções e as referências executáveis ao contexto
+# de suporte no SQL empacotado. O target vendor continua recebendo o baseline
+# original para preservar impersonation e support_readonly.
+FROM node:22-alpine AS customer-schema
+
+WORKDIR /build
+COPY supabase/baseline.sql ./baseline.sql
+COPY supabase/manifest.json ./manifest.json
+COPY scripts/build-customer-baseline.mjs ./build-customer-baseline.mjs
+RUN node ./build-customer-baseline.mjs \
+    ./baseline.sql ./manifest.json \
+    ./baseline.customer.sql ./manifest.customer.json
+
 # ── Runtime Final Mínimo ──────────────────────────────────────────────────────
-FROM node:22-alpine
+FROM node:22-alpine AS runtime-base
 
 RUN apk add --no-cache postgresql17-client bash \
     && addgroup -g 10001 -S clientix \
@@ -21,9 +34,7 @@ WORKDIR /app
 COPY --from=builder /build/node_modules ./node_modules
 
 # Copia artefatos de migração isolados (zero código fonte Next.js, zero workers, zero tests)
-COPY supabase/baseline.sql ./sql/baseline.sql
 COPY supabase/migrations ./sql/migrations
-COPY supabase/manifest.json ./manifest/manifest.json
 COPY supabase/verify-schema.sql ./verify/verify-schema.sql
 COPY scripts/migrator/clientix-migrator.js ./bin/clientix-migrator
 
@@ -35,3 +46,15 @@ USER 10001:10001
 
 ENTRYPOINT ["/app/bin/clientix-migrator"]
 CMD ["help"]
+
+# Migração do runtime vendor: mantém o baseline original e suas funções de suporte.
+FROM runtime-base AS vendor
+COPY supabase/baseline.sql ./sql/baseline.sql
+COPY supabase/manifest.json ./manifest/manifest.json
+
+# Migração de clientes: funções normais de tenant seguem membership/RLS e não
+# dependem da persistência de suporte. A tabela legada permanece no baseline
+# apenas por compatibilidade de schema. Este é o target padrão.
+FROM runtime-base AS customer
+COPY --from=customer-schema /build/baseline.customer.sql ./sql/baseline.sql
+COPY --from=customer-schema /build/manifest.customer.json ./manifest/manifest.json
