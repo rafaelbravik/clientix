@@ -108,6 +108,7 @@ Detalham schema SQL e payloads exatos. **Consulte antes de modelar qualquer cois
 | [`architecture/extensoes-declarativas.architecture.json`](architecture/extensoes-declarativas.architecture.json) | Mapa vivo das extensões declarativas — admissão, download, recibos, ativação por organização e guia no CRM |
 | [`architecture/teto-de-orcamento.architecture.json`](architecture/teto-de-orcamento.architecture.json) | **Mapa vivo do teto de gasto com IA** — quem alimenta o gate, o que a parada NÃO desfaz sozinha, e o laço de retorno (invariante 7) |
 | [`architecture/webchat-widget.architecture.json`](architecture/webchat-widget.architecture.json) | Mapa vivo do WebChat: widget, tenant resolution, bootstrap, Inbox e resposta local |
+| [`architecture/control-plane-customer-boundary.architecture.json`](architecture/control-plane-customer-boundary.architecture.json) | Fronteira do artefato customer self-host com o Control Plane vendor e a licença local |
 | [`release/teto-de-orcamento.md`](release/teto-de-orcamento.md) | **Nota de release para quem opera uma VPS** — o que muda, o que fazer (nada), a troca de rótulo de R$ para US$ e como ligar a proteção |
 | [`research/architecture-diagrams.md`](research/architecture-diagrams.md) | Diagramas de arquitetura |
 | [`research/extensoes/`](research/extensoes/README.md) | Plataforma de extensões — arquitetura aprovada, bancada concluída e primeira integração provada em tela; acompanha PROG-021 |

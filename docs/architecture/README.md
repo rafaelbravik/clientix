@@ -40,6 +40,7 @@ ser fonte sem ninguém decidir isso.
 | `banco-de-dados-externo.architecture.json` | banco externo (migration 0372, recorte do PR #1130 de @vgamkt) — 14 peças, 19 arestas, 4 faixas; o cadastro por admin e a leitura por todos, a view `_safe` como única superfície da tela, a guarda de rede revalidada a CADA abertura de pool, e a **não-ligação declarada**: as tools do agente ficaram no PR de origem e entram num segundo recorte |
 | `suspensao-de-organizacao.architecture.json` | suspensão que suspende (PR 1 da cobrança do revendedor): 17 peças, 24 arestas; a régua única de "opera", a escrita do estado só por duas funções definer (e o gatilho que fecha o PostgREST), o hub `/account-suspended` e o laço de retorno pela Central até a Fila; as **não-ligações declaradas** (entrada de mensagens, landings, escrita pela RLS) estão no card do próprio mapa |
 | `webchat-widget.architecture.json` | widget público, bootstrap anônimo, conversa limitada, entrada no Inbox e resposta local ao visitante |
+| `control-plane-customer-boundary.architecture.json` | build self-host sem rotas/licença global; trust root local, suporte por instalação e pool vendor separado |
 
 > **Esta tabela já apodreceu uma vez:** ela listava 8 mapas quando o disco tinha 9 — faltava
 > `indice-de-atrito`. Nenhum teste lê este README (o gate lê os `.json`), então mapa novo que

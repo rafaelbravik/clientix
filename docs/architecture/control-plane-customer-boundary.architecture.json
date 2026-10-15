@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "titulo": "Fronteira do Control Plane e runtime do cliente",
+  "descricao": "O artefato customer mantém licenciamento local e remove administração global e impersonação; o build vendor preserva o Control Plane completo.",
+  "lanes": [
+    { "id": "contrato", "label": "Contrato e classificação" },
+    { "id": "build", "label": "Build de cliente/vendor" },
+    { "id": "cliente", "label": "Runtime do cliente" },
+    { "id": "vendor", "label": "Control Plane vendor" },
+    { "id": "guards", "label": "Provas e retorno" }
+  ],
+  "mainPath": ["policy", "customerbuild", "supportprovider", "customerartifact", "locallicense", "tests"],
+  "nodes": [
+    { "id": "policy", "lane": "contrato", "label": "customer-build-policy.ts", "sublabel": "Admin global, suporte e serviço central excluídos por caminhos explícitos", "type": "config", "dot": "blue" },
+    { "id": "customerbuild", "lane": "build", "label": "build-customer.ts", "sublabel": "Cópia temporária, ambiente allowlist e build Next isolado", "type": "service", "dot": "violet" },
+    { "id": "supportprovider", "lane": "build", "label": "support-context-provider.ts", "sublabel": "Vendor usa persistência; customer substitui por provider nulo antes de compilar", "type": "service", "dot": "violet" },
+    { "id": "customerartifact", "lane": "build", "label": "Docker alvo runner", "sublabel": "Standalone sem admin global, impersonação ou Control Plane", "type": "backend", "dot": "emerald" },
+    { "id": "locallicense", "lane": "cliente", "label": "/api/v1/system/license + lib/licensing", "sublabel": "Verifica trust root pública e aplica entitlements locais", "type": "api", "dot": "green" },
+    { "id": "localsupport", "lane": "cliente", "label": "Impersonação ausente", "sublabel": "Rotas ausentes e leitor de contexto sem acesso ao banco", "type": "security", "dot": "blue" },
+    { "id": "health", "lane": "cliente", "label": "/api/v1/health", "sublabel": "Sonda Supabase, Redis e WAHA; sem dependência central", "type": "api", "dot": "green" },
+    { "id": "vendorui", "lane": "vendor", "label": "/admin/licensing", "sublabel": "Telas Gemini de clientes, licenças, instalações e auditoria", "type": "frontend", "dot": "violet" },
+    { "id": "vendorroutes", "lane": "vendor", "label": "/api/v1/admin/licensing", "sublabel": "Leituras e mutações de autoridade global", "type": "api", "dot": "red" },
+    { "id": "provider", "lane": "vendor", "label": "admin-service-provider.ts", "sublabel": "CONTROL_PLANE_DATABASE_URL + CONTROL_PLANE_PEPPER; sem fallback customer", "type": "service", "dot": "red" },
+    { "id": "cpdb", "lane": "vendor", "label": "control_plane.*", "sublabel": "Schema central; migration proíbe aplicação no banco do cliente", "type": "database", "dot": "red" },
+    { "id": "tests", "lane": "guards", "label": "Boundary tests + route manifest scan", "sublabel": "Admin/suporte ausentes; licença local preservada", "type": "test", "dot": "amber" },
+    { "id": "providerTest", "lane": "guards", "label": "admin-service-provider.test.ts", "sublabel": "Recusa banco customer e configuração de pepper ausente", "type": "test", "dot": "amber" }
+  ],
+  "edges": [
+    { "id": "e1", "from": "policy", "to": "customerbuild", "label": "define os caminhos omitidos" },
+    { "id": "e2", "from": "customerbuild", "to": "customerartifact", "label": "compila e verifica manifesto/strings" },
+    { "id": "e15", "from": "customerbuild", "to": "supportprovider", "label": "injeta provider conforme o alvo" },
+    { "id": "e16", "from": "supportprovider", "to": "customerartifact", "label": "customer não executa RPC de suporte" },
+    { "id": "e3", "from": "customerartifact", "to": "locallicense", "label": "preserva API local" },
+    { "id": "e4", "from": "customerartifact", "to": "localsupport", "label": "remove contexto de suporte" },
+    { "id": "e5", "from": "customerartifact", "to": "health", "label": "health sem banco central" },
+    { "id": "e6", "from": "policy", "to": "vendorui", "label": "exclusão só no alvo customer" },
+    { "id": "e7", "from": "vendorui", "to": "vendorroutes", "label": "usa rotas globais" },
+    { "id": "e8", "from": "vendorroutes", "to": "provider", "label": "obtém serviço central" },
+    { "id": "e9", "from": "provider", "to": "cpdb", "label": "pool separado obrigatório" },
+    { "id": "e10", "from": "tests", "to": "policy", "label": "cobre inclusão/exclusão" },
+    { "id": "e11", "from": "tests", "to": "customerartifact", "label": "prova ausência no manifesto" },
+    { "id": "e12", "from": "providerTest", "to": "provider", "label": "falha fechado sem config própria" },
+    { "id": "e13", "from": "locallicense", "to": "tests", "label": "regressão de verificação e entitlement" },
+    { "id": "e14", "from": "health", "to": "tests", "label": "prova independência do vendor" }
+  ]
+}
