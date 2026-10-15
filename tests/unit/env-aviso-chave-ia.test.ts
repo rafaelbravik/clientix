@@ -28,8 +28,6 @@ function ambienteMinimo(): void {
   vi.stubEnv("ANTHROPIC_API_KEY", "");
   vi.stubEnv("OPENROUTER_API_KEY", "");
   vi.stubEnv("OPENAI_API_KEY", "");
-  // Evita ruído de outro aviso de boot sem relação com esta issue.
-  vi.stubEnv("IMPERSONATE_COOKIE_SECRET", "x".repeat(32));
 }
 
 async function avisosDoBoot(): Promise<string[]> {

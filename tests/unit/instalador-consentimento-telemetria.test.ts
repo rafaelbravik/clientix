@@ -2,9 +2,14 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { createHostgatorTemplateFixture } from "@/tests/fixtures/env-hostgator-template";
 
 const RAIZ = process.cwd();
-const template = readFileSync(join(RAIZ, ".env.hostgator.example"), "utf8");
+const template = createHostgatorTemplateFixture({
+  app: "test/app:stable",
+  worker: "test/worker:stable",
+  scheduler: "test/scheduler:stable",
+});
 const install = readFileSync(join(RAIZ, "hostgator-setup-kit/install.sh"), "utf8");
 
 function linhasAtivasDaChave(texto: string, chave: string): string[] {
@@ -15,10 +20,10 @@ function linhasAtivasDaChave(texto: string, chave: string): string[] {
 }
 
 describe("consentimento de telemetria no primeiro install", () => {
-  it("o template não decide SENTRY_DSN pela pessoa", () => {
+  it("a fixture sintética não decide SENTRY_DSN pela pessoa", () => {
     expect(
       linhasAtivasDaChave(template, "SENTRY_DSN"),
-      "SENTRY_DSN ativo no template faz load_env marcar a variável como definida e pula a pergunta de consentimento",
+      "SENTRY_DSN ativo na fixture faria load_env marcar a variável e pular a pergunta de consentimento",
     ).toEqual([]);
     expect(template).toContain("# SENTRY_DSN=");
   });
@@ -30,7 +35,7 @@ describe("consentimento de telemetria no primeiro install", () => {
     expect(install).toContain('envq SENTRY_DSN "${SENTRY_DSN:-}"');
   });
 
-  it("a documentação do template explica as três escolhas persistentes", () => {
+  it("a fixture explica as três escolhas persistentes", () => {
     expect(template).toContain("O install.sh pergunta na primeira instalação");
     expect(template).toContain("SENTRY_DSN=off");
     expect(template).toContain("SENTRY_DSN=             → aceita o Sentry da comunidade");

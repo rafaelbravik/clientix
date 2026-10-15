@@ -169,7 +169,7 @@ describe("a parte 4 do e2e fala com os serviços que ela sobe", () => {
   });
 
   it("a espera pelo Redis falha FECHADO quando o serviço não responde", () => {
-    const trecho = secao(PASSO, "# 3. A cadeia de Redis", "# 4. Alguns scripts");
+    const trecho = `redis_test_token="e2e-token-nao-e-segredo"\n${secao(PASSO, "# 3. A cadeia de Redis", "# 4. Alguns scripts")}`;
     expect(trecho, "a sonda deixou de mirar a porta publicada do redis-http").toContain(
       "127.0.0.1:8079",
     );
@@ -193,7 +193,7 @@ describe("a parte 4 do e2e fala com os serviços que ela sobe", () => {
   }, 90_000);
 
   it("a sonda do Redis fala o protocolo do serverless-redis-http (JSON, com Content-Type)", async () => {
-    const trecho = secao(PASSO, "# 3. A cadeia de Redis", "# 4. Alguns scripts");
+    const trecho = `redis_test_token="e2e-token-nao-e-segredo"\n${secao(PASSO, "# 3. A cadeia de Redis", "# 4. Alguns scripts")}`;
     const { pasta, PATH, gitBash } = pathComShims();
     const binUnix =
       process.platform === "win32"

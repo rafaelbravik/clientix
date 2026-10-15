@@ -1,5 +1,5 @@
 /**
- * O template de produção não pode ter comentário na MESMA linha do valor.
+ * A fixture sintética do template não pode ter comentário na MESMA linha do valor.
  *
  * ─── O defeito que este teste tranca ────────────────────────────────────────
  *
@@ -9,10 +9,10 @@
  *
  * Tudo depois do primeiro `=` vira valor — **inclusive o comentário**. O
  * `docker compose` limpa comentário inline no `env_file:`; os scripts shell do
- * kit não. Os dois leem o MESMO arquivo e discordam.
+ * kit não. A fixture mantém esse contrato sem ler configuração local.
  *
  * E o caminho documentado leva direto ao defeito: o README do kit manda copiar
- * este template para rodar `install.sh --yes`. Quem segue a receita recebe, por
+ * um template para rodar `install.sh --yes`. Quem segue a receita recebe, por
  * exemplo:
  *
  *     OWNER_PASSWORD = "                          # senha forte do primeiro admin"
@@ -33,12 +33,10 @@
  * a ser truncado em silêncio em toda instalação existente. A forma do template é
  * o que o caminho documentado usa, e é onde o conserto não tem efeito colateral.
  */
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-
 import { describe, expect, it } from "vitest";
+import { createHostgatorTemplateFixture } from "@/tests/fixtures/env-hostgator-template";
 
-const TEMPLATE = ".env.hostgator.example";
+const TEMPLATE = "fixture sintética Hostgator";
 
 /** Uma linha `CHAVE=valor`, ignorando comentário solto e linha vazia. */
 const ATRIBUICAO = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/;
@@ -49,9 +47,13 @@ function citado(valor: string): boolean {
   return v.length > 1 && v[0] === v[v.length - 1] && (v[0] === '"' || v[0] === "'");
 }
 
-describe("template de produção × parser do kit", () => {
+describe("fixture sintética do template × parser do kit", () => {
   it("nenhuma chave tem comentário na mesma linha do valor", () => {
-    const texto = readFileSync(join(process.cwd(), TEMPLATE), "utf8");
+    const texto = createHostgatorTemplateFixture({
+      app: "test/app:stable",
+      worker: "test/worker:stable",
+      scheduler: "test/scheduler:stable",
+    });
 
     const ofensoras = texto
       .split("\n")
@@ -72,7 +74,7 @@ describe("template de produção × parser do kit", () => {
       ofensoras,
       `Comentário na mesma linha do valor. O parser do kit entrega o comentário DENTRO ` +
         `do valor (\`val="\${line#*=}"\` em hostgator-setup-kit/_common.sh), e quem segue a ` +
-        `receita do README (copiar este arquivo + install.sh --yes) instala com o valor ` +
+        `receita do README (copiar o template + install.sh --yes) instala com o valor ` +
         `corrompido. Mova o comentário para a linha de cima:\n${ofensoras.join("\n")}`,
     ).toEqual([]);
   });

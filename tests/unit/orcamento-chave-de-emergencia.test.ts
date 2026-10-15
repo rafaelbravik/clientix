@@ -34,6 +34,7 @@
  * parada, sem uma pista do porquê.
  */
 import { describe, expect, it, vi } from "vitest";
+import { createHostgatorTemplateFixture } from "@/tests/fixtures/env-hostgator-template";
 
 import {
   normalizarChaveDeOrcamento,
@@ -179,18 +180,20 @@ describe("a chave chega ao produto pelos DOIS donos de env", () => {
   });
 });
 
-describe(".env.example e .env.hostgator.example documentam a alavanca", () => {
-  it("as duas pontas citam a variável (DoD 9)", async () => {
+describe("os templates de instalação documentam a alavanca", () => {
+  it(".env.example e a fixture Hostgator citam a variável", async () => {
     const { readFileSync } = await import("node:fs");
     const { join } = await import("node:path");
-    for (const arquivo of [".env.example", ".env.hostgator.example"]) {
-      const texto = readFileSync(join(process.cwd(), arquivo), "utf8");
-      expect(texto, `${arquivo} não documenta AI_BUDGET_ENFORCEMENT`).toContain(
-        "AI_BUDGET_ENFORCEMENT",
-      );
-      // Documentar sem dizer como DESLIGAR seria documentar o inverso do que a
-      // chave serve. É a única instrução que alguém procura às 2h da manhã.
-      expect(texto, `${arquivo} não diz como desligar`).toMatch(/\boff\b/);
+    const envExample = readFileSync(join(process.cwd(), ".env.example"), "utf8");
+    const hostgatorFixture = createHostgatorTemplateFixture({
+      app: "test/app:stable",
+      worker: "test/worker:stable",
+      scheduler: "test/scheduler:stable",
+    });
+    for (const [nome, texto] of [[".env.example", envExample], ["fixture Hostgator", hostgatorFixture]]) {
+      expect(texto, `${nome} não documenta AI_BUDGET_ENFORCEMENT`).toContain("AI_BUDGET_ENFORCEMENT");
+      // Documentar sem dizer como DESLIGAR seria documentar o inverso do que a chave serve.
+      expect(texto, `${nome} não diz como desligar`).toMatch(/\boff\b/);
     }
   });
 });

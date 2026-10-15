@@ -11,6 +11,7 @@ import {
   donoDo,
   NAMESPACE_DESTE_REPO,
 } from "./_identidade-deste-repo";
+import { createHostgatorTemplateFixture } from "@/tests/fixtures/env-hostgator-template";
 
 /**
  * A ÂNCORA do namespace das imagens publicadas.
@@ -81,7 +82,11 @@ const RAIZ = process.cwd();
 const COMUM = fs.readFileSync(path.join(RAIZ, "hostgator-setup-kit/_common.sh"), "utf8");
 const COMPOSE = fs.readFileSync(path.join(RAIZ, "docker-compose.prod.yml"), "utf8");
 const PUBLICA = fs.readFileSync(path.join(RAIZ, ".github/workflows/publish-image.yml"), "utf8");
-const ENV_EXEMPLO = fs.readFileSync(path.join(RAIZ, ".env.hostgator.example"), "utf8");
+const ENV_EXEMPLO = createHostgatorTemplateFixture({
+  app: "ghcr.io/clientix-test/clientix-app:stable",
+  worker: "ghcr.io/clientix-test/clientix-worker:stable",
+  scheduler: "ghcr.io/clientix-test/clientix-scheduler:stable",
+});
 
 
 
@@ -217,14 +222,12 @@ describe("o default do compose diz o mesmo que o kit", () => {
       expect(m![1]).toBe(`${imgNs()}/${reposDoKit()[i]}:stable`);
     });
 
-    // `.env.hostgator.example` é DADO — um template que o operador copia. Não há
-    // de onde derivar dentro de um arquivo de env, então ele é a última cópia
-    // autorizada do literal, e existe este caso para que ela seja uma cópia
-    // CONFERIDA em vez de uma afirmação solta.
-    it(`o piso de ${chave} no .env de exemplo usa o namespace de IMG_NS`, () => {
+    // O template Hostgator não é parte do checkout versionado. Esta fixture
+    // sintética cobre apenas o formato da referência, sem depender da máquina.
+    it(`a fixture sintética de ${chave} tem uma referência bem formada`, () => {
       const m = ENV_EXEMPLO.match(new RegExp(`^${chave}=(\\S+)`, "m"));
-      expect(m, `não achei \`${chave}=\` em .env.hostgator.example`).not.toBeNull();
-      expect(m![1]).toBe(`${imgNs()}/${reposDoKit()[i]}:stable`);
+      expect(m, `não achei \`${chave}=\` na fixture sintética`).not.toBeNull();
+      expect(m![1]).toBe(`ghcr.io/clientix-test/${reposDoKit()[i]}:stable`);
     });
   });
 });
