@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { fail } from "@/lib/api/wrappers";
+import type { SupportContext } from "@/lib/auth/support-context";
 
 export const supportSchema = z.object({
   id: z.string().uuid(), organization_id: z.string().uuid(), actor_user_id: z.string().uuid(),
@@ -8,7 +9,7 @@ export const supportSchema = z.object({
   expires_at: z.string(), name: z.string(), locale: z.string().nullable(),
   access_mode: z.enum(["full", "support_readonly"]), status: z.enum(["active", "expired", "revoked"]),
 });
-export type SupportContext = z.infer<typeof supportSchema>;
+export type { SupportContext };
 
 /** Chamar depois de getUser. A RPC resolve auth.uid + auth.session_id, nunca cookie. */
 export async function readSupportContext(db: Awaited<ReturnType<typeof createClient>>): Promise<SupportContext | null> {

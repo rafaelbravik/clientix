@@ -18,7 +18,6 @@
  * + `organization_id` through downstream audit/queries.
  */
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { env } from "@/lib/env";
 
 export const IMPERSONATE_COOKIE_NAME = "deskcomm-impersonate";
 export const IMPERSONATE_TTL_SECONDS = 3600; // 1 hour
@@ -81,7 +80,7 @@ function hmac(payloadB64: string, secret: string): Buffer {
  * and return 503 to the user when not.
  */
 export function signImpersonateCookie(payload: ImpersonatePayload): string {
-  const secret = env.IMPERSONATE_COOKIE_SECRET;
+  const secret = process.env.IMPERSONATE_COOKIE_SECRET ?? "";
   if (!isSecretConfigured(secret)) {
     throw new Error("IMPERSONATE_COOKIE_SECRET missing or <32 chars");
   }
@@ -96,7 +95,7 @@ export function signImpersonateCookie(payload: ImpersonatePayload): string {
  * Uses `timingSafeEqual` for the HMAC comparison.
  */
 export function verifyImpersonateCookie(token: string): VerifyResult {
-  const secret = env.IMPERSONATE_COOKIE_SECRET;
+  const secret = process.env.IMPERSONATE_COOKIE_SECRET ?? "";
   if (!isSecretConfigured(secret)) {
     return { valid: false, reason: "missing_secret" };
   }
@@ -153,5 +152,5 @@ export function verifyImpersonateCookie(token: string): VerifyResult {
  * Centralised so callers don't reimplement the threshold.
  */
 export function isImpersonateSecretReady(): boolean {
-  return isSecretConfigured(env.IMPERSONATE_COOKIE_SECRET);
+  return isSecretConfigured(process.env.IMPERSONATE_COOKIE_SECRET ?? "");
 }
