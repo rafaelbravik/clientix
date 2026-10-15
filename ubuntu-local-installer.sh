@@ -93,7 +93,6 @@ CHAVE_CPF=$(openssl rand -base64 32)
 CHAVE_WAHA=$(openssl rand -base64 32)
 CHAVE_AI=$(openssl rand -base64 32)
 INTERNAL_SEC=$(openssl rand -hex 32)
-IMPERSONATE_SEC=$(openssl rand -base64 32)
 WAHA_HMAC=$(openssl rand -hex 32)
 # A chave da API do WAHA NASCE ALEATÓRIA, pelo mesmo motivo da senha do dono:
 # a que estava aqui era literal e está publicada neste repositório, e ela
@@ -135,7 +134,6 @@ NEXT_PUBLIC_ADMIN_URL=$APP_URL
 WAHA_WEBHOOK_BASE_URL=$APP_URL
 
 INTERNAL_SECRET=$INTERNAL_SEC
-IMPERSONATE_COOKIE_SECRET=$IMPERSONATE_SEC
 CPF_ENCRYPTION_KEY=$CHAVE_CPF
 WAHA_BYO_ENCRYPTION_KEY=$CHAVE_WAHA
 AI_CRED_AES_KEY=$CHAVE_AI

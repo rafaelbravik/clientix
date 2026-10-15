@@ -1,6 +1,7 @@
 import { chromium } from "@playwright/test";
-const PASSWORD = "E2E!Test1234";
+const PASSWORD = process.env.E2E_LOGIN_PASSWORD;
 const EMAIL = process.argv[2] || "e2e-agent@deskcomm.test";
+if (!PASSWORD) throw new Error("defina E2E_LOGIN_PASSWORD no ambiente para o diagnóstico local");
 (async () => {
   const browser = await chromium.launch({ headless: true });
   const ctx = await browser.newContext();
@@ -17,8 +18,7 @@ const EMAIL = process.argv[2] || "e2e-agent@deskcomm.test";
   await page.locator("#password").focus();
   await page.waitForTimeout(200);
   await page.locator("#password").pressSequentially(PASSWORD, { delay: 30 });
-  console.log("EMAIL VAL:", await page.locator("#email").inputValue());
-  console.log("PASS LEN:", (await page.locator("#password").inputValue()).length);
+  console.log("LOGIN_FIELDS_FILLED:", Boolean(await page.locator("#email").inputValue()));
   await page.getByRole("button", { name: "Entrar", exact: true }).click();
   await page.waitForTimeout(6000);
   console.log("FINAL URL:", page.url());

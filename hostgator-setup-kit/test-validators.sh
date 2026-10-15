@@ -2744,7 +2744,7 @@ strings_de_schema() {
 # Derivada do BASE_ENV, não copiada: duas cópias do mesmo literal desincronizam
 # no dia em que o cenário-base trocar de string, e aí o teste reprova por engano.
 URL_DO_APP="$(printf '%s\n' "$BASE_ENV" | sed -n "s/^SUPABASE_DB_URL='\(.*\)'$/\1/p")"
-URL_DO_DONO='postgresql://supabase_admin:senhadodono@db-proprio.exemplo.com.br:5432/postgres'
+URL_DO_DONO='postgresql://test_user:test_password@127.0.0.1:5432/test_db'
 
 TMP_DDL_A="$(mktemp -d)"
 (
