@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "@/hooks/i18n/useT";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/auth/AuthProvider";
+import { isSupportReadonly } from "@/lib/auth/support-readonly-provider";
 import { fonteDeTemplates } from "@/lib/channels/templates-fonte";
 import { estadoDaJanela, formatarDecorrido } from "@/lib/channels/janela";
 import { JanelaFechadaAviso } from "@/components/inbox/JanelaFechadaAviso";
@@ -131,7 +132,7 @@ interface InboxLayoutProps {
 export function InboxLayout({ initialSelectedId = null, rascunho = null }: InboxLayoutProps = {}) {
   const t = useT();
   const { activeOrg, user } = useAuth();
-  const supportReadonly = user.support?.access_mode === "support_readonly";
+  const supportReadonly = isSupportReadonly(user.support);
   const orgId = activeOrg?.orgId ?? null;
 
   const router = useRouter();

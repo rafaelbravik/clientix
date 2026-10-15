@@ -69,7 +69,7 @@ export async function POST(req: NextRequest): Promise<Response> {
   const requestId = randomUUID();
 
   // A rota MUTA: a F2 da #1869 grava a pergunta em `knowledge_searches`.
-  // Sem esta guarda, o modo support_readonly seria ignorado por um handler que
+  // Sem esta guarda, o modo de suporte somente leitura seria ignorado por um handler que
   // escreve — quem está acompanhando em leitura veria linhas novas nascendo
   // métrica da própria instalação. `requireSupportWrite` (retorno não-nulo é a
   // recusa) cuida do MODO DE ACOMPANHAMENTO; o `requireRole` abaixo cuida do

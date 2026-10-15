@@ -30,6 +30,7 @@ import { useAuth } from "@/hooks/auth/AuthProvider";
 import { useDefaultPipeline } from "@/hooks/pipelines/useDefaultPipeline";
 import { camposDoFunil } from "@/lib/leads/campos-do-funil";
 import { ROLE_RANK } from "@/lib/auth/types";
+import { isSupportReadonly } from "@/lib/auth/support-readonly-provider";
 import { TimelineView } from "@/components/contacts/TimelineView";
 import { EditContactDialog } from "@/components/contacts/EditContactDialog";
 import { AnonymizeDialog } from "@/components/contacts/AnonymizeDialog";
@@ -172,7 +173,7 @@ export function ContactDetailClient({ contactId }: Props) {
             {contact.is_anonymized && <Badge variant="destructive">{t("Anonimizado")}</Badge>}
           </div>
         </div>
-        {!contact.is_anonymized && user.support?.access_mode !== "support_readonly" && (
+        {!contact.is_anonymized && !isSupportReadonly(user.support) && (
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             {/* O CAMINHO DE VOLTA do descadastro. Sem ele, o contato que pediu
                 para sair — ou que caiu num falso positivo — ficava preso para
@@ -228,7 +229,7 @@ export function ContactDetailClient({ contactId }: Props) {
           tela que PEDE uma ação. Enterrado numa aba, viraria pendência que só
           quem já sabe que existe encontra — e a fila deixaria de ser fila.
           Some sozinho quando não há nada aguardando. */}
-      {!contact.is_anonymized && user.support?.access_mode !== "support_readonly" && (
+      {!contact.is_anonymized && !isSupportReadonly(user.support) && (
         <PropostasDeDado
           contactId={contactId}
           podeDecidir={Boolean(activeOrg && ROLE_RANK[activeOrg.role] >= ROLE_RANK.agent)}

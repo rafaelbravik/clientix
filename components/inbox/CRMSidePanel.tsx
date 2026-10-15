@@ -5,6 +5,7 @@ import { AcervoSearch } from "./AcervoSearch";
 import { LeadEnrichment } from "./LeadEnrichment";
 import type { ProspectEnrichment } from "@/lib/prospecting/schema";
 import { useAuth } from "@/hooks/auth/AuthProvider";
+import { isSupportReadonly } from "@/lib/auth/support-readonly-provider";
 import { useLocaleDeData } from "@/hooks/i18n/useLocaleDeData";
 
 import type { Locale } from "date-fns";
@@ -513,7 +514,7 @@ function CamposDoFunil({
 
 export function CRMSidePanel({ conversation }: Props) {
   const { user } = useAuth();
-  const readonly = user.support?.access_mode === "support_readonly";
+  const readonly = isSupportReadonly(user.support);
   const localeDaData = useLocaleDeData();
   const t = useT();
   const contact = conversation?.contacts ?? null;

@@ -28,7 +28,7 @@ export async function POST(_req: NextRequest): Promise<Response> {
   // `unauthenticated` (não `unauthorized`): esse último é reservado ao segredo
   // interno das rotas host↔app (lib/api/errors.ts) — aqui falta é sessão.
   if (!user) return fail("unauthenticated", "Faça login para continuar.", 401);
-  // Atualizar o servidor é ESCRITA da instalação: support_readonly e sessão com
+  // Atualizar o servidor é ESCRITA da instalação: suporte somente leitura e sessão com
   // dívida de MFA não disparam. O 401 acima fica: sem sessão é `unauthenticated`.
   try {
     await requirePlatformAdminEscrita();

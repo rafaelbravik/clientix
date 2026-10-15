@@ -3,6 +3,7 @@ import { useAuth } from "@/hooks/auth/AuthProvider";
 import { useEffect, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
+import { isSupportReadonly } from "@/lib/auth/support-readonly-provider";
 
 const DEBOUNCE_MS = 1500;
 
@@ -12,7 +13,7 @@ const DEBOUNCE_MS = 1500;
  */
 export function useMarkAsRead(conversationId: string | null, unread: number) {
   const { user } = useAuth();
-  const readonly = user.support?.access_mode === "support_readonly";
+  const readonly = isSupportReadonly(user.support);
   const qc = useQueryClient();
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 

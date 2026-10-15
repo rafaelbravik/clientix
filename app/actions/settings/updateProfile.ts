@@ -11,6 +11,7 @@ import {
   type ProfileInput,
 } from "@/lib/schemas/settings";
 import { resolveActiveOrg, loadAuthUser } from "@/lib/auth/server";
+import { isSupportReadonly } from "@/lib/auth/support-readonly-provider";
 
 export type UpdateProfileResult =
   | { ok: true }
@@ -63,7 +64,7 @@ export async function updateProfile(input: ProfileInput): Promise<UpdateProfileR
   });
 
   // Best-effort emit (event_log is org-scoped; skip if no org).
-  if (activeOrg && authUser.support?.access_mode !== "support_readonly") {
+  if (activeOrg && !isSupportReadonly(authUser.support)) {
     await supabase
       .rpc("emit_event", {
         p_event_type: "user.profile_updated",

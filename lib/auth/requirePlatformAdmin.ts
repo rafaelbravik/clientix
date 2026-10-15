@@ -79,7 +79,7 @@ export { EscritaDePlatformAdminNegada };
 
 /**
  * `requirePlatformAdmin()` + o que a ESCRITA exige e a leitura não:
- * `scope === 'full'` (o `support_readonly` lê o painel e nada muda) e sessão sem
+ * `scope === 'full'` (o escopo somente leitura apenas consulta o painel) e sessão sem
  * dívida de MFA (quem TEM fator prova nesta sessão).
  *
  * `requirePlatformAdmin` devolvia o scope sem impor; só `admin/tenants` POST e as

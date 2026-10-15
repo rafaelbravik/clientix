@@ -13,6 +13,7 @@ import { createHash } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { env } from "@/lib/env";
+import { obterMetadadosDeAcompanhamento } from "@/lib/impersonate/audit";
 import type { AuditAction } from "./actions";
 
 export function isServiceRoleConfigured(): boolean {
@@ -57,29 +58,7 @@ export async function audit(entry: AuditEntry): Promise<void> {
     const client = isServiceRoleConfigured() ? createAdminClient() : await createClient();
     let supportMetadata: Record<string, unknown> = {};
     try {
-      if (entry.actorUserId && entry.actorAuthSessionId && entry.organizationId && !entry.actorApiTokenId) {
-        // Callback SameSite=Strict não traz cookie. O state já autenticou ator/sessão;
-        // a cerca do callback já revalidou a autorização antes do efeito.
-        const { data: support } = await createAdminClient().from("platform_support_sessions")
-          .select("id, access_mode, auth_session_id, ended_at")
-          .eq("actor_user_id", entry.actorUserId).eq("auth_session_id", entry.actorAuthSessionId)
-          .eq("organization_id", entry.organizationId).order("created_at", { ascending: false }).limit(1).maybeSingle();
-        if (support && !support.ended_at) supportMetadata = {
-          support_session_id: support.id, support_access_mode: support.access_mode,
-          support_auth_session_id: support.auth_session_id,
-        };
-      } else if (entry.actorUserId && !entry.actorApiTokenId) {
-        const db = await createClient();
-        const { data: { user } } = await db.auth.getUser();
-        if (user?.id === entry.actorUserId) {
-          const { readSupportContext } = await import("@/lib/impersonate/support");
-          const support = await readSupportContext(db);
-          if (support && support.organization_id === entry.organizationId) supportMetadata = {
-            support_session_id: support.id, support_access_mode: support.access_mode,
-            support_auth_session_id: support.auth_session_id,
-          };
-        }
-      }
+      supportMetadata = await obterMetadadosDeAcompanhamento(entry);
     } catch { /* Audit principal segue, inclusive sem request (workers). */ }
     const { error } = await client.from("api_audit_log").insert({
       action: entry.action,

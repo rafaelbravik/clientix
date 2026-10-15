@@ -28,6 +28,7 @@ import type { NextResponse } from "next/server";
 import { fail, type ApiError } from "@/lib/api/wrappers";
 import { audit } from "@/lib/audit";
 import { loadAuthUser, mfaEmDivida, orgAtivaSemPortao } from "@/lib/auth/server";
+import { supportRole } from "@/lib/auth/support-readonly-provider";
 import { ROLE_RANK, type ActiveOrg, type AuthUser, type Role } from "@/lib/auth/types";
 import { traduzir } from "@/lib/i18n/dicionario";
 import { STATUS_OPERANTE, ehOperante } from "@/lib/organizacao/operante";
@@ -48,7 +49,7 @@ interface RequireRoleOpts {
   /**
    * Platform admin (role transversal) bypassa o rank do tenant.
    * - `true`: rota que ESCREVE — só `scope === 'full'` e sessão sem dívida de
-   *   MFA; `support_readonly` cai no rank normal do tenant.
+   *   MFA; o contexto de suporte sem escrita cai no rank normal do tenant.
    * - `"leitura"`: qualquer scope. Só em handler `GET` exportado — `requireRole`
    *   não recebe o método, e quem garante isso é
    *   `tests/unit/admin-escrita-exige-scope-full.test.ts`.
@@ -123,7 +124,7 @@ export async function requireRole(min: Role, opts: RequireRoleOpts = {}): Promis
       ? {
           orgId: organizationId,
           name: user.support.name,
-          role: user.support.access_mode === "full" ? "admin" : "viewer",
+          role: supportRole(user.support),
           // `fn_support_context` só dá 'active' com a org em 'active' (e o
           // acompanhamento encerrado já saiu acima).
           org_status: STATUS_OPERANTE,
@@ -173,7 +174,7 @@ export async function requireRole(min: Role, opts: RequireRoleOpts = {}): Promis
       }
       return { ok: true, user, org };
     }
-    // `support_readonly` com `true`: sem atalho — segue para o rank do tenant.
+    // Contexto de suporte sem escrita com `true`: sem atalho — segue para o rank do tenant.
   }
 
   // Role efetivo do banco (não do snapshot do cookie/membership em memória).

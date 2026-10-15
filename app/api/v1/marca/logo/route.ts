@@ -149,7 +149,7 @@ type Recusa = { readonly codigo: string; readonly mensagem: string; readonly sta
  * ── Por que `requirePlatformAdminEscrita` dentro de `try/catch` ──────────────
  *
  * Trocar o logo da INSTALAÇÃO é escrita de platform admin e exige o que toda
- * escrita dessas exige: linha ativa, scope `full` (o `support_readonly` lê o
+ * escrita dessas exige: linha ativa, scope `full` (o escopo somente leitura lê o
  * painel e nada muda) e sessão sem dívida de MFA — quem confere as três é
  * `requirePlatformAdminEscrita`. Ele REDIRECIONA quem não é platform admin (é o
  * gate do layout de `/admin`), e um `307` como resposta a um `fetch()` de upload

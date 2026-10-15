@@ -5,10 +5,7 @@ import { env } from "@/lib/env";
 import { fetchDoServidor } from "@/lib/supabase/fetch-do-servidor";
 import { urlDoSupabaseNoServidor } from "@/lib/supabase/url-do-servidor";
 import { isPublicPath } from "@/lib/auth/public-paths";
-import {
-  verifyImpersonateCookieEdge,
-  IMPERSONATE_COOKIE_NAME_EDGE,
-} from "@/lib/impersonate/cookie-edge";
+import { validarCookieDeAcompanhamento } from "@/lib/impersonate/proxy";
 
 const COOKIE_NAME = "sb-deskcomm-auth";
 
@@ -117,26 +114,17 @@ export async function proxy(request: NextRequest) {
   // runs in Edge — no DB access, only HMAC + expiry. On any failure we delete
   // the presentation cookie. The database support session remains authoritative:
   // expired/revoked support still blocks the app until explicit exit.
-  if (pathname.startsWith("/app")) {
-    const impCookie = request.cookies.get(IMPERSONATE_COOKIE_NAME_EDGE)?.value;
-    if (impCookie) {
-      const result = await verifyImpersonateCookieEdge(
-        impCookie,
-        env.IMPERSONATE_COOKIE_SECRET ?? "",
-      );
-      if (!result.valid) {
-        console.warn(
-          `[middleware] impersonate cookie invalid (${result.reason ?? "unknown"}) — clearing`,
-        );
-        response.cookies.delete(IMPERSONATE_COOKIE_NAME_EDGE);
-      }
-    }
-  }
+  await validarCookieDeAcompanhamento(request, response, pathname);
 
   // /admin/* additionally requires platform_admin (early gate — authoritative
   // check is server-side in `requirePlatformAdmin`). Skip the RPC for
   // `/admin/forbidden` (rendered to non-admins, would otherwise loop).
-  if (isAdminSurface && pathname.startsWith("/admin") && pathname !== "/admin/forbidden") {
+  if (
+    process.env.NEXT_PUBLIC_CLIENTIX_BUILD_TARGET !== "customer" &&
+    isAdminSurface &&
+    pathname.startsWith("/admin") &&
+    pathname !== "/admin/forbidden"
+  ) {
     const { data: isAdmin, error } = await supabase.rpc("fn_is_platform_admin");
     if (error || !isAdmin) {
       return NextResponse.redirect(new URL("/admin/forbidden", request.url));

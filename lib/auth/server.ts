@@ -8,7 +8,7 @@ import { combinarInterfaces } from "@/lib/navigation/interface";
  * intentional here because we resolve the user from the validated JWT first
  * and then filter by `user_id` (a trusted source).
  */
-import { readSupportContext } from "@/lib/impersonate/support";
+import { readSupportContext } from "./support-context-provider";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { logger } from "@/lib/logger";
@@ -180,12 +180,14 @@ export const loadAuthUser = cache(async (): Promise<AuthUser | null> => {
   // `organizations[0]`. Sem ordenação, "a primeira" é o que o Postgres devolver.
   const [{ data: paRow, error: paErro }, { data: rawMemberships, error: membErro }] =
     await Promise.all([
-      supabase
-        .from("platform_admins")
-        .select("user_id, scope, revoked_at")
-        .eq("user_id", user.id)
-        .is("revoked_at", null)
-        .maybeSingle(),
+      process.env.NEXT_PUBLIC_CLIENTIX_BUILD_TARGET === "customer"
+        ? Promise.resolve({ data: null, error: null })
+        : supabase
+            .from("platform_admins")
+            .select("user_id, scope, revoked_at")
+            .eq("user_id", user.id)
+            .is("revoked_at", null)
+            .maybeSingle(),
       supabase
         .from("user_organizations")
         .select(
