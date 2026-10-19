@@ -54,6 +54,14 @@ describe("pr-mexe-na-imagem", () => {
     ).toBe("nao");
   });
 
+  it.each([".pnpm-store", ".next", "node_modules"])(
+    "entrada de diretório .dockerignore %s e seu conteúdo pulam",
+    (diretorio) => {
+      expect(responde([diretorio])).toBe("nao");
+      expect(responde([`${diretorio}/amostra.txt`])).toBe("nao");
+    },
+  );
+
   // O espelho: tudo que o `.dockerignore` tira do contexto pode pular. Se alguém
   // acrescenta uma linha lá e não aqui, o PR apenas constrói à toa (custa vaga,
   // não segurança). Se alguém REMOVE uma linha de lá e esquece o script, o

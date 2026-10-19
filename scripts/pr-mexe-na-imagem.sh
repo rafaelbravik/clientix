@@ -40,8 +40,11 @@ while IFS= read -r caminho || [ -n "$caminho" ]; do
     # ↓ espelho do .dockerignore — os diretórios. Padrão de .dockerignore sem
     # barra casa só na RAIZ do contexto, e `*` de `case` atravessa `/`: por
     # isso todo padrão aqui começa pelo nome do diretório da raiz.
-    evidence | .superpowers | clientix-customer-build-output | .clientix-customer-build-*) ;;
-    node_modules/* | .next/* | .git/* | test-results/* | tests/* | .lina/* \
+    evidence | .superpowers | clientix-customer-build-output | .clientix-customer-build-* \
+      | node_modules | .pnpm-store | .next | .git | .github | test-results | tests \
+      | .lina | docs | tasks | scratchpad | .vercel | .claude | .agents | .agent \
+      | .codex | .cursor | .opencode | .specs | .changes) ;;
+    node_modules/* | .pnpm-store/* | .next/* | .git/* | test-results/* | tests/* | .lina/* \
       | docs/* | tasks/* | scratchpad/* | .vercel/* | .claude/* | .agents/* \
       | .agent/* | .codex/* | .cursor/* | .opencode/* | .specs/* | .changes/* \
       | evidence/* | .superpowers/* | clientix-customer-build-output/* \
