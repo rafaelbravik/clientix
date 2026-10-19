@@ -141,6 +141,16 @@ postgres_password="$(ler_env "$supabase_env" POSTGRES_PASSWORD)"
   || die "O Supabase nao gerou ANON_KEY, SERVICE_ROLE_KEY ou POSTGRES_PASSWORD."
 postgres_password_uri="$(jq -rn --arg value "$postgres_password" '$value|@uri')"
 
+# O runtime recebe uma role dedicada; o owner do banco fica restrito ao kit e
+# ao migrator. A senha e enviada ao psql por stdin e nunca passa por argv/log.
+agent_worker_password="$(openssl rand -hex 32)"
+agent_worker_password_uri="$(jq -rn --arg value "$agent_worker_password" '$value|@uri')"
+{
+  printf "SELECT format(CASE WHEN to_regrole('agent_worker') IS NULL THEN 'CREATE ROLE agent_worker LOGIN NOINHERIT BYPASSRLS PASSWORD %%L' ELSE 'ALTER ROLE agent_worker LOGIN NOINHERIT BYPASSRLS PASSWORD %%L' END, '%s')\\gexec\\n" "$agent_worker_password"
+  printf 'GRANT CONNECT ON DATABASE postgres TO agent_worker;\n'
+} | dc_supabase exec -T db psql -U postgres -d postgres -v ON_ERROR_STOP=1 -q >/dev/null \
+  || die "Nao consegui provisionar a role dedicada do worker no Supabase local."
+
 if [[ -f "$CREDENTIALS_FILE" ]]; then
   owner_email="$(ler_env "$CREDENTIALS_FILE" OWNER_EMAIL)"
   owner_password="$(ler_env "$CREDENTIALS_FILE" OWNER_PASSWORD)"
@@ -167,7 +177,9 @@ set_env_var "$app_env" SUPABASE_INTERNAL_URL "http://127.0.0.1:${gw_port:-8000}"
 set_env_var "$app_env" NEXT_PUBLIC_SUPABASE_URL "https://${domain}"
 set_env_var "$app_env" NEXT_PUBLIC_SUPABASE_ANON_KEY "$anon_key"
 set_env_var "$app_env" SUPABASE_SERVICE_ROLE_KEY "$service_key"
-set_env_var "$app_env" SUPABASE_DB_URL "postgresql://postgres:${postgres_password_uri}@supabase-db:5432/postgres"
+set_env_var "$app_env" SUPABASE_DB_URL "postgresql://agent_worker:${agent_worker_password_uri}@supabase-db:5432/postgres"
+unset agent_worker_password agent_worker_password_uri
+export SUPABASE_DB_ADMIN_URL="postgresql://postgres:${postgres_password_uri}@supabase-db:5432/postgres"
 # Imagens: nao se grava nada aqui. O install.sh resolve a ultima versao
 # publicada das TRES imagens e grava numero de versao (nunca tag movel).
 set_env_var "$app_env" OWNER_EMAIL "$owner_email"
@@ -182,6 +194,7 @@ set_env_var "$app_env" SENTRY_DSN off
 step "Configurando o CRM sem perguntas adicionais"
 cd "$ROOT_DIR"
 bash "$KIT_DIR/install.sh" --yes
+unset SUPABASE_DB_ADMIN_URL
 
 # Cadastro público do GoTrue (#1653): `DISABLE_SIGNUP` (chave oficial do .env
 # do Supabase) acompanha o modo de cadastro da instalação. Em instalação nova

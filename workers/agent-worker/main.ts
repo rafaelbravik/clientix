@@ -275,6 +275,19 @@ export async function startWorker(
   );
   const workerId = `agent-engine-${hostname()}-${process.pid}`;
 
+  const databaseIdentity = await pool.query<{
+    session_user: string;
+    current_user: string;
+  }>("select session_user::text, current_user::text");
+  if (
+    databaseIdentity.rows[0]?.session_user !== "agent_worker" ||
+    databaseIdentity.rows[0]?.current_user !== "agent_worker"
+  ) {
+    throw new Error(
+      "WORKER_DB_ROLE_MISMATCH: SUPABASE_DB_URL deve autenticar diretamente como agent_worker.",
+    );
+  }
+
   await assertHarnessSchema(pool);
 
   // Self-host limpo: sem ponteiro platform, TODO inbound_turn morre. O seed só

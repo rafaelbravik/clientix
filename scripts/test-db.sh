@@ -207,6 +207,9 @@ begin
   if not exists (select 1 from pg_roles where rolname = 'service_role') then
     create role service_role nologin bypassrls;
   end if;
+  if not exists (select 1 from pg_roles where rolname = 'agent_worker') then
+    create role agent_worker login noinherit bypassrls;
+  end if;
 end
 $$;
 
@@ -361,6 +364,14 @@ create or replace function auth.uid() returns uuid
 grant usage on schema auth, extensions, storage to anon, authenticated, service_role;
 grant select on auth.users to anon, authenticated, service_role;
 SQL
+
+# O worker de produção conecta como um login dedicado, não com `SET ROLE` a
+# partir de postgres. A senha aleatória existe apenas no cluster descartável e
+# é entregue ao teste pelo ambiente, nunca pela linha de comando ou pelo log.
+worker_test_password="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
+printf "alter role agent_worker password '%s';\n" "$worker_test_password" | psql_install
+export TEST_AGENT_WORKER_PASSWORD="$worker_test_password"
+unset worker_test_password
 
 echo "==> conferindo que o banco efêmero é o do PRODUTO (antes do baseline)"
 # A guarda tem de rodar AQUI e não na suíte de invariantes, e isto foi medido:

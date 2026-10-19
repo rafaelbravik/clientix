@@ -1,12 +1,12 @@
 {
   "version": 1,
   "generated_at": "2026-10-17T16:41:56.051Z",
-  "schema_target": "0513",
+  "schema_target": "0514",
   "baseline": {
     "file": "baseline.sql",
-    "checksum": "e6b66d701419b071646328c4f758044b2d91181ca0496a76dd660f26ae4a78c2",
-    "size_bytes": 2399725,
-    "incorporated_through_sequence": 513
+    "checksum": "31269a01346e887183d00d6833622a7b886a600f030204574757ad8da9abdb78",
+    "size_bytes": 2413368,
+    "incorporated_through_sequence": 514
   },
   "migrations": [
     {
@@ -3351,6 +3351,14 @@
       "sequence": 513,
       "slug": "worker_playbook_runtime_acl",
       "checksum": "0b946afdab8edf0ad720541663a6dad0d38d7dd584e6e91f64103fda9e007246",
+      "transactional": true
+    },
+    {
+      "file": "20261017142810_0514_worker_runtime_acl_contract.sql",
+      "version": "20261017142810",
+      "sequence": 514,
+      "slug": "worker_runtime_acl_contract",
+      "checksum": "6455d32d864463c6b5c4760be45414c771e406839437e9b0fb587dba4bc44026",
       "transactional": true
     }
   ]
