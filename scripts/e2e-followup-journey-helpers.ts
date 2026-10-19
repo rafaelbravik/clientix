@@ -34,7 +34,7 @@
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
-import pg from "pg";
+import { createPool } from "../lib/agent-engine/db/pool";
 
 import {
   createPgAdminClient,
@@ -65,7 +65,7 @@ function out(value: unknown): void {
 
 async function main(): Promise<void> {
   const [, , cmd, ...args] = process.argv;
-  const pool = new pg.Pool({ connectionString: DB_URL, max: 2 });
+  const pool = createPool(DB_URL, undefined, { max: 2 });
 
   try {
     switch (cmd) {

@@ -2,6 +2,8 @@
 # Helpers compartilhados pelos scripts do kit. Sourced, não executado direto.
 set -euo pipefail
 
+source "$(dirname "${BASH_SOURCE[0]}")/postgres-tls.sh"
+
 # Idioma da CLI (t(), IDIOMA_CLI) — ver o cabeçalho de _i18n.sh. Sourced aqui
 # porque update.sh e os demais scripts do kit sourceiam _common.sh sem passar
 # por install.sh; instalação já em andamento no mesmo processo (install.sh)
@@ -275,8 +277,26 @@ dc_files() {
 # bridge privada (supabase-db), nunca por porta pública.
 pg_container() {
   local -a rede=()
+  local -a args=("$@")
+  local i rc
+  for i in "${!args[@]}"; do
+    if [[ "${args[$i]}" == postgres://* || "${args[$i]}" == postgresql://* ]]; then
+      args[$i]="$(clientix_postgres_url_for_libpq "${args[$i]}")" || return 1
+    fi
+  done
   [ -n "${PSQL_DOCKER_NETWORK:-}" ] && rede=(--network "$PSQL_DOCKER_NETWORK")
-  docker run --rm ${rede[@]+"${rede[@]}"} "$@"
+  clientix_prepare_postgres_ca || return 1
+  local -a ca_args=()
+  if [[ -n "${CLIENTIX_PG_CA_HOST_FILE:-}" ]]; then
+    ca_args=(-v "$CLIENTIX_PG_CA_HOST_FILE:/tmp/clientix-postgres-root-ca.pem:ro" -e PGSSLROOTCERT=/tmp/clientix-postgres-root-ca.pem)
+  fi
+  if docker run --rm -e PGSSLMODE=verify-full "${rede[@]}" "${ca_args[@]}" "${args[@]}"; then
+    rc=0
+  else
+    rc=$?
+  fi
+  clientix_cleanup_postgres_ca
+  return "$rc"
 }
 
 # ── MODO SINGLE-SERVER: o Supabase que o kit instala e opera ─────────────────
@@ -1126,7 +1146,26 @@ enter_project() {
 # pai; o que a mensagem garante é que a causa apareça na tela antes do erro de
 # conexão que os chamadores já tratam.
 url_do_schema() {
-  printf '%s' "${SUPABASE_DB_ADMIN_URL:-${SUPABASE_DB_URL:?sem connection string de banco no .env — rode o install.sh}}"
+  if [ -n "${SUPABASE_DB_ADMIN_URL:-}" ]; then
+    printf '%s' "$SUPABASE_DB_ADMIN_URL"
+    return 0
+  fi
+
+  if [ "${SINGLE_SERVER:-0}" = "1" ]; then
+    local supabase_env password_line password password_uri
+    supabase_env="$(dir_do_supabase)/.env"
+    password_line="$(grep -E '^POSTGRES_PASSWORD=' "$supabase_env" | tail -1 || true)"
+    password="${password_line#*=}"
+    password="${password%$'\r'}"
+    password="${password#\"}"; password="${password%\"}"
+    password="${password#\'}"; password="${password%\'}"
+    [ -n "$password" ] || return 1
+    password_uri="$(jq -rn --arg value "$password" '$value|@uri')"
+    printf 'postgresql://postgres:%s@supabase-db:5432/postgres' "$password_uri"
+    return 0
+  fi
+
+  printf '%s' "${SUPABASE_DB_URL:?sem connection string de banco no .env — rode o install.sh}"
 }
 
 # psql efêmero via container (não exige psql no host). Usa a conexão de schema:

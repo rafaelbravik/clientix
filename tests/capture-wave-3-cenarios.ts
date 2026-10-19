@@ -22,7 +22,7 @@ import * as fs from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 
 import { createHash, randomUUID } from "node:crypto";
-import pg from "pg";
+import { createPool } from "../lib/agent-engine/db/pool";
 
 import { emitVetoActivity } from "@/lib/leads/veto-activity";
 
@@ -1004,7 +1004,7 @@ async function main(): Promise<void> {
   //
   // O veto é criado pelo EMISSOR DE PRODUÇÃO (mesmo código de um veto real), e
   // removido ao fim: prova não pode deixar resíduo num lead que outras sessões usam.
-  const pool = new pg.Pool({ connectionString: envVars.SUPABASE_DB_URL });
+  const pool = createPool(envVars.SUPABASE_DB_URL!);
   const traceId = randomUUID();
   try {
     const alvo = await pool.query(

@@ -17,7 +17,8 @@
 import * as fs from "node:fs";
 
 import { chromium } from "@playwright/test";
-import { Pool } from "pg";
+import type { Pool } from "pg";
+import { createPool } from "../lib/agent-engine/db/pool";
 
 import { BASE, CARD_ATTR, carimbar, login } from "./qa-helpers";
 import { carregarEnvLocal } from "../scripts/lib/env-de-teste";
@@ -68,7 +69,7 @@ async function main(): Promise<void> {
     crm_vivo: { pipeline_id: string };
   };
   const pipelineId = creds.crm_vivo.pipeline_id;
-  const pool = new Pool({ connectionString: DB });
+  const pool = createPool(DB);
   await reponResiduo(pool);
 
   // ALVO COM SCORE que satisfaz a pré-condição da precedência: sem proposta

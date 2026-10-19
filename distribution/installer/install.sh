@@ -5,6 +5,7 @@ set -euo pipefail
 
 INSTALL_DIR="${CLIENTIX_DIR:-/opt/clientix}"
 INSTALLER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$INSTALLER_DIR/postgres-tls.sh"
 . "$INSTALLER_DIR/installation-id.sh"
 STATE_FILE="$INSTALL_DIR/state/release.json"
 ENV_FILE="$INSTALL_DIR/.env"
@@ -392,6 +393,7 @@ run_docker_with_database() (
   trap 'exit 143' TERM
   {
     printf 'DATABASE_URL=%s\n' "$database_url"
+    printf 'POSTGRES_SSL_ROOT_CERT=%s\n' "${POSTGRES_SSL_ROOT_CERT:-}"
     printf 'BACKUP_ACK=%s\n' "${BACKUP_ACK:-1}"
   } > "$env_file" || exit 1
   chmod 600 "$env_file" || exit 1
@@ -413,9 +415,9 @@ run_runtime_db_preflight() {
   log "Validando a conexão PostgreSQL usada pelo runtime..."
   run_docker_with_database "$SUPABASE_DB_URL" \
     --entrypoint node "$VERIFIED_IMAGE_MIGRATOR" \
-    -e 'const { Client } = require("pg"); const client = new Client({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 10000 }); client.connect().then(() => client.query("SELECT 1")).then(() => client.end()).catch(async () => { try { await client.end(); } catch {} process.exit(1); });' \
-    || die "RUNTIME_DATABASE_UNREACHABLE: a conexão PostgreSQL do runtime falhou; nenhuma migration foi aplicada."
-  log "Conexão PostgreSQL do runtime validada."
+    -e 'const { Client } = require("pg"); const { resolvePostgresConnectionConfig } = require("/app/lib/postgres-tls-policy.cjs"); const policy = resolvePostgresConnectionConfig(process.env.DATABASE_URL); const client = new Client({ ...policy, connectionTimeoutMillis: 10000 }); client.connect().then(async () => { const result = await client.query("select session_user::text, current_user::text"); if (result.rows[0]?.session_user !== "agent_worker" || result.rows[0]?.current_user !== "agent_worker") throw new Error("RUNTIME_DATABASE_ROLE_INVALID"); await client.end(); }).catch(async () => { try { await client.end(); } catch {} process.exit(1); });' \
+    || die "RUNTIME_DATABASE_ROLE_INVALID: SUPABASE_DB_URL deve autenticar diretamente como agent_worker; nenhuma migration foi aplicada."
+  log "Conexão PostgreSQL do runtime validada como agent_worker."
 }
 
 # 10. Backup Lógico do Banco de Dados
@@ -427,9 +429,12 @@ run_backup() {
   local bkp_file="$BACKUP_DIR/backup_${current_ver}_to_${target_ver}_${ts}.dump"
   log "Iniciando backup antes de mutação de banco: $bkp_file..."
 
-  run_docker_with_database "$SUPABASE_DB_ADMIN_URL" \
+  local secure_database_url
+  secure_database_url="$(clientix_postgres_url_for_libpq "$SUPABASE_DB_ADMIN_URL")" \
+    || die "DATABASE_TLS_CONFIG_INVALID: configure o banco remoto com TLS verificado; a URL foi recusada sem exibir credenciais."
+  run_docker_with_database "$secure_database_url" \
     --entrypoint sh "$VERIFIED_IMAGE_MIGRATOR" \
-    -c 'exec pg_dump "$DATABASE_URL" -Fc' > "$bkp_file" || die "BACKUP_FAILED: Falha ao executar pg_dump do banco."
+    -c 'set -eu; if [ -n "${POSTGRES_SSL_ROOT_CERT:-}" ]; then printf "%s" "$POSTGRES_SSL_ROOT_CERT" | base64 -d > /tmp/clientix-postgres-root-ca.pem; chmod 600 /tmp/clientix-postgres-root-ca.pem; export PGSSLROOTCERT=/tmp/clientix-postgres-root-ca.pem; fi; exec pg_dump "$DATABASE_URL" -Fc' > "$bkp_file" || die "BACKUP_FAILED: Falha ao executar pg_dump do banco."
 
   if [ ! -s "$bkp_file" ]; then
     die "BACKUP_INVALID: Arquivo de backup está vazio ou não foi gerado."

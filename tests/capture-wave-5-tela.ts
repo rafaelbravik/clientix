@@ -38,7 +38,7 @@ import { chromium, type Locator, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 import * as fs from "node:fs";
-import pg from "pg";
+import { createPool } from "../lib/agent-engine/db/pool";
 
 import { CREDS, EVIDENCE, cardLocator, carimbar, casoConstruido, gotoBoard, login, shotCard, shotPage } from "./qa-helpers";
 import { carregarEnvLocal } from "../scripts/lib/env-de-teste";
@@ -47,7 +47,7 @@ const envVars = carregarEnvLocal();
 const admin = createClient(envVars.NEXT_PUBLIC_SUPABASE_URL!, envVars.SUPABASE_SERVICE_ROLE_KEY!, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
-const pool = new pg.Pool({ connectionString: envVars.SUPABASE_DB_URL });
+const pool = createPool(envVars.SUPABASE_DB_URL!);
 
 const ORG = CREDS.org_id as string;
 const PIPELINE = (CREDS.crm_vivo as { pipeline_id: string }).pipeline_id;

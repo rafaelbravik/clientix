@@ -18,7 +18,6 @@
  * Requer ANTHROPIC_API_KEY real no env. Custo: ~4 chamadas curtas de Haiku (as 2
  * do teste de cache são as caras; as do passo 6 são de uma palavra).
  */
-import pg from 'pg';
 import { z } from 'zod';
 
 import {
@@ -28,6 +27,7 @@ import {
   LlmBudgetExceededError,
 } from '@/lib/agent-engine/edge/llm/run-model-call';
 import { stablePrefixHash } from '@/lib/agent-engine/edge/llm/stable-prefix';
+import { createPool } from '@/lib/agent-engine/db/pool';
 
 const DB_URL = process.env.SMOKE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54329/postgres';
 const MODEL = process.env.SMOKE_MODEL ?? 'claude-haiku-4-5';
@@ -77,7 +77,7 @@ async function main(): Promise<void> {
   const min = MIN_CACHEABLE[MODEL];
   if (min === undefined) fail(`modelo ${MODEL} sem entrada em MIN_CACHEABLE — adicione o mínimo cacheável dele`);
 
-  const db = new pg.Pool({ connectionString: DB_URL, max: 3 });
+  const db = createPool(DB_URL);
   await db.query(
     `insert into organizations (id, slug, legal_name, display_name, settings)
      values ($1, 'smoke-llm', 'Smoke LLM', 'Smoke LLM',

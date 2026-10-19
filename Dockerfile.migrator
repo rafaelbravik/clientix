@@ -37,6 +37,7 @@ COPY --from=builder /build/node_modules ./node_modules
 COPY supabase/migrations ./sql/migrations
 COPY supabase/verify-schema.sql ./verify/verify-schema.sql
 COPY scripts/migrator/clientix-migrator.js ./bin/clientix-migrator
+COPY scripts/lib/postgres-tls-policy.cjs ./lib/postgres-tls-policy.cjs
 
 RUN chmod +x ./bin/clientix-migrator \
     && ln -s /app/bin/clientix-migrator /usr/local/bin/clientix-migrator \

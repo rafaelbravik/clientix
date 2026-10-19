@@ -44,7 +44,7 @@
  * Conexão: `SUPABASE_DB_URL` (Postgres direto — o script conta linhas de toda a
  * organização, o que a anon/authenticated key não alcança).
  */
-import pg from "pg";
+import { createPool } from "../lib/agent-engine/db/pool";
 
 import { carregarEnvLocal, credenciaisSupabaseDeTeste, anunciarDestino } from "./lib/env-de-teste";
 import {
@@ -84,7 +84,7 @@ if (DB_URL === "") {
   console.error("\n❌ SUPABASE_DB_URL ausente — este script fala direto com o Postgres.\n");
   process.exit(2);
 }
-const pool = new pg.Pool({ connectionString: DB_URL, max: 3 });
+const pool = createPool(DB_URL);
 
 const RAIZ = process.cwd();
 const TTL_MS = ttlDaAutorizacaoMs(process.env);

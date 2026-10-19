@@ -23,7 +23,7 @@
 import { randomUUID } from "node:crypto";
 
 import { chromium } from "@playwright/test";
-import pg from "pg";
+import { createPool } from "../lib/agent-engine/db/pool";
 
 import { emitVetoActivity } from "@/lib/leads/veto-activity";
 import { BASE, CREDS, EVIDENCE, login, shotPage } from "./qa-helpers";
@@ -40,7 +40,7 @@ const env = carregarEnvLocal();
 const ORG = CREDS.org_id as string;
 
 async function main(): Promise<void> {
-  const pool = new pg.Pool({ connectionString: env.SUPABASE_DB_URL });
+  const pool = createPool(env.SUPABASE_DB_URL!);
   const traceId = randomUUID();
   let emitiu = false;
 

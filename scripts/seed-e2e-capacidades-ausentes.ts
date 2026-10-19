@@ -17,9 +17,8 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-import pg from "pg";
-
 import { avisarCapacidadesAusentes } from "../lib/agent-engine/agent/inbound-turn";
+import { createPool } from "../lib/agent-engine/db/pool";
 import { anunciarDestino, credenciaisSupabaseDeTeste } from "./lib/env-de-teste";
 
 // `process.env` VENCE o `.env.local` (ver scripts/lib/env-de-teste.ts).
@@ -37,7 +36,7 @@ const env = {
   SUPABASE_DB_URL: credenciais.dbUrl,
 } as Record<string, string>;
 
-const pool = new pg.Pool({ connectionString: env.SUPABASE_DB_URL! });
+const pool = createPool(env.SUPABASE_DB_URL!);
 
 /** O erro EXATO que apareceu no turno real que originou o ACH-04. */
 const MOTIVO_REAL =

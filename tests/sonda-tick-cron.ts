@@ -7,7 +7,7 @@
  * e cada seta é um consumidor diferente. Drenar o cron avança UM elo.
  */
 
-import pg from "pg";
+import { createPool } from "../lib/agent-engine/db/pool";
 
 import { tickCron } from "@/lib/agent-engine/cron/scheduler";
 import { carregarEnvLocal } from "../scripts/lib/env-de-teste";
@@ -19,7 +19,7 @@ const log = {
 } as unknown as Parameters<typeof tickCron>[2];
 
 async function main(): Promise<void> {
-  const pool = new pg.Pool({ connectionString: env.SUPABASE_DB_URL });
+  const pool = createPool(env.SUPABASE_DB_URL!);
   const q = async (sql: string): Promise<string> => (await pool.query(sql)).rows[0]?.r ?? "";
 
   console.info("ANTES");

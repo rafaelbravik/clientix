@@ -41,14 +41,15 @@
  * Run: E2E_PORT=3020 npx tsx tests/capture-wave-5-cenarios.ts
  */
 
-import pg from "pg";
+import type { PoolClient } from "pg";
+import { createPool } from "../lib/agent-engine/db/pool";
 
 import { CREDS, carimbar } from "./qa-helpers";
 import { resolveBand, type ScoreBand } from "@/lib/kanban/score-band";
 import { carregarEnvLocal } from "../scripts/lib/env-de-teste";
 
 const envVars = carregarEnvLocal();
-const pool = new pg.Pool({ connectionString: envVars.SUPABASE_DB_URL });
+const pool = createPool(envVars.SUPABASE_DB_URL!);
 const ORG = CREDS.org_id as string;
 
 type Estado = "PASS" | "FALHA" | "BLOQUEADO";
@@ -174,7 +175,7 @@ const CASOS: Caso[] = [
  * lead, mas nasce quando o worker calcula, não quando o lead nasce.
  */
 async function escreverScore(
-  client: pg.PoolClient,
+  client: PoolClient,
   leadId: string,
   campos: Record<string, unknown>,
 ): Promise<void> {

@@ -39,7 +39,9 @@ describe("obterPool — cache e invalidação", () => {
 
   it("recria o pool quando o host muda na mesma conexão", () => {
     const antes = obterPool(conexao());
-    const depois = obterPool(conexao({ host: "outro.exemplo.com" }));
+    // Este teste cobre apenas a chave do cache. Mantenha ambos os endpoints
+    // no escape local; a política remota exige TLS e é coberta no teste próprio.
+    const depois = obterPool(conexao({ host: "127.0.0.2" }));
     expect(depois).not.toBe(antes);
   });
 

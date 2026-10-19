@@ -152,6 +152,9 @@ const schema = z
     // Postgres direto do Supabase (Settings → Database) — só as rotas de skills
     // instaláveis (import/install) usam `pg` cru (mesmo pool do agent-engine).
     SUPABASE_DB_URL: required("SUPABASE_DB_URL"),
+    // Opcional: base64 de PEM CA pública para validar certificados PostgreSQL
+    // privados. Nunca embutir em imagem; o compose passa o valor de runtime.
+    POSTGRES_SSL_ROOT_CERT: z.string().optional().default(""),
     /**
      * A conexão de DDL do KIT (install.sh/update.sh/backup.sh), não do app.
      * O `docker-compose.prod.yml` entrega o `.env` inteiro ao app, ao worker e

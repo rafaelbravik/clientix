@@ -24,7 +24,7 @@
 import { randomUUID } from "node:crypto";
 
 import { chromium } from "@playwright/test";
-import pg from "pg";
+import { createPool } from "../lib/agent-engine/db/pool";
 
 import { BASE, CREDS, EVIDENCE, carimbar, login, shotPage } from "./qa-helpers";
 import { carregarEnvLocal } from "../scripts/lib/env-de-teste";
@@ -42,7 +42,7 @@ const ORG = CREDS.org_id as string;
 const PIPELINE = (CREDS as { crm_vivo: { pipeline_id: string } }).crm_vivo.pipeline_id;
 
 async function main(): Promise<void> {
-  const pool = new pg.Pool({ connectionString: env.SUPABASE_DB_URL });
+  const pool = createPool(env.SUPABASE_DB_URL!);
   const marca = randomUUID();
   let leadFantasma: string | null = null;
   /** Só os avisos que ESTA execução fez nascer — a limpeza não pode levar junto

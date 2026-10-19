@@ -33,7 +33,7 @@
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
-import pg from "pg";
+import { createPool } from "../lib/agent-engine/db/pool";
 
 import { drainTick } from "@/lib/agent-engine/edge/crm/drain";
 import { createLogger } from "@/lib/agent-engine/obs/logger";
@@ -74,7 +74,7 @@ function telefoneUnico(): string {
 
 async function main(): Promise<void> {
   const [, , cmd, ...args] = process.argv;
-  const pool = new pg.Pool({ connectionString: DB_URL, max: 3 });
+  const pool = createPool(DB_URL, undefined, { max: 3 });
 
   try {
     switch (cmd) {

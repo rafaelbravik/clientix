@@ -28,7 +28,7 @@
  */
 
 import { chromium } from "@playwright/test";
-import pg from "pg";
+import { createPool } from "../lib/agent-engine/db/pool";
 
 import { BASE, CREDS, carimbar, login, shotPage } from "./qa-helpers";
 import { carregarEnvLocal } from "../scripts/lib/env-de-teste";
@@ -42,7 +42,7 @@ async function main(): Promise<void> {
     "app/api/v1/pipelines/[id]/board/route.ts",
     "lib/ai/agent-inbox-copy.ts",
   ]);
-  const pool = new pg.Pool({ connectionString: env.SUPABASE_DB_URL });
+  const pool = createPool(env.SUPABASE_DB_URL!);
   let plantado: string | null = null;
 
   try {

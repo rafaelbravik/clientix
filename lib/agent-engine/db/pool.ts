@@ -18,24 +18,28 @@
 import pg from 'pg';
 
 import { createLogger } from '../obs/logger';
+import {
+  redactPostgresDiagnostic,
+  resolvePostgresConnectionConfig,
+} from '../../../scripts/lib/postgres-tls-policy.cjs';
 
 export function createPool(
   databaseUrl: string,
   onError?: (err: Error) => void,
+  poolOptions: { max?: number } = {},
 ): pg.Pool {
-  // Knob opcional DB_POOL_MAX (env.ts Zod): teto de conexões por pool. Sem ele, o
-  // pg decide (default 10) — o caso de produção. Os testes rodam em paralelo (N
-  // pools × maxForks), então setam um teto baixo para não estourar max_connections
-  // do servidor (invariante do vitest.config.ts). PII fora daqui: só o número.
+  // DB_POOL_MAX (env.ts Zod) define o teto padrão; scripts de jornada podem
+  // passar um teto menor por chamada. Sem ambos, o pg decide (default 10) — o
+  // caso de produção. PII fora daqui: só o número.
   const raw = process.env.DB_POOL_MAX;
   const parsed = raw === undefined ? Number.NaN : Number.parseInt(raw, 10);
-  const max = Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
-  const pool = new pg.Pool({ connectionString: databaseUrl, max });
+  const max = poolOptions.max ?? (Number.isInteger(parsed) && parsed > 0 ? parsed : undefined);
+  const pool = new pg.Pool({ ...resolvePostgresConnectionConfig(databaseUrl), max });
   const handler =
     onError ??
     ((err: Error): void => {
       // mesma disciplina de errMsg do main.ts: 1ª linha truncada, PII fora
-      const error = (err.message.split('\n', 1)[0] ?? '').slice(0, 300);
+      const error = redactPostgresDiagnostic((err.message.split('\n', 1)[0] ?? '').slice(0, 300));
       createLogger().error('pool: conexão caiu — recria no próximo uso', { error });
     });
   pool.on('connect', (client) => client.on('error', handler));

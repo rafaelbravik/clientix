@@ -21,6 +21,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { Client } = require('pg');
+const { resolvePostgresConnectionConfig } = require(path.resolve(__dirname, '../lib/postgres-tls-policy.cjs'));
 
 const ADVISORY_LOCK_ID = 2285;
 const ADVISORY_LOCK_KEY = 'clientix:database_migrator';
@@ -106,8 +107,10 @@ function loadManifest(paths) {
 }
 
 async function createClient(connectionString) {
+  const { connectionString: safeConnectionString, ssl } = resolvePostgresConnectionConfig(connectionString);
   const client = new Client({
-    connectionString,
+    connectionString: safeConnectionString,
+    ssl,
     connectionTimeoutMillis: 10000,
     statement_timeout: 300000, // 5 minutos de teto por statement
   });

@@ -30,6 +30,7 @@ NONINTERACTIVE=0
 # do clone) porque este script já fala com o operador antes de _common.sh
 # existir no disco (banner, validadores, prompts da Fase 1 e 2).
 source "$KIT_DIR/_i18n.sh"
+source "$KIT_DIR/postgres-tls.sh"
 
 # Este script é standalone de propósito (roda antes do clone, então não dá para
 # usar o _common.sh). As duas funções abaixo são gêmeas das de lá — se mexer
@@ -60,9 +61,21 @@ dc_files() {
 # psql/pg_dump efêmeros. No modo single-server o Postgres só é alcançável pela
 # bridge privada (supabase-db), nunca por porta pública.
 pg_container() {
-  local -a rede=()
+  local -a rede=() args=("$@") ca_args=()
+  local i rc
+  for i in "${!args[@]}"; do
+    if [[ "${args[$i]}" == postgres://* || "${args[$i]}" == postgresql://* ]]; then
+      args[$i]="$(clientix_postgres_url_for_libpq "${args[$i]}")" || return 1
+    fi
+  done
   [ -n "${PSQL_DOCKER_NETWORK:-}" ] && rede=(--network "$PSQL_DOCKER_NETWORK")
-  docker run --rm ${rede[@]+"${rede[@]}"} "$@"
+  clientix_prepare_postgres_ca || return 1
+  if [[ -n "${CLIENTIX_PG_CA_HOST_FILE:-}" ]]; then
+    ca_args=(-v "$CLIENTIX_PG_CA_HOST_FILE:/tmp/clientix-postgres-root-ca.pem:ro" -e PGSSLROOTCERT=/tmp/clientix-postgres-root-ca.pem)
+  fi
+  if docker run --rm -e PGSSLMODE=verify-full "${rede[@]}" "${ca_args[@]}" "${args[@]}"; then rc=0; else rc=$?; fi
+  clientix_cleanup_postgres_ca
+  return "$rc"
 }
 
 # ── Aparência ───────────────────────────────────────────────────────────────
@@ -1279,7 +1292,7 @@ FIELDS=(
   "NEXT_PUBLIC_SUPABASE_URL|Supabase Project URL (Settings > API)||v_supabase_url||"
   "NEXT_PUBLIC_SUPABASE_ANON_KEY|Supabase anon key (Settings > API)||v_anon||"
   "SUPABASE_SERVICE_ROLE_KEY|Supabase service_role key (Settings > API)||v_service|secret|"
-  "SUPABASE_DB_URL|Supabase connection string — Session pooler, modo URI (Settings > Database)||v_db_url|secret|"
+  "SUPABASE_DB_URL|Worker DB connection string — login dedicado agent_worker, modo URI||v_db_url|secret|"
   # Token de conta, e por isso NÃO vai para o `.env` (não há `envq` para ele):
   # a Management API que ele abre cria e apaga projetos, e guardá-lo numa VPS
   # seria trocar um bug de primeira impressão por um passivo de segurança. Ele

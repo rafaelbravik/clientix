@@ -17,10 +17,9 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 import { createClient } from "@supabase/supabase-js";
-import pg from "pg";
-
 import { openCase } from "../lib/agent-engine/agent/human-cases";
 import { performHumanHandoff } from "../lib/agent-engine/agent/human-handoff";
+import { createPool } from "../lib/agent-engine/db/pool";
 import { montarBriefingDaPassagem } from "../lib/escalacao/briefing-da-passagem";
 import { anunciarDestino, credenciaisSupabaseDeTeste } from "./lib/env-de-teste";
 
@@ -42,7 +41,7 @@ const env = {
 const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL!, env.SUPABASE_SERVICE_ROLE_KEY!, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
-const pool = new pg.Pool({ connectionString: env.SUPABASE_DB_URL! });
+const pool = createPool(env.SUPABASE_DB_URL!);
 
 const CREDS = path.join(process.cwd(), ".e2e-creds.json");
 const TELEFONE = "+5531977776666";

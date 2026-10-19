@@ -17,6 +17,7 @@ const envSchema = z.object({
   // Postgres do Supabase (connection string — Settings → Database). O motor usa
   // `pg` direto: FOR UPDATE SKIP LOCKED, advisory locks, FTS.
   SUPABASE_DB_URL: z.string().url(),
+  POSTGRES_SSL_ROOT_CERT: z.string().optional().default(''),
   // Supabase API — os handlers do app (sendMessageHandler) exigem o client
   // service-role. Mesmos valores do .env.local do app.
   NEXT_PUBLIC_SUPABASE_URL: z.string().url(),

@@ -8,6 +8,7 @@ set -euo pipefail
 DIR="${1:-./backups}"
 RETENTION_DAYS="${RETENTION_DAYS:-14}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+source "$ROOT/hostgator-setup-kit/postgres-tls.sh"
 
 URL="${SUPABASE_DB_ADMIN_URL:-${SUPABASE_DB_URL:-}}"
 if [ -z "$URL" ]; then
@@ -24,7 +25,25 @@ fi
 mkdir -p "$DIR"
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 OUT="$DIR/deskcomm-$STAMP.dump"
-pg_dump "$URL" --format=custom --schema=public --no-owner --no-privileges --file="$OUT"
+CA_FILE=''
+if [ -n "${POSTGRES_SSL_ROOT_CERT:-}" ]; then
+  umask 077
+  CA_FILE="$(mktemp "${TMPDIR:-/tmp}/clientix-postgres-ca.XXXXXX")"
+  if ! printf '%s' "$POSTGRES_SSL_ROOT_CERT" | base64 -d > "$CA_FILE"; then
+    rm -f -- "$CA_FILE"
+    echo "FATAL: POSTGRES_SSL_ROOT_CERT deve ser PEM em base64 válido." >&2
+    exit 1
+  fi
+  chmod 600 "$CA_FILE"
+  CLIENTIX_PGSSLROOTCERT_PATH="$CA_FILE"
+  export PGSSLROOTCERT="$CA_FILE"
+fi
+trap 'if [ -n "$CA_FILE" ]; then rm -f -- "$CA_FILE"; fi' EXIT
+URL="$(clientix_postgres_url_for_libpq "$URL")" || {
+  echo "FATAL: política TLS PostgreSQL recusou a connection string." >&2
+  exit 1
+}
+PGSSLMODE=verify-full pg_dump "$URL" --format=custom --schema=public --no-owner --no-privileges --file="$OUT"
 echo "backup ok: $OUT ($(du -h "$OUT" | cut -f1))"
 
 # retenção: apaga dumps mais velhos que RETENTION_DAYS

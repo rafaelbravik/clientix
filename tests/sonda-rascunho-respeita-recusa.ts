@@ -17,7 +17,7 @@
  * Run: E2E_PORT=3020 npx tsx tests/sonda-rascunho-respeita-recusa.ts
  */
 
-import { Pool } from "pg";
+import { createPool } from "../lib/agent-engine/db/pool";
 
 import { carimbar } from "./qa-helpers";
 import { carregarEnvLocal } from "../scripts/lib/env-de-teste";
@@ -33,7 +33,7 @@ const DB = carregarEnvLocal().SUPABASE_DB_URL!;
 const ATAQUE = process.env.ATAQUE === "1";
 
 async function main(): Promise<void> {
-  const pool = new Pool({ connectionString: DB });
+  const pool = createPool(DB);
   try {
     const { getLeadContext } = await import("../lib/agent-engine/edge/crm/get-lead-context");
 

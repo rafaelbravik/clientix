@@ -18,6 +18,7 @@
 import pg from "pg";
 
 import { logger } from "@/lib/logger";
+import { redactPostgresDiagnostic, resolveExternalPostgresSsl } from "@/scripts/lib/postgres-tls-policy.cjs";
 
 import type { ConexaoExterna, ModoTls } from "./types";
 
@@ -36,21 +37,6 @@ function chaveDaConexao(c: ConexaoExterna): string {
   return [c.id, c.versao, c.host, c.port, c.database, c.username, c.sslMode].join("\u0000");
 }
 
-function sslPara(modo: ModoTls): pg.PoolConfig["ssl"] {
-  switch (modo) {
-    case "disable":
-      return false;
-    case "prefer":
-    case "require":
-      // Sem CA configurada não há como verificar a cadeia; `require` cifra mesmo
-      // assim. `verify-*` usa as CAs do sistema e falha fechado se não bater.
-      return { rejectUnauthorized: false };
-    case "verify-ca":
-    case "verify-full":
-      return { rejectUnauthorized: true };
-  }
-}
-
 function configDe(c: ConexaoExterna): pg.PoolConfig {
   return {
     host: c.host,
@@ -58,7 +44,7 @@ function configDe(c: ConexaoExterna): pg.PoolConfig {
     database: c.database,
     user: c.username,
     password: c.password,
-    ssl: sslPara(c.sslMode),
+    ssl: resolveExternalPostgresSsl(c.host, c.sslMode),
     max: MAX_CONEXOES_POR_POOL,
     connectionTimeoutMillis: CONNECTION_TIMEOUT_MS,
     idleTimeoutMillis: IDLE_TIMEOUT_MS,
@@ -68,7 +54,7 @@ function configDe(c: ConexaoExterna): pg.PoolConfig {
 
 function handlerDeErro(connectionId: string): (err: Error) => void {
   return (err: Error) => {
-    const erro = (err.message.split("\n", 1)[0] ?? "").slice(0, 300);
+    const erro = redactPostgresDiagnostic((err.message.split("\n", 1)[0] ?? "").slice(0, 300));
     logger.warn("[external-db.pool] conexão caiu — recria no próximo uso", { connectionId, erro });
   };
 }
@@ -152,7 +138,7 @@ function mensagemSegura(err: unknown): string {
   if (err instanceof Error) {
     // Primeira linha, truncada. A senha não aparece em erro do pg; ainda assim
     // não ecoamos o objeto inteiro.
-    return (err.message.split("\n", 1)[0] ?? "erro desconhecido").slice(0, 300);
+    return redactPostgresDiagnostic((err.message.split("\n", 1)[0] ?? "erro desconhecido").slice(0, 300));
   }
   return "erro desconhecido";
 }

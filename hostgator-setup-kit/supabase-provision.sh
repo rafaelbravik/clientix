@@ -31,6 +31,7 @@
 # Dependências: as mesmas do kit (bash + curl). Sem jq, sem python.
 
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/postgres-tls.sh"
 
 API="https://api.supabase.com/v1"
 PROJECT_NAME="${1:-DeskcommCRM}"
@@ -325,9 +326,17 @@ step "Descobrindo o host do pooler (testando conexão real)"
 DB_URL=""
 for n in 0 1 2; do
   cand="postgresql://postgres.${REF}:${DB_PASS}@aws-${n}-${REGION}.pooler.supabase.com:5432/postgres"
-  if docker run --rm postgres:17-alpine psql "$cand" -c 'select 1' >/dev/null 2>&1; then
+  cand="$(clientix_postgres_url_for_libpq "$cand")" || die "DATABASE_TLS_CONFIG_INVALID: URL remota recusada sem expor credenciais."
+  clientix_prepare_postgres_ca || die "DATABASE_TLS_CONFIG_INVALID: POSTGRES_SSL_ROOT_CERT deve ser PEM em base64."
+  local_ca_args=()
+  if [[ -n "${CLIENTIX_PG_CA_HOST_FILE:-}" ]]; then
+    local_ca_args=(-v "$CLIENTIX_PG_CA_HOST_FILE:/tmp/clientix-postgres-root-ca.pem:ro" -e PGSSLROOTCERT=/tmp/clientix-postgres-root-ca.pem)
+  fi
+  if docker run --rm -e PGSSLMODE=verify-full "${local_ca_args[@]}" postgres:17-alpine psql "$cand" -c 'select 1' >/dev/null 2>&1; then
+    clientix_cleanup_postgres_ca
     DB_URL="$cand"; c_grn "✓ pooler: aws-${n}-${REGION}"; break
   fi
+  clientix_cleanup_postgres_ca
 done
 [ -n "$DB_URL" ] || die "Nenhum host de pooler respondeu. Pegue a Session pooler em Settings > Database."
 

@@ -12,7 +12,8 @@
  * Run: npx tsx tests/sonda-decisao-chega-no-agente.ts
  */
 
-import { Pool } from "pg";
+import type { Pool } from "pg";
+import { createPool } from "../lib/agent-engine/db/pool";
 
 import { getLeadContext } from "../lib/agent-engine/edge/crm/get-lead-context";
 import { carimbar } from "./qa-helpers";
@@ -27,7 +28,7 @@ carimbar([
 const DB = carregarEnvLocal().SUPABASE_DB_URL!;
 
 async function main(): Promise<void> {
-  const pool = new Pool({ connectionString: DB });
+  const pool = createPool(DB);
   try {
     // Alvo: um contato sobre o qual um humano JÁ decidiu — a decisão veio da
     // interface, na sonda anterior, não de um insert de teste.

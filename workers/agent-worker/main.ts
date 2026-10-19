@@ -86,6 +86,7 @@ import { completeTurnForEnrollment, createPgAdminClient } from "@/lib/followup/t
 import { seedPlatformPlaybook } from "@/lib/agent-engine/agent/playbook-seed";
 import { runCronLoop } from "@/lib/agent-engine/cron/scheduler";
 import { createPool } from "@/lib/agent-engine/db/pool";
+import { redactPostgresDiagnostic } from "@/scripts/lib/postgres-tls-policy.cjs";
 import {
   carregarComportamentoPorPool,
   pisoDoComportamentoDoMotor,
@@ -136,7 +137,7 @@ export type JobHandler = (job: JobRow, pool: pg.Pool, ctx: JobHandlerContext) =>
 /** 1ª linha, truncada — PII fora de log. */
 function errMsg(err: unknown): string {
   const message = err instanceof Error ? err.message : String(err);
-  return (message.split("\n", 1)[0] ?? "").slice(0, 300);
+  return redactPostgresDiagnostic((message.split("\n", 1)[0] ?? "").slice(0, 300));
 }
 
 /**
