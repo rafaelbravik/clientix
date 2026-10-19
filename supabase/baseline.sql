@@ -46541,3 +46541,13 @@ comment on constraint channel_sessions_webhook_secret_provider_check on public.c
   'Todos os providers que recebem webhook exigem webhook_secret_encrypted; WebChat não recebe webhooks.';
 
 grant select (webchat_public_id) on public.channel_sessions to authenticated;
+
+-- ---- ACL explícita do catálogo de tipos de agendamento (migration 0512) ----
+-- O objeto pode ser criado por `supabase_admin`, sem receber os default ACLs
+-- definidos para `postgres`. Reaplicar a baseline também mantém a ACL mínima:
+-- anon sem acesso; authenticated sujeito às policies; service_role sem DELETE.
+revoke all on table public.calendar_event_types from anon, authenticated, service_role;
+grant select, insert, update, delete
+  on table public.calendar_event_types to authenticated;
+grant select, insert, update
+  on table public.calendar_event_types to service_role;

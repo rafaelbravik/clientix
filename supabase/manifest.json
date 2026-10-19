@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "generated_at": "2026-10-10T22:50:42.605Z",
-  "schema_target": "0511",
+  "generated_at": "2026-10-17T16:41:56.051Z",
+  "schema_target": "0512",
   "baseline": {
     "file": "baseline.sql",
-    "checksum": "056e730d7478ff0734d2628d3e76d8436a777eacf877141805788a423207d64c",
-    "size_bytes": 2398262,
-    "incorporated_through_sequence": 511
+    "checksum": "bb84c28805121796688947797d9b556044c26472a59de5e385acbdf30e233f30",
+    "size_bytes": 2398853,
+    "incorporated_through_sequence": 512
   },
   "migrations": [
     {
@@ -3335,6 +3335,14 @@
       "sequence": 511,
       "slug": "webchat_widget_bootstrap",
       "checksum": "4b3592d5624049029311fcbd9b4bef82fa5bce91ec56a752bf21e1d211e7f9d3",
+      "transactional": true
+    },
+    {
+      "file": "20261015223000_0512_agenda_event_type_acl.sql",
+      "version": "20261015223000",
+      "sequence": 512,
+      "slug": "agenda_event_type_acl",
+      "checksum": "e17df64dfba737dba89ab575f3753e5a1ce1622bc9d62d6462b5d98c997f55f5",
       "transactional": true
     }
   ]
