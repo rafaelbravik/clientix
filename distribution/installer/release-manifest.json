@@ -1,40 +1,50 @@
 {
-  "release_version": "1.0.0",
-  "min_installer_version": "1.0.0",
-  "schema_target": "0510",
-  "released_at": "2026-10-08T10:00:00Z",
-  "architectures": ["amd64", "arm64"],
-  "images": {
-    "app": {
-      "repository": "ghcr.io/rafaelbravik/clientix-app",
-      "tag": "1.0.0",
-      "digest": "sha256:33e57ad80626423d88ccfd1cb634b587e952d7271767730b7e85a3691c7621d6"
+  "payload": {
+    "release_version": "1.0.1",
+    "min_installer_version": "1.0.0",
+    "schema_target": "0510",
+    "released_at": "2026-10-10T04:57:19Z",
+    "architectures": [
+      "amd64"
+    ],
+    "images": {
+      "app": {
+        "repository": "ghcr.io/rafaelbravik/clientix-app",
+        "tag": "1.0.1",
+        "digest": "sha256:1606da658179920c0d2fc55817cb0cc89c551ac9e1626dbdcaa54d581e32d0b5"
+      },
+      "worker": {
+        "repository": "ghcr.io/rafaelbravik/clientix-worker",
+        "tag": "1.0.1",
+        "digest": "sha256:bbdd169dba29c2d393bbb007f32e82ab97416ae4dac9002ae98d8bb073bd962c"
+      },
+      "scheduler": {
+        "repository": "ghcr.io/rafaelbravik/clientix-scheduler",
+        "tag": "1.0.1",
+        "digest": "sha256:ad496ab74f5f5df928236c7fc7f8b1d13616992e4542ee9a8021584ed78a6b76"
+      },
+      "voice_agent": {
+        "repository": "ghcr.io/rafaelbravik/clientix-voice-agent",
+        "tag": "1.0.1",
+        "digest": "sha256:5e0913c5523d2f8af4fbb05f6abf6520f3e0fff0fb7d263ce3c30824569d71b1"
+      },
+      "migrator": {
+        "repository": "ghcr.io/rafaelbravik/clientix-migrator",
+        "tag": "1.0.1",
+        "digest": "sha256:154718d0e71509330afea367fe0b53a49f4920f4ed8ac15d5f11e580a25171ca"
+      }
     },
-    "worker": {
-      "repository": "ghcr.io/rafaelbravik/clientix-worker",
-      "tag": "1.0.0",
-      "digest": "sha256:4800ee621a5c3b46741e4ac18d336a22a2e0936a50c0f71cf74ba1ff7af34f1f"
-    },
-    "scheduler": {
-      "repository": "ghcr.io/rafaelbravik/clientix-scheduler",
-      "tag": "1.0.0",
-      "digest": "sha256:47a1aae53ead40a434aa470411d0b299baf68ac1ec455c56e1d68e901633a97a"
-    },
-    "voice_agent": {
-      "repository": "ghcr.io/rafaelbravik/clientix-voice-agent",
-      "tag": "1.0.0",
-      "digest": "sha256:86150d3bd14c7ec1ebb463d7940203107055c3986ffc6f0541496be2ae221389"
-    },
-    "migrator": {
-      "repository": "ghcr.io/rafaelbravik/clientix-migrator",
-      "tag": "1.0.0",
-      "digest": "sha256:5dea55a1725e1001c7b6b8f187932281c646f24b563b3cd85cc9c7eaf294f0b9"
+    "compatibility": {
+      "compatible_previous_apps": [
+        "0.9.0",
+        "1.0.0"
+      ],
+      "min_schema": "0510",
+      "max_schema": "0510"
     }
   },
-  "compatibility": {
-    "compatible_previous_apps": ["0.9.0", "1.0.0"],
-    "min_schema": "0510",
-    "max_schema": "0510"
-  },
-  "signature": null
+  "algorithm": "Ed25519",
+  "purpose": "release_manifest",
+  "keyId": "clientix-release-2026-01",
+  "signature": "M0HpnHByyHLCYYinsKj4AWYn5KJp407GnkGqKsOz8wBU4wrp4INv0be0iIQLxxcmknMkB3jaMxQHALB8uHW3BQ"
 }
