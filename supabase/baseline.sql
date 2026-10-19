@@ -46551,3 +46551,21 @@ grant select, insert, update, delete
   on table public.calendar_event_types to authenticated;
 grant select, insert, update
   on table public.calendar_event_types to service_role;
+
+-- ---- ACL mínima do worker para o seed/leitura dos playbooks (migration 0513) ----
+-- O worker usa PostgreSQL direto; service_role (e, se criada, agent_worker)
+-- recebe apenas SELECT/INSERT. Conteúdo de versões é imutável; DELETE/UPDATE
+-- não fazem parte do caminho de boot/leitura. As policies RLS ficam intactas.
+revoke all on table public.playbook_versions, public.playbook_pointers
+  from public, anon, service_role;
+grant select, insert on table public.playbook_versions to service_role;
+grant select, insert on table public.playbook_pointers to service_role;
+
+do $$
+begin
+  if to_regrole('agent_worker') is not null then
+    execute 'revoke all on table public.playbook_versions, public.playbook_pointers from agent_worker';
+    execute 'grant select, insert on table public.playbook_versions, public.playbook_pointers to agent_worker';
+  end if;
+end
+$$;

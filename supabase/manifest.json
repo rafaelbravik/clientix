@@ -1,12 +1,12 @@
 {
   "version": 1,
   "generated_at": "2026-10-17T16:41:56.051Z",
-  "schema_target": "0512",
+  "schema_target": "0513",
   "baseline": {
     "file": "baseline.sql",
-    "checksum": "bb84c28805121796688947797d9b556044c26472a59de5e385acbdf30e233f30",
-    "size_bytes": 2398853,
-    "incorporated_through_sequence": 512
+    "checksum": "e6b66d701419b071646328c4f758044b2d91181ca0496a76dd660f26ae4a78c2",
+    "size_bytes": 2399725,
+    "incorporated_through_sequence": 513
   },
   "migrations": [
     {
@@ -3343,6 +3343,14 @@
       "sequence": 512,
       "slug": "agenda_event_type_acl",
       "checksum": "e17df64dfba737dba89ab575f3753e5a1ce1622bc9d62d6462b5d98c997f55f5",
+      "transactional": true
+    },
+    {
+      "file": "20261016220127_0513_worker_playbook_runtime_acl.sql",
+      "version": "20261016220127",
+      "sequence": 513,
+      "slug": "worker_playbook_runtime_acl",
+      "checksum": "0b946afdab8edf0ad720541663a6dad0d38d7dd584e6e91f64103fda9e007246",
       "transactional": true
     }
   ]
