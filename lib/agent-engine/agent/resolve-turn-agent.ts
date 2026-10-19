@@ -209,6 +209,7 @@ export async function resolveTurnAgent(
   const _loadAgentBySession = deps.loadPublishedAgentConfig ?? loadPublishedAgentConfig;
   const _classifyIntent = deps.classifyIntent ?? classifyIntent;
   const _consultarJev = deps.consultarJev ?? consultarJevNoRoteador;
+  let pausedPreferredConfig: PublishedAgentConfig | null = null;
 
   try {
     // ─── Degrau 0: a campanha que criou esta conversa ───
@@ -224,19 +225,29 @@ export async function resolveTurnAgent(
     const idDaCampanha = await _agenteDaCampanha(db, input.tenantId, input.conversationId);
     if (idDaCampanha !== null) {
       const config = await _loadAgentById(db, input.tenantId, idDaCampanha);
-      if (config !== null) {
+      if (config !== null && !config.pausedAt) {
         return { config, routerId: null, intentName: null, confidence: null, outcome: 'campanha' };
       }
-      deps.log.warn('agente da campanha sem versão publicada; seguindo pela régua do número', {
-        tenantId: input.tenantId,
-        conversationId: input.conversationId,
-      });
+      if (config?.pausedAt) {
+        pausedPreferredConfig = config;
+        deps.log.warn('resolve-turn-agent: preferred_agent_paused; seguindo pela régua do número', {
+          organizationId: input.tenantId,
+          conversationId: input.conversationId,
+        });
+      }
+      if (!config?.pausedAt) {
+        deps.log.warn('agente da campanha sem versão publicada; seguindo pela régua do número', {
+          tenantId: input.tenantId,
+          conversationId: input.conversationId,
+        });
+      }
     }
 
     const router = await _loadActiveRouter(db, input.tenantId, input.channelSessionId);
     if (router === null) {
+      const sessionConfig = await _loadAgentBySession(db, input.tenantId, input.channelSessionId);
       return {
-        config: await _loadAgentBySession(db, input.tenantId, input.channelSessionId),
+        config: sessionConfig && !sessionConfig.pausedAt ? sessionConfig : pausedPreferredConfig ?? sessionConfig,
         routerId: null,
         intentName: null,
         confidence: null,
@@ -248,37 +259,87 @@ export async function resolveTurnAgent(
     const resolveFallback = async (
       outcome: 'no_match' | 'classifier_failed',
       confidence: number | null,
+      pausedCandidate: PublishedAgentConfig | null = pausedPreferredConfig,
     ): Promise<TurnAgentResolution> => {
+      let pausedFallback: PublishedAgentConfig | null = pausedCandidate;
+      let config: PublishedAgentConfig | null = null;
       if (router.fallbackAgentId === null) {
         // Regra 5: sem fallback declarado, quem atende é o agente publicado da
         // SESSÃO — o comportamento de antes do router existir. `null` aqui
         // (nenhum publicado) segue caindo no genérico, como sempre.
-        const daSessao = await _loadAgentBySession(db, input.tenantId, input.channelSessionId);
-        if (daSessao === null) {
-          deps.log.warn('resolve-turn-agent: router sem fallback e sessão sem agente publicado — turno cai no genérico', {
+      } else {
+        config = await _loadAgentById(db, input.tenantId, router.fallbackAgentId);
+        if (config?.pausedAt) {
+          pausedFallback ??= config;
+          deps.log.warn('resolve-turn-agent: preferred_agent_paused; tentando agente publicado da sessão', {
+            routerId: router.id,
+            organizationId: input.tenantId,
+          });
+          config = null;
+        }
+        if (config === null) {
+          // regra 7: fallback também sem versão publicada — fim legítimo da
+          // linha, mas o outcome que já explicava a causa (classifier_failed)
+          // não vira 'no_match' por engano; só rebaixa quando o motivo era
+          // genuinamente "sem match", pra não mentir sobre o que aconteceu.
+          deps.log.warn('resolve-turn-agent: fallbackAgentId sem versão publicada ou pausado', {
+            routerId: router.id,
+            organizationId: input.tenantId,
+          });
+        }
+      }
+
+      // A sessão é a reserva histórica do roteador. O loader ordena ativos
+      // primeiro; um resultado pausado só é mantido como sentinela para o
+      // guard do inbound impedir que o turno caia no agente genérico.
+      if (config === null) {
+        const sessionConfig = await _loadAgentBySession(db, input.tenantId, input.channelSessionId);
+        if (sessionConfig && !sessionConfig.pausedAt) config = sessionConfig;
+        else if (sessionConfig?.pausedAt) pausedFallback ??= sessionConfig;
+        else if (!pausedFallback && router.members.length > 0) {
+          // Sem agente de sessão ativo, não deixe um router composto somente
+          // por membros pausados cair no agente genérico. Membros ativos que
+          // não casaram a intenção preservam a semântica anterior de no-match.
+          for (const member of router.members) {
+            const memberConfig = await _loadAgentById(db, input.tenantId, member.agentId);
+            if (memberConfig && !memberConfig.pausedAt) break;
+            if (memberConfig?.pausedAt) pausedFallback ??= memberConfig;
+          }
+        }
+        if (!config && !pausedFallback) {
+          deps.log.warn('resolve-turn-agent: router sem agente ativo ou publicado na sessão — turno cai no genérico', {
             routerId: router.id,
             outcome,
           });
         }
-        return { config: daSessao, routerId: router.id, intentName: null, confidence, outcome };
       }
-      const config = await _loadAgentById(db, input.tenantId, router.fallbackAgentId);
-      if (config === null) {
-        // regra 7: fallback também sem versão publicada — fim legítimo da
-        // linha, mas o outcome que já explicava a causa (classifier_failed)
-        // não vira 'no_match' por engano; só rebaixa quando o motivo era
-        // genuinamente "sem match", pra não mentir sobre o que aconteceu.
-        deps.log.warn('resolve-turn-agent: fallbackAgentId sem versão publicada — turno cai no genérico', {
+
+      if (config) {
+        deps.log.info('resolve-turn-agent: fallback_agent_selected', {
           routerId: router.id,
-          fallbackAgentId: router.fallbackAgentId,
+          organizationId: input.tenantId,
         });
+      } else if (pausedFallback) {
+        deps.log.warn('resolve-turn-agent: no_active_agent_available', {
+          routerId: router.id,
+          organizationId: input.tenantId,
+        });
+        config = pausedFallback;
       }
+
       return {
         config,
         routerId: router.id,
         intentName: null,
         confidence,
-        outcome: outcome === 'classifier_failed' ? 'classifier_failed' : config === null ? 'no_match' : 'fallback',
+        outcome:
+          outcome === 'classifier_failed'
+            ? 'classifier_failed'
+            : config === null
+              ? 'no_match'
+              : router.fallbackAgentId !== null
+                ? 'fallback'
+                : outcome,
       };
     };
 
@@ -294,13 +355,14 @@ export async function resolveTurnAgent(
     ): Promise<TurnAgentResolution> => {
       const agentId = member.agentId;
       const config = await _loadAgentById(db, input.tenantId, agentId);
-      if (config === null) {
-        deps.log.warn('resolve-turn-agent: agente casado sem versão publicada — tentando fallback do router', {
+      if (config === null || config.pausedAt) {
+        const paused = config?.pausedAt ? config : null;
+        deps.log.warn('resolve-turn-agent: agente casado sem versão publicada ou pausado — tentando fallback do router', {
           routerId: router.id,
           matchedOutcome: outcome,
-          agentId,
+          reason: paused ? 'preferred_agent_paused' : 'preferred_agent_unavailable',
         });
-        return resolveFallback('no_match', confidence);
+        return resolveFallback('no_match', confidence, paused ?? pausedPreferredConfig);
       }
       return {
         config,
@@ -388,8 +450,9 @@ export async function resolveTurnAgent(
     deps.log.warn('resolve-turn-agent: erro inesperado no router — turno cai no fluxo sem router', {
       error: err instanceof Error ? err.message : String(err),
     });
+    const sessionConfig = await _loadAgentBySession(db, input.tenantId, input.channelSessionId);
     return {
-      config: await _loadAgentBySession(db, input.tenantId, input.channelSessionId),
+      config: sessionConfig && !sessionConfig.pausedAt ? sessionConfig : pausedPreferredConfig ?? sessionConfig,
       routerId: null,
       intentName: null,
       confidence: null,

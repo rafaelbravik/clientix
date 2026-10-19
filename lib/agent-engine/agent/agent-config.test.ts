@@ -68,6 +68,15 @@ describe('loadPublishedAgentConfig — campos de RAG', () => {
 
     expect(cfg?.followup).toEqual({ enabled: true, flow_pointer_ids: ['flow-1'] });
   });
+
+  it('prioriza agentes ativos e exclui rag_bot desativado sem filtrar mcp_agent por is_active', async () => {
+    const pool = poolWith(baseRow);
+    await loadPublishedAgentConfig(pool, 'org1', 'cs1');
+    const queryMock = pool.query as unknown as ReturnType<typeof vi.fn>;
+    const [sql] = queryMock.mock.calls[0] as [string, unknown[]];
+    expect(sql).toMatch(/a\.kind\s*<>\s*'rag_bot'\s+or\s+a\.is_active\s*=\s*true/i);
+    expect(sql).toMatch(/order by\s*\(a\.paused_at is not null\) asc,\s*a\.priority desc/i);
+  });
 });
 
 describe('loadPublishedAgentConfigById', () => {
@@ -99,5 +108,13 @@ describe('loadPublishedAgentConfigById', () => {
     expect(cfg?.activeKbVersionId).toBe('kb-1');
     expect(cfg?.ragTopK).toBe(7);
     expect(cfg?.ragSimilarityThreshold).toBe(0.8);
+  });
+
+  it('exclui rag_bot desativado sem alterar o estado publicado do mcp_agent', async () => {
+    const pool = poolWith(baseRow);
+    await loadPublishedAgentConfigById(pool, 'org1', 'a1');
+    const queryMock = pool.query as unknown as ReturnType<typeof vi.fn>;
+    const [sql] = queryMock.mock.calls[0] as [string, unknown[]];
+    expect(sql).toMatch(/a\.kind\s*<>\s*'rag_bot'\s+or\s+a\.is_active\s*=\s*true/i);
   });
 });

@@ -247,8 +247,11 @@ export async function loadPublishedAgentConfig(
        -- published_version_id preenchido + não arquivado. Pausar NÃO despublica
        -- (grava só paused_at): o pausado vem aqui, e o turno sai no pausedAt.
        and v.status = 'published'
+       -- rag_bot legado usa is_active como estado; mcp_agent usa a versão
+       -- publicada. Archived/unpublished continuam fora em ambos os casos.
+       and (a.kind <> 'rag_bot' or a.is_active = true)
        and v.channel_session_id = $2
-     order by a.priority desc, a.created_at asc
+     order by (a.paused_at is not null) asc, a.priority desc, a.created_at asc
      limit 1`,
     [organizationId, channelSessionId],
   );
@@ -275,6 +278,7 @@ export async function loadPublishedAgentConfigById(
      where a.organization_id = $1
        and a.archived_at is null
        and v.status = 'published'
+       and (a.kind <> 'rag_bot' or a.is_active = true)
        and a.id = $2`,
     [organizationId, agentId],
   );

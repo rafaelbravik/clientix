@@ -90,6 +90,7 @@ function makeDeps(overrides: {
   loadPublishedAgentConfigById?: ReturnType<typeof vi.fn>;
   loadPublishedAgentConfig?: ReturnType<typeof vi.fn>;
   classifyIntent?: ReturnType<typeof vi.fn>;
+  agenteDaCampanha?: ReturnType<typeof vi.fn>;
   consultarJev?: ReturnType<typeof vi.fn>;
 }) {
   return {
@@ -97,6 +98,7 @@ function makeDeps(overrides: {
     loadActiveRouter: overrides.loadActiveRouter ?? vi.fn(),
     loadPublishedAgentConfigById: overrides.loadPublishedAgentConfigById ?? vi.fn(),
     loadPublishedAgentConfig: overrides.loadPublishedAgentConfig ?? vi.fn(),
+    agenteDaCampanha: overrides.agenteDaCampanha,
     classifyIntent: overrides.classifyIntent ?? vi.fn(),
     consultarJev: overrides.consultarJev ?? jevFalso().consultarJev,
   } as never;
@@ -334,13 +336,104 @@ describe('resolveTurnAgent', () => {
     const loadActiveRouter = vi.fn().mockResolvedValue(r);
     const classifyIntent = vi.fn().mockResolvedValue({ intentName: null, confidence: 0.1 });
     const loadPublishedAgentConfig = vi.fn().mockResolvedValue(null);
+    const loadPublishedAgentConfigById = vi.fn().mockResolvedValue(null);
     const warn = vi.fn();
     const out = await resolveTurnAgent({} as never, {} as never,
       { ...baseInput, signal: 'blablabla', stickyAgentId: null, stickyIntent: null },
-      { log: { info: vi.fn(), warn, error: vi.fn() }, loadActiveRouter, classifyIntent, loadPublishedAgentConfig } as never);
+      { log: { info: vi.fn(), warn, error: vi.fn() }, loadActiveRouter, classifyIntent, loadPublishedAgentConfig, loadPublishedAgentConfigById } as never);
     expect(out.config).toBeNull();
     expect(out.outcome).toBe('no_match');
     expect(warn).toHaveBeenCalled();
+  });
+});
+
+describe('fallback seguro para agentes pausados', () => {
+  it('sem match, se todos os membros do router estão pausados e não há fallback ativo, não usa o genérico', async () => {
+    const loadPublishedAgentConfigById = vi.fn(async (_db: unknown, organizationId: string, id: string) => {
+      expect(organizationId).toBe('org-1');
+      return { ...fakeConfig(id), pausedAt: '2026-10-16T10:00:00Z' };
+    });
+    const out = await resolveTurnAgent({} as never, {} as never,
+      { ...baseInput, signal: 'mensagem sem intenção reconhecida', stickyAgentId: null, stickyIntent: null },
+      makeDeps({
+        loadActiveRouter: vi.fn().mockResolvedValue(router({ sticky: false })),
+        classifyIntent: vi.fn().mockResolvedValue({ intentName: null, confidence: 0.1 }),
+        loadPublishedAgentConfig: vi.fn().mockResolvedValue(null),
+        loadPublishedAgentConfigById,
+      }));
+    expect(out.config?.pausedAt).toBe('2026-10-16T10:00:00Z');
+    expect(out.config?.agentId).toBe('agent-vendas');
+    expect(out.outcome).toBe('no_match');
+  });
+
+  it('agente de intenção pausado usa o fallback ativo do router na mesma organização', async () => {
+    const loadPublishedAgentConfigById = vi.fn(async (_db: unknown, organizationId: string, id: string) => {
+      expect(organizationId).toBe('org-1');
+      return id === 'agent-vendas'
+        ? { ...fakeConfig(id), pausedAt: '2026-10-16T10:00:00Z' }
+        : fakeConfig(id);
+    });
+    const out = await resolveTurnAgent({} as never, {} as never,
+      { ...baseInput, signal: 'quanto custa?', stickyAgentId: null, stickyIntent: null },
+      makeDeps({
+        loadActiveRouter: vi.fn().mockResolvedValue(router({ sticky: false, fallbackAgentId: 'agent-suporte' })),
+        classifyIntent: vi.fn().mockResolvedValue({ intentName: 'vendas', confidence: 0.95 }),
+        loadPublishedAgentConfigById,
+      }));
+    expect(out.outcome).toBe('fallback');
+    expect(out.config?.agentId).toBe('agent-suporte');
+    expect(out.config?.pausedAt).toBeFalsy();
+  });
+
+  it('agente pausado sem alternativa ativa permanece como sentinela e não cai no genérico', async () => {
+    const pausado = { ...fakeConfig('agent-vendas'), pausedAt: '2026-10-16T10:00:00Z' };
+    const loadPublishedAgentConfigById = vi.fn().mockResolvedValue(pausado);
+    const loadPublishedAgentConfig = vi.fn().mockResolvedValue(null);
+    const out = await resolveTurnAgent({} as never, {} as never,
+      { ...baseInput, signal: 'quanto custa?', stickyAgentId: null, stickyIntent: null },
+      makeDeps({
+        loadActiveRouter: vi.fn().mockResolvedValue(router({ sticky: false })),
+        classifyIntent: vi.fn().mockResolvedValue({ intentName: 'vendas', confidence: 0.95 }),
+        loadPublishedAgentConfigById,
+        loadPublishedAgentConfig,
+      }));
+    expect(out.config).toBe(pausado);
+    expect(out.config?.pausedAt).toBeTruthy();
+    expect(loadPublishedAgentConfig).toHaveBeenCalledWith(expect.anything(), 'org-1', 'sess-1');
+  });
+
+  it('fallback configurado pausado tenta o agente ativo publicado na sessão', async () => {
+    const loadPublishedAgentConfigById = vi.fn().mockResolvedValue({
+      ...fakeConfig('agent-fallback'), pausedAt: '2026-10-16T10:00:00Z',
+    });
+    const loadPublishedAgentConfig = vi.fn().mockResolvedValue(fakeConfig('agent-session-active'));
+    const out = await resolveTurnAgent({} as never, {} as never,
+      { ...baseInput, signal: 'sem certeza', stickyAgentId: null, stickyIntent: null },
+      makeDeps({
+        loadActiveRouter: vi.fn().mockResolvedValue(router({ sticky: false, fallbackAgentId: 'agent-fallback' })),
+        classifyIntent: vi.fn().mockResolvedValue({ intentName: null, confidence: 0.1 }),
+        loadPublishedAgentConfigById,
+        loadPublishedAgentConfig,
+      }));
+    expect(out.config?.agentId).toBe('agent-session-active');
+    expect(out.outcome).toBe('fallback');
+  });
+
+  it('agente pausado de campanha permite a reserva ativa da sessão', async () => {
+    const loadPublishedAgentConfigById = vi.fn().mockResolvedValue({
+      ...fakeConfig('campaign-agent'), pausedAt: '2026-10-16T10:00:00Z',
+    });
+    const loadPublishedAgentConfig = vi.fn().mockResolvedValue(fakeConfig('session-active'));
+    const out = await resolveTurnAgent({} as never, {} as never,
+      { ...baseInput, signal: 'oi', stickyAgentId: null, stickyIntent: null },
+      makeDeps({
+        agenteDaCampanha: vi.fn().mockResolvedValue('campaign-agent'),
+        loadActiveRouter: vi.fn().mockResolvedValue(null),
+        loadPublishedAgentConfigById,
+        loadPublishedAgentConfig,
+      }));
+    expect(out.config?.agentId).toBe('session-active');
+    expect(out.outcome).toBe('no_router');
   });
 });
 

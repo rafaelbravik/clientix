@@ -4848,6 +4848,16 @@ export function createInboundTurnHandler(deps: InboundTurnDeps) {
       ) {
         return;
       }
+      // Mantém as determinísticas (opt-out/handoff), mas um agente pausado
+      // nunca chega ao papel que chama modelo nem gera rascunho.
+      if (operationAgent.pausedAt) {
+        deps.log.info('turno pulado — agente pausado', {
+          job_id: job.id,
+          conversation_id: payload.conversation_id,
+          reason: 'no_active_agent_available',
+        });
+        return;
+      }
       const { generateReplyDraft } = await import('./reply-drafts');
       if (!job.contact_id) throw new Error('reply_without_contact');
       await generateReplyDraft(pool, deps, {
@@ -4860,7 +4870,15 @@ export function createInboundTurnHandler(deps: InboundTurnDeps) {
       });
       return;
     }
-    if (operationAgent?.pausedAt) return;
+    // A pausa é uma ordem de não execução também no modo automático.
+    if (operationAgent?.pausedAt) {
+      deps.log.info('turno pulado — agente pausado', {
+        job_id: job.id,
+        conversation_id: payload.conversation_id,
+        reason: 'no_active_agent_available',
+      });
+      return;
+    }
     // UMA RESPOSTA POR MENSAGEM: um turno que rodou antes deste pode ter lido a
     // mensagem que acordou este job e já respondido a ela — ver o cabeçalho de
     // `turno-ja-respondido.ts`, com o caso medido. A anotação vem DEPOIS da

@@ -116,10 +116,27 @@ describe('operação segue a identidade escolhida pelo router canônico', () => 
     expect(mocks.draft).not.toHaveBeenCalled();
   });
 
-  it('pausa do próprio B selecionado impede o turno, mesmo que A esteja automático', async () => {
-    const pool = setup(agent('A', 'automatic'), agent('B', 'automatic', true), false);
+  it('B pausado selecionado usa o agente ativo publicado na sessão como fallback', async () => {
+    const a = agent('A', 'assisted');
+    const pool = setup(a, agent('B', 'automatic', true), false);
     await createInboundTurnHandler(deps)(job as never, pool as never, { workerId: 'worker' });
     expect(mocks.classify).toHaveBeenCalledOnce();
+    expect(mocks.draft).toHaveBeenCalledOnce();
+    expect(mocks.draft).toHaveBeenCalledWith(pool, deps, expect.objectContaining({ agent: a }));
+    expect(mocks.operation).not.toHaveBeenCalled();
+  });
+
+  it('agente assistido pausado não gera rascunho nem executa IA', async () => {
+    const pool = setup(agent('A', 'automatic', true), agent('B', 'assisted', true), false);
+    await createInboundTurnHandler(deps)(job as never, pool as never, { workerId: 'worker' });
+    expect(mocks.classify).toHaveBeenCalledOnce();
+    expect(mocks.draft).not.toHaveBeenCalled();
+    expect(mocks.operation).not.toHaveBeenCalled();
+  });
+
+  it('todos os candidatos pausados não caem no agente genérico', async () => {
+    const pool = setup(agent('A', 'automatic', true), agent('B', 'automatic', true), false);
+    await createInboundTurnHandler(deps)(job as never, pool as never, { workerId: 'worker' });
     expect(mocks.draft).not.toHaveBeenCalled();
     expect(mocks.operation).not.toHaveBeenCalled();
   });
@@ -127,7 +144,7 @@ describe('operação segue a identidade escolhida pelo router canônico', () => 
 
 describe('o Jev do turno chega ao roteador', () => {
   it('as dependências do Jev do handler (chave e fetch) são as que o roteador usa — e ele vê só a mensagem', async () => {
-    const pool = setup(agent('A', 'automatic'), agent('B', 'automatic', true), false);
+    const pool = setup(agent('A', 'automatic', true), agent('B', 'automatic', true), false);
     const jev = { buscarChave: async () => 'tsk_x' };
     await createInboundTurnHandler({ ...deps, jev } as InboundTurnDeps)(job as never, pool as never, { workerId: 'worker' });
     expect(mocks.jev).toHaveBeenCalledOnce();
