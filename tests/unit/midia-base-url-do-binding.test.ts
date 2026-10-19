@@ -251,6 +251,7 @@ function corposDaCentral(): string[] {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.unstubAllEnvs();
+  vi.stubEnv('SUPABASE_DB_URL', 'postgresql://test_user:test_password@localhost:5432/test_db');
   comTranscricaoNoEnv();
   comDestinosAutorizados();
   // A lista é memoizada em `globalThis` com TTL de 30s — sem isto, o primeiro

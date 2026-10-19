@@ -23,6 +23,9 @@ const PLACEHOLDERS: Record<string, string> = {
   NEXT_PUBLIC_SUPABASE_URL: URL_DO_PLACEHOLDER,
   NEXT_PUBLIC_SUPABASE_ANON_KEY: "test-placeholder-anon-key",
   SUPABASE_SERVICE_ROLE_KEY: "test-placeholder-service-role-key",
+  // Cria somente um pool local sintético; testes nunca usam credenciais do
+  // operador nem conectam ao banco. Casos que provam ausência removem a env.
+  SUPABASE_DB_URL: "postgresql://test_user:test_password@127.0.0.1:5432/test_db",
 };
 if (!Reflect.set(process.env, "NODE_ENV", "test")) {
   throw new Error("Não foi possível fixar NODE_ENV=test no ambiente hermético do Vitest.");

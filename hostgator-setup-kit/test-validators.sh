@@ -426,7 +426,7 @@ TMP3="$(mktemp -d)"
 (
   MARCA="$TMP3/executou"
   mkdir -p "$TMP3/bin" "$TMP3/proj"
-  cp install.sh _common.sh _i18n.sh "$TMP3/"
+  cp install.sh _common.sh _i18n.sh postgres-tls.sh "$TMP3/"
   : > "$TMP3/proj/docker-compose.prod.yml"
   printf '#!/usr/bin/env bash\nexit 0\n' > "$TMP3/bin/docker"; chmod +x "$TMP3/bin/docker"
   dublar_uname_amd64 "$TMP3/bin"
@@ -471,7 +471,15 @@ echo "sincronia: o install.sh grava as chaves que o .env.hostgator.example prome
 # DÍVIDA: chaves que o install.sh hoje não grava. A lista só pode ENCOLHER; se
 # uma delas passar a ser gravada, o teste manda tirá-la daqui.
 DIVIDA="AGENT_DISPATCH_CONSUMER NUVEMSHOP_APP_ID NUVEMSHOP_CLIENT_ID NUVEMSHOP_CLIENT_SECRET"
+# Contratos do VENDOR_CONTROL_PLANE não são emitidos pelo instalador CUSTOMER.
+VENDOR_ONLY="IMPERSONATE_COOKIE_SECRET"
 EXEMPLO="${EXEMPLO_ENV:-../.env.hostgator.example}"
+if grep -qF 'IMPERSONATE_COOKIE_SECRET' install.sh; then
+  printf '  ✗ o instalador customer não pode emitir, exigir ou validar a chave de impersonation vendor-only\n'
+  fail=1
+else
+  printf '  ✓ o instalador customer não referencia IMPERSONATE_COOKIE_SECRET\n'
+fi
 if [ ! -f "$EXEMPLO" ]; then
   # Pular é aceitável (o kit também roda solto, fora do repo), mas em voz alta:
   # pulo silencioso é indistinguível de teste que passou.
@@ -523,6 +531,7 @@ else
   novas=""
   for k in $(grep -oE '^[A-Z_0-9]+=' "$EXEMPLO" | tr -d '=' | sort -u); do
     na_regua "$k" && continue
+    case " $VENDOR_ONLY " in *" $k "*) continue ;; esac
     case " $DIVIDA " in *" $k "*) continue ;; esac
     novas="$novas $k"
   done
@@ -1724,7 +1733,7 @@ montar_vps() {
   # topo, igual ao `_common.sh`. Sem eles aqui, o script morre na LINHA 21 — antes
   # de qualquer mensagem — e todo cenario reporta "o update.sh nao chegou ao
   # banco / ao fim / ao up -d", que le como defeito do produto e e cenario faltando.
-  cp install.sh update.sh backup.sh _common.sh _i18n.sh marca-emails.sh manutencao.sh "$raiz/"
+  cp install.sh update.sh backup.sh _common.sh _i18n.sh postgres-tls.sh marca-emails.sh manutencao.sh "$raiz/"
   cp -R manutencao "$raiz/"
   : > "$VPS_PROJ/docker-compose.prod.yml"
   cat > "$raiz/bin/docker"
@@ -2743,8 +2752,10 @@ strings_de_schema() {
 }
 # Derivada do BASE_ENV, não copiada: duas cópias do mesmo literal desincronizam
 # no dia em que o cenário-base trocar de string, e aí o teste reprova por engano.
-URL_DO_APP="$(printf '%s\n' "$BASE_ENV" | sed -n "s/^SUPABASE_DB_URL='\(.*\)'$/\1/p")"
-URL_DO_DONO='postgresql://test_user:test_password@127.0.0.1:5432/test_db'
+URL_DO_APP_RAW="$(printf '%s\n' "$BASE_ENV" | sed -n "s/^SUPABASE_DB_URL='\(.*\)'$/\1/p")"
+URL_DO_APP="$(clientix_postgres_url_for_libpq "$URL_DO_APP_RAW")"
+URL_DO_DONO_RAW='postgresql://test_user:test_password@127.0.0.1:5432/test_db'
+URL_DO_DONO="$(clientix_postgres_url_for_libpq "$URL_DO_DONO_RAW")"
 
 TMP_DDL_A="$(mktemp -d)"
 (
@@ -2819,7 +2830,7 @@ STUB
   printf '  ✓ e a conferência da conexão do app continua sendo feita com a do app\n'
 
   gravada="$(valor_no_env "$VPS_PROJ/.env" SUPABASE_DB_URL)"
-  if [ "$gravada" != "$URL_DO_APP" ]; then
+  if [ "$gravada" != "$URL_DO_APP_RAW" ]; then
     printf '  ✗ o .env não recebeu a string do APP: [%s]\n' "$gravada"; exit 1
   fi
   printf '  ✓ e o .env continua recebendo a string do app\n'
@@ -3423,11 +3434,11 @@ fi
 TMP_SITEURL="$(mktemp -d)"
 (
   KIT_AQUI="$PWD"
-  cp "$KIT_AQUI/marca-emails.sh" "$KIT_AQUI/_common.sh" "$TMP_SITEURL/" || exit 1
+  cp "$KIT_AQUI/marca-emails.sh" "$KIT_AQUI/_common.sh" "$KIT_AQUI/postgres-tls.sh" "$TMP_SITEURL/" || exit 1
   mkdir -p "$TMP_SITEURL/../supabase/templates" 2>/dev/null
   # Os modelos moram em ../supabase/templates relativo ao script.
   mkdir -p "$TMP_SITEURL/kit" "$TMP_SITEURL/supabase/templates"
-  cp "$KIT_AQUI/marca-emails.sh" "$KIT_AQUI/_common.sh" "$KIT_AQUI/_i18n.sh" "$TMP_SITEURL/kit/"
+  cp "$KIT_AQUI/marca-emails.sh" "$KIT_AQUI/_common.sh" "$KIT_AQUI/_i18n.sh" "$KIT_AQUI/postgres-tls.sh" "$TMP_SITEURL/kit/"
   cp "$KIT_AQUI/../supabase/templates/confirmation.html" \
      "$KIT_AQUI/../supabase/templates/recovery.html" "$TMP_SITEURL/supabase/templates/" || exit 1
 
@@ -3516,7 +3527,7 @@ TMP_RASCUNHO="$(mktemp -d)"
 (
   KIT_AQUI="$PWD"
   cd "$TMP_RASCUNHO" || exit 1
-  cp "$KIT_AQUI/install.sh" "$KIT_AQUI/_common.sh" "$KIT_AQUI/_i18n.sh" . || exit 1
+  cp "$KIT_AQUI/install.sh" "$KIT_AQUI/_common.sh" "$KIT_AQUI/_i18n.sh" "$KIT_AQUI/postgres-tls.sh" . || exit 1
   INSTALL_SH_LIB=1 . ./install.sh >/dev/null 2>&1
   set +e   # o install.sh liga `set -e`; aqui as sondas precisam poder sair != 0
 
@@ -3577,6 +3588,26 @@ if [ -n "$crases_no_sql" ]; then
   printf '%s\n' "$crases_no_sql" | sed 's/^/       /'; fail=1
 else
   printf '  ✓ o heredoc do bootstrap do dono está livre de crase\n'
+fi
+
+echo "política TLS PostgreSQL: URI remota sempre valida CA/hostname; exceção local explícita"
+source ./postgres-tls.sh
+remote_tls_url="$(clientix_postgres_url_for_libpq 'postgresql://test_user:test_password@db.example.test:5432/clientix?sslmode=disable&application_name=installer')"
+private_tls_url="$(clientix_postgres_url_for_libpq 'postgres://test_user:test_password@10.20.0.15/clientix?sslmode=prefer')"
+loopback_tls_url="$(clientix_postgres_url_for_libpq 'postgres://test_user:test_password@127.0.0.1/clientix?sslmode=require')"
+docker_local_tls_url="$(clientix_postgres_url_for_libpq 'postgres://test_user:test_password@supabase-db/clientix?sslmode=require')"
+if [[ "$remote_tls_url" != *'sslmode=verify-full'* || "$remote_tls_url" == *'sslmode=disable'* || "$remote_tls_url" != *'application_name=installer'* ]]; then
+  printf '  ✗ URL PostgreSQL remota não foi forçada para verify-full\n'; fail=1
+elif [[ "$private_tls_url" != *'sslmode=verify-full'* ]]; then
+  printf '  ✗ IP RFC1918 foi tratado como transporte local confiável\n'; fail=1
+elif [[ "$loopback_tls_url" != *'sslmode=disable'* || "$docker_local_tls_url" != *'sslmode=disable'* ]]; then
+  printf '  ✗ exceção local explícita não foi preservada\n'; fail=1
+elif [ "$(clientix_postgres_host_class 'postgres://u:p@[::1]/db')" != local ] || [ "$(clientix_postgres_host_class 'postgres://u:p@[0:0:0:0:0:0:0:1]/db')" != local ] || [ "$(clientix_postgres_host_class 'postgres://u:p@db.internal/db')" != remote ]; then
+  printf '  ✗ classificação IPv6/DNS não é estrita\n'; fail=1
+elif clientix_postgres_url_for_libpq 'postgres://test_user:test_password@db.example.test/db?%73slmode=disable' >/dev/null 2>&1; then
+  printf '  ✗ parâmetro TLS codificado contornou a normalização segura\n'; fail=1
+else
+  printf '  ✓ URL remota, IP privado, loopback, Docker local e parâmetro codificado seguem política fail-closed\n'
 fi
 
 echo

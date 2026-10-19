@@ -192,6 +192,7 @@ export PATH="$WORK/bin:$PATH"
 PROJ="$WORK/deskcommcrm"
 mkdir -p "$PROJ/hostgator-setup-kit" "$PROJ/supabase"
 cp "$REPO_ROOT/hostgator-setup-kit/_common.sh" "$REPO_ROOT/hostgator-setup-kit/_i18n.sh" \
+   "$REPO_ROOT/hostgator-setup-kit/postgres-tls.sh" \
    "$REPO_ROOT/hostgator-setup-kit/update.sh" \
    "$REPO_ROOT/hostgator-setup-kit/agent.sh" "$REPO_ROOT/hostgator-setup-kit/manutencao.sh" \
    "$PROJ/hostgator-setup-kit/"

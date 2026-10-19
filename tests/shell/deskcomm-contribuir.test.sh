@@ -35,6 +35,9 @@
 #      sempre dá uma resposta ou um erro que se explica: também numa subpasta do clone,
 #      num clone sem o script e fora de qualquer clone, com e sem a instalação global.
 set -uo pipefail
+# Este teste mede o guard em estado normal. Um opt-out herdado do terminal
+# (`DESKCOMM_MIGRATION_EDIT=1`) faria as rejeições esperadas passarem caladas.
+unset DESKCOMM_MIGRATION_EDIT
 
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SKILL="$RAIZ/.agents/skills/deskcomm-contribuir"

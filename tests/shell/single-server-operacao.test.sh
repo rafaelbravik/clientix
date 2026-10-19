@@ -94,8 +94,8 @@ printf '%s\n' 'SINGLE_SERVER="1"' 'SUPABASE_DB_URL="postgresql://postgres:x@supa
 echo "quem já instalou (modo comum) não muda:"
 : > "$LOG"
 kit 'pg_container postgres:17-alpine psql x -c "select 1"' >/dev/null
-check "pg_container sem rede privada é o docker run --rm de antes" \
-  igual "$(head -1 "$LOG")" 'run --rm postgres:17-alpine psql x -c select 1'
+check "pg_container mantém o comando local e explicita a política TLS" \
+  igual "$(head -1 "$LOG")" 'run --rm -e PGSSLMODE=verify-full postgres:17-alpine psql x -c select 1'
 for proxy in caddy traefik npm; do
   arqs="$(REVERSE_PROXY="$proxy" kit 'dc_files')"
   case "$proxy" in

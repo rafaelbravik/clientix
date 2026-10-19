@@ -98,6 +98,9 @@ describe("caminho Postgres", () => {
 
 /** Supabase de mentira para o caminho HTTP: registra filtros e o que foi inserido. */
 function http(roteiroValido: boolean) {
+  // Este caminho prova a instalação sem Postgres direto, mesmo quando o runner
+  // herda uma URL sintética para outros testes.
+  vi.stubEnv("SUPABASE_DB_URL", undefined);
   const inseridos: unknown[] = [];
   const filtrosDoRoteiro: Array<[string, unknown]> = [];
   const from = vi.fn((tabela: string) => {

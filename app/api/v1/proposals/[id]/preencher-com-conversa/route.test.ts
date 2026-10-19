@@ -45,6 +45,9 @@ interface MundoOpts {
 }
 
 function montarMundo(opts: MundoOpts = {}) {
+  // O teste pode construir o pool do apoio de IA, mas nunca abre socket nem usa
+  // credenciais locais. A URL sintética satisfaz apenas a validação de config.
+  vi.stubEnv("SUPABASE_DB_URL", "postgresql://test_user:test_password@127.0.0.1:5432/test_db");
   let sugerirChamado = false;
   let mensagensConsultadas = false;
   let documentoMontado = false;
@@ -175,7 +178,10 @@ function montarMundo(opts: MundoOpts = {}) {
 }
 
 describe("POST /api/v1/proposals/[id]/preencher-com-conversa", () => {
-  beforeEach(() => vi.restoreAllMocks());
+  beforeEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
 
   it("suporte só-leitura: 403, nunca lê proposta nem chama IA", async () => {
     const mundo = montarMundo({ suporteReadOnly: true });
