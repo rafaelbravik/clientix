@@ -94,21 +94,31 @@ O gate que prova isso é o job `invariants`, que agora re-aplica com a flag.
 > Limite: auth/storage viram stubs — o login do app exige Supabase real; o
 > worker/agente funcionam integralmente.
 
-Crie também a role dedicada do worker (mais seguro que usar o superusuário):
+O worker observado conectava como `postgres` e herdava privilégios de owner;
+isso foi classificado como desvio da arquitetura. O runtime direto de PostgreSQL
+agora exige a role dedicada `agent_worker`, com `LOGIN`, `NOINHERIT` e
+`BYPASSRLS`, sem memberships nem ownership. O instalador single-server a cria
+com senha aleatória. Em Supabase gerenciado, provisiona-a com uma senha própria
+antes de configurar `SUPABASE_DB_URL`:
 
 ```sql
-create role agent_worker login password 'TROQUE-ESTA-SENHA' bypassrls;
-grant usage on schema public to agent_worker;
-grant select, insert, update, delete on all tables in schema public to agent_worker;
-grant usage, select on all sequences in schema public to agent_worker;
-grant execute on all functions in schema public to agent_worker;
+create role agent_worker login noinherit bypassrls password 'SENHA-UNICA';
+grant connect on database postgres to agent_worker;
 ```
 
-Aponte `SUPABASE_DB_URL` do `.env` para ela — e deixe a conexão do **dono** em
-`SUPABASE_DB_ADMIN_URL`. Antes isto era uma recomendação sem encaixe: o
-`install.sh` e o `update.sh` usavam a MESMA string para o app e para o schema, e
-quem seguia este parágrafo via o `baseline.sql` falhar por falta de permissão —
-com a saída de editar o `.env` na mão entre uma etapa e outra (issue #192).
+Não conceda privilégios amplos manualmente. A migration 0514 exige que a role
+seja dedicada (`LOGIN`, `NOINHERIT`, `BYPASSRLS`, sem associação a outras roles,
+administração ou ownership), redefine seus grants diretos de tabelas,
+sequências e funções do schema `public` e aplica a allowlist do runtime direto
+de PostgreSQL. Ela falha se a role estiver ausente ou se não puder instalar
+cada privilégio. `SUPABASE_DB_URL` é compartilhada pelos consumidores de runtime
+que usam `pg`; ela deve autenticar diretamente como `agent_worker`.
+
+Declare a conexão do **dono** em `SUPABASE_DB_ADMIN_URL`, usada somente para
+aplicar schema, migrations e backups. Não a coloque no `.env` entregue aos
+contêineres. O `install-single-server.sh` deriva essa conexão do `.runtime` do
+Supabase instalado; em Supabase gerenciado, passe-a ao comando de instalação ou
+atualização conforme este runbook. A URL de runtime permanece com a role menor.
 
 Para conferir quem é quem na sua instalação, sem acreditar neste texto:
 
@@ -118,7 +128,9 @@ grep -nE '(psql|pg_dump) "' hostgator-setup-kit/*.sh
 ```
 
 `url_do_schema` (em `hostgator-setup-kit/_common.sh`) é a resolução: usa
-`SUPABASE_DB_ADMIN_URL` e, ausente ou vazia, cai em `SUPABASE_DB_URL`.
+`SUPABASE_DB_ADMIN_URL`; no modo single-server deriva o owner do arquivo local
+do Supabase. Fora desses casos, o fallback para `SUPABASE_DB_URL` só funciona
+quando essa conexão tem autoridade de schema.
 
 Duas consequências que valem saber antes de escolher onde declarar:
 
