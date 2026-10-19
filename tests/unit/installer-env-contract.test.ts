@@ -72,6 +72,17 @@ describe("commercial installer runtime environment contract", () => {
     expect(compose).not.toContain("require('net').connect");
   });
 
+  it("keeps the host-published PORT separate from the app's internal port", async () => {
+    const compose = await fs.readFile(path.resolve("distribution/installer/compose.yaml"), "utf8");
+    const template = await fs.readFile(path.resolve("distribution/installer/.env.example"), "utf8");
+    const appService = compose.match(/  app:\n([\s\S]*?)\n  worker:/)?.[1] ?? "";
+
+    expect(compose).toContain('- "${PORT:-3000}:3000"');
+    expect(appService).toMatch(/^      PORT: "3000"$/m);
+    expect(compose).toContain("http://127.0.0.1:3000/api/v1/health");
+    expect(template).toMatch(/# Porta publicada no host\. O app escuta internamente em 3000\.\nPORT=3000/);
+  });
+
   it("keeps credentials out of host process arguments and preflights runtime DB access", async () => {
     const installer = await fs.readFile(path.resolve("distribution/installer/install.sh"), "utf8");
     expect(installer).toContain('--env-file "$env_file"');

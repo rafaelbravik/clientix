@@ -9,6 +9,9 @@ services:
     mem_limit: 768m
     env_file: .env
     environment:
+      # PORT no .env é a porta publicada no host. Next.js escuta sempre na
+      # porta interna do contêiner, independente do mapeamento do host.
+      PORT: "3000"
       SUPABASE_DB_ADMIN_URL: ""
     ports:
       - "${PORT:-3000}:3000"

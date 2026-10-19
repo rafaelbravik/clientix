@@ -36,3 +36,14 @@ alteram a precedência.
 - Em uma atualização rastreada, origem abaixo do mínimo ou acima do máximo é
   recusada. Um alvo abaixo do schema atual também é recusado; o instalador não
   executa downgrade de banco.
+
+## Portas do app
+
+- `PORT` no `.env` do instalador é a porta publicada no host. O valor padrão é
+  `3000`; instalações existentes que usam outro valor continuam acessíveis na
+  mesma porta.
+- O Next.js dentro do contêiner sempre recebe `PORT=3000`. O mapeamento do
+  Compose é `${PORT:-3000}:3000`, e o healthcheck interno consulta
+  `127.0.0.1:3000`.
+- `NEXT_PUBLIC_APP_URL` continua sendo a origem externa configurada pelo
+  instalador; ela não é derivada da porta interna do contêiner.
