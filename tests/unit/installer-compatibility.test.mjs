@@ -66,13 +66,31 @@ describe("signed installer compatibility contract", () => {
   });
 
   it("derives the current schema from the migrator ledger and fails closed on unknown rows", () => {
-    const migration = schemaManifest.migrations.find((entry) => entry.sequence === 511);
-    expect(schemaManifest.schema_target).toBe("0511");
-    expect(schemaManifest.baseline.incorporated_through_sequence).toBe(511);
-    expect(migration).toMatchObject({
+    const webchatMigration = schemaManifest.migrations.find((entry) => entry.sequence === 511);
+    const agendaAclMigration = schemaManifest.migrations.find((entry) => entry.sequence === 512);
+    const playbookAclMigration = schemaManifest.migrations.find((entry) => entry.sequence === 513);
+    const workerAclMigration = schemaManifest.migrations.find((entry) => entry.sequence === 514);
+    expect(schemaManifest.schema_target).toBe("0514");
+    expect(schemaManifest.baseline.incorporated_through_sequence).toBe(514);
+    expect(webchatMigration).toMatchObject({
       file: "20261010120000_0511_webchat_widget_bootstrap.sql",
       version: "20261010120000",
       sequence: 511,
+    });
+    expect(agendaAclMigration).toMatchObject({
+      file: "20261015223000_0512_agenda_event_type_acl.sql",
+      version: "20261015223000",
+      sequence: 512,
+    });
+    expect(playbookAclMigration).toMatchObject({
+      file: "20261016220127_0513_worker_playbook_runtime_acl.sql",
+      version: "20261016220127",
+      sequence: 513,
+    });
+    expect(workerAclMigration).toMatchObject({
+      file: "20261017142810_0514_worker_runtime_acl_contract.sql",
+      version: "20261017142810",
+      sequence: 514,
     });
 
     const baseline510Checksum = "a".repeat(64);
@@ -86,14 +104,33 @@ describe("signed installer compatibility contract", () => {
     expect(deriveCurrentSchema(trackedState, schemaManifest)).toMatchObject({ valid: true, currentSchema: "0510" });
     expect(deriveCurrentSchema({
       ...trackedState,
-      applied: [...trackedState.applied, { version: migration.version, checksum: migration.checksum }],
+      applied: [...trackedState.applied, { version: webchatMigration.version, checksum: webchatMigration.checksum }],
     }, schemaManifest)).toMatchObject({ valid: true, currentSchema: "0511" });
+    expect(deriveCurrentSchema({
+      ...trackedState,
+      applied: [
+        ...trackedState.applied,
+        { version: webchatMigration.version, checksum: webchatMigration.checksum },
+        { version: agendaAclMigration.version, checksum: agendaAclMigration.checksum },
+        { version: playbookAclMigration.version, checksum: playbookAclMigration.checksum },
+      ],
+    }, schemaManifest)).toMatchObject({ valid: true, currentSchema: "0513" });
+    expect(deriveCurrentSchema({
+      ...trackedState,
+      applied: [
+        ...trackedState.applied,
+        { version: webchatMigration.version, checksum: webchatMigration.checksum },
+        { version: agendaAclMigration.version, checksum: agendaAclMigration.checksum },
+        { version: playbookAclMigration.version, checksum: playbookAclMigration.checksum },
+        { version: workerAclMigration.version, checksum: workerAclMigration.checksum },
+      ],
+    }, schemaManifest)).toMatchObject({ valid: true, currentSchema: "0514" });
     expect(deriveCurrentSchema({ type: "FRESH_DATABASE" }, schemaManifest)).toMatchObject({ valid: true, currentSchema: null });
     expect(deriveCurrentSchema({ type: "EXISTING_UNTRACKED_INSTALLATION" }, schemaManifest).valid).toBe(false);
     expect(deriveCurrentSchema({ type: "TRACKED_INSTALLATION", applied: [] }, schemaManifest).valid).toBe(false);
     expect(deriveCurrentSchema({
       type: "TRACKED_INSTALLATION",
-      applied: [...trackedState.applied, { version: migration.version, checksum: "b".repeat(64) }],
+      applied: [...trackedState.applied, { version: workerAclMigration.version, checksum: "b".repeat(64) }],
     }, schemaManifest).valid).toBe(false);
     expect(deriveCurrentSchema({
       type: "TRACKED_INSTALLATION",
@@ -103,11 +140,13 @@ describe("signed installer compatibility contract", () => {
 
   it("keeps the registered baseline and migration checksums tied to their files", () => {
     const baseline = readFileSync(`supabase/${schemaManifest.baseline.file}`);
-    const migration = schemaManifest.migrations.find((entry) => entry.sequence === 511);
-    const migrationSql = readFileSync(`supabase/migrations/${migration.file}`);
+    const migrations = schemaManifest.migrations.filter((entry) => entry.sequence >= 511);
 
     expect(sha256(baseline)).toBe(schemaManifest.baseline.checksum);
     expect(baseline.length).toBe(schemaManifest.baseline.size_bytes);
-    expect(sha256(migrationSql)).toBe(migration.checksum);
+    for (const migration of migrations) {
+      const migrationSql = readFileSync(`supabase/migrations/${migration.file}`);
+      expect(sha256(migrationSql)).toBe(migration.checksum);
+    }
   });
 });

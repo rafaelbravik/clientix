@@ -27,9 +27,10 @@
  *    lista `MEDIDOS` do carimbo e o texto de um `echo`. A regra falha fechada:
  *    forma nova que cite o arquivo reprova até alguém decidir, por escrito aqui,
  *    que ela não o aplica. Um apelido (`B="$BASELINE"`) cai nela.
- *  - **pela forma:** toda linha que alimenta um processo com arquivo — `<` de
- *    entrada que não seja heredoc, ou pipe para `psql`/`docker exec` — é
- *    aplicação, cite ela o baseline pelo nome ou não.
+ *  - **pela forma:** toda linha que entrega um arquivo por `<` (sem ser heredoc)
+ *    ou por um pipe que lê arquivo antes de chegar a `psql`/`docker exec` é
+ *    aplicação, cite ela o baseline pelo nome ou não. SQL inline gerado por
+ *    `printf`/`echo` não é uma segunda aplicação do baseline.
  *
  * ## O que este teste NÃO cobre
  *
@@ -79,6 +80,7 @@ function semFormasInertes(texto: string): string {
 }
 
 const ALIMENTA_COM_ARQUIVO = /(^|[^<])<\s*[^<(\s]|\|\s*(psql\w*|docker\s+exec)\b/;
+const SQL_INLINE_PARA_BANCO = /\b(?:printf|echo)\b.*\|\s*(psql\w*|docker\s+exec)\b/;
 
 function corpoDaFuncao(linhas: string[]): { inicio: number; fim: number } {
   const inicio = linhas.findIndex((l) => new RegExp(`^${FUNCAO}\\(\\)\\s*\\{`).test(l));
@@ -95,7 +97,9 @@ describe("o test:db aplica o baseline num lugar só, e esse lugar conta as aplic
     ls.map((l) => `  ${SCRIPT}:${l.numero}: ${l.texto.trim()}`).join("\n");
 
   const pelaCitacao = shell.filter((l) => CITA_O_BASELINE.test(semFormasInertes(l.texto)));
-  const pelaForma = shell.filter((l) => ALIMENTA_COM_ARQUIVO.test(l.texto));
+  const pelaForma = shell.filter(
+    (l) => ALIMENTA_COM_ARQUIVO.test(l.texto) && !SQL_INLINE_PARA_BANCO.test(l.texto),
+  );
 
   it(`existe a função ${FUNCAO}, e é ela que aplica o arquivo`, () => {
     expect(corpo.inicio, `${SCRIPT} não define mais ${FUNCAO}() { … }`).toBeGreaterThan(0);
