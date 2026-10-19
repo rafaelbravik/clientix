@@ -21,12 +21,15 @@ import {
   findCustomerVendorRouteEntries,
   isCustomerBuildExcludedPath,
 } from "./customer-build-policy";
+import {
+  createCustomerCertificationTrustModule,
+  parseCustomerBuildArguments,
+} from "./lib/customer-certification-trust";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const projectNodeModules = resolve(projectRoot, "node_modules");
-const positionalArguments = process.argv.slice(2).filter((argument) => argument !== "--");
-if (positionalArguments.length > 1) throw new Error("Use no máximo um argumento: o diretório vazio de saída.");
-const inputOutputPath = positionalArguments[0];
+const buildArguments = parseCustomerBuildArguments(process.argv.slice(2));
+const inputOutputPath = buildArguments.outputPath;
 const workRoot = mkdtempSync(path.join(tmpdir(), "clientix-customer-build-source-"));
 const stagedProject = path.join(workRoot, "project");
 const artifactRoot = inputOutputPath
@@ -136,6 +139,16 @@ function installCustomerSourceReplacements(): void {
   }
 }
 
+function installCertificationTrustRoot(): void {
+  if (buildArguments.mode !== "certification") return;
+  const targetPath = path.join(stagedProject, "lib", "licensing", "trusted-keys.ts");
+  const moduleSource = createCustomerCertificationTrustModule(
+    buildArguments.keyId!,
+    buildArguments.publicKeyBase64!,
+  );
+  writeFileSync(targetPath, moduleSource, "utf8");
+}
+
 function installCustomerDependencies(): void {
   const install = spawnSync("pnpm", ["install", "--offline", "--frozen-lockfile"], {
     cwd: stagedProject,
@@ -183,14 +196,32 @@ function assertCustomerBuildOutput(): void {
   console.info(`Verificando referências proibidas em ${scannedFiles.length} arquivos do artefato.`);
 
   const markerHits: string[] = [];
+  let hasCertificationKeyId = false;
+  let hasExpectedCertificationKeyId = false;
+  let hasOfficialLicenseKeyId = false;
   for (const file of scannedFiles) {
     const contents = readFileSync(file, "utf8");
+    if (contents.includes("clientix-certification-test-")) hasCertificationKeyId = true;
+    if (buildArguments.keyId && contents.includes(buildArguments.keyId)) hasExpectedCertificationKeyId = true;
+    if (contents.includes("clientix-license-2026-01")) hasOfficialLicenseKeyId = true;
     for (const marker of findCustomerArtifactMarkerHits(contents)) {
       markerHits.push(`${path.relative(stagedProject, file).split(sep).join("/")}: ${marker}`);
     }
   }
   if (markerHits.length > 0) {
     throw new Error(`O artefato de cliente contém referências vendor proibidas: ${markerHits.join(", ")}`);
+  }
+
+  if (buildArguments.mode === "production" && hasCertificationKeyId) {
+    throw new Error("Build customer de produção contém key ID de trust root de certificação.");
+  }
+  if (buildArguments.mode === "certification") {
+    if (!buildArguments.keyId || !hasExpectedCertificationKeyId) {
+      throw new Error("O build customer-certification não incluiu o key ID público de teste esperado.");
+    }
+    if (hasOfficialLicenseKeyId) {
+      throw new Error("Build customer-certification contém o trust root oficial de produção.");
+    }
   }
 }
 
@@ -225,6 +256,7 @@ try {
   copyCustomerSource();
   installCustomerSourceReplacements();
   installCustomerRuntimeStubs();
+  installCertificationTrustRoot();
   installCustomerDependencies();
   const nextCli = path.join(stagedProject, "node_modules", "next", "dist", "bin", "next");
   if (!existsSync(nextCli)) throw new Error("Next.js não foi instalado na árvore isolada do cliente.");

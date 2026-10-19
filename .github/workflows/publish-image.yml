@@ -194,6 +194,7 @@ jobs:
         include:
           - name: clientix-app
             dockerfile: Dockerfile
+            target: runner
             title: Clientix Agência
           - name: clientix-worker
             dockerfile: Dockerfile.worker
@@ -281,6 +282,7 @@ jobs:
         with:
           context: .
           file: ${{ matrix.dockerfile }}
+          target: ${{ matrix.target }}
           # Cada arquitetura compila no runner nativo; o job abaixo une os manifests.
           platforms: ${{ matrix.arch == 'arm64' && 'linux/arm64' || 'linux/amd64' }}
           # PR de fork não tem permissão de escrita no GHCR, e publicar imagem

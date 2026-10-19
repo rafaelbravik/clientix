@@ -11,6 +11,7 @@
     "dev:webpack": "next dev",
     "build": "next build",
     "build:customer": "tsx scripts/build-customer.ts",
+    "build:customer-certification": "tsx scripts/build-customer.ts --certification",
     "build:webpack": "next build",
     "start": "next start",
     "lint": "eslint .",

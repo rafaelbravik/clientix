@@ -12,15 +12,9 @@ import {
 import { canonicalizeToBuffer } from "./canonicalize";
 import { verifyEd25519Signature } from "./crypto";
 import { computeTemporalLicenseState } from "./state";
+import { DEFAULT_TRUSTED_KEYS } from "./trusted-keys";
 
-/**
- * Built-in vendor public keys registry for production key rotation.
- * Environment overrides are limited to development and test environments.
- */
-export const DEFAULT_TRUSTED_KEYS: Record<string, string> = {
-  // Production license trust root. Public key only; private key remains outside the repository.
-  "clientix-license-2026-01": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEABdvNnKrV2W9R1h047Ur/i8aovRQujYvxydKqjyxsIGI=\n-----END PUBLIC KEY-----",
-};
+export { DEFAULT_TRUSTED_KEYS } from "./trusted-keys";
 
 /**
  * Resolves trusted keys.

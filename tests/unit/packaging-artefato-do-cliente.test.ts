@@ -336,3 +336,40 @@ describe("packaging — a versão que roda é observável de fora", () => {
     );
   });
 });
+
+describe("packaging — trust root de certificação não é release", () => {
+  it("mantém o target de release no runner oficial e marca certificação como não publicável", () => {
+    const dockerfile = fs.readFileSync(path.join(RAIZ, "Dockerfile"), "utf8");
+    const stages = [...dockerfile.matchAll(/^FROM\s+\S+(?:\s+AS\s+(\S+))?\s*$/gm)];
+    const stageNames = stages.map((stage) => stage[1] ?? "");
+    const certificationIndex = stageNames.indexOf("customer-certification");
+    const productionIndex = stageNames.lastIndexOf("runner");
+    const certificationBlock = dockerfile.slice(stages[certificationIndex]?.index ?? 0, stages[productionIndex]?.index);
+    const productionBlock = dockerfile.slice(stages[productionIndex]?.index ?? 0);
+    const workflow = fs.readFileSync(path.join(RAIZ, ".github/workflows/publish-image.yml"), "utf8");
+
+    expect(certificationIndex).toBeGreaterThan(-1);
+    expect(productionIndex).toBe(stages.length - 1);
+    expect(certificationIndex).toBeLessThan(productionIndex);
+    expect(certificationBlock).toContain('com.clientix.artifact="customer-certification"');
+    expect(certificationBlock).toContain('com.clientix.release-eligible="false"');
+    expect(certificationBlock).toContain('com.clientix.test-trust-root="true"');
+    expect(productionBlock).toContain('com.clientix.artifact="customer-production"');
+    expect(productionBlock).toContain('com.clientix.release-eligible="true"');
+    expect(productionBlock).toContain('com.clientix.test-trust-root="false"');
+    expect(workflow).toMatch(/- name: clientix-app[\s\S]{0,180}?target: runner/);
+    expect(workflow).toContain("target: ${{ matrix.target }}");
+  });
+
+  it("mantém o módulo de produção sem key IDs de certificação", () => {
+    const trustRoot = fs.readFileSync(path.join(RAIZ, "lib/licensing/trusted-keys.ts"), "utf8");
+    expect(trustRoot).toContain('"clientix-license-2026-01"');
+    expect(trustRoot).not.toContain("clientix-certification-test-");
+    expect(trustRoot).not.toContain("PRIVATE KEY");
+  });
+
+  it("exclui o cache pnpm local do contexto de imagem", () => {
+    const dockerignore = fs.readFileSync(path.join(RAIZ, ".dockerignore"), "utf8");
+    expect(dockerignore.split(/\r?\n/)).toContain(".pnpm-store");
+  });
+});

@@ -82,6 +82,25 @@ RUN PDFJS_DIR=$(basename node_modules/.pnpm/pdfjs-dist@*) && \
     cp "node_modules/.pnpm/$PDFJS_DIR/node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs" \
        "/app/clientix-customer-build-output/standalone/.next/server/chunks/pdf.worker.mjs"
 
+# ---- build-customer-certification: mesmo app, trust root efêmero só de teste ----
+# A chave pública é recebida apenas neste estágio e substitui o módulo de trust
+# root na cópia staged. Nenhuma chave privada ou variável de override chega ao app.
+FROM build-base AS build-customer-certification
+ARG CLIENTIX_CERTIFICATION_KEY_ID
+ARG CLIENTIX_CERTIFICATION_PUBLIC_KEY_B64
+ENV NEXT_PUBLIC_CLIENTIX_BUILD_TARGET=customer
+RUN pnpm build:customer-certification -- \
+      --key-id "$CLIENTIX_CERTIFICATION_KEY_ID" \
+      --public-key-base64 "$CLIENTIX_CERTIFICATION_PUBLIC_KEY_B64" \
+      /app/clientix-customer-certification-build-output
+RUN PDFJS_DIR=$(basename node_modules/.pnpm/pdfjs-dist@*) && \
+    cp -a "node_modules/pdfjs-dist" "/app/clientix-customer-certification-build-output/standalone/node_modules/pdfjs-dist" && \
+    mkdir -p "/app/clientix-customer-certification-build-output/standalone/node_modules/.pnpm/$PDFJS_DIR/node_modules/@napi-rs" && \
+    cp -a "node_modules/.pnpm/$PDFJS_DIR/node_modules/@napi-rs/canvas" \
+          "/app/clientix-customer-certification-build-output/standalone/node_modules/.pnpm/$PDFJS_DIR/node_modules/@napi-rs/canvas" && \
+    cp "node_modules/.pnpm/$PDFJS_DIR/node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs" \
+       "/app/clientix-customer-certification-build-output/standalone/.next/server/chunks/pdf.worker.mjs"
+
 # ---- build-vendor: mantém a aplicação integrada de administração/licenciamento ----
 FROM build-base AS build-vendor
 ENV NEXT_PUBLIC_CLIENTIX_BUILD_TARGET=vendor
@@ -148,8 +167,21 @@ COPY --from=build-vendor --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=build-vendor --chown=nextjs:nodejs /app/public ./public
 CMD ["node", "server.js"]
 
+# ---- customer-certification: runtime local, explicit non-release artifact ----
+FROM runtime-base AS customer-certification
+LABEL com.clientix.artifact="customer-certification" \
+      com.clientix.release-eligible="false" \
+      com.clientix.test-trust-root="true"
+COPY --from=build-customer-certification --chown=nextjs:nodejs /app/clientix-customer-certification-build-output/standalone ./
+COPY --from=build-customer-certification --chown=nextjs:nodejs /app/clientix-customer-certification-build-output/static ./.next/static
+COPY --from=build-customer-certification --chown=nextjs:nodejs /app/clientix-customer-certification-build-output/public ./public
+CMD ["node", "server.js"]
+
 # ---- runner: imagem padrão do cliente self-host ----
 FROM runtime-base AS runner
+LABEL com.clientix.artifact="customer-production" \
+      com.clientix.release-eligible="true" \
+      com.clientix.test-trust-root="false"
 # O output standalone NÃO inclui public/ nem .next/static — copiar explicitamente,
 # senão CSS/JS/assets retornam 404 (app "sem estilo").
 COPY --from=build-customer --chown=nextjs:nodejs /app/clientix-customer-build-output/standalone ./
