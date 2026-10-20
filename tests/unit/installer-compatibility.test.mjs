@@ -70,8 +70,9 @@ describe("signed installer compatibility contract", () => {
     const agendaAclMigration = schemaManifest.migrations.find((entry) => entry.sequence === 512);
     const playbookAclMigration = schemaManifest.migrations.find((entry) => entry.sequence === 513);
     const workerAclMigration = schemaManifest.migrations.find((entry) => entry.sequence === 514);
-    expect(schemaManifest.schema_target).toBe("0514");
-    expect(schemaManifest.baseline.incorporated_through_sequence).toBe(514);
+    const workerTriggerAclMigration = schemaManifest.migrations.find((entry) => entry.sequence === 515);
+    expect(schemaManifest.schema_target).toBe("0515");
+    expect(schemaManifest.baseline.incorporated_through_sequence).toBe(515);
     expect(webchatMigration).toMatchObject({
       file: "20261010120000_0511_webchat_widget_bootstrap.sql",
       version: "20261010120000",
@@ -91,6 +92,11 @@ describe("signed installer compatibility contract", () => {
       file: "20261017142810_0514_worker_runtime_acl_contract.sql",
       version: "20261017142810",
       sequence: 514,
+    });
+    expect(workerTriggerAclMigration).toMatchObject({
+      file: "20261019204527_0515_agent_worker_trigger_function_acl.sql",
+      version: "20261019204527",
+      sequence: 515,
     });
 
     const baseline510Checksum = "a".repeat(64);
@@ -125,6 +131,17 @@ describe("signed installer compatibility contract", () => {
         { version: workerAclMigration.version, checksum: workerAclMigration.checksum },
       ],
     }, schemaManifest)).toMatchObject({ valid: true, currentSchema: "0514" });
+    expect(deriveCurrentSchema({
+      ...trackedState,
+      applied: [
+        ...trackedState.applied,
+        { version: webchatMigration.version, checksum: webchatMigration.checksum },
+        { version: agendaAclMigration.version, checksum: agendaAclMigration.checksum },
+        { version: playbookAclMigration.version, checksum: playbookAclMigration.checksum },
+        { version: workerAclMigration.version, checksum: workerAclMigration.checksum },
+        { version: workerTriggerAclMigration.version, checksum: workerTriggerAclMigration.checksum },
+      ],
+    }, schemaManifest)).toMatchObject({ valid: true, currentSchema: "0515" });
     expect(deriveCurrentSchema({ type: "FRESH_DATABASE" }, schemaManifest)).toMatchObject({ valid: true, currentSchema: null });
     expect(deriveCurrentSchema({ type: "EXISTING_UNTRACKED_INSTALLATION" }, schemaManifest).valid).toBe(false);
     expect(deriveCurrentSchema({ type: "TRACKED_INSTALLATION", applied: [] }, schemaManifest).valid).toBe(false);

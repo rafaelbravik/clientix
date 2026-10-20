@@ -134,12 +134,14 @@ const workerFunctions = [
   'public.fn_appointment_enrollment_current(uuid,uuid,text)',
   'public.fn_buscar_trechos_das_fontes(uuid,uuid[],vector,integer,real,text)',
   'public.fn_claim_due_followup_enrollments(integer,integer)',
+  'public.fn_event_log_e_registro(text)',
   'public.fn_followup_apply_step(uuid,uuid,bigint,jsonb,jsonb)',
   'public.fn_followup_claim_current(uuid,uuid,text,timestamptz)',
   'public.fn_followup_job_current(uuid,uuid,uuid,text)',
   'public.fn_followup_patch(uuid,uuid,bigint,jsonb)',
   'public.fn_followup_turno_descartado(uuid,uuid)',
   'public.fn_gasto_de_ia_do_mes(uuid)',
+  'public.fn_log_event(uuid,text,jsonb)',
   'public.fn_meet_delivery_policy(uuid,uuid,text,timestamptz)',
   'public.fn_meet_delivery_settle(uuid,uuid,text,timestamptz,text,timestamptz)',
   'public.fn_org_operante(uuid)',
@@ -215,6 +217,13 @@ describe('contrato completo de ACL do worker', () => {
       await client.query(migration);
       await client.query(migration);
 
+      const triggerAclMigration = readFileSync(
+        resolve(process.cwd(), 'supabase/migrations/20261019204527_0515_agent_worker_trigger_function_acl.sql'),
+        'utf8',
+      );
+      await client.query(triggerAclMigration);
+      await client.query(triggerAclMigration);
+
       const missing = await client.query(
         `with required(table_name, privilege) as (values ${requiredValues})
          select table_name, privilege
@@ -276,6 +285,15 @@ describe('contrato completo de ACL do worker', () => {
         [workerFunctions],
       );
       expect(workerFunctionRows.rows).toEqual([]);
+
+      const functionBoundary = await client.query(
+        "select has_function_privilege('agent_worker', 'public.fn_decrypt_oauth(bytea)', 'EXECUTE') as worker_can_decrypt_oauth, has_function_privilege('anon', 'public.fn_event_log_e_registro(text)', 'EXECUTE') as anon_can_classify_event, has_function_privilege('anon', 'public.fn_log_event(uuid,text,jsonb)', 'EXECUTE') as anon_can_log_event",
+      );
+      expect(functionBoundary.rows[0]).toEqual({
+        worker_can_decrypt_oauth: false,
+        anon_can_classify_event: false,
+        anon_can_log_event: false,
+      });
 
       const sequencePrivileges = await client.query(
         `select
@@ -495,6 +513,106 @@ describe('contrato completo de ACL do worker', () => {
     } finally {
       if (jobId) await adminPool.query('delete from public.job_queue where id = $1', [jobId]);
       await adminPool.query('delete from public.organizations where id = $1', [organizationId]);
+    }
+  }, 30_000);
+
+  it('permite que agent_worker grave um desfecho pelo trigger de event_log', async () => {
+    const organizationId = randomUUID();
+    const otherOrganizationId = randomUUID();
+    const suffix = randomUUID();
+    let eventId: string | undefined;
+
+    await adminPool.query(
+      `insert into public.organizations (id, slug, legal_name, display_name)
+       values
+         ($1, $3 || '-a', 'Worker event log A', 'Worker event log A'),
+         ($2, $3 || '-b', 'Worker event log B', 'Worker event log B')`,
+      [organizationId, otherOrganizationId, `worker-event-log-trigger-${suffix}`],
+    );
+
+    const worker = await connectAsAgentWorker();
+    try {
+      const result = await worker.query<{ id: string; status: string }>(
+        `insert into public.event_log
+           (organization_id, event_type, entity_kind, status, payload, metadata)
+         values
+           ($1, 'agent.operator_turn', 'agent', 'pending', $2::jsonb, $3::jsonb)
+         returning id, status`,
+        [
+          organizationId,
+          JSON.stringify({ test_fixture: 'worker-trigger-acl', organization_id: otherOrganizationId }),
+          JSON.stringify({ test_fixture: 'worker-trigger-acl' }),
+        ],
+      );
+      const row = result.rows[0];
+      if (!row) throw new Error('event_log did not return the inserted worker event');
+      eventId = row.id;
+      expect(row.status).toBe('pending');
+
+      const persisted = await adminPool.query<{
+        organization_id: string;
+        event_type: string;
+        status: string;
+      }>(
+        `select organization_id::text, event_type, status
+           from public.event_log where id = $1`,
+        [eventId],
+      );
+      expect(persisted.rows[0]).toEqual({
+        organization_id: organizationId,
+        event_type: 'agent.operator_turn',
+        status: 'pending',
+      });
+    } finally {
+      worker.release();
+      if (eventId) await adminPool.query('delete from public.event_log where id = $1', [eventId]);
+      await adminPool.query('delete from public.organizations where id = any($1::uuid[])', [
+        [organizationId, otherOrganizationId],
+      ]);
+    }
+  }, 30_000);
+
+  it('permite que agent_worker registre eventos pelo fn_log_event sem aceitar org do payload', async () => {
+    const organizationId = randomUUID();
+    const otherOrganizationId = randomUUID();
+    const suffix = randomUUID();
+    let eventId: string | undefined;
+
+    await adminPool.query(
+      `insert into public.organizations (id, slug, legal_name, display_name)
+       values
+         ($1, $3 || '-a', 'Worker log function A', 'Worker log function A'),
+         ($2, $3 || '-b', 'Worker log function B', 'Worker log function B')`,
+      [organizationId, otherOrganizationId, `worker-log-function-${suffix}`],
+    );
+
+    const worker = await connectAsAgentWorker();
+    try {
+      const result = await worker.query<{ event_id: string }>(
+        `select public.fn_log_event($1::uuid, 'agent.operator_turn', $2::jsonb)::text as event_id`,
+        [
+          organizationId,
+          JSON.stringify({ test_fixture: 'worker-log-function-acl', organization_id: otherOrganizationId }),
+        ],
+      );
+      eventId = result.rows[0]?.event_id;
+      if (!eventId) throw new Error('fn_log_event did not return the inserted event id');
+
+      const persisted = await adminPool.query<{ organization_id: string; event_type: string }>(
+        `select organization_id::text, event_type
+           from public.event_log where id = $1`,
+        [eventId],
+      );
+      expect(persisted.rows[0]).toEqual({
+        organization_id: organizationId,
+        event_type: 'agent.operator_turn',
+      });
+    } finally {
+      worker.release();
+      if (eventId) await adminPool.query('delete from public.event_log where id = $1', [eventId]);
+      await adminPool.query('delete from public.organizations where id = any($1::uuid[])', [
+        [organizationId, otherOrganizationId],
+      ]);
     }
   }, 30_000);
 });

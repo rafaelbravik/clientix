@@ -44955,6 +44955,8 @@ create trigger trg_check_appointment_overlap
   execute function public.fn_check_appointment_overlap();
 
 notify pgrst, 'reload schema';
+
+
 -- ---- VARREDURA anon: função nova nasce exposta em quem ATUALIZA (migration 0116) ----
 --
 -- ⚠️ DE PROPÓSITO, NENHUMA FUNÇÃO É CRIADA DEPOIS DESTE BLOCO. Apêndice que cria
@@ -46866,3 +46868,19 @@ begin
   end if;
 end
 $worker_acl$;
+
+-- ---- 0515 — ACL pontual das funções aninhadas nos triggers do worker ----
+GRANT EXECUTE ON FUNCTION public.fn_event_log_e_registro(text) TO agent_worker;
+GRANT EXECUTE ON FUNCTION public.fn_log_event(uuid, text, jsonb) TO agent_worker;
+
+DO $worker_trigger_acl$
+BEGIN
+  IF NOT has_function_privilege('agent_worker', 'public.fn_event_log_e_registro(text)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'agent_worker trigger ACL not installed: fn_event_log_e_registro(text)';
+  END IF;
+
+  IF NOT has_function_privilege('agent_worker', 'public.fn_log_event(uuid,text,jsonb)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'agent_worker trigger ACL not installed: fn_log_event(uuid,text,jsonb)';
+  END IF;
+END
+$worker_trigger_acl$;

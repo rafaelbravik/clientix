@@ -1,6 +1,6 @@
 # PostgreSQL TLS e seleção de agente pausado
 
-Este documento registra as duas adaptações P1 revisadas no Clientix. Não muda o schema; a versão permanece 0514.
+Este documento registra as adaptações de TLS PostgreSQL e seleção de agente revisadas no Clientix. A migration 0515 completa a allowlist de EXECUTE do worker para helpers chamados por triggers; não altera tabelas nem RLS.
 
 ## PostgreSQL
 

@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "generated_at": "2026-10-17T16:41:56.051Z",
-  "schema_target": "0514",
+  "generated_at": "2026-10-19T20:50:37.927Z",
+  "schema_target": "0515",
   "baseline": {
     "file": "baseline.sql",
-    "checksum": "31269a01346e887183d00d6833622a7b886a600f030204574757ad8da9abdb78",
-    "size_bytes": 2413368,
-    "incorporated_through_sequence": 514
+    "checksum": "50f94233a9a785f176ca8cab3db97622a3fbef23bb64927015df739065735cdf",
+    "size_bytes": 2414086,
+    "incorporated_through_sequence": 515
   },
   "migrations": [
     {
@@ -3359,6 +3359,14 @@
       "sequence": 514,
       "slug": "worker_runtime_acl_contract",
       "checksum": "6455d32d864463c6b5c4760be45414c771e406839437e9b0fb587dba4bc44026",
+      "transactional": true
+    },
+    {
+      "file": "20261019204527_0515_agent_worker_trigger_function_acl.sql",
+      "version": "20261019204527",
+      "sequence": 515,
+      "slug": "agent_worker_trigger_function_acl",
+      "checksum": "912d45ec3d2512f98cf95b09fa6c966b2223e212466b7d6e34eab05dfb7073f6",
       "transactional": true
     }
   ]

@@ -114,6 +114,10 @@ de PostgreSQL. Ela falha se a role estiver ausente ou se não puder instalar
 cada privilégio. `SUPABASE_DB_URL` é compartilhada pelos consumidores de runtime
 que usam `pg`; ela deve autenticar diretamente como `agent_worker`.
 
+A migration 0515 acrescenta à mesma allowlist apenas `EXECUTE` em
+`fn_event_log_e_registro(text)` e `fn_log_event(uuid,text,jsonb)`, usados por
+triggers de registro de eventos disparados pelas escritas permitidas ao worker.
+
 Declare a conexão do **dono** em `SUPABASE_DB_ADMIN_URL`, usada somente para
 aplicar schema, migrations e backups. Não a coloque no `.env` entregue aos
 contêineres. O `install-single-server.sh` deriva essa conexão do `.runtime` do
