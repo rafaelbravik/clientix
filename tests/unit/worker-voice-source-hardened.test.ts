@@ -8,10 +8,12 @@ const RAIZ = process.cwd();
 describe("cercas de hardening de runtime do worker e voice-agent (L3.1)", () => {
   it("Dockerfile.worker usa multi-stage builder e executa via node dist/worker/main.js", () => {
     const conteudo = readFileSync(join(RAIZ, "Dockerfile.worker"), "utf8");
-    expect(conteudo).toMatch(/FROM\s+node:22-alpine\s+AS\s+builder/i);
+    expect(conteudo).toMatch(/FROM\s+node:22-alpine\s+AS\s+build-base/i);
+    expect(conteudo).toMatch(/FROM\s+build-base\s+AS\s+builder/i);
     expect(conteudo).toMatch(/FROM\s+node:22-alpine\s+AS\s+runner/i);
+    const producao = conteudo.split("FROM build-base AS certification-builder", 1)[0] ?? conteudo;
+    expect(producao).not.toContain("pnpm exec tsx");
     expect(conteudo).toContain('CMD ["node", "dist/worker/main.js"]');
-    expect(conteudo).not.toContain("pnpm exec tsx");
     expect(conteudo).not.toContain("tsx workers/agent-worker");
   });
 

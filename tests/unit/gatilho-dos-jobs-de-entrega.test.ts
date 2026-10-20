@@ -96,6 +96,12 @@ const GATILHO_ESPERADO: Record<string, { condicao: string | null; efeito: string
       "Este job PUBLICA as quatro imagens no GHCR — é o artefato que o self-hoster instala. " +
       "Desligá-lo faz a tag existir sem imagem por trás dela.",
   },
+  "publish-image.yml::worker-release-guard": {
+    condicao: "github.event_name != 'pull_request'",
+    efeito:
+      "Esta guarda verifica os labels da imagem real do worker antes de qualquer publicação. " +
+      "Desligá-la permitiria publicar o alvo worker-certification como artefato de produção.",
+  },
   "publish-image.yml::juntar-manifestos": {
     condicao: "github.event_name != 'pull_request'",
     efeito:

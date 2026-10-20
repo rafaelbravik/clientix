@@ -1,8 +1,7 @@
 # Worker 24/7 do agent-engine — processo long-running compilado para JavaScript.
-# Estágio de build compila os entrypoints eliminando código TypeScript e devDependencies do runtime.
+# O alvo final padrão (`runner`) é sempre o worker de produção.
 
-# --- ESTÁGIO 1: BUILDER ---
-FROM node:22-alpine AS builder
+FROM node:22-alpine AS build-base
 
 WORKDIR /app
 
@@ -12,28 +11,72 @@ COPY package.json pnpm-lock.yaml ./
 COPY patches ./patches
 RUN pnpm install --frozen-lockfile
 
-# Código-fonte para compilação
+# Código-fonte comum às variantes. A certificação troca apenas trusted-keys.ts
+# no builder isolado; a árvore do builder de produção permanece intocada.
 COPY tsconfig*.json ./
 COPY workers ./workers
 COPY lib ./lib
 COPY app/api ./app/api
 COPY scripts ./scripts
 
-# Compilar worker e sonda para JavaScript standalone em dist/
+FROM build-base AS builder
+
 RUN node scripts/build-worker-bundle.mjs worker && \
-    node scripts/build-worker-bundle.mjs sonda
+    node scripts/build-worker-bundle.mjs sonda && \
+    pnpm prune --prod
 
-# Isolar dependências estritamente de produção para o runtime
-RUN pnpm prune --prod
+FROM build-base AS certification-builder
 
-# --- ESTÁGIO 2: RUNTIME FINAL HARDENED ---
+ARG TEST_LICENSE_KEY_ID
+ARG TEST_LICENSE_PUBLIC_KEY_BASE64
+
+RUN pnpm exec tsx scripts/build-worker-certification.ts && \
+    pnpm prune --prod
+
+# A certificação nunca é o estágio final por padrão. Somente a chave pública
+# TEST é incorporada ao bundle deste alvo explicitamente não elegível à release.
+FROM node:22-alpine AS worker-certification
+
+WORKDIR /app
+
+ARG SOURCE_HEAD=unknown
+ARG SOURCE_DIRTY=true
+LABEL org.opencontainers.image.source="https://github.com/rafaelbravik/clientix-agencia" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.title="Clientix Agência worker (certificação)" \
+      com.clientix.artifact="worker-certification" \
+      com.clientix.release-eligible="false" \
+      com.clientix.test-trust-root="true" \
+      com.clientix.source-head="$SOURCE_HEAD" \
+      com.clientix.source-dirty="$SOURCE_DIRTY"
+
+COPY --from=certification-builder --chown=node:node /app/node_modules ./node_modules
+COPY --from=certification-builder --chown=node:node /app/package.json ./package.json
+COPY --from=certification-builder --chown=node:node /app/dist ./dist
+COPY --chown=node:node lib/agent-engine/playbooks/platform.md ./lib/agent-engine/playbooks/platform.md
+
+ARG APP_VERSION=dev
+ENV APP_VERSION=$APP_VERSION
+
+USER node
+EXPOSE 8787
+CMD ["node", "dist/worker/main.js"]
+
+# --- RUNTIME FINAL HARDENED (alvo de produção padrão e único publicável) ---
 FROM node:22-alpine AS runner
 
 WORKDIR /app
 
+ARG SOURCE_HEAD=unknown
+ARG SOURCE_DIRTY=true
 LABEL org.opencontainers.image.source="https://github.com/rafaelbravik/clientix-agencia" \
       org.opencontainers.image.licenses="MIT" \
-      org.opencontainers.image.title="Clientix Agência worker"
+      org.opencontainers.image.title="Clientix Agência worker" \
+      com.clientix.artifact="worker-production" \
+      com.clientix.release-eligible="true" \
+      com.clientix.test-trust-root="false" \
+      com.clientix.source-head="$SOURCE_HEAD" \
+      com.clientix.source-dirty="$SOURCE_DIRTY"
 
 # Dependências estritamente de produção (sem typescript, sem tsx, sem devDeps)
 COPY --from=builder --chown=node:node /app/node_modules ./node_modules
