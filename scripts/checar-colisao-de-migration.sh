@@ -202,15 +202,50 @@ limpar_cabecas() {
 }
 # Sobra de rodada MORTA (SIGKILL, máquina que caiu) não entra na população de ninguém — cada
 # rodada só lê o próprio namespace —, mas prende objetos de fork e aparece em todo `--all`.
-# Varre os namespaces cujo PID não existe mais. `ps -p`, não `kill -0`: kill -0 em processo
-# de OUTRO usuário falha como se ele estivesse morto, e apagaria uma rodada viva.
+# `kill -0` testa existência sem depender do `ps -p`, que o BusyBox não implementa. Quando o
+# sinal falha por EPERM, a rodada continua viva; a listagem completa de `ps -A -o pid=` é a
+# confirmação portátil. Se não for possível determinar o estado, preservamos as refs.
+pid_valido() {
+  local pid="$1"
+  case "$pid" in '' | *[!0-9]*) return 1 ;; esac
+  [ "${#pid}" -le 10 ] || return 1
+  case "$pid" in *[1-9]*) return 0 ;; *) return 1 ;; esac
+}
+pid_vivo() { # 0 vivo, 1 morto, 2 indeterminado
+  local pid="$1" erro pids
+  pid_valido "$pid" || return 2
+  if erro="$(LC_ALL=C kill -0 "$pid" 2>&1)"; then
+    return 0
+  fi
+  case "$erro" in
+    *"Operation not permitted"* | *"Permission denied"*) return 0 ;;
+    *"No such process"*) return 1 ;;
+  esac
+
+  # Diagnósticos de kill variam entre shells. Se não forem reconhecidos, consultamos uma
+  # listagem explícita de todos os PIDs (opção POSIX suportada por procps e BusyBox).
+  if pids="$(ps -A -o pid= 2>/dev/null)"; then
+    awk -v alvo="$pid" '$1 ~ /^[0-9]+$/ && ($1 + 0) == (alvo + 0) { encontrado = 1 }
+      END { exit !encontrado }' <<<"$pids" && return 0
+    return 1
+  fi
+  return 2
+}
 varrer_mortas() {
   git for-each-ref --format='%(refname)' refs/colisao-pr 2>/dev/null \
     | awk -F/ '{ print $3 }' | sort -u | while IFS= read -r pid; do
-        case "$pid" in '' | *[!0-9]*) continue ;; esac
+        pid_valido "$pid" || continue
         [ "$pid" = "$$" ] && continue
-        ps -p "$pid" >/dev/null 2>&1 && continue
-        git for-each-ref --format='%(refname)' "refs/colisao-pr/$pid" 2>/dev/null | apagar_refs || true
+        if pid_vivo "$pid"; then
+          continue
+        else
+          estado=$?
+        fi
+        if [ "$estado" -eq 1 ]; then
+          git for-each-ref --format='%(refname)' "refs/colisao-pr/$pid" 2>/dev/null | apagar_refs || true
+        else
+          echo "::notice::não consegui determinar se o PID $pid ainda está vivo — refs/colisao-pr/$pid foi preservado."
+        fi
       done
 }
 varrer_mortas

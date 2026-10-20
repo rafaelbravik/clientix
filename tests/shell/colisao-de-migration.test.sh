@@ -456,26 +456,35 @@ echo "22. duas rodadas ao mesmo tempo não se atropelam (worktrees compartilham 
 # como "outra-rodada" não casaria [0-9]+, e uma limpeza "de todas as rodadas por PID" passaria
 # verde (achado da revisão de 19/09). A viva é este shell ($$); a morta é um PID que acabou.
 ( exit 0 ) & morto=$!; wait "$morto" 2>/dev/null
+pid_viva="${COLISAO_PID_VIVO_OUTRO_USUARIO:-$$}"
+case "$pid_viva" in '' | *[!0-9]* | 0) pid_viva="$$" ;; esac
 c="$TMP/c22"; clonar "$c"; git -C "$c" switch -q -c fix/pr
 migrar "$c" "20260917190000_0263_meu.sql"; commit "$c" "PR com número livre"
-git -C "$c" fetch -q origin "+refs/pull/9/head:refs/colisao-pr/$$/9"
+git -C "$c" fetch -q origin "+refs/pull/9/head:refs/colisao-pr/$pid_viva/9"
 git -C "$c" fetch -q origin "+refs/pull/9/head:refs/colisao-pr/$morto/9"
+git -C "$c" fetch -q origin "+refs/pull/9/head:refs/colisao-pr/not-a-pid/9"
 saida="$(gate_prs "7" "$c")"; code=$?
 assert_exit "$code" 0 "PR com número livre passa"
 assert_not_contains "$saida" "0401" "a cabeça de OUTRA rodada (viva ou morta) não entra na população"
-if git -C "$c" rev-parse -q --verify "refs/colisao-pr/$$/9" >/dev/null 2>&1; then
+if git -C "$c" rev-parse -q --verify "refs/colisao-pr/$pid_viva/9" >/dev/null 2>&1; then
   ok "a ref da rodada VIVA sobreviveu a esta"
 else
-  falha "a ref da rodada VIVA sobreviveu a esta" "a limpeza desta rodada apagou refs/colisao-pr/$$/9"
+  falha "a ref da rodada VIVA sobreviveu a esta" "a limpeza desta rodada apagou refs/colisao-pr/$pid_viva/9"
 fi
 if git -C "$c" rev-parse -q --verify "refs/colisao-pr/$morto/9" >/dev/null 2>&1; then
   falha "a sobra da rodada MORTA foi varrida" "refs/colisao-pr/$morto/9 continua lá"
 else
   ok "a sobra da rodada MORTA foi varrida"
 fi
-sobra="$(git -C "$c" for-each-ref --format='%(refname)' refs/colisao-pr | grep -v "^refs/colisao-pr/$$/" || true)"
-if [ -z "$sobra" ]; then ok "esta rodada não deixou nada dela"
-else falha "esta rodada não deixou nada dela" "sobrou: $sobra"; fi
+sobra="$(git -C "$c" for-each-ref --format='%(refname)' refs/colisao-pr \
+  | grep -v "^refs/colisao-pr/$pid_viva/" \
+  | grep -v '^refs/colisao-pr/not-a-pid/' || true)"
+malformada="$(git -C "$c" for-each-ref --format='%(refname)' refs/colisao-pr/not-a-pid)"
+if [ -z "$sobra" ] && [ "$malformada" = "refs/colisao-pr/not-a-pid/9" ]; then
+  ok "esta rodada limpou sua namespace e preservou PID malformado sem tentar usá-lo"
+else
+  falha "esta rodada limpou sua namespace e preservou PID malformado sem tentar usá-lo" "sobrou inesperadamente: ${sobra:-nenhuma}; ref malformada: ${malformada:-ausente}"
+fi
 
 echo "23. dois conjuntos para duas funções: a main é MEMBRO da população, e só o que o PR"
 echo "    ACRESCENTA a ela é DELE — herdar o número da main não faz um PR ser 'quem tem'"
