@@ -55,7 +55,9 @@ describe("worker-certification e barreira de publicação", () => {
 
     expect(publishWorkflow).toContain("worker-release-guard:");
     expect(publishWorkflow).toContain("scripts/assert-worker-release-image.mjs");
-    expect(publishWorkflow).toContain("needs: [a-tag-veio-da-main, worker-release-guard]");
+    expect(publishWorkflow).toContain(
+      "needs: [a-tag-veio-da-main, worker-release-guard, voice-release-guard]",
+    );
     expect(publishWorkflow).toMatch(/name: clientix-worker\s+dockerfile: Dockerfile\.worker\s+target: runner/);
   });
 });

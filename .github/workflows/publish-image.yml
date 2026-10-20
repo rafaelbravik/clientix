@@ -188,13 +188,37 @@ jobs:
       - name: Recusar trust root de certificação antes de publicar
         run: node scripts/assert-worker-release-image.mjs clientix-worker:release-guard "$GITHUB_SHA"
 
+  # A voz possui uma variante de certificação com outra trust root; validar os
+  # labels do alvo production antes que a matriz tenha permissão de publicar.
+  voice-release-guard:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Buildx para a guarda de release
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build local do alvo production
+        run: >-
+          docker buildx build --load --platform linux/amd64
+          --file Dockerfile.voice-agent --target runner
+          --build-arg SOURCE_HEAD="$GITHUB_SHA"
+          --build-arg SOURCE_DIRTY=false
+          --tag clientix-voice-agent:release-guard .
+
+      - name: Recusar trust root de certificação antes de publicar
+        run: node scripts/assert-voice-release-image.mjs clientix-voice-agent:release-guard "$GITHUB_SHA"
+
   # Em pull_request este job NÃO roda: lá ele só construía e descartava, e as
   # MESMAS quatro imagens já são construídas — com o mesmo Dockerfile e o mesmo
   # contexto — por `imagem-do-app-sobe` e `imagens-de-fundo-sobem`, que ainda
   # as sobem. Eram 4 builds Docker por push de PR sem medir nada a mais. O
   # `imagens-ok` aceita o `skipped` dele SÓ em pull_request.
   build-and-push:
-    needs: [a-tag-veio-da-main, worker-release-guard]
+    needs: [a-tag-veio-da-main, worker-release-guard, voice-release-guard]
     if: github.event_name != 'pull_request'
     runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     concurrency:
@@ -230,6 +254,7 @@ jobs:
             title: Clientix Agência scheduler
           - name: clientix-voice-agent
             dockerfile: Dockerfile.voice-agent
+            target: runner
             title: Clientix Agência voice agent
         name: [clientix-app, clientix-worker, clientix-scheduler, clientix-voice-agent]
         arch: [amd64, arm64]

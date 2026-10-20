@@ -102,6 +102,12 @@ const GATILHO_ESPERADO: Record<string, { condicao: string | null; efeito: string
       "Esta guarda verifica os labels da imagem real do worker antes de qualquer publicação. " +
       "Desligá-la permitiria publicar o alvo worker-certification como artefato de produção.",
   },
+  "publish-image.yml::voice-release-guard": {
+    condicao: "github.event_name != 'pull_request'",
+    efeito:
+      "Esta guarda valida os labels da imagem de voz de produção antes da publicação. " +
+      "Desligá-la permitiria publicar voice-certification como artefato oficial de produção.",
+  },
   "publish-image.yml::juntar-manifestos": {
     condicao: "github.event_name != 'pull_request'",
     efeito:

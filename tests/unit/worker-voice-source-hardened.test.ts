@@ -19,10 +19,16 @@ describe("cercas de hardening de runtime do worker e voice-agent (L3.1)", () => 
 
   it("Dockerfile.voice-agent usa multi-stage builder e executa via node dist/voice-agent/index.js", () => {
     const conteudo = readFileSync(join(RAIZ, "Dockerfile.voice-agent"), "utf8");
-    expect(conteudo).toMatch(/FROM\s+node:22-alpine\s+AS\s+builder/i);
+    expect(conteudo).toMatch(/FROM\s+build-base\s+AS\s+builder/i);
     expect(conteudo).toMatch(/FROM\s+node:22-alpine\s+AS\s+runner/i);
     expect(conteudo).toContain('CMD ["node", "dist/voice-agent/index.js"]');
-    expect(conteudo).not.toContain("pnpm exec tsx");
+    const productionBuilder = conteudo.slice(
+      conteudo.indexOf("FROM build-base AS builder"),
+      conteudo.indexOf("FROM build-base AS certification-builder"),
+    );
+    const productionRuntime = conteudo.slice(conteudo.lastIndexOf("FROM node:22-alpine AS runner"));
+    expect(productionBuilder).not.toContain("pnpm exec tsx");
+    expect(productionRuntime).not.toContain("pnpm exec tsx");
     expect(conteudo).not.toContain("tsx workers/voice-agent");
   });
 
