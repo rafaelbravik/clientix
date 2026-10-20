@@ -7,6 +7,10 @@ import { avisarRespostaDeCasoObsoleto } from "@/lib/atendimento/aviso-caso-obsol
 import { withServiceJob } from "@/lib/atendimento/fronteira-server";
 import { StaleServiceBoundaryError } from "@/lib/atendimento/fronteira";
 import { getInstallationLicenseStatus } from "@/lib/licensing";
+import {
+  deferJobForLicenseRejection,
+  LICENSE_RECHECK_DELAY_MS,
+} from "./license-settlement";
 /**
  * Worker 24/7 do agent-engine (fusão Vendaval → DeskcommCRM) — o processo
  * long-running que o CRM não tinha: fila durável, cron/follow-up, drain do
@@ -125,6 +129,8 @@ import {
   failJob,
   faltaParaOProximoJob,
   reapExpiredJobs,
+  rescheduleJob,
+  settleUnexpectedClaimExit,
   type JobKind,
   type JobRow,
 } from "@/lib/agent-engine/queue/queue";
@@ -300,6 +306,10 @@ export async function startWorker(
 
   const bootReap = await reapExpiredJobs(pool, {
     visibilityTimeoutMs: env.QUEUE_VISIBILITY_TIMEOUT_MS,
+    onDiagnosticFailure: (error) =>
+      log.error("diagnóstico do reaper não foi persistido", { error: errMsg(error) }),
+    onAlertFailure: (error) =>
+      log.error("alerta do reaper não foi persistido", { error: errMsg(error) }),
   });
   if (bootReap.revived + bootReap.dead > 0) {
     log.warn("órfãos soltos no boot", bootReap);
@@ -332,7 +342,13 @@ export async function startWorker(
     carregarComportamentoPorPool(pool, pisoDoComportamentoDoMotor(env)).catch((err: unknown) =>
       log.error("comportamento da instalação: releitura falhou", { error: errMsg(err) }),
     );
-    reapExpiredJobs(pool, { visibilityTimeoutMs: env.QUEUE_VISIBILITY_TIMEOUT_MS })
+    reapExpiredJobs(pool, {
+      visibilityTimeoutMs: env.QUEUE_VISIBILITY_TIMEOUT_MS,
+      onDiagnosticFailure: (error) =>
+        log.error("diagnóstico do reaper não foi persistido", { error: errMsg(error) }),
+      onAlertFailure: (error) =>
+        log.error("alerta do reaper não foi persistido", { error: errMsg(error) }),
+    })
       .then((reaped) => {
         if (reaped.revived + reaped.dead > 0) log.warn("reaper devolveu jobs órfãos", reaped);
       })
@@ -467,7 +483,26 @@ export async function startWorker(
   };
 
   const runJob = async (job: JobRow): Promise<void> => {
+    const claim = claimOfJob(job);
+    let settlementCompleted = false;
+    let fallbackReason: unknown = new Error("WORKER_CLAIM_RETURNED_UNSETTLED");
+    const settlementReporting = {
+      onDiagnosticFailure: (error: unknown) =>
+        log.error("diagnóstico da fila não foi persistido após settlement", {
+          job_id: job.id,
+          error: errMsg(error),
+        }),
+      onAlertFailure: (error: unknown) =>
+        log.error("alerta job_dead não foi persistido após settlement", {
+          job_id: job.id,
+          error: errMsg(error),
+        }),
+    };
+
     try {
+      if (!claim || claim.worker_id !== workerId) {
+        throw new Error("WORKER_CLAIM_IDENTITY_MISSING");
+      }
       const handler = handlers.get(job.kind);
       if (!handler) {
         throw new Error(`nenhum handler registrado para kind=${job.kind}`);
@@ -482,11 +517,27 @@ export async function startWorker(
       ) {
         const licenseStatus = await getInstallationLicenseStatus();
         if (!licenseStatus.usable) {
-          log.warn("worker: execução de job suspensa — licença da instalação restrita ou expirada", {
+          if (licenseStatus.state === "VALID" || licenseStatus.state === "GRACE") {
+            throw new Error("LICENSE_STATE_USABILITY_MISMATCH");
+          }
+          // A licença da instalação pode ser corrigida sem recriar o job. Adiar
+          // libera o lease/lane, não consome tentativa e evita tanto perda de
+          // trabalho quanto o claim imediato em loop enquanto a licença está
+          // ausente/inválida.
+          const deferred = await deferJobForLicenseRejection(pool, {
+            job,
+            workerId,
+            acquiredAt: claim.acquired_at,
+            state: licenseStatus.state,
+            reporting: settlementReporting,
+          });
+          settlementCompleted = true;
+          log.warn("worker: job comercial adiado — licença da instalação não utilizável", {
             job_id: job.id,
             kind: job.kind,
             state: licenseStatus.state,
-            reason: licenseStatus.reason,
+            recheck_ms: deferred ? LICENSE_RECHECK_DELAY_MS : undefined,
+            claim_lost: !deferred,
           });
           return;
         }
@@ -501,7 +552,8 @@ export async function startWorker(
       // esperava, alguém do nosso lado já respondeu o cliente, não há o que
       // responder — sair agora seria repetir quem já atendeu.
       if (esperouPorSaldo(job) && (await jaNaoHaOQueResponder(pool, job))) {
-        await completeJob(pool, job.id, workerId, undefined, claimOfJob(job)?.acquired_at);
+        await completeJob(pool, job.id, workerId, undefined, claim.acquired_at);
+        settlementCompleted = true;
         log.info("job encerrado: a conversa foi respondida enquanto a IA esperava saldo", {
           job_id: job.id,
           kind: job.kind,
@@ -509,7 +561,8 @@ export async function startWorker(
         return;
       }
       await withServiceJob(pool, job, () => handler(job, pool, { workerId }));
-      await completeJob(pool, job.id, workerId, undefined, claimOfJob(job)?.acquired_at);
+      await completeJob(pool, job.id, workerId, undefined, claim.acquired_at);
+      settlementCompleted = true;
       log.info("job concluído", { job_id: job.id, kind: job.kind });
       if (esperouPorSaldo(job)) {
         try {
@@ -527,10 +580,20 @@ export async function startWorker(
         log.error("métricas do run não registradas", { job_id: job.id, error: errMsg(metricsErr) });
       }
     } catch (err) {
+      fallbackReason = err;
+      if (!claim || claim.worker_id !== workerId) {
+        log.error("worker não liquidou job sem identidade de claim própria", {
+          job_id: job.id,
+          kind: job.kind,
+        });
+        return;
+      }
       if (job.kind === "transactional_delivery" || job.kind === "approved_reply") {
-        // O consumer é dono do settle atômico; falha de armazenamento ou claim
-        // ausente deixa a aquisição ao reaper, sem fallback por locked_by.
-        log.error("entrega transacional aguarda recuperação da fila", {
+        // O consumer tenta liquidar estado de entrega e job na mesma RPC. O
+        // finally abaixo só tenta fallback se este claim exato ainda estiver
+        // ativo; se a RPC já liquidou ou um reaper re-claimou, o token impede
+        // qualquer settlement duplicado ou pertencente ao worker antigo.
+        log.error("entrega transacional falhou antes de concluir o settlement", {
           job_id: job.id,
           code:
             err instanceof StaleServiceBoundaryError
@@ -540,17 +603,19 @@ export async function startWorker(
         return;
       }
       if (err instanceof AgendaDeferredError && err.protection.motivo !== "leitura_indisponivel") {
-        await pool.query(
-          "update job_queue set status='pending',run_after=$4,locked_by=null,locked_at=null,attempts=greatest(attempts-1,0),last_error=$5 where id=$1 and organization_id=$2 and locked_by=$3 and status='running' and locked_at=$6",
-          [
-            job.id,
-            job.organization_id,
-            workerId,
-            err.protection.reavaliar_em,
-            err.message,
-            claimOfJob(job)?.acquired_at ?? null,
-          ],
-        );
+        const recheckAt = err.protection.reavaliar_em
+          ? Date.parse(err.protection.reavaliar_em)
+          : Date.now();
+        const deferred = await rescheduleJob(pool, job.id, workerId, {
+          delayMs: Number.isFinite(recheckAt) ? Math.max(0, recheckAt - Date.now()) : 0,
+          reason: `AGENDA_DEFERRED:${err.protection.motivo}`,
+          acquiredAt: claim.acquired_at,
+          ...settlementReporting,
+        });
+        settlementCompleted = true;
+        if (!deferred) {
+          log.warn("adiamento da agenda perdeu a posse do claim", { job_id: job.id, kind: job.kind });
+        }
         return;
       }
       // Conta do provedor sem crédito: a resposta espera a recarga, sem gastar
@@ -568,8 +633,10 @@ export async function startWorker(
           log.error("aviso de falta de saldo não entrou na Central", { job_id: job.id, error: errMsg(avisoErr) });
         }
         try {
-          await adiarAteORecarregar(pool, job, workerId, err, claimOfJob(job)?.acquired_at);
+          await adiarAteORecarregar(pool, job, workerId, err, claim.acquired_at, Date.now(), settlementReporting);
+          settlementCompleted = true;
         } catch (adiarErr) {
+          fallbackReason = adiarErr;
           log.error("espera de saldo indisponível — lease expira via reaper", {
             job_id: job.id,
             error: errMsg(adiarErr),
@@ -602,14 +669,30 @@ export async function startWorker(
           job.kind === "case_reply_turn" &&
           typeof job.payload.case_id === "string"
         ) {
-          await avisarRespostaDeCasoObsoleto(pool, job.organization_id, job.payload.case_id);
+          try {
+            await avisarRespostaDeCasoObsoleto(pool, job.organization_id, job.payload.case_id);
+          } catch (noticeErr) {
+            log.error("aviso de resposta de caso obsoleto não foi persistido", {
+              job_id: job.id,
+              error: errMsg(noticeErr),
+            });
+          }
         }
         if (terminal) {
-          await cancelJob(pool, job.id, workerId, errMsg(err), claimOfJob(job)?.acquired_at);
+          await cancelJob(
+            pool,
+            job.id,
+            workerId,
+            errMsg(err),
+            claim.acquired_at,
+            settlementReporting,
+          );
         } else {
-          await failJob(pool, job.id, workerId, err, claimOfJob(job)?.acquired_at);
+          await failJob(pool, job.id, workerId, err, claim.acquired_at, settlementReporting);
         }
+        settlementCompleted = true;
       } catch (failErr) {
+        fallbackReason = failErr;
         log.error("disposição do job indisponível — lease expira via reaper", {
           job_id: job.id,
           error: errMsg(failErr),
@@ -618,6 +701,36 @@ export async function startWorker(
         // (banco fora do ar, tipicamente). O job só se recupera pelo reaper —
         // vale saber que isto aconteceu.
         Sentry.captureException(failErr);
+      }
+    } finally {
+      if (!settlementCompleted) {
+        try {
+          const outcome = await settleUnexpectedClaimExit(pool, {
+            jobId: job.id,
+            workerId,
+            acquiredAt: claim?.acquired_at,
+            reason: fallbackReason,
+            reporting: settlementReporting,
+          });
+          if (outcome === "settled") {
+            log.error("claim sem settlement explícito foi devolvido à fila", {
+              job_id: job.id,
+              kind: job.kind,
+            });
+          } else if (outcome === "claim-identity-missing") {
+            log.error("claim sem identidade segura; recuperação fica para o reaper", {
+              job_id: job.id,
+              kind: job.kind,
+            });
+          }
+        } catch (settlementErr) {
+          log.error("fallback de settlement indisponível — recuperação fica para o reaper", {
+            job_id: job.id,
+            kind: job.kind,
+            error: errMsg(settlementErr),
+          });
+          Sentry.captureException(settlementErr);
+        }
       }
     }
   };
@@ -629,7 +742,16 @@ export async function startWorker(
       for (const job of jobs) {
         const running = runJob(job);
         inFlight.add(running);
-        void running.finally(() => inFlight.delete(running));
+        void running.then(
+          () => inFlight.delete(running),
+          (err: unknown) => {
+            inFlight.delete(running);
+            log.error("runJob encerrou com rejeição não tratada", {
+              job_id: job.id,
+              error: errMsg(err),
+            });
+          },
+        );
       }
     },
     // O `{ signal }` é o que faz o `docker stop` não esperar a espera inteira —

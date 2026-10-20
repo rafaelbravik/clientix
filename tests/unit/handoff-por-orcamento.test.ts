@@ -420,26 +420,24 @@ describe("o call site — AST separa prévia sem job do turno operacional escolt
 
 describe("a fila trata veto de negócio como veto, não como incidente", () => {
   const fonteWorker = readFileSync(WORKER, "utf8").replace(/\s+/gu, " ");
-  const ROTEAMENTO =
-    "if (terminal) { await cancelJob(pool, job.id, workerId, errMsg(err), claimOfJob(job)?.acquired_at); } " +
-    "else { await failJob(pool, job.id, workerId, err, claimOfJob(job)?.acquired_at); }";
+  const ROTEAMENTO = /if \(terminal\) \{ await cancelJob\([\s\S]*?\); \} else \{ await failJob\([\s\S]*?\); \}/;
 
   it("erro terminal vai para cancelJob; o resto continua em failJob", () => {
     expect(fonteWorker.length, "guarda de vacuidade: arquivo do worker vazio").toBeGreaterThan(1000);
     expect(
       fonteWorker,
       "bloqueio por orçamento em failJob = 5 tentativas por conversa + 1 job_dead crítico sem dedup por job",
-    ).toContain(ROTEAMENTO);
+    ).toMatch(ROTEAMENTO);
     expect(fonteWorker).toContain("ehVetoPermanenteDeNegocio(err)");
   });
 
   it("controle negativo: o detector acusa a volta do failJob", () => {
     const sabotado = fonteWorker.replace(
-      "await cancelJob(pool, job.id, workerId, errMsg(err), claimOfJob(job)?.acquired_at);",
+      "await cancelJob( pool, job.id, workerId, errMsg(err), claim.acquired_at, settlementReporting, );",
       "await failJob(pool, job.id, workerId, err, claimOfJob(job)?.acquired_at);",
     );
     expect(sabotado).not.toBe(fonteWorker);
-    expect(sabotado).not.toContain(ROTEAMENTO);
+    expect(sabotado).not.toMatch(ROTEAMENTO);
   });
 });
 

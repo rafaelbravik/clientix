@@ -58,6 +58,15 @@ export interface Queryable {
   ): Promise<QueryResult<R>>;
 }
 
+export interface QueueSettlementReporting {
+  /** Reports secondary diagnostics without making the queue transition fail. */
+  onDiagnosticFailure?: (error: unknown) => void;
+  /** Reports a dead-job inbox alert failure after the job is already settled. */
+  onAlertFailure?: (error: unknown) => void;
+}
+
+export type UnexpectedClaimSettlement = 'settled' | 'already-settled-or-reclaimed' | 'claim-identity-missing';
+
 // Serializa claimers (vizinho do lock do migrate, 727257): contar 'running' +
 // reservar capacidade vira atômico — o cap global nunca é excedido por corrida.
 const CLAIM_LOCK_KEY = 727258;
@@ -282,8 +291,9 @@ export async function completeJob<T = void>(
 
 /**
  * Devolve o job à fila após falha (attempts já foi incrementado no claim). Excedeu
- * `max_attempts` → 'dead' + escalação humana em agent_inbox_items (kind='job_dead'), no
- * MESMO statement (atômico). Devolve null se o lease já não era deste worker.
+ * `max_attempts` → 'dead'; a escalação `job_dead` em agent_inbox_items é tentada
+ * depois da transição, para falha de diagnóstico/alerta não reter o lease. Devolve
+ * null se o lease já não era deste worker.
  *
  * Backoff exponencial no retry (10s, 20s, 40s, 80s, capado em 120s — chave em
  * `attempts`, já pós-incremento do claim): sem isso `run_after` fica intocado e
@@ -300,38 +310,56 @@ export async function failJob(
   workerId: string,
   error: unknown,
   acquiredAt?: string,
+  reporting: QueueSettlementReporting = {},
 ): Promise<JobRow | null> {
   const { rows } = await db.query<JobRow>(
-    `with updated as (
-       update job_queue
-       set status = case when attempts >= max_attempts then 'dead' else 'pending' end,
-           run_after = case
-             when attempts >= max_attempts then run_after
-             else now() + (least(power(2, greatest(attempts - 1, 0)) * 10, 120) * interval '1 second')
-           end,
-           locked_by = null, locked_at = null, last_error = $3
-       where id = $1 and status = 'running' and locked_by = $2 and ($4::timestamptz is null or locked_at=$4)
-       returning *
-     ),
-     alert as (
-       insert into agent_inbox_items (organization_id, kind, severity, title, body, ref_kind, ref_id)
-       select organization_id, 'job_dead', 'critical',
-              'Job descartado após esgotar tentativas',
-              -- O erro que matou o job vai JUNTO. Antes o corpo era só
-              -- 'kind=...; attempts=5' e jogava fora a única informação que
-              -- resolveria: o aviso existia, e não dizia nada. Caso real desta
-              -- VPS: 16 alertas críticos idênticos enquanto o erro guardado em
-              -- last_error dizia exatamente o que configurar.
-              'kind=' || kind || '; attempts=' || attempts
-                || coalesce(chr(10) || 'Motivo: ' || left(last_error, 400), ''),
-              'job_queue', id
-       from updated
-       where status = 'dead'
-     )
-     select * from updated`,
-    [jobId, workerId, normalizeError(error), acquiredAt ?? null],
+    `update job_queue
+     set status = case when attempts >= max_attempts then 'dead' else 'pending' end,
+         run_after = case
+           when attempts >= max_attempts then run_after
+           else now() + (least(power(2, greatest(attempts - 1, 0)) * 10, 120) * interval '1 second')
+         end,
+         locked_by = null, locked_at = null
+     where id = $1 and status = 'running' and locked_by = $2 and ($3::timestamptz is null or locked_at=$3)
+     returning *`,
+    [jobId, workerId, acquiredAt ?? null],
   );
-  return rows[0] ?? null;
+  const settled = rows[0] ?? null;
+  if (!settled) return null;
+
+  const diagnostic = normalizeError(error);
+  await persistSettlementDiagnostic(db, settled, diagnostic, reporting.onDiagnosticFailure);
+  if (settled.status === 'dead') {
+    await createDeadJobAlert(db, settled, diagnostic, reporting.onAlertFailure);
+  }
+  return settled;
+}
+
+/**
+ * Safety net for a worker path that returned or threw while its exact claim is
+ * still active. The status/owner/acquisition timestamp predicate in failJob is
+ * the settlement guard: a stale worker cannot settle a claim that was reclaimed.
+ */
+export async function settleUnexpectedClaimExit(
+  db: Queryable,
+  input: {
+    jobId: string;
+    workerId: string;
+    acquiredAt?: string;
+    reason: unknown;
+    reporting?: QueueSettlementReporting;
+  },
+): Promise<UnexpectedClaimSettlement> {
+  if (!input.acquiredAt) return 'claim-identity-missing';
+  const settled = await failJob(
+    db,
+    input.jobId,
+    input.workerId,
+    input.reason,
+    input.acquiredAt,
+    input.reporting,
+  );
+  return settled ? 'settled' : 'already-settled-or-reclaimed';
 }
 
 /**
@@ -347,15 +375,19 @@ export async function cancelJob(
   workerId: string,
   reason: string,
   acquiredAt?: string,
+  reporting: QueueSettlementReporting = {},
 ): Promise<JobRow | null> {
   const { rows } = await db.query<JobRow>(
     `update job_queue
-     set status = 'failed', locked_by = null, locked_at = null, last_error = $3
-     where id = $1 and status = 'running' and locked_by = $2 and ($4::timestamptz is null or locked_at=$4)
+     set status = 'failed', locked_by = null, locked_at = null
+     where id = $1 and status = 'running' and locked_by = $2 and ($3::timestamptz is null or locked_at=$3)
      returning *`,
-    [jobId, workerId, normalizeError(reason), acquiredAt ?? null],
+    [jobId, workerId, acquiredAt ?? null],
   );
-  return rows[0] ?? null;
+  const settled = rows[0] ?? null;
+  if (!settled) return null;
+  await persistSettlementDiagnostic(db, settled, normalizeError(reason), reporting.onDiagnosticFailure);
+  return settled;
 }
 
 /**
@@ -368,31 +400,41 @@ export async function rescheduleJob(
   db: Queryable,
   jobId: string,
   workerId: string,
-  opts: { delayMs: number; reason: string; acquiredAt?: string },
+  opts: { delayMs: number; reason: string; acquiredAt?: string } & QueueSettlementReporting,
 ): Promise<JobRow | null> {
   const { rows } = await db.query<JobRow>(
     `update job_queue
      set status = 'pending', locked_by = null, locked_at = null,
          run_after = now() + ($3 * interval '1 millisecond'),
-         attempts = greatest(attempts - 1, 0),
-         last_error = $4
-     where id = $1 and status = 'running' and locked_by = $2 and ($5::timestamptz is null or locked_at=$5)
+         attempts = greatest(attempts - 1, 0)
+     where id = $1 and status = 'running' and locked_by = $2 and ($4::timestamptz is null or locked_at=$4)
      returning *`,
-    [jobId, workerId, opts.delayMs, normalizeError(opts.reason), opts.acquiredAt ?? null],
+    [jobId, workerId, opts.delayMs, opts.acquiredAt ?? null],
   );
-  return rows[0] ?? null;
+  const settled = rows[0] ?? null;
+  if (!settled) return null;
+  await persistSettlementDiagnostic(db, settled, normalizeError(opts.reason), opts.onDiagnosticFailure);
+  return settled;
 }
 
 /**
  * Reaper do visibility timeout: job 'running' com locked_at mais velho que o timeout
  * é de um worker morto — volta a 'pending' (re-claim) ou, se já esgotou max_attempts,
- * vira 'dead' + agent_inbox_items. Timeout é knob (QUEUE_VISIBILITY_TIMEOUT_MS, env.ts).
+ * vira 'dead' e tenta registrar `job_dead` depois de liberar o lease. Timeout é knob
+ * (QUEUE_VISIBILITY_TIMEOUT_MS, env.ts).
  */
 export async function reapExpiredJobs(
   db: Queryable,
-  opts: { visibilityTimeoutMs: number },
+  opts: { visibilityTimeoutMs: number } & QueueSettlementReporting,
 ): Promise<{ revived: number; dead: number }> {
-  const { rows } = await db.query<{ id: string; status: JobStatus }>(
+  const { rows } = await db.query<{
+    id: string;
+    organization_id: string;
+    kind: JobKind;
+    attempts: number;
+    status: JobStatus;
+    last_error: string | null;
+  }>(
     `with expired as (
        update job_queue
        set status = case
@@ -403,37 +445,78 @@ export async function reapExpiredJobs(
            and l.job_id=job_queue.id and l.seq=1 and l.status='accepted'
          ) then 'pending'
          when attempts >= max_attempts then 'dead' else 'pending' end,
-           locked_by = null, locked_at = null,
-           last_error = coalesce(last_error, 'visibility timeout excedido (worker morto?)')
+           locked_by = null, locked_at = null
        where status = 'running' and locked_at < now() - ($1 * interval '1 millisecond')
-       -- last_error PRECISA sair no returning: a CTE do alerta abaixo só
-       -- enxerga as colunas devolvidas aqui, não as da tabela. Faltando ela, a
-       -- query inteira morre com "column last_error does not exist" — e como
-       -- este reap roda no BOOT do worker, o worker não subia.
        returning id, organization_id, kind, attempts, status, last_error
-     ),
-     alert as (
-       insert into agent_inbox_items (organization_id, kind, severity, title, body, ref_kind, ref_id)
-       select organization_id, 'job_dead', 'critical',
-              'Job descartado após esgotar tentativas',
-              -- O erro que matou o job vai JUNTO. Antes o corpo era só
-              -- 'kind=...; attempts=5' e jogava fora a única informação que
-              -- resolveria: o aviso existia, e não dizia nada. Caso real desta
-              -- VPS: 16 alertas críticos idênticos enquanto o erro guardado em
-              -- last_error dizia exatamente o que configurar.
-              'kind=' || kind || '; attempts=' || attempts
-                || coalesce(chr(10) || 'Motivo: ' || left(last_error, 400), ''),
-              'job_queue', id
-       from expired
-       where status = 'dead'
      )
-     select id, status from expired`,
+     select * from expired`,
     [opts.visibilityTimeoutMs],
   );
+  for (const row of rows) {
+    const diagnostic = row.last_error ?? 'visibility timeout excedido (worker morto?)';
+    await persistSettlementDiagnostic(
+      db,
+      row,
+      diagnostic,
+      opts.onDiagnosticFailure,
+    );
+    if (row.status === 'dead') {
+      await createDeadJobAlert(db, row, diagnostic, opts.onAlertFailure);
+    }
+  }
   return {
     revived: rows.filter((r) => r.status === 'pending').length,
     dead: rows.filter((r) => r.status === 'dead').length,
   };
+}
+
+/**
+ * Persists diagnostics after the queue transition. A diagnostic write must never
+ * roll back the release of a claim or keep the lane occupied.
+ */
+async function persistSettlementDiagnostic(
+  db: Queryable,
+  row: Pick<JobRow, 'id' | 'status' | 'attempts'>,
+  diagnostic: string,
+  onFailure?: (error: unknown) => void,
+): Promise<void> {
+  try {
+    await db.query(
+      `update job_queue set last_error = $4
+       where id = $1 and status = $2 and attempts = $3 and locked_by is null`,
+      [row.id, row.status, row.attempts, diagnostic],
+    );
+  } catch (error) {
+    try {
+      onFailure?.(error);
+    } catch {
+      // Reporting is secondary to releasing the queue claim.
+    }
+  }
+}
+
+/** Inserts the human-facing escalation only after a failed/dead transition committed. */
+async function createDeadJobAlert(
+  db: Queryable,
+  row: Pick<JobRow, 'id' | 'organization_id' | 'kind' | 'attempts'>,
+  diagnostic: string,
+  onFailure?: (error: unknown) => void,
+): Promise<void> {
+  try {
+    await db.query(
+      `insert into agent_inbox_items (organization_id, kind, severity, title, body, ref_kind, ref_id)
+       values ($1, 'job_dead', 'critical', 'Job descartado após esgotar tentativas',
+               'kind=' || $2 || '; attempts=' || $3 || coalesce(chr(10) || 'Motivo: ' || left($4, 400), ''),
+               'job_queue', $5)`,
+      [row.organization_id, row.kind, row.attempts, diagnostic, row.id],
+    );
+  } catch (error) {
+    try {
+      onFailure?.(error);
+    } catch {
+      // Reporting is secondary to releasing the queue claim.
+    }
+  }
 }
 
 /**

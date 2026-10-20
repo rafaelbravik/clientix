@@ -43,7 +43,7 @@ import { traduzir } from '@/lib/i18n/dicionario';
 import { normalizarIdioma } from '@/lib/i18n/idiomas';
 
 import { insertInboxItem } from '../db/repository';
-import { rescheduleJob, type JobRow, type Queryable } from './queue';
+import { rescheduleJob, type JobRow, type Queryable, type QueueSettlementReporting } from './queue';
 
 /** Teto da espera, contado da criação do job. */
 export const JANELA_DA_ESPERA_MS = 6 * 60 * 60_000;
@@ -123,12 +123,14 @@ export async function adiarAteORecarregar(
   err: unknown,
   acquiredAt?: string,
   agora: number = Date.now(),
+  reporting: QueueSettlementReporting = {},
 ): Promise<JobRow | null> {
   const motivo = (mensagens(err)[0] ?? '').split('\n', 1)[0] ?? '';
   return rescheduleJob(db, job.id, workerId, {
     delayMs: intervaloDaEspera(job, agora),
     reason: PREFIXO_DA_ESPERA + motivo,
     acquiredAt,
+    ...reporting,
   });
 }
 

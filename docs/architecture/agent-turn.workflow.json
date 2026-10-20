@@ -21,6 +21,10 @@
       "label": "Agent Worker"
     },
     {
+      "id": "fila",
+      "label": "Fila PostgreSQL / leases"
+    },
+    {
       "id": "guardrails",
       "label": "Guardrails"
     },
@@ -303,6 +307,46 @@
       "type": "service",
       "label": "Entrega da resposta aprovada",
       "sublabel": "Texto autorizado, fronteira e aquisição originais; recibo e liquidação recuperáveis, sem novo LLM"
+    },
+    {
+      "id": "job_queue",
+      "lane": "fila",
+      "col": 0,
+      "type": "messagebus",
+      "label": "job_queue",
+      "sublabel": "pending → running; lock + aquisição exata identificam o dono do claim"
+    },
+    {
+      "id": "job_claim",
+      "lane": "worker",
+      "col": 0,
+      "type": "backend",
+      "label": "Claim do worker",
+      "sublabel": "owner + locked_at::text seguem até a liquidação; tentativa incrementa no claim"
+    },
+    {
+      "id": "license_gate",
+      "lane": "worker",
+      "col": 2,
+      "type": "security",
+      "label": "Licença da instalação",
+      "sublabel": "pós-claim; rejeição adia 60s, preserva tentativa e limpa lease/lane"
+    },
+    {
+      "id": "job_settlement",
+      "lane": "fila",
+      "col": 3,
+      "type": "database",
+      "label": "Settlement do claim",
+      "sublabel": "done/fail/cancel/defer com owner + aquisição; fallback cobre saída pré-handler"
+    },
+    {
+      "id": "job_reaper",
+      "lane": "fila",
+      "col": 6,
+      "type": "backend",
+      "label": "Reaper do lease",
+      "sublabel": "recupera claim expirado após morte abrupta; não substitui settlement normal"
     },
     {
       "id": "jevRoteador",
@@ -767,6 +811,55 @@
       "to": "jevRoteador",
       "label": "Deixar o Jev decidir / Pausar esta tarefa (settings.jev.tarefas.roteador)",
       "variant": "emphasis"
+    },
+    {
+      "id": "fila-claim",
+      "from": "job_queue",
+      "to": "job_claim",
+      "label": "claim atômico, com identidade de aquisição"
+    },
+    {
+      "id": "claim-license",
+      "from": "job_claim",
+      "to": "license_gate",
+      "label": "validar instalação depois de adquirir o lease"
+    },
+    {
+      "id": "license-turn",
+      "from": "license_gate",
+      "to": "turn",
+      "label": "licença utilizável libera o handler"
+    },
+    {
+      "id": "license-settlement",
+      "from": "license_gate",
+      "to": "job_settlement",
+      "label": "rejeição: pending + lease limpo, sem gastar tentativa",
+      "variant": "security"
+    },
+    {
+      "id": "turn-settlement",
+      "from": "turn",
+      "to": "job_settlement",
+      "label": "completion, retry ou cancelamento"
+    },
+    {
+      "id": "settlement-queue",
+      "from": "job_settlement",
+      "to": "job_queue",
+      "label": "estado terminal ou próxima elegibilidade"
+    },
+    {
+      "id": "queue-reaper",
+      "from": "job_queue",
+      "to": "job_reaper",
+      "label": "lease expirado após encerramento abrupto"
+    },
+    {
+      "id": "reaper-settlement",
+      "from": "job_reaper",
+      "to": "job_settlement",
+      "label": "recuperar pending/dead com lease já expirado"
     }
   ],
   "cards": [
@@ -818,6 +911,15 @@
         "O Operador NÃO tem aresta para o canal: 'send_message' não está no toolset dele, e a ponte troca a lista em UM ponto só (operator-turn.ts). É ausência, não regra de prompt — a única forma que não depende de o modelo obedecer",
         "A projeção (§4) NÃO se aplica ao Operador: ele precisa do dado cru para operar, e não tem canal por onde vazar. Projetar os dois seria cegar quem opera para proteger quem não fala",
         "O Operador NÃO decide qual unidade atende: isso é do Intent Router. Os dois eixos convivem"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Claim e liquidação da fila",
+      "items": [
+        "Todo caminho normal após claim termina em settlement pelo mesmo worker e instante de aquisição; saída sem settlement explícito tenta failJob uma vez com esse token",
+        "Licença não utilizável adia o job por 60s, preserva a tentativa e libera a lane para outro trabalho; o diagnóstico guarda só o código do estado",
+        "Cada UPDATE compara owner + aquisição: worker antigo não liquida claim refeito. O reaper recupera somente lease vencido quando o processo morreu abruptamente"
       ]
     }
   ]

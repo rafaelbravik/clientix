@@ -30,6 +30,7 @@ interface Mapa {
   mainPath?: string[];
   nodes?: Array<{ id: string; lane: string; label: string }>;
   edges?: Array<{ id: string; from: string; to: string; label?: string }>;
+  cards?: Array<{ title: string; items: string[] }>;
 }
 
 const arquivos = fs
@@ -355,5 +356,31 @@ describe("o mapa do turno conhece todos os turnos", () => {
     for (const [kind, porque] of Object.entries(NAO_SAO_TURNO)) {
       expect(porque.length, `${kind} sem motivo escrito`).toBeGreaterThan(25);
     }
+  });
+});
+
+describe("o mapa do turno declara a liquidação do claim do worker", () => {
+  it("liga fila, claim, gate de licença, settlement e recuperação por reaper", () => {
+    const m = JSON.parse(
+      fs.readFileSync(path.join(DIR, "agent-turn.workflow.json"), "utf8"),
+    ) as Mapa;
+    const edges = m.edges ?? [];
+    const degree = (id: string) => edges.filter((edge) => edge.from === id || edge.to === id).length;
+    const connected = (from: string, to: string) => edges.some((edge) => edge.from === from && edge.to === to);
+
+    for (const node of ["job_queue", "job_claim", "license_gate", "job_settlement", "job_reaper"]) {
+      expect(degree(node), `${node} precisa de entrada e saída no fluxo do claim`).toBeGreaterThanOrEqual(2);
+    }
+    expect(connected("job_queue", "job_claim")).toBe(true);
+    expect(connected("job_claim", "license_gate")).toBe(true);
+    expect(connected("license_gate", "job_settlement")).toBe(true);
+    expect(connected("turn", "job_settlement")).toBe(true);
+    expect(connected("job_settlement", "job_queue")).toBe(true);
+    expect(connected("job_queue", "job_reaper")).toBe(true);
+    expect(connected("job_reaper", "job_settlement")).toBe(true);
+
+    const card = m.cards?.find((item) => item.title === "Claim e liquidação da fila");
+    expect(card?.items.join(" ")).toContain("preserva a tentativa");
+    expect(card?.items.join(" ")).toContain("worker antigo não liquida claim refeito");
   });
 });

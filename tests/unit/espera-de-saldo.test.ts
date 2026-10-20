@@ -117,11 +117,23 @@ describe("o que vai para o banco", () => {
   const job = { id: "job-1", created_at: new Date(AGORA) } as Pick<JobRow, "id" | "created_at">;
 
   it("adiar reagenda SEM gastar tentativa, com o motivo marcado", async () => {
-    const { db, consultas } = bancoFalso();
+    const { db, consultas } = bancoFalso([
+      [
+        /update job_queue[\s\S]*attempts = greatest\(attempts - 1, 0\)/,
+        [{ id: "job-1", status: "pending", attempts: 2 }],
+      ],
+    ]);
     await adiarAteORecarregar(db, job, "w1", new Error(ANTHROPIC), "2026-09-24 12:48:49.1+00", AGORA);
-    const [c] = consultas;
-    expect(c?.sql).toMatch(/attempts = greatest\(attempts - 1, 0\)/);
-    expect(c?.params).toEqual(["job-1", "w1", 120_000, `${PREFIXO_DA_ESPERA}${ANTHROPIC}`, "2026-09-24 12:48:49.1+00"]);
+    expect(consultas).toHaveLength(2);
+    expect(consultas[0]?.sql).toMatch(/attempts = greatest\(attempts - 1, 0\)/);
+    expect(consultas[0]?.params).toEqual(["job-1", "w1", 120_000, "2026-09-24 12:48:49.1+00"]);
+    expect(consultas[1]?.sql).toMatch(/update job_queue set last_error = \$4/);
+    expect(consultas[1]?.params).toEqual([
+      "job-1",
+      "pending",
+      2,
+      `${PREFIXO_DA_ESPERA}${ANTHROPIC}`,
+    ]);
   });
 
   it("só o inbound_turn pergunta se já foi respondido, e sempre com a organização", async () => {
