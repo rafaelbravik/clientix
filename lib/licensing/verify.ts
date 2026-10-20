@@ -102,7 +102,7 @@ export function verifyLicense(
         cryptographic_valid: false,
         state: "MALFORMED_DOCUMENT",
         reason: "JSON da licença é malformado",
-        errorCode: "LICENSE_MALFORMED",
+        errorCode: "LICENSE_INVALID_JSON",
       };
     }
   }

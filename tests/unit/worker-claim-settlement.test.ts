@@ -46,6 +46,9 @@ describe("settlement defensivo do claim do worker", () => {
     "NOT_YET_VALID",
     "MALFORMED_DOCUMENT",
     "UNSUPPORTED_LICENSE_VERSION",
+    "LICENSE_FILE_MISSING",
+    "LICENSE_FILE_UNREADABLE",
+    "LICENSE_FILE_IO_ERROR",
   ] as const)("adiar a licença %s libera o claim sem gastar tentativa", async (state) => {
     const returned = {
       ...CLAIMED_JOB,

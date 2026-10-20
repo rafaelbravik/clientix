@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { loadEnv as loadWorkerEnv } from "@/lib/agent-engine/env";
+import { LICENSE_RUNTIME_READER_GID } from "@/lib/licensing/enforcement";
 import { loadVoiceAgentEnv } from "@/workers/voice-agent/env";
 
 async function readInstallerTemplateKeys() {
@@ -49,11 +50,33 @@ describe("commercial installer runtime environment contract", () => {
       expect(keys.has(key), `${key} is missing from .env.example`).toBe(true);
   });
 
-  it("mounts licenses writable only for the app and grants the non-root readers access", async () => {
+  it("mounts licenses writable only for the app and grants the canonical reader group to app, worker, and voice", async () => {
     const compose = await fs.readFile(path.resolve("distribution/installer/compose.yaml"), "utf8");
+    const installer = await fs.readFile(path.resolve("distribution/installer/install.sh"), "utf8");
     expect(compose).toContain("- ./licenses:/opt/clientix/licenses:rw");
     expect(compose).toContain("- ./licenses:/opt/clientix/licenses:ro");
-    expect(compose.match(/group_add:\n      - "1001"/g)).toHaveLength(2);
+    const readerGroup = `group_add:\n      - "${LICENSE_RUNTIME_READER_GID}"`;
+    expect(compose.match(/group_add:\n      - "1001"/g)).toHaveLength(3);
+    const appService = compose.match(/  app:\n([\s\S]*?)\n  worker:/)?.[1] ?? "";
+    const workerService = compose.match(/  worker:\n([\s\S]*?)\n  scheduler:/)?.[1] ?? "";
+    const voiceService = compose.match(/  voice-agent:\n([\s\S]*?)\nnetworks:/)?.[1] ?? "";
+    const schedulerService = compose.match(/  scheduler:\n([\s\S]*?)\n  voice-agent:/)?.[1] ?? "";
+    for (const service of [appService, workerService, voiceService]) {
+      expect(service).toContain(readerGroup);
+    }
+    expect(appService).toContain("- ./licenses:/opt/clientix/licenses:rw");
+    expect(workerService).toContain("- ./licenses:/opt/clientix/licenses:ro");
+    expect(voiceService).toContain("- ./licenses:/opt/clientix/licenses:ro");
+    expect(schedulerService).not.toContain("group_add:");
+    expect(schedulerService).not.toContain("/opt/clientix/licenses");
+    expect(installer).toContain(
+      `chown ${LICENSE_RUNTIME_READER_GID}:${LICENSE_RUNTIME_READER_GID} "$INSTALL_DIR/state" "$INSTALL_DIR/licenses"`
+    );
+    expect(installer).toContain(
+      `chown ${LICENSE_RUNTIME_READER_GID}:${LICENSE_RUNTIME_READER_GID} "$INSTALL_DIR/licenses/license.json"`
+    );
+    expect(installer).toContain('chmod 2750 "$INSTALL_DIR/state" "$INSTALL_DIR/licenses"');
+    expect(installer).toContain('chmod 640 "$INSTALL_DIR/licenses/license.json"');
   });
 
   it("keeps runtime bind mounts group-readable without granting group write access", async () => {

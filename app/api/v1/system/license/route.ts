@@ -44,6 +44,7 @@ export async function GET(req: NextRequest): Promise<Response> {
           valid: status.valid,
           cryptographic_valid: status.cryptographic_valid,
           reason: status.reason,
+          error_code: status.error_code,
           license_id: status.license_id,
           customer_name: status.customer_name,
           license_type: status.license_type,

@@ -72,7 +72,7 @@ describe("Licensing Enforcement — Central Guard & Status Inspection", () => {
     await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
   });
 
-  it("reports MALFORMED_DOCUMENT and denies operation when license file is missing", async () => {
+  it("reports a missing license file separately and denies operation", async () => {
     const status = await getInstallationLicenseStatus({
       licensePath,
       installationIdPath: instIdPath,
@@ -80,8 +80,10 @@ describe("Licensing Enforcement — Central Guard & Status Inspection", () => {
     });
 
     expect(status.usable).toBe(false);
-    expect(status.state).toBe("MALFORMED_DOCUMENT");
+    expect(status.state).toBe("LICENSE_FILE_MISSING");
+    expect(status.error_code).toBe("LICENSE_FILE_MISSING");
     expect(status.reason).toContain("Arquivo de licença não encontrado");
+    expect(status.reason).not.toContain(licensePath);
 
     const denied = await requireValidInstallationLicense({
       licensePath,
@@ -92,7 +94,66 @@ describe("Licensing Enforcement — Central Guard & Status Inspection", () => {
     expect(denied?.status).toBe(403);
     const body = await denied?.json();
     expect(body.error.code).toBe("license_restricted");
-    expect(body.error.details.state).toBe("MALFORMED_DOCUMENT");
+    expect(body.error.details.state).toBe("LICENSE_FILE_MISSING");
+    expect(body.error.details.error_code).toBe("LICENSE_FILE_MISSING");
+  });
+
+  it.each(["EACCES", "EPERM"] as const)("classifies %s as an unreadable file, not malformed JSON", async (code) => {
+    await fs.writeFile(licensePath, "{}", "utf-8");
+    vi.stubEnv("INSTALLATION_ID", mockInstId);
+    const readError = Object.assign(new Error("sensitive filesystem detail"), { code });
+    const readSpy = vi.spyOn(fs, "readFile").mockRejectedValue(readError);
+
+    try {
+      const status = await getInstallationLicenseStatus({ licensePath, installationIdPath: instIdPath, trustedKeys });
+      expect(status.state).toBe("LICENSE_FILE_UNREADABLE");
+      expect(status.error_code).toBe("LICENSE_FILE_UNREADABLE");
+      expect(status.reason).not.toContain(licensePath);
+      expect(status.reason).not.toContain("sensitive filesystem detail");
+    } finally {
+      readSpy.mockRestore();
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("distinguishes readable invalid JSON from a readable document with invalid schema", async () => {
+    await fs.writeFile(licensePath, "{", "utf-8");
+    const invalidJson = await getInstallationLicenseStatus({
+      licensePath,
+      installationIdPath: instIdPath,
+      trustedKeys,
+      now: new Date("2026-10-15T00:00:00Z"),
+    });
+    expect(invalidJson.state).toBe("MALFORMED_DOCUMENT");
+    expect(invalidJson.error_code).toBe("LICENSE_INVALID_JSON");
+
+    await fs.writeFile(licensePath, "{}", "utf-8");
+    const invalidSchema = await getInstallationLicenseStatus({
+      licensePath,
+      installationIdPath: instIdPath,
+      trustedKeys,
+      now: new Date("2026-10-15T00:00:00Z"),
+    });
+    expect(invalidSchema.state).toBe("MALFORMED_DOCUMENT");
+    expect(invalidSchema.error_code).toBe("LICENSE_MALFORMED");
+  });
+
+  it("classifies non-permission filesystem failures separately from document failures", async () => {
+    await fs.writeFile(licensePath, "{}", "utf-8");
+    vi.stubEnv("INSTALLATION_ID", mockInstId);
+    const readError = Object.assign(new Error("private I/O detail"), { code: "EIO" });
+    const readSpy = vi.spyOn(fs, "readFile").mockRejectedValue(readError);
+
+    try {
+      const status = await getInstallationLicenseStatus({ licensePath, installationIdPath: instIdPath, trustedKeys });
+      expect(status.state).toBe("LICENSE_FILE_IO_ERROR");
+      expect(status.error_code).toBe("LICENSE_FILE_IO_ERROR");
+      expect(status.state).not.toBe("MALFORMED_DOCUMENT");
+      expect(status.reason).not.toContain("private I/O detail");
+    } finally {
+      readSpy.mockRestore();
+      vi.unstubAllEnvs();
+    }
   });
 
   it("reports VALID and allows operation when genuine matching license is present", async () => {
@@ -376,7 +437,7 @@ describe("Licensing Enforcement — Atomic License Replacement & Safeguards", ()
     await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
   });
 
-  it("atomically installs a valid candidate license file", async () => {
+  it("atomically installs and rotates a valid license with the runtime reader access contract", async () => {
     const payload = createSamplePayload(mockInstId, { license_id: "lic_atomic_valid" });
     const doc = signLicensePayload(payload, {
       privateKey: keys.privPem,
@@ -397,8 +458,29 @@ describe("Licensing Enforcement — Atomic License Replacement & Safeguards", ()
     const content = await fs.readFile(licensePath, "utf-8");
     expect(content).toContain("lic_atomic_valid");
     if (process.platform !== "win32") {
-      const mode = (await fs.stat(licensePath)).mode & 0o777;
-      expect(mode).toBe(0o640);
+      const installedStat = await fs.stat(licensePath);
+      expect(installedStat.mode & 0o777).toBe(0o640);
+      if (process.platform === "linux") expect(installedStat.gid).toBe(1001);
+    }
+
+    const rotatedPayload = createSamplePayload(mockInstId, { license_id: "lic_atomic_rotated" });
+    const rotatedDoc = signLicensePayload(rotatedPayload, {
+      privateKey: keys.privPem,
+      keyId: KEY_ID,
+    });
+    await installLicenseFile(rotatedDoc, {
+      targetPath: licensePath,
+      installationIdPath: instIdPath,
+      trustedKeys,
+    });
+
+    const rotatedContent = await fs.readFile(licensePath, "utf-8");
+    expect(rotatedContent).toContain("lic_atomic_rotated");
+    expect(rotatedContent).not.toContain("lic_atomic_valid");
+    if (process.platform !== "win32") {
+      const rotatedStat = await fs.stat(licensePath);
+      expect(rotatedStat.mode & 0o777).toBe(0o640);
+      if (process.platform === "linux") expect(rotatedStat.gid).toBe(1001);
     }
   });
 

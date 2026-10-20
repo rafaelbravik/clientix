@@ -13,6 +13,9 @@ services:
       # porta interna do contêiner, independente do mapeamento do host.
       PORT: "3000"
       SUPABASE_DB_ADMIN_URL: ""
+    # GID 1001 é o grupo leitor de licença preparado pelo instalador.
+    group_add:
+      - "1001"
     ports:
       - "${PORT:-3000}:3000"
     volumes:

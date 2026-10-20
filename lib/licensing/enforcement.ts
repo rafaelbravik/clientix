@@ -1,9 +1,15 @@
 import fs from "fs/promises";
 import path from "path";
+import { randomUUID } from "node:crypto";
 import { fail } from "@/lib/api/wrappers";
 import { verifyLicense } from "./verify";
 import { FileInstallationIdStorage, getOrCreateInstallationId } from "./installation-id";
-import type { LicensePayload, LicenseState, VerifyLicenseResult } from "./types";
+import type {
+  LicenseErrorCode,
+  LicensePayload,
+  LicenseState,
+  VerifyLicenseResult,
+} from "./types";
 
 /**
  * Standard paths for commercial license and installation ID.
@@ -16,12 +22,17 @@ export const DEFAULT_INSTALLATION_ID_PATH =
   process.env.CLIENTIX_INSTALLATION_ID_PATH ||
   "/opt/clientix/state/installation_id";
 
+/** GID compartilhado somente pelos runtimes que precisam ler a licença local. */
+export const LICENSE_RUNTIME_READER_GID = 1001;
+const LICENSE_FILE_MODE = 0o640;
+
 export interface LicenseStatusInfo {
   state: LicenseState;
   usable: boolean;
   valid: boolean;
   cryptographic_valid: boolean;
   reason: string;
+  error_code?: LicenseErrorCode;
   license_id?: string;
   customer_name?: string;
   license_type?: string;
@@ -156,22 +167,27 @@ export async function getInstallationLicenseStatus(
         }
 
         const info: LicenseStatusInfo = {
-          state: "MALFORMED_DOCUMENT",
+          state: "LICENSE_FILE_MISSING",
           usable: false,
           valid: false,
           cryptographic_valid: false,
-          reason: `Arquivo de licença não encontrado em: "${licensePath}"`,
+          reason: "Arquivo de licença não encontrado.",
+          error_code: "LICENSE_FILE_MISSING",
           installation_id_expected: expectedInstallationId || undefined,
           installation_id_matched: false,
         };
         return info;
       }
+      const unreadable = code === "EACCES" || code === "EPERM";
       const info: LicenseStatusInfo = {
-        state: "MALFORMED_DOCUMENT",
+        state: unreadable ? "LICENSE_FILE_UNREADABLE" : "LICENSE_FILE_IO_ERROR",
         usable: false,
         valid: false,
         cryptographic_valid: false,
-        reason: `Falha de leitura do arquivo de licença: ${(err as Error).message}`,
+        reason: unreadable
+          ? "O runtime não tem permissão para ler o arquivo de licença."
+          : "Falha de I/O ao ler o arquivo de licença.",
+        error_code: unreadable ? "LICENSE_FILE_UNREADABLE" : "LICENSE_FILE_IO_ERROR",
         installation_id_expected: expectedInstallationId || undefined,
         installation_id_matched: false,
       };
@@ -195,6 +211,7 @@ export async function getInstallationLicenseStatus(
     valid: verifyResult.valid,
     cryptographic_valid: verifyResult.cryptographic_valid,
     reason: verifyResult.reason,
+    error_code: verifyResult.errorCode,
     license_id: payload?.license_id,
     customer_name: payload?.customer.name,
     license_type: payload?.license_type,
@@ -253,6 +270,7 @@ export async function requireValidInstallationLicense(
         state: status.state,
         usable: false,
         reason: status.reason,
+        error_code: status.error_code,
         expires_at: status.expires_at,
         grace_until: status.grace_until,
         customer_name: status.customer_name,
@@ -303,11 +321,38 @@ export async function installLicenseFile(
   const dir = path.dirname(targetPath);
   await fs.mkdir(dir, { recursive: true });
 
-  const tmpPath = `${targetPath}.tmp.${Date.now()}`;
-  // O diretório do volume usa grupo 1001: o app (UID/GID 1001) grava e os
-  // workers não-root leem pelo grupo suplementar, com o volume montado read-only.
-  await fs.writeFile(tmpPath, rawString, { encoding: "utf-8", mode: 0o640 });
-  await fs.rename(tmpPath, targetPath);
+  const tmpPath = `${targetPath}.tmp.${process.pid}.${randomUUID()}`;
+  let tempExists = false;
+  try {
+    const file = await fs.open(tmpPath, "wx", LICENSE_FILE_MODE);
+    tempExists = true;
+    try {
+      await file.writeFile(rawString, { encoding: "utf-8" });
+      if (process.platform === "linux") {
+        const runtimeUid = process.getuid?.();
+        if (runtimeUid === undefined) {
+          throw new Error("LICENSE_RUNTIME_UID_UNAVAILABLE");
+        }
+        // O app recebe GID 1001 como grupo suplementar no Compose. Fixar o GID
+        // no inode temporário antes do rename mantém o contrato após rotação.
+        await file.chown(runtimeUid, LICENSE_RUNTIME_READER_GID);
+      }
+      await file.chmod(LICENSE_FILE_MODE);
+    } finally {
+      await file.close();
+    }
+    await fs.rename(tmpPath, targetPath);
+    tempExists = false;
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    throw new Error(
+      code === "EACCES" || code === "EPERM"
+        ? "LICENSE_FILE_ACCESS_CONTRACT_FAILED"
+        : "LICENSE_FILE_WRITE_FAILED"
+    );
+  } finally {
+    if (tempExists) await fs.unlink(tmpPath).catch(() => {});
+  }
 
   // 3. Invalidate cache
   resetLicenseCache();
@@ -318,6 +363,7 @@ export async function installLicenseFile(
     valid: verifyResult.valid,
     cryptographic_valid: verifyResult.cryptographic_valid,
     reason: verifyResult.reason,
+    error_code: verifyResult.errorCode,
     license_id: payload.license_id,
     customer_name: payload.customer.name,
     license_type: payload.license_type,

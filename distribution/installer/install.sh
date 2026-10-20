@@ -84,6 +84,7 @@ preflight() {
 # 2. Inicialização de Estrutura de Diretórios
 init_directories() {
   mkdir -p "$INSTALL_DIR/data" "$INSTALL_DIR/backups" "$INSTALL_DIR/state" "$INSTALL_DIR/licenses" "$INSTALL_DIR/logs"
+  # GID 1001 é o grupo leitor compartilhado pelo app, worker e voice-agent.
   chown 1001:1001 "$INSTALL_DIR/state" "$INSTALL_DIR/licenses" || die "RUNTIME_DIRECTORY_OWNERSHIP_FAILED: não foi possível preparar os volumes para o usuário não-root do app."
   chmod 2750 "$INSTALL_DIR/state" "$INSTALL_DIR/licenses" || die "RUNTIME_DIRECTORY_PERMISSIONS_FAILED: não foi possível preparar os volumes de runtime."
   if [ -f "$INSTALL_DIR/licenses/license.json" ]; then
