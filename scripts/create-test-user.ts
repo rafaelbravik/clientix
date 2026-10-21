@@ -6,15 +6,16 @@ import { createClient } from "@supabase/supabase-js";
 import {
   anunciarDestino,
   credenciaisSupabaseDeTeste,
-  destinoEhLocal,
 } from "../scripts/lib/env-de-teste";
+import {
+  criarOrganizacaoFixtureE2E,
+  exigirSupabaseLocalParaFixture,
+} from "./lib/organizations-e2e";
 
 const env = credenciaisSupabaseDeTeste();
 anunciarDestino("create-test-user", env);
 
-if (!destinoEhLocal(env.url)) {
-  throw new Error("create-test-user só pode gravar no Supabase local");
-}
+exigirSupabaseLocalParaFixture(env, "create-test-user");
 
 const EMAIL = process.argv[2];
 const PASSWORD = process.env.LOCAL_TEST_USER_PASSWORD;
@@ -34,20 +35,18 @@ async function main() {
     .eq("slug", ORG_SLUG)
     .maybeSingle<{ id: string }>();
   if (!org) {
-    const r = await admin
-      .from("organizations")
-      .insert({
-        slug: ORG_SLUG,
-        display_name: "E2E Test Org",
-        legal_name: "E2E Test Org",
-        timezone: "America/Sao_Paulo",
-        locale: "pt-BR",
-        onboarded_at: new Date().toISOString(),
-      } as never)
-      .select("id")
-      .single<{ id: string }>();
-    if (r.error || !r.data) throw r.error ?? new Error("org insert");
-    org = r.data;
+    org = {
+      id: await criarOrganizacaoFixtureE2E(
+        env,
+        {
+          slug: ORG_SLUG,
+          displayName: "E2E Test Org",
+          legalName: "E2E Test Org",
+          onboardedAt: new Date().toISOString(),
+        },
+        "create-test-user",
+      ),
+    };
     console.log("[org] criada:", org.id);
   } else {
     console.log("[org] existente:", org.id);

@@ -35,12 +35,10 @@ const RAIZ = path.resolve(__dirname, "../..");
 const SCRIPTS = path.join(RAIZ, "scripts");
 
 /**
- * Os slugs que um arquivo INSERE em `organizations`.
+ * Os slugs que um seed cria via fixture DB local.
  *
- * O padrão no repo é uniforme (`.from("organizations")` seguido de `.insert({`),
- * e a varredura casa exatamente isso — um `select` pelo mesmo slug não entra,
- * que é o ponto. O valor pode vir de literal ou de uma constante do módulo;
- * ambos são resolvidos, porque os dois estilos existem hoje.
+ * O slug pode vir de literal ou de uma constante do módulo. Um `select` para
+ * reuso não entra na contagem, que é o ponto.
  */
 function slugsQueOArquivoCria(src: string): string[] {
   const constantes = new Map<string, string>();
@@ -50,7 +48,7 @@ function slugsQueOArquivoCria(src: string): string[] {
 
   const achados: string[] = [];
   for (const bloco of src.matchAll(
-    /\.from\("organizations"\)\s*\n?\s*\.insert\(\s*\{([\s\S]*?)\}\s*(?:as never\s*)?\)/g,
+    /criarOrganizacaoFixtureE2E\(\s*(?:credenciais|env),\s*\{([\s\S]*?)\}\s*,/g,
   )) {
     const corpo = bloco[1]!;
     const slug = /(?:^|[\s{,])slug:\s*("([^"]+)"|[A-Za-z_$][\w$]*)/m.exec(corpo);
@@ -68,16 +66,28 @@ describe("os seeds não disputam a mesma organização", () => {
     .filter((f) => f.startsWith("seed") && f.endsWith(".ts"))
     .map((f) => ({ nome: f, src: fs.readFileSync(path.join(SCRIPTS, f), "utf8") }));
 
-  it("a varredura enxerga os inserts que existem — controle positivo", () => {
+  it("a varredura enxerga as criações de fixture que existem — controle positivo", () => {
     // Sem isto, uma regex que deixasse de casar devolveria "nenhum conflito" e
     // leria como aprovação. Se o padrão dos seeds mudar, é AQUI que quebra —
     // e o teste passa a dizer "a sonda cegou", não "está tudo bem".
     const total = arquivos.flatMap((a) => slugsQueOArquivoCria(a.src));
     expect(
       total.length,
-      "a varredura não encontrou NENHUM insert em `organizations` — a regex " +
-        "deixou de casar o padrão dos seeds, e a ausência de conflito abaixo não vale nada",
+      "a varredura não encontrou NENHUMA criação de organização fixture — o " +
+        "padrão mudou e a ausência de conflito abaixo não vale nada",
     ).toBeGreaterThanOrEqual(3);
+  });
+
+  it("nenhum seed E2E insere organizações pelo service_role", () => {
+    const bypasses = arquivos
+      .filter((a) => /\.from\(["']organizations["']\)\s*\.insert\(/s.test(a.src))
+      .map((a) => a.nome);
+
+    expect(
+      bypasses,
+      "criação de fixture deve usar criarOrganizacaoFixtureE2E, que exige " +
+        "Supabase HTTP e PostgreSQL locais; service_role não recebe INSERT",
+    ).toEqual([]);
   });
 
   it("nenhum slug de organização é criado por dois seeds", () => {

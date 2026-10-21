@@ -41,6 +41,10 @@ import * as path from "node:path";
 
 import { generateTotp } from "../tests/e2e/utils/totp";
 import { anunciarDestino, credenciaisSupabaseDeTeste, destinoEhLocal } from "./lib/env-de-teste";
+import {
+  criarOrganizacaoFixtureE2E,
+  exigirSupabaseLocalParaFixture,
+} from "./lib/organizations-e2e";
 
 // `process.env` VENCE o `.env.local` (ver scripts/lib/env-de-teste.ts).
 //
@@ -51,6 +55,7 @@ import { anunciarDestino, credenciaisSupabaseDeTeste, destinoEhLocal } from "./l
 // existia no banco local porque tinha sido criado na nuvem.
 const credenciais = credenciaisSupabaseDeTeste();
 anunciarDestino("seed-e2e-credentials", credenciais);
+exigirSupabaseLocalParaFixture(credenciais, "seed-e2e-credentials");
 const SUPABASE_URL = credenciais.url;
 const SERVICE_ROLE = credenciais.serviceRole;
 const ANON_KEY = credenciais.anonKey;
@@ -150,21 +155,17 @@ async function ensureOrg(): Promise<string> {
     console.log(`[seed] org existing: ${orgExistente}`);
     return orgExistente;
   }
-  const { data, error } = await admin
-    .from("organizations")
-    .insert({
+  const orgId = await criarOrganizacaoFixtureE2E(
+    credenciais,
+    {
       slug: ORG_SLUG,
-      display_name: ORG_NAME,
-      legal_name: ORG_NAME,
-      timezone: "America/Sao_Paulo",
-      locale: "pt-BR",
+      displayName: ORG_NAME,
+      legalName: ORG_NAME,
       settings: { plan: "enterprise" },
-      onboarded_at: new Date().toISOString(),
-    } as never)
-    .select("id")
-    .single();
-  if (error || !data) throw new Error("create org: " + error?.message);
-  const orgId = (data as { id: string }).id;
+      onboardedAt: new Date().toISOString(),
+    },
+    "seed-e2e-credentials",
+  );
   console.log(`[seed] org created: ${orgId}`);
   return orgId;
 }

@@ -201,6 +201,7 @@ UPSTASH_REDIS_REST_TOKEN=e2e-placeholder-nao-e-segredo
 OWNER_EMAIL=dono@qa.local
 OWNER_PASSWORD=QaVps!2026#Dono
 OWNER_ORG_NAME=Loja-QA-VPS
+INSTALLATION_ID=inst_00000000-0000-4000-8000-000000000001
 
 NEXT_TELEMETRY_DISABLED=1
 # Telemetria DESLIGADA na suíte, e não é preferência: sem isto o SDK do browser

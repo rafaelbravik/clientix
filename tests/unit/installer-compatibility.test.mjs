@@ -71,8 +71,9 @@ describe("signed installer compatibility contract", () => {
     const playbookAclMigration = schemaManifest.migrations.find((entry) => entry.sequence === 513);
     const workerAclMigration = schemaManifest.migrations.find((entry) => entry.sequence === 514);
     const workerTriggerAclMigration = schemaManifest.migrations.find((entry) => entry.sequence === 515);
-    expect(schemaManifest.schema_target).toBe("0515");
-    expect(schemaManifest.baseline.incorporated_through_sequence).toBe(515);
+    const tenantLimitMigration = schemaManifest.migrations.find((entry) => entry.sequence === 516);
+    expect(schemaManifest.schema_target).toBe("0516");
+    expect(schemaManifest.baseline.incorporated_through_sequence).toBe(516);
     expect(webchatMigration).toMatchObject({
       file: "20261010120000_0511_webchat_widget_bootstrap.sql",
       version: "20261010120000",
@@ -97,6 +98,11 @@ describe("signed installer compatibility contract", () => {
       file: "20261019204527_0515_agent_worker_trigger_function_acl.sql",
       version: "20261019204527",
       sequence: 515,
+    });
+    expect(tenantLimitMigration).toMatchObject({
+      file: "20261021131855_0516_atomic_installation_tenant_limit.sql",
+      version: "20261021131855",
+      sequence: 516,
     });
 
     const baseline510Checksum = "a".repeat(64);
@@ -140,8 +146,9 @@ describe("signed installer compatibility contract", () => {
         { version: playbookAclMigration.version, checksum: playbookAclMigration.checksum },
         { version: workerAclMigration.version, checksum: workerAclMigration.checksum },
         { version: workerTriggerAclMigration.version, checksum: workerTriggerAclMigration.checksum },
+        { version: tenantLimitMigration.version, checksum: tenantLimitMigration.checksum },
       ],
-    }, schemaManifest)).toMatchObject({ valid: true, currentSchema: "0515" });
+    }, schemaManifest)).toMatchObject({ valid: true, currentSchema: "0516" });
     expect(deriveCurrentSchema({ type: "FRESH_DATABASE" }, schemaManifest)).toMatchObject({ valid: true, currentSchema: null });
     expect(deriveCurrentSchema({ type: "EXISTING_UNTRACKED_INSTALLATION" }, schemaManifest).valid).toBe(false);
     expect(deriveCurrentSchema({ type: "TRACKED_INSTALLATION", applied: [] }, schemaManifest).valid).toBe(false);

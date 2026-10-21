@@ -32,9 +32,14 @@ import * as path from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import { anunciarDestino, credenciaisSupabaseDeTeste } from "./lib/env-de-teste";
+import {
+  criarOrganizacaoFixtureE2E,
+  exigirSupabaseLocalParaFixture,
+} from "./lib/organizations-e2e";
 
 const credenciais = credenciaisSupabaseDeTeste();
 anunciarDestino("seed-e2e-zona-de-perigo", credenciais);
+exigirSupabaseLocalParaFixture(credenciais, "seed-e2e-zona-de-perigo");
 
 const admin: SupabaseClient = createClient(credenciais.url, credenciais.serviceRole, {
   auth: { autoRefreshToken: false, persistSession: false },
@@ -88,20 +93,16 @@ async function garantirOrg(lado: Lado): Promise<string> {
     if (updErr) throw new Error(`reafirmar org ${lado.slug}: ${updErr.message}`);
     return (existente as { id: string }).id;
   }
-  const { data, error: insErr } = await admin
-    .from("organizations")
-    .insert({
+  return criarOrganizacaoFixtureE2E(
+    credenciais,
+    {
       slug: lado.slug,
-      display_name: lado.nome,
-      legal_name: lado.nome,
-      timezone: "America/Sao_Paulo",
-      locale: "pt-BR",
-      onboarded_at: new Date().toISOString(),
-    } as never)
-    .select("id")
-    .single();
-  if (insErr || !data) throw new Error(`criar org ${lado.slug}: ${insErr?.message}`);
-  return (data as { id: string }).id;
+      displayName: lado.nome,
+      legalName: lado.nome,
+      onboardedAt: new Date().toISOString(),
+    },
+    "seed-e2e-zona-de-perigo",
+  );
 }
 
 async function garantirMembroAdmin(userId: string, orgId: string): Promise<void> {

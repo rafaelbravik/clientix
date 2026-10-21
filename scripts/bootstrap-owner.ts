@@ -21,6 +21,8 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 import { escolherModeloNoCatalogo } from "@/lib/ai/agents/escolher-modelo";
+import { resolveSystemInstallationId } from "@/lib/licensing/enforcement";
+import { isValidInstallationId } from "@/lib/licensing/installation-id";
 
 /** Lê env do processo; completa com .env / .env.local se rodando localmente. */
 function loadEnv(): Record<string, string> {
@@ -108,30 +110,28 @@ async function ensureOwnerUser(): Promise<string> {
 
 async function ensureOrg(ownerId: string): Promise<string> {
   const slug = slugify(ORG_NAME);
-  const { data: existing } = await admin
-    .from("organizations")
-    .select("id")
-    .eq("slug", slug)
-    .maybeSingle();
-  if (existing) {
-    console.log(`[bootstrap] org já existia: ${(existing as { id: string }).id}`);
-    return (existing as { id: string }).id;
+  const installationId = env.INSTALLATION_ID || (await resolveSystemInstallationId());
+  if (!isValidInstallationId(installationId)) {
+    throw new Error("INSTALLATION_ID inválido para o bootstrap da organização inicial.");
   }
-  const { data, error } = await admin
-    .from("organizations")
-    .insert({
-      slug,
-      display_name: ORG_NAME,
-      legal_name: ORG_NAME,
-      locale: APP_LOCALE,
-      created_by: ownerId,
-    } as never)
-    .select("id")
-    .single();
+  const { data, error } = await admin.rpc("fn_bootstrap_first_tenant", {
+    p_installation_id: installationId,
+    p_owner: ownerId,
+    p_slug: slug,
+    p_display_name: ORG_NAME,
+    p_legal_name: ORG_NAME,
+    p_locale: APP_LOCALE,
+  });
   if (error || !data) throw new Error(`criar org: ${error?.message}`);
-  const orgId = (data as { id: string }).id;
-  console.log(`[bootstrap] org criada: ${orgId}`);
-  await aplicarProvedorEscolhido(orgId);
+  const result = data as { id?: string; created?: boolean };
+  if (!result.id) throw new Error("criar org: RPC retornou organização inválida");
+  const orgId = result.id;
+  if (result.created) {
+    console.log(`[bootstrap] org criada: ${orgId}`);
+    await aplicarProvedorEscolhido(orgId);
+  } else {
+    console.log(`[bootstrap] org já existia: ${orgId}`);
+  }
   return orgId;
 }
 

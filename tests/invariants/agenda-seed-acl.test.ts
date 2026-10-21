@@ -1,5 +1,7 @@
 import { execFileSync } from "node:child_process";
 
+import { randomUUID } from "node:crypto";
+
 import { describe, expect, it } from "vitest";
 
 const container = process.env.TEST_DB_CONTAINER;
@@ -15,23 +17,30 @@ function sql(script: string): string {
 }
 
 describe("ACL do catálogo de tipos da agenda", () => {
-  it("service_role cria a organização e o trigger semeia os três tipos", () => {
+  it("RPC limitada cria a organização e o trigger semeia os três tipos", () => {
+    const userId = randomUUID();
+    const slug = `agenda-seed-${userId.slice(0, 8)}`;
     const resultado = sql(`
       begin;
+      insert into auth.users (id, email)
+      values ('${userId}', 'agenda-seed-${userId}@invariant.test')
+      on conflict (id) do nothing;
       set local role service_role;
-      insert into public.organizations (id, slug, legal_name, display_name)
-      values (
-        '5eed0000-0000-4000-8000-00000000000b',
-        'agenda-seed-service-role',
+      select public.fn_provision_signup_tenant_limited(
+        '${userId}',
+        '${slug}',
         'Agenda Seed Service Role',
-        'Agenda Seed Service Role'
+        'inst_00000000-0000-4000-8000-000000000001',
+        null
       );
+      select 'ORG_COUNT=' || count(*)::text from public.organizations where slug = '${slug}';
       select 'SEED_COUNT=' || count(*)::text
         from public.calendar_event_types
-       where organization_id = '5eed0000-0000-4000-8000-00000000000b';
+       where organization_id = (select id from public.organizations where slug = '${slug}');
       rollback;
     `);
 
+    expect(resultado).toContain("ORG_COUNT=1");
     expect(resultado).toContain("SEED_COUNT=3");
   });
 

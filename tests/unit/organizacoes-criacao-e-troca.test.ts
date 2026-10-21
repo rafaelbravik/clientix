@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 const h = vi.hoisted(() => ({
   guard: vi.fn(), mfa: vi.fn(), rpc: vi.fn(), audit: vi.fn(), invite: vi.fn(),
   user: vi.fn(), escrita: vi.fn(), query: vi.fn(), cookie: vi.fn(), getCookie: vi.fn(),
+  license: vi.fn(), tenantLimit: vi.fn(),
 }));
 vi.mock("@/lib/auth/requirePlatformAdmin", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/auth/requirePlatformAdmin")>()),
@@ -14,6 +15,11 @@ vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ rpc: h.rpc 
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ from: h.query }) }));
 vi.mock("@/lib/audit", () => ({ audit: h.audit }));
 vi.mock("@/lib/auth/issue-invite", () => ({ issueInvite: h.invite }));
+vi.mock("@/lib/licensing", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/licensing")>()),
+  requireValidInstallationLicense: h.license,
+  getInstallationTenantLimit: h.tenantLimit,
+}));
 vi.mock("@/lib/supabase/cookie-secure", () => ({ cookieSecure: () => false }));
 vi.mock("next/headers", () => ({ cookies: async () => ({ set: h.cookie, get: h.getCookie }) }));
 import { EscritaDePlatformAdminNegada } from "@/lib/auth/requirePlatformAdmin";
@@ -32,6 +38,8 @@ beforeEach(() => {
   h.escrita.mockResolvedValue({ user: { id: actor, email: "owner@example.test", user_metadata: {} }, platformAdmin: { scope: "full" } });
   h.user.mockResolvedValue({ id: actor, is_platform_admin: true, organizations: [] });
   h.mfa.mockResolvedValue(false);
+  h.license.mockResolvedValue(null);
+  h.tenantLimit.mockResolvedValue({ usable: true, installation_id: "inst_00000000-0000-4000-8000-000000000001", max_tenants: 3 });
   h.rpc.mockResolvedValue({ data: { id: org, display_name: "Minha organização", slug: "minha-org", created: true, invite_id: actor, issued_at: 12345 }, error: null });
   h.invite.mockResolvedValue({ accept_url: "http://localhost/invite", email_dispatched: false });
 });
@@ -51,7 +59,11 @@ describe("criação administrativa", () => {
     const response = await POST(request());
     expect(response.status).toBe(201);
     expect((await response.json()).data.owner_invitation).toBeNull();
-    expect(h.rpc).toHaveBeenCalledWith("fn_create_tenant_with_owner", expect.objectContaining({ p_actor: actor }));
+    expect(h.rpc).toHaveBeenCalledWith("fn_create_tenant_with_owner_limited", expect.objectContaining({
+      p_actor: actor,
+      p_installation_id: "inst_00000000-0000-4000-8000-000000000001",
+      p_max_tenants: 3,
+    }));
     expect(h.invite).not.toHaveBeenCalled();
     expect(h.audit).toHaveBeenCalledWith(expect.objectContaining({ organizationId: org, metadata: expect.objectContaining({ creator_role: "admin" }) }));
   });
@@ -65,6 +77,14 @@ describe("criação administrativa", () => {
     expect((await POST(request("guest@example.test", "bad"))).status).toBe(400);
     h.rpc.mockResolvedValueOnce({ error: { code: "23505" } });
     expect((await POST(request("guest@example.test"))).status).toBe(409);
+    expect(h.invite).not.toHaveBeenCalled();
+  });
+  it("usa o limite apenas do contexto licenciado e mapeia a recusa atômica para 409", async () => {
+    h.rpc.mockResolvedValueOnce({ error: { code: "P0001", message: "GLOBAL_TENANT_LIMIT_REACHED" } });
+    const response = await POST(request("guest@example.test"));
+    expect(response.status).toBe(409);
+    expect((await response.json()).error.code).toBe("GLOBAL_TENANT_LIMIT_REACHED");
+    expect(h.rpc).toHaveBeenCalledWith("fn_create_tenant_with_owner_limited", expect.objectContaining({ p_max_tenants: 3 }));
     expect(h.invite).not.toHaveBeenCalled();
   });
   it("replay recupera o convite sem reenviar nem duplicar audit da criação", async () => {

@@ -2,7 +2,12 @@ import { createHash, randomBytes } from "node:crypto";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { audit } from "@/lib/audit";
-import { requireValidInstallationLicense, assertCanCreateTenant } from "@/lib/licensing";
+import {
+  getInstallationTenantLimit,
+  InstallationTenantLimitReachedError,
+  isInstallationTenantLimitError,
+  requireValidInstallationLicense,
+} from "@/lib/licensing";
 
 /** Normaliza o nome da empresa para um slug candidato (citext unique no DB). */
 export function slugify(name: string): string {
@@ -98,9 +103,9 @@ export async function ensureTenantForUser(
     throw new Error("signup provisioning: licença da instalação inválida ou expirada");
   }
 
-  const limitCheck = await assertCanCreateTenant(admin);
-  if (!limitCheck.allowed) {
-    throw new Error(`signup provisioning: ${limitCheck.reason || "limite global de organizações atingido"}`);
+  const tenantLimit = await getInstallationTenantLimit();
+  if (!tenantLimit.usable || !tenantLimit.installation_id) {
+    throw new Error("signup provisioning: limite confiável da licença indisponível");
   }
 
   const orgName =
@@ -109,40 +114,38 @@ export async function ensureTenantForUser(
     "Minha empresa";
   const base = slugify(orgName);
 
-  // ponytail: check-then-insert tem janela de corrida se o mesmo link for
-  // confirmado 2x em paralelo (pior caso: org duplicada órfã). Advisory lock
-  // por user_id se isso aparecer na prática.
   let org: { id: string; slug: string } | null = null;
   for (let attempt = 0; attempt < 3 && !org; attempt++) {
     const slug = attempt === 0 ? base : `${base}-${Math.random().toString(36).slice(2, 6)}`;
-    const { data, error } = await admin
-      .from("organizations")
-      .insert({
-        slug,
-        display_name: orgName,
-        legal_name: orgName,
-        status: "active",
-        created_by: user.id,
-      })
-      .select("id, slug")
-      .single();
-    if (data) {
-      org = data;
-    } else if (error && error.code !== "23505") {
+    const { data, error } = await admin.rpc("fn_provision_signup_tenant_limited", {
+      p_user: user.id,
+      p_slug: slug,
+      p_organization_name: orgName,
+      p_installation_id: tenantLimit.installation_id,
+      p_max_tenants: tenantLimit.max_tenants,
+    });
+    if (error && isInstallationTenantLimitError(error)) {
+      throw new InstallationTenantLimitReachedError();
+    }
+    if (error && error.code === "23505") continue;
+    if (error) {
       throw new Error(`signup provisioning: org insert failed: ${error.message}`);
     }
+
+    const result = data as unknown as {
+      provisioned: boolean;
+      organization_id: string;
+      slug?: string;
+    };
+    if (!result?.organization_id) {
+      throw new Error("signup provisioning: RPC de criação retornou organização inválida");
+    }
+    if (!result.provisioned) {
+      return { provisioned: false, organizationId: result.organization_id };
+    }
+    org = { id: result.organization_id, slug: result.slug ?? slug };
   }
   if (!org) throw new Error("signup provisioning: slug exhausted after 3 attempts");
-
-  const { error: memberError } = await admin.from("user_organizations").insert({
-    user_id: user.id,
-    organization_id: org.id,
-    role: "admin",
-    accepted_at: new Date().toISOString(),
-  });
-  if (memberError && memberError.code !== "23505") {
-    throw new Error(`signup provisioning: membership insert failed: ${memberError.message}`);
-  }
 
   void audit({
     action:
@@ -293,22 +296,33 @@ export async function provisionExternalTenant(
   const existente = await reencontrarECompletar();
   if (existente) return { ...existente, replay: true };
 
+  const tenantLimit = await getInstallationTenantLimit();
+  if (!tenantLimit.usable || !tenantLimit.installation_id) {
+    throw new Error("provisioning: limite confiável da licença indisponível");
+  }
+
   const ownerId = await ensureExternalOwnerUser(admin, email, input.ownerName, marcador);
 
-  const { data: org, error: orgError } = await admin
-    .from("organizations")
-    .insert({
-      slug,
-      display_name: input.organizationName,
-      legal_name: input.organizationName,
-      status: "active",
-      created_by: ownerId,
-      settings: { provisioning: marcador },
-    })
-    .select("id")
-    .single();
+  const { data: provisionamento, error: orgError } = await admin.rpc(
+    "fn_provision_external_tenant_limited",
+    {
+      p_owner: ownerId,
+      p_slug: slug,
+      p_organization_name: input.organizationName,
+      p_integration: marcador.integration,
+      p_external_id: marcador.external_id,
+      p_installation_id: tenantLimit.installation_id,
+      p_max_tenants: tenantLimit.max_tenants,
+    },
+  );
 
   if (orgError) {
+    if (isInstallationTenantLimitError(orgError)) {
+      throw new InstallationTenantLimitReachedError();
+    }
+    if (orgError.code === "22023" && orgError.message === "PROVISIONING_SLUG_CONFLICT") {
+      throw new ProvisionConflictError();
+    }
     if (orgError.code === "23505") {
       const corrida = await reencontrarECompletar();
       if (corrida) return { ...corrida, replay: true };
@@ -316,14 +330,20 @@ export async function provisionExternalTenant(
     throw new Error(`provisioning: org insert failed: ${orgError.message}`);
   }
 
-  const { error: memberError } = await admin.from("user_organizations").insert({
-    user_id: ownerId,
-    organization_id: org.id,
-    role: "admin",
-    accepted_at: new Date().toISOString(),
-  });
-  if (memberError && memberError.code !== "23505") {
-    throw new Error(`provisioning: membership insert failed: ${memberError.message}`);
+  const resultado = provisionamento as unknown as {
+    organization_id: string;
+    owner_id: string;
+    created: boolean;
+  };
+  if (!resultado?.organization_id || !resultado.owner_id) {
+    throw new Error("provisioning: RPC de criação retornou organização inválida");
+  }
+  if (!resultado.created) {
+    return {
+      organizationId: resultado.organization_id,
+      ownerId: resultado.owner_id,
+      replay: true,
+    };
   }
 
   // Ator NULO: quem criou foi um sistema de fora, com o segredo da instalação
@@ -332,20 +352,24 @@ export async function provisionExternalTenant(
   void audit({
     action: "tenant.created_by_provisioning",
     actorUserId: null,
-    organizationId: org.id,
+    organizationId: resultado.organization_id,
     resourceType: "organization",
-    resourceId: org.id,
+    resourceId: resultado.organization_id,
     requestId: input.requestId,
     bypassedRls: true,
     metadata: {
       slug,
       integration: input.integration,
       external_id: input.externalId,
-      owner_user_id: ownerId,
+      owner_user_id: resultado.owner_id,
     },
   });
 
-  return { organizationId: org.id, ownerId, replay: false };
+  return {
+    organizationId: resultado.organization_id,
+    ownerId: resultado.owner_id,
+    replay: false,
+  };
 }
 
 /**

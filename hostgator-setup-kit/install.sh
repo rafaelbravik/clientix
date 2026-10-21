@@ -1497,6 +1497,15 @@ if [ -z "${SENTRY_DSN+x}" ]; then
 fi
 
 step "$(t "Escrevendo .env")"
+# A mesma identidade persistente escopa o advisory lock usado pelos caminhos
+# de criação de organização. Reutiliza o valor já salvo numa reexecução.
+if [ -z "${INSTALLATION_ID:-}" ]; then
+  _install_hex="$(openssl rand -hex 16)" || die "Não consegui gerar o identificador da instalação."
+  [ "${#_install_hex}" -eq 32 ] || die "O gerador retornou um identificador inválido."
+  _install_variant="$(printf '%x' "$(((16#${_install_hex:16:1} & 3) | 8))")"
+  INSTALLATION_ID="inst_${_install_hex:0:8}-${_install_hex:8:4}-4${_install_hex:13:3}-${_install_variant}${_install_hex:17:3}-${_install_hex:20:12}"
+fi
+[[ "$INSTALLATION_ID" =~ ^inst_[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$ ]] || die "INSTALLATION_ID fora do formato canônico inst_<UUIDv4>."
 umask 077
 
 # Todo valor sai pelo `envq` (definido lá em cima, junto do save_partial): entre
@@ -1603,6 +1612,7 @@ esac
 {
   printf '# Gerado por install.sh — NÃO comitar. Contém segredos.\n'
   envq APP_IMAGE "$APP_IMAGE"
+  envq INSTALLATION_ID "$INSTALLATION_ID"
   envq APP_PULL_POLICY "$PULL_POLICY_ALVO"
   # Worker e scheduler acompanham a MESMA versão do app: um em 1.2.1 e outro em
   # `latest` é uma matriz de compatibilidade que ninguém testou. Estas duas
@@ -2096,22 +2106,17 @@ pg_container -i postgres:17-alpine psql "$(url_do_schema)" -v ON_ERROR_STOP=1 <<
      Este passo lê auth.users e escreve em public: num Supabase próprio ele precisa do dono do
      banco — declare SUPABASE_DB_ADMIN_URL e rode de novo.")"
 do \$\$
-declare v_org uuid; v_uid uuid;
+declare v_org uuid; v_uid uuid; v_bootstrap jsonb;
 begin
   select id into v_uid from auth.users where email = '${OWNER_EMAIL}';
   if v_uid is null then
     raise exception 'usuário % não encontrado no auth.users (a criação no Auth falhou?)', '${OWNER_EMAIL}';
   end if;
-  select id into v_org from public.organizations where slug='minha-empresa';
-  if v_org is null then
-    -- locale aqui, e não só no usuário dono: é a organização que responde
-    -- pelos convidados que ainda não existem. Quem entra sem preferência
-    -- própria cai neste valor, então gravar só no dono entregaria o sistema em
-    -- português para todo mundo que ele convidasse numa instalação em espanhol.
-    insert into public.organizations (slug, display_name, legal_name, locale, created_by)
-    values ('minha-empresa','Minha Empresa','Minha Empresa','${APP_LOCALE:-pt-BR}', v_uid)
-    returning id into v_org;
-  else
+  v_bootstrap := public.fn_bootstrap_first_tenant(
+    '${INSTALLATION_ID}', v_uid, 'minha-empresa', 'Minha Empresa', 'Minha Empresa', '${APP_LOCALE:-pt-BR}'
+  );
+  v_org := (v_bootstrap->>'id')::uuid;
+  if not (v_bootstrap->>'created')::boolean then
     -- Re-execução do instalador com outra resposta: quem rodou de novo para
     -- trocar o idioma esperaria que trocasse. Só mexe se a organização ainda
     -- estiver no padrão — se alguém já escolheu pela tela, a escolha dela vale

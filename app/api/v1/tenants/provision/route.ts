@@ -15,9 +15,8 @@
  *
  * A chave devolvida tem `mcp:read`/`mcp:write` e papel `agent` — abre as
  * ferramentas e rotas de atendente, não as de `ai_operator`/`manager` (ver
- * `lib/tenants/api-key.ts`). E não há teto de organizações por instalação:
- * quem tem o segredo cria quantas quiser, variando `external_id`. É por isso
- * que o segredo é do dono da instalação e a rota nasce desligada.
+ * `lib/tenants/api-key.ts`). Cada criação também respeita o limite
+ * `max_tenants` da licença de instalação, verificado atomicamente no banco.
  */
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import type { NextRequest } from "next/server";
@@ -25,7 +24,10 @@ import type { NextRequest } from "next/server";
 import { checkRateLimit, peekRateLimit } from "@/lib/ai/dispatcher/rate-limit";
 import { ApiError } from "@/lib/api/types";
 import { fail, ok } from "@/lib/api/wrappers";
-import { requireValidInstallationLicense, assertCanCreateTenant } from "@/lib/licensing";
+import {
+  InstallationTenantLimitReachedError,
+  requireValidInstallationLicense,
+} from "@/lib/licensing";
 import {
   EmailJaTemContaError,
   ProvisionConflictError,
@@ -126,22 +128,6 @@ export async function POST(req: NextRequest): Promise<Response> {
   const licenseDenied = await requireValidInstallationLicense();
   if (licenseDenied) return licenseDenied;
 
-  const limitCheck = await assertCanCreateTenant();
-  if (!limitCheck.allowed) {
-    return fail(
-      "GLOBAL_TENANT_LIMIT_REACHED",
-      limitCheck.reason || "Limite global de organizações atingido para a licença desta instalação.",
-      409,
-      {
-        requestId,
-        details: {
-          current: limitCheck.current,
-          max: limitCheck.max,
-        },
-      }
-    );
-  }
-
   try {
     const { organizationId, ownerId, replay } = await provisionExternalTenant({
       integration: input.integration,
@@ -182,6 +168,14 @@ export async function POST(req: NextRequest): Promise<Response> {
       return fail(
         "provisioning_conflict",
         "Já existe uma organização com este identificador que não nasceu deste provisionamento.",
+        409,
+        { requestId },
+      );
+    }
+    if (err instanceof InstallationTenantLimitReachedError) {
+      return fail(
+        "GLOBAL_TENANT_LIMIT_REACHED",
+        "Limite global de organizações atingido para a licença desta instalação.",
         409,
         { requestId },
       );

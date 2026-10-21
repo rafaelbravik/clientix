@@ -1,5 +1,9 @@
 import { requireSupportWrite } from "@/lib/impersonate/support";
-import { requireValidInstallationLicense, assertCanCreateTenant } from "@/lib/licensing";
+import {
+  getInstallationTenantLimit,
+  isInstallationTenantLimitError,
+  requireValidInstallationLicense,
+} from "@/lib/licensing";
 import { createTenantSchema } from "@/lib/schemas/tenant-creation";
 import { issueInvite } from "@/lib/auth/issue-invite";
 import { type NextRequest } from "next/server";
@@ -186,30 +190,34 @@ export async function POST(req: NextRequest) {
   }
 
   const admin = createAdminClient();
-  const limitCheck = await assertCanCreateTenant(admin);
-  if (!limitCheck.allowed) {
+  const tenantLimit = await getInstallationTenantLimit();
+  if (!tenantLimit.usable || !tenantLimit.installation_id) {
     return fail(
-      "GLOBAL_TENANT_LIMIT_REACHED",
-      limitCheck.reason || "Limite global de organizações atingido para a licença desta instalação.",
-      409,
-      {
-        requestId,
-        details: {
-          current: limitCheck.current,
-          max: limitCheck.max,
-        },
-      }
+      "license_restricted",
+      "Não foi possível validar o limite de organizações da licença desta instalação.",
+      403,
+      { requestId },
     );
   }
 
   const request = { ...parsed.data, owner_email: parsed.data.owner_email.trim().toLowerCase() };
-  const { data: org, error } = await admin.rpc("fn_create_tenant_with_owner", {
+  const { data: org, error } = await admin.rpc("fn_create_tenant_with_owner_limited", {
     p_actor: adminCtx.user.id,
     p_key: key,
     p_request: request,
     p_hash: createHash("sha256").update(JSON.stringify(request)).digest("hex"),
+    p_installation_id: tenantLimit.installation_id,
+    p_max_tenants: tenantLimit.max_tenants,
   });
   if (error) {
+    if (isInstallationTenantLimitError(error)) {
+      return fail(
+        "GLOBAL_TENANT_LIMIT_REACHED",
+        "Limite global de organizações atingido para a licença desta instalação.",
+        409,
+        { requestId, details: { max: tenantLimit.max_tenants } },
+      );
+    }
     if (error.code === "23505" || error.code === "22023") {
       return fail("conflict", "Slug já existe ou a chave foi usada com outros dados", 409, {
         requestId,

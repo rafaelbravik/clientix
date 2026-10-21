@@ -123,7 +123,11 @@ describe("a resposta espera a recarga sem gastar tentativa", () => {
       const devolvido = await adiarAteORecarregar(pool, pego!, "espera", SEM_SALDO, pego!.claim_acquired_at);
       expect(devolvido?.status, `volta ${i + 1}`).toBe("pending");
       expect(devolvido?.attempts, `volta ${i + 1}: a espera não gasta tentativa`).toBe(0);
-      expect(devolvido?.last_error?.startsWith(PREFIXO_DA_ESPERA)).toBe(true);
+      const persistido = await pool.query<{ last_error: string | null }>(
+        "select last_error from job_queue where id = $1",
+        [job.id],
+      );
+      expect(persistido.rows[0]?.last_error?.startsWith(PREFIXO_DA_ESPERA)).toBe(true);
       await oTempoPassou(job.id);
     }
   });

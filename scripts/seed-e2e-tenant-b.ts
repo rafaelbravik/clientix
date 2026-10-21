@@ -19,6 +19,10 @@ import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { anunciarDestino, credenciaisSupabaseDeTeste, destinoEhLocal } from "./lib/env-de-teste";
+import {
+  criarOrganizacaoFixtureE2E,
+  exigirSupabaseLocalParaFixture,
+} from "./lib/organizations-e2e";
 
 // `process.env` VENCE o `.env.local` (ver scripts/lib/env-de-teste.ts).
 //
@@ -27,6 +31,7 @@ import { anunciarDestino, credenciaisSupabaseDeTeste, destinoEhLocal } from "./l
 // injetado no webServer do Playwright: este script nunca olhava para lá.
 const credenciais = credenciaisSupabaseDeTeste();
 anunciarDestino("seed-e2e-tenant-b", credenciais);
+exigirSupabaseLocalParaFixture(credenciais, "seed-e2e-tenant-b");
 const ROTACAO_LOCAL = process.env.E2E_ROTATE_LOCAL_CREDENTIALS === "1";
 if (ROTACAO_LOCAL && !destinoEhLocal(credenciais.url)) {
   throw new Error("rotação de credenciais E2E exige endpoint Supabase local");
@@ -133,21 +138,18 @@ async function ensureOrg(): Promise<string> {
   if (error) throw new Error(`buscar org: ${error.message}`);
   if (existing) return (existing as { id: string }).id;
 
-  const { data, error: insErr } = await admin
-    .from("organizations")
-    .insert({
+  const id = await criarOrganizacaoFixtureE2E(
+    credenciais,
+    {
       slug: ORG_SLUG,
-      display_name: ORG_NAME,
-      legal_name: ORG_NAME,
-      timezone: "America/Sao_Paulo",
-      locale: "pt-BR",
-      onboarded_at: new Date().toISOString(),
-    } as never)
-    .select("id")
-    .single();
-  if (insErr || !data) throw new Error(`criar org: ${insErr?.message}`);
-  console.info(`[seed-b] org criada: ${(data as { id: string }).id}`);
-  return (data as { id: string }).id;
+      displayName: ORG_NAME,
+      legalName: ORG_NAME,
+      onboardedAt: new Date().toISOString(),
+    },
+    "seed-e2e-tenant-b",
+  );
+  console.info(`[seed-b] org criada: ${id}`);
+  return id;
 }
 
 async function ensureUser(): Promise<string> {

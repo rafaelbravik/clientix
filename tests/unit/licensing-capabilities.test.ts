@@ -9,6 +9,8 @@ import {
   hasInstallationCapability,
   requireInstallationCapability,
   assertCanCreateTenant,
+  getInstallationTenantLimit,
+  isInstallationTenantLimitError,
   resetLicenseCache,
   installLicenseFile,
   type LicensePayload,
@@ -438,7 +440,7 @@ describe("L7.1 Commercial Capability Enforcement Unit Tests", () => {
     expect(result).toBe(false);
   });
 
-  it("Concurrent tenant creation: N=3, existing=2 -> 2 concurrent attempts yield exactly 1 success and 1 limit reached", async () => {
+  it("derives the atomic RPC context only from the verified installation license", async () => {
     const payload = createSamplePayload(mockInstId, {
       entitlements: {
         max_installations: 1,
@@ -450,52 +452,23 @@ describe("L7.1 Commercial Capability Enforcement Unit Tests", () => {
     });
     await writeSignedLicense(payload);
 
-    let activeTenants = 2; // N - 1
-    // Simulated atomic database lock & transaction boundary:
-    // When multiple requests compete, the atomic lock sequences them:
-    // Request 1 checks count (2 < 3) -> allowed -> activeTenants becomes 3
-    // Request 2 checks count (3 >= 3) -> rejected
-    let lockAcquired = false;
-    const concurrentAttempt = async (attemptId: string) => {
-      // Simulate connection queue on atomic advisory lock
-      while (lockAcquired) {
-        await new Promise((r) => setTimeout(r, 5));
-      }
-      lockAcquired = true;
-      try {
-        const mockAdmin = {
-          from: vi.fn().mockReturnValue({
-            select: vi.fn().mockImplementation(() =>
-              Promise.resolve({ count: activeTenants, error: null })
-            ),
-          }),
-        } as unknown as SupabaseClient;
+    const context = await getInstallationTenantLimit({
+      licensePath,
+      installationIdPath: instIdPath,
+      trustedKeys,
+    });
 
-        const check = await assertCanCreateTenant(mockAdmin, {
-          licensePath,
-          installationIdPath: instIdPath,
-          trustedKeys,
-        });
+    expect(context).toEqual({
+      usable: true,
+      installation_id: mockInstId,
+      max_tenants: 3,
+    });
+  });
 
-        if (check.allowed) {
-          activeTenants += 1;
-          return { attemptId, status: "SUCCESS" };
-        } else {
-          return { attemptId, status: "GLOBAL_TENANT_LIMIT_REACHED" };
-        }
-      } finally {
-        lockAcquired = false;
-      }
-    };
-
-    const [res1, res2] = await Promise.all([
-      concurrentAttempt("attempt-1"),
-      concurrentAttempt("attempt-2"),
-    ]);
-
-    const statuses = [res1.status, res2.status].sort();
-    expect(statuses).toEqual(["GLOBAL_TENANT_LIMIT_REACHED", "SUCCESS"]);
-    expect(activeTenants).toBe(3);
+  it("recognizes only the exact SQLSTATE and canonical installation limit error", () => {
+    expect(isInstallationTenantLimitError({ code: "P0001", message: "GLOBAL_TENANT_LIMIT_REACHED" })).toBe(true);
+    expect(isInstallationTenantLimitError({ code: "P0001", message: "OTHER_ERROR" })).toBe(false);
+    expect(isInstallationTenantLimitError({ code: "23505", message: "GLOBAL_TENANT_LIMIT_REACHED" })).toBe(false);
   });
 
   it("Tenant Plan Isolation: Installation PARTNER / ENTERPRISE never alters tenant STANDARD / PRO limits", async () => {

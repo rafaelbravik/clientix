@@ -28,6 +28,7 @@ import {
 } from '@/lib/agent-engine/edge/llm/run-model-call';
 import { stablePrefixHash } from '@/lib/agent-engine/edge/llm/stable-prefix';
 import { createPool } from '@/lib/agent-engine/db/pool';
+import { destinoEhLocal } from './lib/env-de-teste';
 
 const DB_URL = process.env.SMOKE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54329/postgres';
 const MODEL = process.env.SMOKE_MODEL ?? 'claude-haiku-4-5';
@@ -73,6 +74,9 @@ function bigSystem(): string {
 }
 
 async function main(): Promise<void> {
+  if (DB_URL.trim() === '' || !destinoEhLocal(DB_URL)) {
+    fail('SMOKE_DB_URL deve apontar para um Postgres local — o smoke não cria tenants remotos');
+  }
   if (!process.env.ANTHROPIC_API_KEY) fail('ANTHROPIC_API_KEY ausente no env — o smoke exige o modelo real');
   const min = MIN_CACHEABLE[MODEL];
   if (min === undefined) fail(`modelo ${MODEL} sem entrada em MIN_CACHEABLE — adicione o mínimo cacheável dele`);

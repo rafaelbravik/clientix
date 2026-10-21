@@ -20,6 +20,10 @@ import { createClient } from "@supabase/supabase-js";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { anunciarDestino, credenciaisSupabaseDeTeste } from "./lib/env-de-teste";
+import {
+  criarOrganizacaoFixtureE2E,
+  exigirSupabaseLocalParaFixture,
+} from "./lib/organizations-e2e";
 
 // `process.env` VENCE o `.env.local` (ver scripts/lib/env-de-teste.ts).
 //
@@ -28,6 +32,7 @@ import { anunciarDestino, credenciaisSupabaseDeTeste } from "./lib/env-de-teste"
 // injetado no webServer do Playwright: este script nunca olhava para lá.
 const credenciais = credenciaisSupabaseDeTeste();
 anunciarDestino("seed-e2e-funis", credenciais);
+exigirSupabaseLocalParaFixture(credenciais, "seed-e2e-funis");
 const env = {
   NEXT_PUBLIC_SUPABASE_URL: credenciais.url,
   SUPABASE_SERVICE_ROLE_KEY: credenciais.serviceRole,
@@ -97,28 +102,16 @@ async function main(): Promise<void> {
   }
 
   if (!segundaOrgId) {
-    const { data, error } = await admin
-      .from("organizations")
-      .insert({
+    segundaOrgId = await criarOrganizacaoFixtureE2E(
+      credenciais,
+      {
         slug: SEGUNDA_SLUG,
-        legal_name: "E2E Segunda Org LTDA",
-        display_name: "E2E Segunda Org",
-        // ⚠️ SEM `onboarded_at` DE PROPÓSITO — e agora isso é o fixture, não um
-        // descuido.
-        //
-        // Esta org existe para o caso do funil homônimo, e ficou sem onboarding
-        // por omissão. Enquanto ela dividia o slug com o seed de duas
-        // organizações, essa omissão vazava para uma spec que não a pediu e
-        // derrubava o CI (ver o cabeçalho de `seed-e2e-duas-organizacoes.ts`).
-        // Com os slugs separados, ela passa a ser o único lugar do harness com
-        // uma organização legitimamente NÃO configurada — que é exatamente o
-        // estado de que `troca-de-organizacao-tem-volta.spec.ts` precisa para
-        // provar que dá para sair do wizard.
-      })
-      .select("id")
-      .single();
-    if (error) throw new Error(`falha ao criar a segunda org: ${error.message}`);
-    segundaOrgId = (data as { id: string }).id;
+        legalName: "E2E Segunda Org LTDA",
+        displayName: "E2E Segunda Org",
+        onboardedAt: null,
+      },
+      "seed-e2e-funis",
+    );
     // O gatilho `trg_seed_default_pipeline_for_org` já semeou o funil "Pedidos"
     // aqui dentro — é exatamente esse homônimo que o spec não pode ver na lista.
   }

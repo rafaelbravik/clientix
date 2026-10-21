@@ -88,6 +88,9 @@ const schema = z
      */
     SUPABASE_SERVER_URL: z.string().optional().default(""),
 
+    /** Identificador persistente da instalação, compartilhado pelos runtimes para escopar o limite licenciado. */
+    INSTALLATION_ID: z.string().optional().default(""),
+
     // Cron / interno
     INTERNAL_SECRET: required("INTERNAL_SECRET"),
     /** Optional dedicated secret for cron endpoints (S-06.07 onwards). */

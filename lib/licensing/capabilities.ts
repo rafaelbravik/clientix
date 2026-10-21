@@ -4,9 +4,9 @@ import {
   type LicenseInspectionOptions,
   type LicenseStatusInfo,
 } from "./enforcement";
+import { isValidInstallationId } from "./installation-id";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type pg from "pg";
 
 /**
  * Standard commercial capabilities derived from the installation license.
@@ -152,17 +152,51 @@ export async function requireInstallationCapability(
  */
 export async function getInstallationTenantLimit(
   options: LicenseInspectionOptions = {}
-): Promise<{ max_tenants: number | null; usable: boolean }> {
-  const caps = await getInstallationCapabilities(options);
+): Promise<{ max_tenants: number | null; usable: boolean; installation_id?: string }> {
+  const status = await getInstallationLicenseStatus(options);
+  const maxTenants = status.entitlements?.max_tenants;
+  const validLimit =
+    maxTenants === null ||
+    (typeof maxTenants === "number" && Number.isSafeInteger(maxTenants) && maxTenants >= 1);
+  const installationId = status.installation_id_expected;
+  const trustedInstallation =
+    typeof installationId === "string" &&
+    isValidInstallationId(installationId) &&
+    status.installation_id_matched === true;
+  const usable = status.usable && validLimit && trustedInstallation;
   return {
-    max_tenants: caps.max_tenants,
-    usable: caps.usable,
+    max_tenants: validLimit && maxTenants !== undefined ? maxTenants : 1,
+    usable,
+    ...(usable && installationId ? { installation_id: installationId } : {}),
   };
 }
 
+export const INSTALLATION_TENANT_LIMIT_ERROR = "GLOBAL_TENANT_LIMIT_REACHED";
+
+export class InstallationTenantLimitReachedError extends Error {
+  readonly code = INSTALLATION_TENANT_LIMIT_ERROR;
+
+  constructor() {
+    super(INSTALLATION_TENANT_LIMIT_ERROR);
+    this.name = "InstallationTenantLimitReachedError";
+  }
+}
+
+/** Recognizes the exact PostgreSQL error emitted by the atomic creation RPC. */
+export function isInstallationTenantLimitError(error: unknown): boolean {
+  if (error instanceof InstallationTenantLimitReachedError) return true;
+  if (typeof error !== "object" || error === null) return false;
+  const record = error as { code?: unknown; message?: unknown };
+  return (
+    record.code === "P0001" &&
+    typeof record.message === "string" &&
+    record.message.trim() === INSTALLATION_TENANT_LIMIT_ERROR
+  );
+}
+
 /**
- * Checks whether a new tenant can be created under global installation limits.
- * Uses atomic advisory lock to prevent concurrent creation over-allocation.
+ * Read-only preflight for user-facing details. Creation must still use one of
+ * the limited database RPCs; this count is deliberately not an atomic guarantee.
  */
 export async function assertCanCreateTenant(
   admin?: SupabaseClient,
@@ -186,7 +220,7 @@ export async function assertCanCreateTenant(
 
   const client = admin || createAdminClient();
 
-  // Count active/non-archived organizations
+  // Keep the existing contract: every organization row occupies a licensed slot.
   const { count, error } = await client
     .from("organizations")
     .select("*", { count: "exact", head: true });
@@ -210,26 +244,4 @@ export async function assertCanCreateTenant(
     current: currentCount,
     max: max_tenants,
   };
-}
-
-/**
- * Executes a tenant creation check under a Postgres advisory lock to ensure concurrency safety.
- */
-export async function runWithTenantCreationLock<T>(
-  pool: pg.Pool,
-  action: () => Promise<T>
-): Promise<T> {
-  const client = await pool.connect();
-  const LOCK_KEY = "clientix:global_tenant_creation_lock";
-  try {
-    await client.query("select pg_advisory_lock(hashtextextended($1, 0))", [LOCK_KEY]);
-    return await action();
-  } finally {
-    try {
-      await client.query("select pg_advisory_unlock(hashtextextended($1, 0))", [LOCK_KEY]);
-    } catch {
-      // unlock ignore
-    }
-    client.release();
-  }
 }

@@ -26,6 +26,7 @@ const h = vi.hoisted(() => ({
   inseridas: [] as Record<string, unknown>[],
   createUser: vi.fn(),
   listUsers: vi.fn(),
+  rpc: vi.fn(),
 }));
 
 vi.mock("@/lib/audit", () => ({
@@ -36,6 +37,7 @@ vi.mock("@/lib/audit", () => ({
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
     auth: { admin: { createUser: h.createUser, listUsers: h.listUsers } },
+    rpc: h.rpc,
     from: (tabela: string) => {
       // Filtros POR CONSULTA: as duas leituras de `user_organizations` têm
       // propósitos diferentes (o admin da org no replay; o vínculo da conta
@@ -86,6 +88,15 @@ vi.mock("@/lib/supabase/admin", () => ({
     },
   }),
 }));
+vi.mock("@/lib/licensing", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/licensing")>()),
+  requireValidInstallationLicense: vi.fn().mockResolvedValue(null),
+  getInstallationTenantLimit: vi.fn().mockResolvedValue({
+    usable: true,
+    installation_id: "inst_00000000-0000-4000-8000-000000000001",
+    max_tenants: 4,
+  }),
+}));
 
 const { provisionExternalTenant, slugDoProvisionamento, ProvisionConflictError, EmailJaTemContaError } =
   await import(
@@ -124,6 +135,14 @@ beforeEach(() => {
   h.inseridas = [];
   h.createUser.mockResolvedValue({ data: { user: { id: "user-novo" } }, error: null });
   h.listUsers.mockResolvedValue({ data: { users: [] }, error: null });
+  h.rpc.mockImplementation(async (_name: string, args: Record<string, unknown>) => ({
+    data: {
+      organization_id: "org-nova",
+      owner_id: String(args.p_owner),
+      created: true,
+    },
+    error: h.erroDoInsertDaOrg ?? h.erroDoInsertDoVinculo,
+  }));
 });
 
 describe("o reencontro exige o marcador", () => {
@@ -157,11 +176,14 @@ describe("o reencontro exige o marcador", () => {
 
   it("organização nova grava o marcador que o reencontro vai conferir", async () => {
     await provisionExternalTenant(ENTRADA);
-    const org = h.inseridas.find((l) => l.tabela === "organizations");
-    expect(org?.slug).toBe(slugDoProvisionamento("clinicfx", "clinica-42"));
-    expect(org?.settings).toEqual({
-      provisioning: { integration: "clinicfx", external_id: "clinica-42" },
-    });
+    expect(h.rpc).toHaveBeenCalledWith("fn_provision_external_tenant_limited", expect.objectContaining({
+      p_slug: slugDoProvisionamento("clinicfx", "clinica-42"),
+      p_integration: "clinicfx",
+      p_external_id: "clinica-42",
+      p_installation_id: "inst_00000000-0000-4000-8000-000000000001",
+      p_max_tenants: 4,
+    }));
+    expect(h.inseridas).toEqual([]);
   });
 
   it("ids externos diferentes nunca dividem o slug, nem os longos de prefixo igual", () => {
@@ -294,11 +316,10 @@ describe("a repetição depois de uma falha transitória PROVISIONA", () => {
     const r = await provisionExternalTenant(ENTRADA);
 
     expect(r).toEqual({ organizationId: "org-nova", ownerId: "user-orfao", replay: false });
-    expect(h.inseridas.find((l) => l.tabela === "organizations")?.created_by).toBe("user-orfao");
-    expect(h.inseridas.find((l) => l.tabela === "user_organizations")).toMatchObject({
-      user_id: "user-orfao",
-      role: "admin",
-    });
+    expect(h.rpc).toHaveBeenCalledWith("fn_provision_external_tenant_limited", expect.objectContaining({
+      p_owner: "user-orfao",
+      p_slug: slugDoProvisionamento("clinicfx", "clinica-42"),
+    }));
   });
 
   it("marcador de OUTRO provisionamento não é órfã desta: recusa", async () => {
@@ -355,30 +376,18 @@ describe("a repetição depois de uma falha transitória PROVISIONA", () => {
 });
 
 /**
- * 3º CASO, mesma familia do bloqueador 1 e com desfecho pior.
- *
- * O INSERT do vinculo morrendo por timeout deixava a organizacao criada e sem
- * admin nenhum. Na repeticao, `reencontrar()` achava a organizacao e devolvia
- * `replay: true` -- a rota respondia 200 AFIRMANDO que estava tudo certo, com
- * uma empresa que existe, aparece, e na qual ninguem entra. O proprio caminho
- * de recuperacao era o que carimbava sucesso sobre o estado incompleto.
+ * Repara um registro incompleto legado. A RPC atual cria organização e vínculo
+ * na mesma transação; a recuperação abaixo existe para instalações que já
+ * possam carregar a linha parcial de uma versão anterior.
  */
-describe("o replay so conclui sobre estado COMPLETO", () => {
+describe("o replay repara um estado incompleto legado", () => {
   const ORG_ENCONTRADA = {
     id: "org-1",
     created_by: "user-1",
     settings: { provisioning: MARCADOR },
   };
 
-  it("vinculo que falhou na 1a tentativa: a repeticao COMPLETA e a org fica com admin", async () => {
-    // --- 1a chamada: a conta e a organizacao nascem, o vinculo morre.
-    h.erroDoInsertDoVinculo = { code: "57014", message: "canceling statement due to statement timeout" };
-    await expect(provisionExternalTenant(ENTRADA)).rejects.toThrow(/membership insert failed/);
-
-    // --- 2a chamada (repeticao): a organizacao esta la, o vinculo nao.
-    h.erroDoInsertDoVinculo = null;
-    h.inseridas = [];
-    h.auditadas = [];
+  it("organização existente sem vínculo vivo recebe vínculo admin na repetição", async () => {
     h.org = ORG_ENCONTRADA;
     h.vinculoDoDonoNaOrg = null;
 

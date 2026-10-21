@@ -3,15 +3,20 @@
  * Run: npx tsx scripts/reset-user-onboarding.ts <email> [org-slug]
  */
 import { createClient } from "@supabase/supabase-js";
-import { carregarEnvLocal } from "../scripts/lib/env-de-teste";
+import { credenciaisSupabaseDeTeste } from "./lib/env-de-teste";
+import {
+  criarOrganizacaoFixtureE2E,
+  exigirSupabaseLocalParaFixture,
+} from "./lib/organizations-e2e";
 
-const env = carregarEnvLocal();
+const env = credenciaisSupabaseDeTeste();
+exigirSupabaseLocalParaFixture(env, "reset-user-onboarding");
 
 const EMAIL = process.argv[2] ?? "teste@gmail.com";
 const ORG_SLUG = process.argv[3] ?? `onboarding-${EMAIL.split("@")[0]}`;
 const ORG_NAME = `Onboarding ${EMAIL.split("@")[0]}`;
 
-const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL!, env.SUPABASE_SERVICE_ROLE_KEY!, {
+const admin = createClient(env.url, env.serviceRole, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
@@ -27,20 +32,23 @@ async function main() {
     .eq("slug", ORG_SLUG)
     .maybeSingle<{ id: string; onboarded_at: string | null }>();
   if (!org) {
-    const r = await admin
-      .from("organizations")
-      .insert({
+    const id = await criarOrganizacaoFixtureE2E(
+      env,
+      {
         slug: ORG_SLUG,
-        display_name: ORG_NAME,
-        legal_name: ORG_NAME,
-        timezone: "America/Sao_Paulo",
-        locale: "pt-BR",
-        onboarded_at: null,
-      } as never)
+        displayName: ORG_NAME,
+        legalName: ORG_NAME,
+        onboardedAt: null,
+      },
+      "reset-user-onboarding",
+    );
+    const criada = await admin
+      .from("organizations")
       .select("id, onboarded_at")
+      .eq("id", id)
       .single<{ id: string; onboarded_at: string | null }>();
-    if (r.error || !r.data) throw r.error ?? new Error("org insert");
-    org = r.data;
+    if (criada.error || !criada.data) throw criada.error ?? new Error("org fixture");
+    org = criada.data;
     console.log("[org] criada (sem onboarded_at):", org.id);
   } else {
     if (org.onboarded_at) {

@@ -291,7 +291,7 @@ describe("inv. 2 — status e suspensão só mudam pelo servidor", () => {
         ),
       );
       expect(e).toContain("42501");
-      expect(e).toContain("organizacao_nasce_so_pelo_servidor");
+      expect(e).toContain("permission denied for table organizations");
       expect(valor(`select count(*) from public.organizations where id = '${ORG_FORJADA}';`)).toBe("0");
     });
   }
