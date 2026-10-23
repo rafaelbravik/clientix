@@ -7,6 +7,17 @@ import { fileURLToPath } from "node:url";
 const IMAGE_KEYS = ["app", "worker", "scheduler", "voice_agent", "migrator"];
 const OPTIONAL_IMAGE_KEYS = ["caddy"];
 const SHA256_RE = /^sha256:[0-9a-f]{64}$/;
+const REQUIRED_BACKUPS = ["configuration", "database", "release_state", "image_state"];
+const OFFICIAL_KEY_ID = "clientix-release-2026-01";
+const PRODUCTION_REPOSITORIES = {
+  app: "ghcr.io/rafaelbravik/clientix-app",
+  worker: "ghcr.io/rafaelbravik/clientix-worker",
+  scheduler: "ghcr.io/rafaelbravik/clientix-scheduler",
+  voice_agent: "ghcr.io/rafaelbravik/clientix-voice-agent",
+  migrator: "ghcr.io/rafaelbravik/clientix-migrator",
+  caddy: "ghcr.io/rafaelbravik/clientix-ingress",
+};
+const TEST_KEY_ID = "clientix-test-release-fixture";
 const NUMERIC_ID = "(?:0|[1-9][0-9]*)";
 const NON_NUMERIC_ID = "(?:[0-9]*[A-Za-z-][0-9A-Za-z-]*)";
 const PRE_RELEASE_ID = `(?:${NUMERIC_ID}|${NON_NUMERIC_ID})`;
@@ -83,15 +94,18 @@ function canonicalize(value) {
   throw new TypeError("unsupported JSON value");
 }
 
-function validatePayload(payload) {
+function validatePayload(payload, signerKeyId) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     throw new Error("INVALID_MANIFEST_PAYLOAD");
   }
 
-  for (const field of ["release_version", "min_installer_version", "schema_target", "released_at"]) {
+  for (const field of ["release_id", "release_version", "min_installer_version", "schema_target", "released_at", "created_at"]) {
     if (typeof payload[field] !== "string" || payload[field].length === 0) {
       throw new Error(`INVALID_MANIFEST_FIELD:${field}`);
     }
+  }
+  if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(payload.release_id)) {
+    throw new Error("INVALID_MANIFEST_RELEASE_ID");
   }
   try {
     parseSemVer(payload.release_version);
@@ -99,7 +113,8 @@ function validatePayload(payload) {
   } catch {
     throw new Error("INVALID_MANIFEST_VERSION");
   }
-  if (Number.isNaN(Date.parse(payload.released_at))) {
+  if (Number.isNaN(Date.parse(payload.released_at)) || Number.isNaN(Date.parse(payload.created_at)) ||
+      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(payload.created_at)) {
     throw new Error("INVALID_MANIFEST_SCHEMA_OR_DATE");
   }
   const targetSchema = parseSchemaSequence(payload.schema_target);
@@ -111,6 +126,12 @@ function validatePayload(payload) {
   if (minSchema > maxSchema || maxSchema > targetSchema) {
     throw new Error("INVALID_MANIFEST_SCHEMA_RANGE");
   }
+  if (!Array.isArray(payload.compatibility.compatible_previous_apps) ||
+      payload.compatibility.compatible_previous_apps.some((version) => {
+        try { parseSemVer(version); return false; } catch { return true; }
+      })) {
+    throw new Error("INVALID_MANIFEST_COMPATIBILITY");
+  }
   if (!Array.isArray(payload.architectures) || payload.architectures.length === 0 ||
       payload.architectures.some((arch) => !["amd64", "arm64"].includes(arch))) {
     throw new Error("INVALID_MANIFEST_FIELD:architectures");
@@ -119,6 +140,10 @@ function validatePayload(payload) {
   if (!payload.architectures.includes(runtimeArch)) throw new Error("UNSUPPORTED_MANIFEST_ARCHITECTURE");
   if (!payload.images || typeof payload.images !== "object" || Array.isArray(payload.images)) {
     throw new Error("INVALID_MANIFEST_FIELD:images");
+  }
+  const allowedImageKeys = new Set([...IMAGE_KEYS, ...OPTIONAL_IMAGE_KEYS]);
+  if (Object.keys(payload.images).some((key) => !allowedImageKeys.has(key))) {
+    throw new Error("INVALID_MANIFEST_IMAGE_SET");
   }
 
   const imageRefs = {};
@@ -131,6 +156,9 @@ function validatePayload(payload) {
       /^(?:[a-z0-9]+(?:[.-][a-z0-9]+)*(?::[0-9]+)?\/)?[a-z0-9]+(?:[._-][a-z0-9]+)*(?:\/[a-z0-9]+(?:[._-][a-z0-9]+)*)*$/.test(image.repository);
     if (!validRepository) {
       throw new Error(`INVALID_MANIFEST_REPOSITORY:${key}`);
+    }
+    if (signerKeyId !== TEST_KEY_ID && image.repository !== PRODUCTION_REPOSITORIES[key]) {
+      throw new Error(`UNAUTHORIZED_IMAGE_REPOSITORY:${key}`);
     }
     if (typeof image.tag !== "string" || !/^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$/.test(image.tag)) {
       throw new Error(`INVALID_MANIFEST_TAG:${key}`);
@@ -151,6 +179,9 @@ function validatePayload(payload) {
     if (!validRepository) {
       throw new Error(`INVALID_MANIFEST_REPOSITORY:${key}`);
     }
+    if (signerKeyId !== TEST_KEY_ID && image.repository !== PRODUCTION_REPOSITORIES[key]) {
+      throw new Error(`UNAUTHORIZED_IMAGE_REPOSITORY:${key}`);
+    }
     if (typeof image.tag !== "string" || !/^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$/.test(image.tag)) {
       throw new Error(`INVALID_MANIFEST_TAG:${key}`);
     }
@@ -158,6 +189,51 @@ function validatePayload(payload) {
       throw new Error(`INVALID_MANIFEST_DIGEST:${key}`);
     }
     imageRefs[key] = `${image.repository}@${image.digest}`;
+  }
+
+  if (!payload.migration || typeof payload.migration !== "object" || Array.isArray(payload.migration) ||
+      !["none", "expand", "contract", "irreversible"].includes(payload.migration.strategy) ||
+      !Array.isArray(payload.migration.ids) ||
+      payload.migration.ids.some((id) => typeof id !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/.test(id))) {
+    throw new Error("INVALID_MANIFEST_MIGRATION_METADATA");
+  }
+  if (payload.migration.strategy === "none" && payload.migration.ids.length !== 0) {
+    throw new Error("INVALID_MANIFEST_MIGRATION_METADATA");
+  }
+  if (payload.migration.strategy !== "none" && payload.migration.ids.length === 0) {
+    throw new Error("INVALID_MANIFEST_MIGRATION_METADATA");
+  }
+
+  const rollback = payload.rollback;
+  if (!rollback || typeof rollback !== "object" || Array.isArray(rollback) ||
+      typeof rollback.application !== "boolean" || typeof rollback.configuration !== "boolean" ||
+      !["preserve_schema", "operator"].includes(rollback.database_strategy) ||
+      !Array.isArray(rollback.compatible_previous_apps) ||
+      rollback.compatible_previous_apps.some((version) => {
+        try { parseSemVer(version); return false; } catch { return true; }
+      })) {
+    throw new Error("INVALID_MANIFEST_ROLLBACK_METADATA");
+  }
+  if (["contract", "irreversible"].includes(payload.migration.strategy) && rollback.database_strategy !== "operator") {
+    throw new Error("INVALID_MANIFEST_ROLLBACK_METADATA");
+  }
+  if (["none", "expand"].includes(payload.migration.strategy) && rollback.database_strategy !== "preserve_schema") {
+    throw new Error("INVALID_MANIFEST_ROLLBACK_METADATA");
+  }
+
+  if (!Array.isArray(payload.required_backups) ||
+      REQUIRED_BACKUPS.some((backup) => !payload.required_backups.includes(backup)) ||
+      payload.required_backups.some((backup) => !REQUIRED_BACKUPS.includes(backup)) ||
+      new Set(payload.required_backups).size !== payload.required_backups.length) {
+    throw new Error("INVALID_MANIFEST_REQUIRED_BACKUPS");
+  }
+  const notes = payload.release_notes;
+  if (!notes || typeof notes !== "object" || Array.isArray(notes) ||
+      Object.keys(notes).some((key) => !["id", "locale", "summary"].includes(key)) ||
+      typeof notes.id !== "string" || !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(notes.id) ||
+      typeof notes.locale !== "string" || !/^[a-z]{2}-[A-Z]{2}$/.test(notes.locale) ||
+      typeof notes.summary !== "string" || notes.summary.length > 240 || /[\u0000-\u001f]/.test(notes.summary)) {
+    throw new Error("INVALID_MANIFEST_RELEASE_NOTES_METADATA");
   }
   return imageRefs;
 }
@@ -201,7 +277,7 @@ export function evaluateSchemaCompatibility(payload, migratorStatus) {
   };
 }
 
-export function verifyReleaseManifestDocument(manifest, trustRoot, installerVersion) {
+export function verifyReleaseManifestDocument(manifest, trustRoot, installerVersion, { testMode = false } = {}) {
   try {
     if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) {
       return { valid: false, reason: "INVALID_MANIFEST_DOCUMENT" };
@@ -214,6 +290,9 @@ export function verifyReleaseManifestDocument(manifest, trustRoot, installerVers
     }
     if (typeof manifest.keyId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/.test(manifest.keyId)) {
       return { valid: false, reason: "INVALID_MANIFEST_KEY_ID" };
+    }
+    if (manifest.keyId !== OFFICIAL_KEY_ID && !(testMode && manifest.keyId === TEST_KEY_ID)) {
+      return { valid: false, reason: "MANIFEST_KEY_UNTRUSTED" };
     }
     if (!trustRoot || !fs.existsSync(trustRoot)) {
       return { valid: false, reason: "MANIFEST_TRUST_ROOT_UNAVAILABLE" };
@@ -246,7 +325,7 @@ export function verifyReleaseManifestDocument(manifest, trustRoot, installerVers
 
     let imageRefs;
     try {
-      imageRefs = validatePayload(manifest.payload);
+      imageRefs = validatePayload(manifest.payload, manifest.keyId);
     } catch (error) {
       return { valid: false, reason: error instanceof Error ? error.message : "INVALID_MANIFEST_DOCUMENT" };
     }
@@ -263,13 +342,24 @@ export function verifyReleaseManifestDocument(manifest, trustRoot, installerVers
     return {
       valid: true,
       result: {
+        payload_sha256: crypto.createHash("sha256").update(canonicalize(manifest.payload), "utf8").digest("hex"),
+        release_id: manifest.payload.release_id,
         release_version: manifest.payload.release_version,
+        created_at: manifest.payload.created_at,
+        released_at: manifest.payload.released_at,
         min_installer_version: manifest.payload.min_installer_version,
         schema_target: manifest.payload.schema_target,
         compatibility: {
           min_schema: manifest.payload.compatibility.min_schema,
           max_schema: manifest.payload.compatibility.max_schema,
+          compatible_previous_apps: manifest.payload.compatibility.compatible_previous_apps,
         },
+        migration: manifest.payload.migration,
+        rollback: manifest.payload.rollback,
+        required_backups: manifest.payload.required_backups,
+        release_notes: manifest.payload.release_notes,
+        signer_key_id: manifest.keyId,
+        signature: manifest.signature,
         images: imageRefs,
       },
     };
@@ -279,7 +369,10 @@ export function verifyReleaseManifestDocument(manifest, trustRoot, installerVers
 }
 
 function main() {
-  const [, , command, manifestPath, trustRoot, installerVersion, statusPath] = process.argv;
+  const args = process.argv.slice(2);
+  const testMode = args.at(-1) === "--test-mode";
+  if (testMode) args.pop();
+  const [command, manifestPath, trustRoot, installerVersion, statusPath] = args;
   if ((command !== "verify" && command !== "schema-check") || !manifestPath || !trustRoot || !installerVersion ||
       (command === "schema-check" && !statusPath)) {
     process.stderr.write("usage: verify-release-manifest.mjs verify <manifest.json> <trust-root-dir> <installer-version>\n");
@@ -290,13 +383,13 @@ function main() {
 
   let manifest;
   try {
-    manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+    manifest = JSON.parse(manifestPath === "-" ? fs.readFileSync(0, "utf8") : fs.readFileSync(manifestPath, "utf8"));
   } catch {
     process.stderr.write("INVALID_MANIFEST_DOCUMENT\n");
     process.exitCode = 1;
     return;
   }
-  const verification = verifyReleaseManifestDocument(manifest, trustRoot, installerVersion);
+  const verification = verifyReleaseManifestDocument(manifest, trustRoot, installerVersion, { testMode });
   if (!verification.valid) {
     process.stderr.write(verification.reason + "\n");
     process.exitCode = 1;

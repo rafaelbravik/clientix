@@ -51,6 +51,18 @@ services:
       - ./state:/opt/clientix/state:ro
     networks:
       - clientix-net
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8787/healthz').then(async r=>{const d=await r.json();process.exit(r.status===200&&d.status==='ok'&&d.db==='ok'&&d.event_log_drain?.carregado===true&&d.event_log_drain?.motivo===null?0:1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 2
+      start_period: 20s
 
   scheduler:
     image: ${SCHEDULER_IMAGE:?SCHEDULER_IMAGE must be set from the verified release manifest}

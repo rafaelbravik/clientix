@@ -37,6 +37,65 @@ alteram a precedência.
   recusada. Um alvo abaixo do schema atual também é recusado; o instalador não
   executa downgrade de banco.
 
+## Atualização e rollback
+
+- O manifesto assinado é validado antes de qualquer pull: estrutura, versão do
+  instalador, `keyId`, compatibilidade, estratégia e IDs de migration,
+  repositórios permitidos e digests `sha256`. A chave de release aceita em
+  produção continua fixa em `trust/release-manifest`; a chave de licença não é
+  aceita para releases. Tag é metadado, nunca autoridade de imagem.
+- `clientix-installer update --dry-run` valida manifesto, estado, schema,
+  digests locais e compatibilidade sem criar journal, backup, pull ou reiniciar
+  serviços. A execução normal adquire `flock`, grava `state/update-journal.json`,
+  salva configuração/release/imagens em `backups/releases/<transaction-id>/`,
+  cria e verifica o backup lógico do PostgreSQL com o migrador atualmente
+  instalado e só então baixa cada referência `imagem@sha256:...`. O digest local
+  é comparado ao manifesto antes de alterar configuração ou executar migration.
+- O journal mantém o histórico sanitizado de estados, timestamps, códigos de
+  saída/erro, IDs de release, digests e schema antes/depois. As transições são
+  revalidadas na leitura; divergência de identidade ou histórico adulterado
+  bloqueia a recuperação. Ele não contém valores de segredo nem conteúdo de
+  `.env`. Um lock do sistema
+  operacional impede dois updates/rollbacks simultâneos; lock ativo nunca é
+  removido por idade. Metadados de processo deixados por processo morto são
+  substituídos somente depois que `flock` confirma que o lock está livre.
+- Depois da migration, o instalador exige o schema exato assinado, sobe os
+  serviços e valida app, worker, scheduler, Caddy, conectividade de banco e
+  dependências externas, rota HTTPS, certificado e HSTS. O estado da release só
+  passa a apontar para os novos digests depois desses gates. Um update já
+  aplicado e saudável é idempotente.
+- `migration.ids` contém os nomes exatos das migrations pendentes apresentados
+  por `clientix-migrator status --json`. Antes de executar migration, o updater
+  compara as duas listas sem permitir itens extras, ausentes ou duplicados.
+  Esses IDs são metadados; nenhum campo do manifesto é executado como comando.
+- `migration.strategy` aceita `none`, `expand`, `contract` ou `irreversible`.
+  `none`/`expand` só permitem rollback automático quando o manifesto assinado
+  declara aplicação/configuração compatíveis, `database_strategy:
+  preserve_schema` e a versão anterior na lista de compatibilidade. `contract` e
+  `irreversible` exigem `database_strategy: operator` e confirmação explícita
+  `--confirm-irreversible <release_id>`; falha pós-migration não reverte banco
+  automaticamente.
+- `clientix-installer rollback` restaura configuração, manifesto e digests
+  anteriores se eles ainda estiverem presentes localmente e o schema atual
+  estiver dentro da faixa assinada. Ele preserva o schema e nunca inventa
+  migration reversa ou restaura o dump automaticamente. Se schema, backup,
+  assinatura ou compatibilidade não puderem ser comprovados, o journal fica em
+  `MANUAL_RECOVERY_REQUIRED` e a intervenção do operador é necessária.
+- Estado legado produzido por versões anteriores do instalador não guardava o
+  manifesto nem os digests no `release.json`. No primeiro update, o instalador
+  aceita essa origem somente se não houver manifesto parcial, a versão e o
+  schema do estado coincidirem com o banco, os seis digests estiverem presentes
+  nos repositórios permitidos e cada imagem estiver disponível localmente com o
+  mesmo `RepoDigest`. A versão antiga também precisa estar nas listas assinadas
+  de compatibilidade/rollback do destino. O journal marca
+  `legacy_digest_pinned`; isso não afirma que o predecessor tinha assinatura
+  persistida. Após o primeiro update concluído, a nova release e seus digests
+  passam a ter manifesto assinado persistido.
+- Se o processo for interrompido, não inicie outro update sobre journal não
+  terminal. Execute `clientix-installer rollback`: ele valida novamente os
+  manifestos/checkpoint e retoma a restauração segura quando possível. Um estado
+  `MANUAL_RECOVERY_REQUIRED` não é limpo nem retomado automaticamente.
+
 ## Ingress público
 
 - CLIENTIX_ACME_CHALLENGE=direct é o padrão e usa HTTP-01/TLS-ALPN do Caddy;

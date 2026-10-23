@@ -21,16 +21,27 @@ type ImageKey = (typeof IMAGE_KEYS)[number];
 type OptionalImageKey = "caddy";
 type Image = { repository: string; tag: string; digest: string };
 type Payload = {
+  release_id: string;
   release_version: string;
   min_installer_version: string;
   schema_target: string;
   released_at: string;
+  created_at: string;
   architectures: string[];
   compatibility: {
     compatible_previous_apps: string[];
     min_schema: string;
     max_schema: string;
   };
+  migration: { strategy: "none" | "expand" | "contract" | "irreversible"; ids: string[] };
+  rollback: {
+    application: boolean;
+    configuration: boolean;
+    database_strategy: "preserve_schema" | "operator";
+    compatible_previous_apps: string[];
+  };
+  required_backups: string[];
+  release_notes: { id: string; locale: string; summary: string };
   images: Record<ImageKey, Image> & Partial<Record<OptionalImageKey, Image>>;
 };
 type Manifest = {
@@ -76,16 +87,27 @@ function makePayload(overrides: Partial<Payload> = {}): Payload {
   ) as Record<ImageKey, Image>;
 
   return {
+    release_id: "clientix-test-1.70.1-certification-1",
     release_version: "1.70.1-certification.1",
     min_installer_version: "1.0.0",
     schema_target: CURRENT_SCHEMA,
     released_at: "2026-10-15T12:00:00Z",
+    created_at: "2026-10-15T12:00:00Z",
     architectures: [architecture],
     compatibility: {
       compatible_previous_apps: ["1.70.0"],
       min_schema: "0510",
       max_schema: CURRENT_SCHEMA,
     },
+    migration: { strategy: "none", ids: [] },
+    rollback: {
+      application: true,
+      configuration: true,
+      database_strategy: "preserve_schema",
+      compatible_previous_apps: ["1.70.0"],
+    },
+    required_backups: ["configuration", "database", "release_state", "image_state"],
+    release_notes: { id: "certification-fixture", locale: "pt-BR", summary: "Fixture de release assinada." },
     images,
     ...overrides,
   };
@@ -106,8 +128,9 @@ function runVerify(
   manifestPath = fixtureManifestPath,
   keyDirectory = trustRoot,
   version = installerVersion,
+  testMode = true,
 ) {
-  return spawnSync(process.execPath, [verifierPath, "verify", manifestPath, keyDirectory, version], {
+  return spawnSync(process.execPath, [verifierPath, "verify", manifestPath, keyDirectory, version, ...(testMode ? ["--test-mode"] : [])], {
     encoding: "utf8",
   });
 }
@@ -119,7 +142,7 @@ function runSchemaCheck(
 ) {
   return spawnSync(
     process.execPath,
-    [verifierPath, "schema-check", manifestPath, keyDirectory, installerVersion, "-"],
+    [verifierPath, "schema-check", manifestPath, keyDirectory, installerVersion, "-", "--test-mode"],
     { encoding: "utf8", input: JSON.stringify(status) },
   );
 }
@@ -149,7 +172,7 @@ describe("installer signed release manifest gate", () => {
     const held = JSON.parse(readFileSync(heldManifestPath, "utf8")) as unknown;
     expect(held).toEqual(expect.any(Object));
 
-    const result = runVerify(heldManifestPath);
+    const result = runVerify(heldManifestPath, trustRoot, installerVersion, false);
     expect(result.status).not.toBe(0);
     expect(result.stderr).toMatch(
       /MANIFEST_KEY_UNTRUSTED|MANIFEST_SIGNATURE_INVALID|MANIFEST_SIGNATURE_MISSING_OR_MALFORMED/,
@@ -162,6 +185,11 @@ describe("installer signed release manifest gate", () => {
     expect(JSON.parse(result.stdout)).toMatchObject({
       release_version: fixturePayload.release_version,
       schema_target: CURRENT_SCHEMA,
+      compatibility: {
+        min_schema: fixturePayload.compatibility.min_schema,
+        max_schema: fixturePayload.compatibility.max_schema,
+        compatible_previous_apps: fixturePayload.compatibility.compatible_previous_apps,
+      },
       images: Object.fromEntries(IMAGE_KEYS.map((name) => [
         name,
         `localhost:5000/clientix-${name.replace("_", "-")}@sha256:${"a".repeat(64)}`,
