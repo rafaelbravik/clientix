@@ -7,13 +7,13 @@
 
 ## O que você precisa antes
 
-| Item | Onde conseguir |
-|---|---|
-| VPS Linux (2 vCPU / 4 GB+) com Docker | qualquer provedor |
-| Um domínio apontando para a VPS (registro A) | seu DNS |
+| Item                                                                                                                                              | Onde conseguir                                  |
+| ------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| VPS Linux (2 vCPU / 4 GB+) com Docker                                                                                                             | qualquer provedor                               |
+| Um domínio apontando para a VPS (registro A)                                                                                                      | seu DNS                                         |
 | Projeto **Supabase** (o plano free serve; acompanhe a cota em Settings → Usage — ver [runbook de custo](../runbooks/custo-e-cota-do-supabase.md)) | supabase.com — é o Postgres+Auth+Storage do CRM |
-| Chave **Anthropic** (ou cadastre BYOK depois na tela) | console.anthropic.com |
-| Um número de WhatsApp para o agente | qualquer chip/celular |
+| Chave **Anthropic** (ou cadastre BYOK depois na tela)                                                                                             | console.anthropic.com                           |
+| Um número de WhatsApp para o agente                                                                                                               | qualquer chip/celular                           |
 
 > **Por que Supabase e não um Postgres no compose?** O CRM usa Auth, Storage e
 > RLS do Supabase nativamente. O caminho suportado é um projeto Supabase (cloud,
@@ -45,18 +45,35 @@ Edite o `.env` e preencha (mínimo):
   > `SUPABASE_DB_ADMIN_URL`. Ela é **opcional** e, vazia, tudo roda pela de cima
   > (é o caso da nuvem: a string do pooler já vem privilegiada). Preencha quando
   > o Postgres for **seu** e a de cima for uma role menor — ver §2.
-- **Domínio**: `DOMAIN`, `NEXT_PUBLIC_APP_URL=https://SEU_DOMINIO`,
-  `WAHA_WEBHOOK_BASE_URL=https://SEU_DOMINIO`
-  > Rodando SEM TLS (ex.: `http://IP:PORTA`, sem o Caddy)? Basta o
-  > `NEXT_PUBLIC_APP_URL` começar com `http://` — o cookie de sessão deixa de
-  > ser `Secure` automaticamente e o login funciona. Com `https://`, `Secure`
-  > sempre ligado.
-  >
-  > Em `http://` o app funciona 100%: as três Web APIs que somem fora de
-  > secure context estão tratadas (cookie `Secure`, `crypto.randomUUID` e
-  > `navigator.clipboard` — os botões de copiar usam fallback). Ainda assim,
-  > HTTPS via Caddy é o recomendado de produção: fecha a família inteira de
-  > restrições de contexto não-seguro de uma vez.
+- **Domínio**: `DOMAIN`, `ACME_EMAIL`,
+  `NEXT_PUBLIC_APP_URL=https://SEU_DOMINIO` e
+  `NEXT_PUBLIC_ADMIN_URL=https://SEU_DOMINIO`.
+  > Produção exige HTTPS. O stack padrão usa Caddy com ACME e portas TCP 80/443;
+  > no instalador comercial, CLIENTIX_ACME_CHALLENGE=direct é o padrão.
+  > Redes com CGNAT, firewall ou portas filtradas podem selecionar
+  > CLIENTIX_ACME_CHALLENGE=dns e CLIENTIX_ACME_DNS_PROVIDER=cloudflare;
+  > esse modo exige imagem Caddy Cloudflare presente no manifesto assinado. Em
+  > produção, configure `CLIENTIX_ACME_SECRET_MODE=external` e
+  > `CLIENTIX_CLOUDFLARE_TOKEN_FILE` com caminho absoluto para um arquivo
+  > root-owned `0400`/`0600` (ou UID permitido explicitamente em
+  > `CLIENTIX_CLOUDFLARE_TOKEN_OWNER_UID`) fora de `INSTALL_DIR`; o instalador monta esse
+  > arquivo read-only no Caddy sem ler nem copiar seu conteúdo. Para laboratório
+  > manual, `CLIENTIX_ACME_SECRET_MODE=ephemeral` recebe stdin com
+  > `clientix-installer install --cloudflare-token-stdin`; o valor vive somente
+  > no tmpfs do Caddy e precisa ser reinjetado com
+  > `clientix-installer secret inject --stdin` depois de restart/reboot.
+  > O modo efêmero mantém certificados existentes no volume persistente, mas
+  > depende de nova reinjeção para emitir ou renovar.
+  > em hospedagem com Traefik próprio, use a sobreposição
+  > `docker-compose.traefik.yml`, que aplica TLS e redireciona HTTP para HTTPS.
+  > HTTP só é permitido no compose local com `CLIENTIX_INGRESS_MODE=local`,
+  > `CLIENTIX_ALLOW_INSECURE_HTTP=true` e origem em loopback. O runtime registra
+  > um aviso explícito; nunca exponha esse modo à internet.
+- **Webhook WAHA**: no stack padrão interno use
+  `WAHA_WEBHOOK_BASE_URL=http://app:3000`, restrita à bridge privada; se o WAHA
+  for externo, use `https://SEU_DOMINIO`.
+- **Webhook Meta**: `META_WEBHOOK_BASE_URL`, quando preenchida, precisa ser uma
+  origem HTTPS pública; pode usar um hostname dedicado ao callback da Meta.
 - **Segredos** (gere com `openssl rand -base64 32` cada): `INTERNAL_SECRET`,
   `INTERNAL_CRON_SECRET`, `CPF_ENCRYPTION_KEY`, `AI_CRED_AES_KEY`,
   `WAHA_BYO_ENCRYPTION_KEY`, `IMPERSONATE_COOKIE_SECRET`, `LGPD_SIGNING_KEY`, `SRH_TOKEN`
@@ -186,18 +203,18 @@ sem quebrar nada.
 
 **O caminho manual:** no Dashboard →
 
-1. **Authentication → Sign In / Up**: habilite *Allow new users to sign up* e
-   mantenha *Confirm email* ligado. **Exceção:** com a instalação em
-   "Cadastro apenas por convite" (`/admin/cadastro`), **desligue** *Allow new
-   users to sign up*. Ligado, qualquer um cria conta direto no Supabase com a
+1. **Authentication → Sign In / Up**: habilite _Allow new users to sign up_ e
+   mantenha _Confirm email_ ligado. **Exceção:** com a instalação em
+   "Cadastro apenas por convite" (`/admin/cadastro`), **desligue** _Allow new
+   users to sign up_. Ligado, qualquer um cria conta direto no Supabase com a
    chave pública que vai ao navegador, passando por fora do CRM (#1653). O
    convite continua funcionando: com o cadastro público fechado, o app cria a
    conta do convidado pela admin API, no servidor. Voltou para "aberto" ou
    "com aprovação"? Ligue de novo, senão o cadastro pela tela falha.
 2. **Authentication → URL Configuration**: `Site URL = https://SEU_DOMINIO` e
-   adicione `https://SEU_DOMINIO/auth/confirm` em *Redirect URLs*.
+   adicione `https://SEU_DOMINIO/auth/confirm` em _Redirect URLs_.
 3. **Authentication → Email Templates**: troque o link dos templates
-   *Confirm signup* e *Reset password* para o fluxo server-side:
+   _Confirm signup_ e _Reset password_ para o fluxo server-side:
 
    ```html
    <!-- Confirm signup -->
@@ -302,9 +319,9 @@ conta própria — num caminho HTTP seu, nunca como caminho de arquivo.
 
 ## Solução de problemas
 
-| Sintoma | Causa provável | Conserto |
-|---|---|---|
-| Resposta do agente fica `queued` | espelho de sessão divergiu do WAHA | o watchdog reconcilia e reenvia sozinho em ≤2 min; veja `docker compose logs worker | grep watchdog` |
-| Publish falha com `channel_session_offline` | sessão não está WORKING | reconecte o número em Conexões |
-| Turno duplicado | dois consumidores de dispatch | garanta `AGENT_DISPATCH_CONSUMER=engine` (default) — o cron nativo vira no-op |
-| Worker não sobe: "schema do harness ausente" | baseline não aplicado | rode o passo 2 |
+| Sintoma                                      | Causa provável                     | Conserto                                                                            |
+| -------------------------------------------- | ---------------------------------- | ----------------------------------------------------------------------------------- |
+| Resposta do agente fica `queued`             | espelho de sessão divergiu do WAHA | o watchdog reconcilia e reenvia sozinho em ≤2 min; veja `docker compose logs worker | grep watchdog` |
+| Publish falha com `channel_session_offline`  | sessão não está WORKING            | reconecte o número em Conexões                                                      |
+| Turno duplicado                              | dois consumidores de dispatch      | garanta `AGENT_DISPATCH_CONSUMER=engine` (default) — o cron nativo vira no-op       |
+| Worker não sobe: "schema do harness ausente" | baseline não aplicado              | rode o passo 2                                                                      |

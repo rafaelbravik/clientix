@@ -40,7 +40,8 @@ export class MemoryInstallationIdStorage implements InstallationIdStorage {
 
 /**
  * File-based atomic storage implementation of InstallationIdStorage.
- * Writes via a temporary file and atomic rename to prevent corruption under concurrency or sudden shutdown.
+ * Publishes a fully written temporary file with a create-if-absent hard link,
+ * so concurrent processes never observe a partially written destination.
  */
 export class FileInstallationIdStorage implements InstallationIdStorage {
   private readonly filePath: string;
@@ -69,32 +70,55 @@ export class FileInstallationIdStorage implements InstallationIdStorage {
   }
 
   /**
-   * Writes the installation ID atomically.
-   * If exclusive creation is requested (initial creation), uses flag "wx" (O_CREAT | O_EXCL)
-   * so only one process succeeds in creating the target file.
-   * If the file already exists (EEXIST), it does not overwrite.
+   * Publishes an ID only if the destination does not exist.
+   *
+   * The temporary file is exclusive and lives beside the destination. Its full
+   * contents are flushed and the handle is closed before `link` makes the
+   * destination visible. Creating a hard link fails atomically when the
+   * destination already exists, on both Windows and POSIX filesystems that
+   * support hard links. We deliberately do not fall back to a replacing rename
+   * or a direct write: either could overwrite a winner or expose partial data.
    */
   async write(id: string): Promise<void> {
     const dir = path.dirname(this.filePath);
     await fs.mkdir(dir, { recursive: true });
+    const temporaryPath = path.join(
+      dir,
+      `.${path.basename(this.filePath)}.${process.pid}.${crypto.randomUUID()}.tmp`
+    );
+    let temporaryFileCreated = false;
 
-    // Try exclusive atomic create first (wx = O_CREAT | O_EXCL)
     try {
-      await fs.writeFile(this.filePath, `${id.trim()}\n`, {
-        encoding: "utf-8",
-        mode: 0o600,
-        flag: "wx",
-      });
-      return;
-    } catch (err: unknown) {
-      const code = (err as NodeJS.ErrnoException).code;
-      if (code === "EEXIST") {
-        // Another process won the creation race and created the file.
-        // That is expected in concurrent cross-process scenarios; read existing value.
-        return;
+      const temporaryFile = await fs.open(temporaryPath, "wx", 0o600);
+      temporaryFileCreated = true;
+
+      try {
+        await temporaryFile.writeFile(`${id.trim()}\n`, { encoding: "utf-8" });
+        await temporaryFile.sync();
+      } finally {
+        await temporaryFile.close();
       }
-      // For any other I/O failure, propagate
-      throw err;
+
+      try {
+        // link() is an atomic create-if-absent operation because both paths are
+        // in the same directory. Unlike rename(), it cannot replace a winner.
+        await fs.link(temporaryPath, this.filePath);
+      } catch (err: unknown) {
+        if ((err as NodeJS.ErrnoException).code !== "EEXIST") {
+          throw err;
+        }
+        // Another process published first. The caller reads and validates it.
+      }
+    } finally {
+      if (temporaryFileCreated) {
+        try {
+          await fs.unlink(temporaryPath);
+        } catch (err: unknown) {
+          if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+            throw err;
+          }
+        }
+      }
     }
   }
 }

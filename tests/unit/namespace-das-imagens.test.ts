@@ -309,15 +309,15 @@ describe("o kit aponta para o que o CI realmente publica", () => {
     );
   });
 
-  it("as imagens do kit são exatamente as que o workflow constrói", () => {
-    // Eram três até a telefonia por SIP entrar como módulo opcional (#677) e
-    // trazer a quarta (`deskcomm-voice-agent`). O número não é o invariante — a
-    // IGUALDADE entre as duas listas é; prendê-lo em 3 fez este caso reprovar a
-    // imagem nova em vez de reprovar a divergência. Fica um piso, que é o que o
-    // caso precisa para não passar sobre lista vazia.
+  it("o workflow constrói as imagens do kit e o ingress DNS-01 do instalador", () => {
+    // O kit usa quatro imagens; o instalador comercial também publica a imagem
+    // Caddy com DNS-01. A relação exata impede que um desses artefatos saia da
+    // matriz sem obrigar o kit a declarar Caddy como serviço próprio.
     const naMatriz = [...PUBLICA.matchAll(/^\s{10}- name: (\S+)$/gm)].map((m) => m[1]);
-    expect(naMatriz.length, "a matriz de publish-image.yml veio vazia — o leitor cegou").toBeGreaterThanOrEqual(3);
-    expect([...naMatriz].sort()).toEqual([...reposDoKit()].sort());
+    expect(naMatriz.length, "a matriz de publish-image.yml veio vazia — o leitor cegou").toBeGreaterThanOrEqual(4);
+    const imagensDoKit = reposDoKit();
+    expect(naMatriz).toEqual(expect.arrayContaining(imagensDoKit));
+    expect([...naMatriz].sort()).toEqual([...imagensDoKit, "clientix-ingress"].sort());
   });
 });
 
@@ -326,18 +326,16 @@ describe("o kit aponta para o que o CI realmente publica", () => {
  *
  * Sem ela, o literal volta a se espalhar — e uma âncora que convive com 30
  * cópias não é âncora, é a primeira de 31 afirmações que podem divergir.
- * A allowlist tem quatro entradas e só encolhe:
+ * A allowlist contem cinco caminhos de codigo/fixture:
  *
  *   _common.sh               a FONTE: o literal nasce aqui
  *   docker-compose.prod.yml  YAML não deriva de shell; conferido acima
- *   .env.hostgator.example   template que o operador copia; conferido acima
  *   este arquivo             a âncora, que precisa do literal para ancorar
  */
 describe("catraca: ninguém mais repete o namespace", () => {
   const PERMITIDO = new Set([
     "hostgator-setup-kit/_common.sh",
     "docker-compose.prod.yml",
-    ".env.hostgator.example",
     // FIXTURE de comentário REAL de PR, capturada para os instrumentos de triagem.
     // O literal aparece dentro do texto que um humano escreveu num PR
     // (`ghcr.io/melgarafael/deskcommcrm:1.29.0`, citado ao diagnosticar o pdf.js).
@@ -361,84 +359,68 @@ describe("catraca: ninguém mais repete o namespace", () => {
     // história dos 31 lugares e o caso da URL do token). Prosa que cita o valor
     // é legítima; asserção que o reescreve à mão não é.
     "tests/unit/namespace-das-imagens.test.ts",
-    // `.env`/`.env.local` da RAIZ são estado de máquina, gitignorados — não
-    // existem num checkout fresco nem em CI. Mas uma instalação real nasce com
-    // um deles carregando o mesmo `APP_IMAGE` que o `.env.hostgator.example`
-    // (logo acima) já tem permissão de ter: o modo não-interativo copia o
-    // exemplo, o interativo gera a linha. Sem esta entrada, `pnpm test:unit`
-    // reprova em toda VPS de verdade, apontando um arquivo que nem é versionado.
-    //
-    // Por que AQUI e não em `excluiArq`: `--exclude=GLOB` do `grep` casa o NOME
-    // do arquivo em QUALQUER profundidade, então excluir `.env` cegaria a
-    // varredura para um `.env` versionado em qualquer subdiretório — um caso que
-    // esta catraca existe para pegar. `PERMITIDO` é comparado com o caminho
-    // relativo EXATO (`PERMITIDO.has(rel)`, mais abaixo), então o perdão vale
-    // para a raiz e só para a raiz. Medido nos dois sentidos: com a exclusão por
-    // glob, `hostgator-setup-kit/.env` carregando o literal passava com 16/16.
-    ".env",
-    ".env.local",
   ]);
 
+  const DIRETORIOS_FORA_DA_BUSCA = new Set([
+    ".git",
+    "node_modules",
+    ".pnpm-store",
+    ".next",
+    "docs",
+    "coverage",
+    "playwright-report",
+    "test-results",
+    ".superpowers",
+    "evidence",
+    ".claude",
+    ".agents",
+    ".changes",
+    ".codex",
+    ".cursor",
+    ".specs",
+    "distribution",
+    "legal",
+    "reports",
+    "backups",
+  ]);
+
+  function foraDaBusca(caminho: string): boolean {
+    const partes = caminho.split("/");
+    if (partes.some((parte) => DIRETORIOS_FORA_DA_BUSCA.has(parte.toLowerCase()))) return true;
+
+    const nome = partes.at(-1)?.toLowerCase() ?? "";
+    if (nome === ".e2e-creds.json" || nome === "env.local") return true;
+    if (nome.startsWith(".env") && nome !== ".env.example") return true;
+
+    return /\.(?:md|bak|orig|rej)$/.test(nome) || nome.endsWith("~");
+  }
+
+  function arquivosDaBusca(): string[] {
+    return execFileSync("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], {
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+    })
+      .split("\0")
+      .filter((arquivo) => arquivo && !foraDaBusca(arquivo))
+      .filter((arquivo) => {
+        try {
+          return fs.lstatSync(arquivo).isFile();
+        } catch (erro) {
+          if ((erro as NodeJS.ErrnoException).code === "ENOENT") return false;
+          throw erro;
+        }
+      });
+  }
+
   /**
-   * Varre o DISCO (`grep -r`), não o índice do git: arquivo novo ainda
-   * untracked é justamente o que um gate por `git ls-files` não enxerga.
-   *
-   * `grep -r` (minúsculo) não desce por symlink de diretório — o que mantém
-   * `node_modules` de worktree fora do caminho mesmo quando ele é um link.
-   *
-   * A primeira versão fazia isto com `readdirSync` recursivo + `readFileSync`:
-   * levava 8s numa rodada e ESTOUROU o timeout de 15s na seguinte, na mesma
-   * máquina. Um gate que reprova por lentidão não distingue defeito de disco
-   * ocupado — e o conserto para o qual ele empurra é aumentar o timeout.
-   *
-   * De fora ficam artefato e PROSA: documentação cita o namespace de propósito
-   * (ADR, CHANGELOG, runbooks) e não monta string em runtime. A catraca vale
-   * para o que executa.
+   * Varre arquivos rastreados e untracked nao ignorados pelo git.
+   * Caminhos locais protegidos e artefatos sao filtrados antes de qualquer leitura.
    */
   function reincidentes(): string[] {
-    const excluiDir = [
-      ".git",
-      "node_modules",
-      ".next",
-      "docs",
-      "coverage",
-      "playwright-report",
-      "test-results",
-      ".superpowers",
-      // Prova visual (PNG, trace) e worktrees aninhados — 42 MB e 4,8 s de
-      // varredura entre os dois, medido. Nenhum dos dois monta referência de
-      // imagem: `evidence/` é artefato de QA e `.claude/worktrees/` são OUTRAS
-      // árvores do repo, com o gate delas próprio.
-      "evidence",
-      ".claude",
-      // O kit de distribuição comercial (L5) contém seu próprio manifesto e compose pré-publicado.
-      "distribution",
-    ].map((d) => `--exclude-dir=${d}`);
-    // `.bak`/`.orig`/`.rej`/`~` são sobra de editor e de `sed -i.bak`. Sem isto,
-    // uma sabotagem local deixa o gate vermelho pelo motivo errado.
-    const excluiArq = ["*.md", "*.bak", "*.orig", "*.rej", "*~"].map((g) => `--exclude=${g}`);
-
-    let saida = "";
-    try {
-      saida = execFileSync(
-        "grep",
-        ["-rlF", NAMESPACE_DESTE_REPO, ".", ...excluiDir, ...excluiArq],
-        { cwd: RAIZ, encoding: "utf8", maxBuffer: 8 * 1024 * 1024 },
-      );
-    } catch (e) {
-      // grep sai 1 quando não casa nada — que aqui é o resultado bom. Qualquer
-      // outro código é o INSTRUMENTO quebrado, e ele precisa gritar: um catch
-      // que devolvesse [] daria verde com a varredura morta.
-      const err = e as { status?: number; stderr?: string };
-      if (err.status !== 1) {
-        throw new Error(`a varredura do namespace não rodou (grep saiu ${err.status}): ${err.stderr ?? ""}`);
-      }
-    }
-    return saida
-      .split("\n")
-      .filter(Boolean)
-      .map((l) => l.replace(/^\.\//, ""))
-      .filter((rel) => !PERMITIDO.has(rel))
+    const literal = Buffer.from(NAMESPACE_DESTE_REPO, "utf8");
+    return arquivosDaBusca()
+      .filter((arquivo) => fs.readFileSync(arquivo).includes(literal))
+      .filter((arquivo) => !PERMITIDO.has(arquivo))
       .sort();
   }
 
@@ -460,11 +442,24 @@ describe("catraca: ninguém mais repete o namespace", () => {
     // acontecido, e, pior, ele deixara de provar que a varredura alcança a
     // âncora de verdade. Medido: 2 ocorrências aqui, as duas em comentário.
     const alvo = "tests/unit/_identidade-deste-repo.ts";
-    const saida = execFileSync("grep", ["-rlF", NAMESPACE_DESTE_REPO, alvo], {
-      cwd: RAIZ,
-      encoding: "utf8",
-    });
-    expect(saida.trim()).toBe(alvo);
+    expect(arquivosDaBusca()).toContain(alvo);
+    expect(fs.readFileSync(alvo, "utf8")).toContain(NAMESPACE_DESTE_REPO);
+  });
+
+  it("nao acessa segredos locais nem arvores fora do contrato", () => {
+    for (const caminho of [
+      ".env",
+      ".env.local",
+      "app/.env.production",
+      "tests/.e2e-creds.json",
+      ".pnpm-store/v3/store-file",
+      "legal/documento.pdf",
+      "reports/relatorio.json",
+    ]) {
+      expect(foraDaBusca(caminho), caminho).toBe(true);
+    }
+    expect(foraDaBusca(".env.example")).toBe(false);
+    expect(foraDaBusca("tests/unit/namespace-das-imagens.test.ts")).toBe(false);
   });
 
   it("o literal do namespace só aparece nos arquivos permitidos", () => {

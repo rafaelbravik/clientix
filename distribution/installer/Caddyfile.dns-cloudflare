@@ -1,0 +1,41 @@
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode gzip
+
+	# DNS-01 is the only enabled ACME challenge in this mode. A Cloudflare API
+	# failure therefore keeps HTTPS unready instead of falling back to HTTP-01.
+	tls {
+		protocols tls1.2 tls1.3
+		issuer acme {
+			dir https://acme-v02.api.letsencrypt.org/directory
+			disable_http_challenge
+			disable_tlsalpn_challenge
+			dns cloudflare {file./run/secrets/cloudflare_api_token}
+		}
+	}
+
+	header Strict-Transport-Security "max-age=31536000"
+
+	route {
+		# The global WAHA webhook is internal-only; tenant-token routes remain public.
+		@waha_global path /api/v1/webhooks/waha
+		respond @waha_global 403
+
+		# Preserve the long-running agent request contract while proxying the app.
+		@agentrun path /api/internal/agents/run*
+		reverse_proxy @agentrun app:3000 {
+			transport http {
+				read_timeout 320s
+				write_timeout 320s
+			}
+		}
+
+		# Caddy terminates TLS and replaces forwarded headers from the direct client.
+		reverse_proxy app:3000 {
+			header_up X-Real-IP {remote_host}
+		}
+	}
+}

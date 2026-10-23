@@ -9,6 +9,8 @@
 
 import { z } from "zod";
 
+import { logger } from "@/lib/logger";
+
 const isProd = process.env.NODE_ENV === "production";
 
 /**
@@ -59,10 +61,48 @@ const diasDeRetencao = (nome: string, padrao: number) =>
       return padrao;
     });
 
+function urlDeOrigem(bruto: string): URL | null {
+  try {
+    const url = new URL(bruto);
+    if (url.username || url.password || url.pathname !== "/" || url.search || url.hash) return null;
+    return url;
+  } catch {
+    return null;
+  }
+}
+
+function hostLocal(url: URL): boolean {
+  const host = url.hostname.toLowerCase();
+  return (
+    host === "localhost" ||
+    host.endsWith(".localhost") ||
+    host === "host.docker.internal" ||
+    host === "::1" ||
+    host === "[::1]" ||
+    /^127(?:\.\d{1,3}){3}$/.test(host)
+  );
+}
+
+function hostPublico(url: URL): boolean {
+  const host = url.hostname.toLowerCase();
+  const labelsValidos =
+    /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i.test(host) ||
+    /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+xn--[a-z0-9-]{2,59}$/i.test(host);
+  return (
+    labelsValidos &&
+    !hostLocal(url) &&
+    !/^\d+(?:\.\d+){3}$/.test(host) &&
+    !/(?:^|\.)(?:localhost|local|internal|test|invalid|example)$/.test(host)
+  );
+}
+
 const schema = z
   .object({
     // Node
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+    CLIENTIX_INGRESS_MODE: z.enum(["production", "local"]).optional(),
+    DOMAIN: z.string().optional().default(""),
+    CLIENTIX_ALLOW_INSECURE_HTTP: z.enum(["true", "false"]).optional().default("false"),
 
     // Supabase — obrigatórias sempre (até pra dev local)
     NEXT_PUBLIC_SUPABASE_URL: requiredAlways("NEXT_PUBLIC_SUPABASE_URL").url(),
@@ -530,7 +570,10 @@ const schema = z
 
     // App URLs
     NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
-    NEXT_PUBLIC_ADMIN_URL: z.string().url().default("http://localhost:3000"),
+    NEXT_PUBLIC_ADMIN_URL: z
+      .string()
+      .url()
+      .default(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"),
     /**
      * URL pública opcional para os webhooks da Meta (WhatsApp Cloud API / canais oficiais).
      * Quando definida, é usada no lugar de NEXT_PUBLIC_APP_URL para compor a URL de callback
@@ -619,6 +662,101 @@ const schema = z
       });
     }
 
+    const ingressMode =
+      values.CLIENTIX_INGRESS_MODE ?? (values.NODE_ENV === "production" ? "production" : "local");
+    const insecureHttpOptIn = values.CLIENTIX_ALLOW_INSECURE_HTTP === "true";
+    const publicOrigins = [
+      ["NEXT_PUBLIC_APP_URL", values.NEXT_PUBLIC_APP_URL],
+      ["NEXT_PUBLIC_ADMIN_URL", values.NEXT_PUBLIC_ADMIN_URL],
+      ...(values.META_WEBHOOK_BASE_URL.trim()
+        ? [["META_WEBHOOK_BASE_URL", values.META_WEBHOOK_BASE_URL] as const]
+        : []),
+    ] as const;
+
+    // WAHA_WEBHOOK_BASE_URL can intentionally be http://app:3000 when WAHA and
+    // the app share a private Docker bridge. The commercial external-WAHA
+    // installer validates that same variable as the canonical public HTTPS
+    // origin before it starts or updates the stack.
+
+    if (ingressMode === "production" && insecureHttpOptIn) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["CLIENTIX_ALLOW_INSECURE_HTTP"],
+        message: "HTTP inseguro não pode ser habilitado no modo de ingress de produção",
+      });
+    }
+
+    // A imagem local do compose também é otimizada e traz NODE_ENV=production.
+    // O modo local continua exigindo opt-in de HTTP e loopback; os composes de
+    // cliente fixam `production` em `environment`, acima do .env do operador.
+
+    if (ingressMode === "production" && values.DOMAIN.trim()) {
+      const domain = values.DOMAIN.trim().toLowerCase();
+      const domainUrl = urlDeOrigem(`https://${domain}`);
+      if (
+        !domainUrl ||
+        domainUrl.port ||
+        !hostPublico(domainUrl) ||
+        domainUrl.hostname !== domain
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["DOMAIN"],
+          message: "DOMAIN deve ser um hostname DNS público válido, sem esquema ou porta",
+        });
+      } else {
+        for (const key of ["NEXT_PUBLIC_APP_URL", "NEXT_PUBLIC_ADMIN_URL"] as const) {
+          const origin = urlDeOrigem(values[key]);
+          if (origin && origin.hostname.toLowerCase() !== domain) {
+            ctx.addIssue({
+              code: "custom",
+              path: [key],
+              message: "A origem pública deve usar o mesmo hostname de DOMAIN",
+            });
+          }
+        }
+      }
+    }
+
+    if (values.NODE_ENV !== "test") {
+      for (const [key, value] of publicOrigins) {
+        const url = urlDeOrigem(value);
+        if (!url) {
+          ctx.addIssue({
+            code: "custom",
+            path: [key],
+            message: "Configure uma origem pública sem caminho, credenciais, query ou fragmento",
+          });
+          continue;
+        }
+
+        if (ingressMode === "production") {
+          if (url.protocol !== "https:" || url.port !== "" || !hostPublico(url)) {
+            ctx.addIssue({
+              code: "custom",
+              path: [key],
+              message: "O ingress de produção exige uma origem HTTPS em hostname público",
+            });
+          }
+          continue;
+        }
+
+        if (url.protocol !== "https:" && url.protocol !== "http:") {
+          ctx.addIssue({
+            code: "custom",
+            path: [key],
+            message: "A origem deve usar HTTP ou HTTPS",
+          });
+        } else if (url.protocol === "http:" && (!insecureHttpOptIn || !hostLocal(url))) {
+          ctx.addIssue({
+            code: "custom",
+            path: [key],
+            message: "HTTP só é permitido com opt-in local explícito e hostname de loopback",
+          });
+        }
+      }
+    }
+
     const profiles = values.COMPOSE_PROFILES.split(",").map((value) => value.trim());
     if (profiles.includes("voz")) {
       for (const key of [
@@ -646,6 +784,10 @@ let parsed = schema.safeParse(process.env);
 // e este bloco não roda, então o boot real continua cobrando tudo.
 if (!parsed.success && isBuildPhase) {
   const seeded: Record<string, string | undefined> = { ...process.env };
+  // O build é genérico e usa origens .invalid. Trate apenas este parse de
+  // placeholders como local; o runtime volta a validar como produção porque
+  // NEXT_PHASE não existe no processo do contêiner e o Compose fixa production.
+  seeded.CLIENTIX_INGRESS_MODE = "local";
   for (const key of Object.keys(parsed.error.flatten().fieldErrors)) {
     if (!seeded[key]) seeded[key] = "https://build-placeholder.invalid";
   }
@@ -662,6 +804,28 @@ if (!parsed.success) {
 }
 
 export const env = parsed.data;
+
+const ingressModeRuntime =
+  env.CLIENTIX_INGRESS_MODE ?? (env.NODE_ENV === "production" ? "production" : "local");
+const origemPublicaHttp = [
+  env.NEXT_PUBLIC_APP_URL,
+  env.NEXT_PUBLIC_ADMIN_URL,
+  env.META_WEBHOOK_BASE_URL,
+].some((origin) => origin.startsWith("http://"));
+
+if (
+  ingressModeRuntime === "local" &&
+  env.CLIENTIX_ALLOW_INSECURE_HTTP === "true" &&
+  origemPublicaHttp
+) {
+  logger.warn(
+    "HTTP inseguro habilitado apenas para uso local; não exponha esta instalação à internet.",
+    {
+      ingress_mode: "local",
+      insecure_http_opt_in: true,
+    },
+  );
+}
 
 if (env.NODE_ENV === "production") {
   const vercelCron = process.env.CRON_SECRET?.trim();

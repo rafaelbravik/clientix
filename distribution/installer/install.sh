@@ -2,20 +2,32 @@
 # Clientix Commercial Installer & Operational CLI
 # Suporta: install, update, adopt, rollback, health, status
 set -euo pipefail
+set +x
 
 INSTALL_DIR="${CLIENTIX_DIR:-/opt/clientix}"
 INSTALLER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$INSTALLER_DIR/postgres-tls.sh"
+source "$INSTALLER_DIR/ingress-contract.sh"
 . "$INSTALLER_DIR/installation-id.sh"
 STATE_FILE="$INSTALL_DIR/state/release.json"
 ENV_FILE="$INSTALL_DIR/.env"
 COMPOSE_FILE="$INSTALL_DIR/compose.yaml"
+DNS_EXTERNAL_COMPOSE_FILE="$INSTALL_DIR/compose.dns-cloudflare.yaml"
+DNS_EPHEMERAL_COMPOSE_FILE="$INSTALL_DIR/compose.dns-cloudflare-ephemeral.yaml"
+LEGACY_CLOUDFLARE_TOKEN_FILE="$INSTALL_DIR/state/secrets/cloudflare-api-token"
+COMPOSE_FILES=(-f "$COMPOSE_FILE")
 BACKUP_DIR="$INSTALL_DIR/backups"
 MANIFEST_FILE="$INSTALLER_DIR/release-manifest.json"
 MANIFEST_VERIFIER="$INSTALLER_DIR/verify-release-manifest.mjs"
 MANIFEST_TRUST_ROOT="$INSTALLER_DIR/trust/release-manifest"
 INSTALLER_VERSION_FILE="$INSTALLER_DIR/VERSION"
 INSTALLER_CURRENT_VERSION=""
+VERIFIED_IMAGE_CADDY=""
+CLI_DNS_SECRET_MODE=""
+CLI_DNS_SECRET_FILE=""
+CLI_DNS_SECRET_FILE_SET=0
+RUNTIME_CLOUDFLARE_TOKEN=""
+RUNTIME_SECRET_STDIN_REQUIRED=0
 
 # Redaction helper
 redact() {
@@ -66,6 +78,7 @@ preflight() {
   [ "$node_major" -ge 22 ] || die "NODE_DESATUALIZADO: Node.js 22+ é obrigatório para verificar o manifesto assinado."
 
   command -v curl >/dev/null 2>&1 || die "CURL_AUSENTE: curl é obrigatório para o preflight de dependências externas."
+  command -v realpath >/dev/null 2>&1 || die "REALPATH_AUSENTE: realpath é obrigatório para validar o arquivo de segredo externo."
 
   # Espaço em disco (mínimo 2 GB livres no diretório de instalação)
   if [ -d "$INSTALL_DIR" ] || [ -d "$(dirname "$INSTALL_DIR")" ]; then
@@ -194,18 +207,51 @@ setup_env() {
 # 4. Carrega Variáveis de Ambiente
 load_env() {
   [ -f "$ENV_FILE" ] || die "ENV_FILE_AUSENTE: $ENV_FILE não encontrado."
+  if grep -Eq '^[[:space:]]*(export[[:space:]]+)?CLOUDFLARE_API_TOKEN[[:space:]]*=' "$ENV_FILE"; then
+    die "CLOUDFLARE_TOKEN_ENV_FORBIDDEN: remova CLOUDFLARE_API_TOKEN do .env; use arquivo externo ou stdin efêmero."
+  fi
+  if [[ ${CLOUDFLARE_API_TOKEN+x} ]]; then
+    die "CLOUDFLARE_TOKEN_ENV_FORBIDDEN: não forneça CLOUDFLARE_API_TOKEN no ambiente do instalador."
+  fi
   set -a
   # shellcheck source=/dev/null
   # Normaliza CRLF sem alterar o arquivo de origem.
   source <(sed 's/\r$//' "$ENV_FILE")
   set +a
+  CLIENTIX_ACME_SECRET_MODE="${CLIENTIX_ACME_SECRET_MODE:-external}"
+  CLIENTIX_CLOUDFLARE_TOKEN_FILE="${CLIENTIX_CLOUDFLARE_TOKEN_FILE:-}"
+  if [ -n "$CLI_DNS_SECRET_MODE" ]; then
+    CLIENTIX_ACME_SECRET_MODE="$CLI_DNS_SECRET_MODE"
+  fi
+  if [ "$CLI_DNS_SECRET_FILE_SET" -eq 1 ]; then
+    CLIENTIX_CLOUDFLARE_TOKEN_FILE="$CLI_DNS_SECRET_FILE"
+  fi
+  COMPOSE_FILES=(-f "$COMPOSE_FILE")
+  if [[ "${CLIENTIX_ACME_CHALLENGE:-direct}" == "dns" ]]; then
+    case "$CLIENTIX_ACME_SECRET_MODE" in
+      external)
+        if [ -f "$DNS_EXTERNAL_COMPOSE_FILE" ]; then
+          COMPOSE_FILES+=(-f "$DNS_EXTERNAL_COMPOSE_FILE")
+        fi
+        ;;
+      ephemeral)
+        if [ -f "$DNS_EPHEMERAL_COMPOSE_FILE" ]; then
+          COMPOSE_FILES+=(-f "$DNS_EPHEMERAL_COMPOSE_FILE")
+        fi
+        ;;
+    esac
+  fi
+}
+
+compose() {
+  docker compose "${COMPOSE_FILES[@]}" --env-file "$ENV_FILE" "$@"
 }
 
 # 5. Validação de Evolução de Configuração (Check de Variáveis Obrigatórias)
 validate_config_evolution() {
   log "Verificando consistência de variáveis obrigatórias contra .env.example..."
   local missing=() key
-  local required=(INSTALLATION_ID NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY INTERNAL_SECRET CPF_ENCRYPTION_KEY WAHA_BYO_ENCRYPTION_KEY AI_CRED_AES_KEY SUPABASE_DB_URL SUPABASE_DB_ADMIN_URL WAHA_API_BASE_URL WAHA_API_KEY WAHA_WEBHOOK_BASE_URL UPSTASH_REDIS_REST_URL UPSTASH_REDIS_REST_TOKEN APP_IMAGE WORKER_IMAGE SCHEDULER_IMAGE VOICE_AGENT_IMAGE MIGRATOR_IMAGE)
+  local required=(INSTALLATION_ID DOMAIN ACME_EMAIL CLIENTIX_ACME_CHALLENGE NEXT_PUBLIC_APP_URL NEXT_PUBLIC_ADMIN_URL NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY INTERNAL_SECRET CPF_ENCRYPTION_KEY WAHA_BYO_ENCRYPTION_KEY AI_CRED_AES_KEY SUPABASE_DB_URL SUPABASE_DB_ADMIN_URL WAHA_API_BASE_URL WAHA_API_KEY WAHA_WEBHOOK_BASE_URL UPSTASH_REDIS_REST_URL UPSTASH_REDIS_REST_TOKEN APP_IMAGE WORKER_IMAGE SCHEDULER_IMAGE VOICE_AGENT_IMAGE MIGRATOR_IMAGE)
   for key in "${required[@]}"; do
     if [ -z "${!key:-}" ]; then missing+=("$key"); fi
   done
@@ -231,7 +277,7 @@ validate_config_evolution() {
 # endpoint recebe defaults locais: o Supabase, Upstash e WAHA são externos.
 validate_external_config() {
   local missing=() key webhook_secret="${WAHA_HMAC_SECRET:-}"
-  local required=(NEXT_PUBLIC_APP_URL NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY SUPABASE_DB_URL SUPABASE_DB_ADMIN_URL WAHA_API_BASE_URL WAHA_API_KEY WAHA_WEBHOOK_BASE_URL UPSTASH_REDIS_REST_URL UPSTASH_REDIS_REST_TOKEN)
+  local required=(DOMAIN ACME_EMAIL NEXT_PUBLIC_APP_URL NEXT_PUBLIC_ADMIN_URL NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY SUPABASE_DB_URL SUPABASE_DB_ADMIN_URL WAHA_API_BASE_URL WAHA_API_KEY WAHA_WEBHOOK_BASE_URL UPSTASH_REDIS_REST_URL UPSTASH_REDIS_REST_TOKEN)
   for key in "${required[@]}"; do
     if [ -z "${!key:-}" ]; then missing+=("$key"); fi
   done
@@ -251,6 +297,175 @@ validate_external_config() {
     missing+=(TELEGRAM_MTPROTO_GATEWAY_URL_requires_https)
   fi
   [ ${#missing[@]} -eq 0 ] || die "MISSING_EXTERNAL_CONFIG: configure no .env as dependências externas: ${missing[*]}"
+}
+
+validate_ingress_config() {
+  clientix_valid_acme_config "${CLIENTIX_ACME_CHALLENGE:-direct}" "${CLIENTIX_ACME_DNS_PROVIDER:-}" ||
+    die "INGRESS_ACME_MODE_INVALID: use CLIENTIX_ACME_CHALLENGE=direct or dns; DNS mode requires CLIENTIX_ACME_DNS_PROVIDER=cloudflare."
+  clientix_valid_public_domain "${DOMAIN:-}" || die "INGRESS_DOMAIN_INVALID: DOMAIN deve ser um hostname DNS público completo, sem esquema, porta ou caminho."
+  clientix_valid_acme_email "${ACME_EMAIL:-}" || die "INGRESS_ACME_EMAIL_INVALID: ACME_EMAIL deve conter um endereço válido para avisos de certificado."
+
+  local canonical_origin="https://${DOMAIN}"
+  for key in NEXT_PUBLIC_APP_URL NEXT_PUBLIC_ADMIN_URL WAHA_WEBHOOK_BASE_URL; do
+    clientix_is_https_origin_for_domain "${!key:-}" "$DOMAIN" ||
+      die "INGRESS_CANONICAL_ORIGIN_MISMATCH: $key deve ser exatamente $canonical_origin."
+  done
+  if [ -n "${META_WEBHOOK_BASE_URL:-}" ] &&
+    ! clientix_is_https_public_origin "$META_WEBHOOK_BASE_URL"; then
+    die "INGRESS_META_ORIGIN_INVALID: META_WEBHOOK_BASE_URL deve ser uma origem HTTPS pública sem porta, caminho ou credenciais."
+  fi
+}
+
+validate_dns_ingress_release() {
+  [ "${CLIENTIX_ACME_CHALLENGE:-direct}" != "dns" ] ||
+    [ -n "$VERIFIED_IMAGE_CADDY" ] ||
+    die "INGRESS_DNS_IMAGE_UNAVAILABLE: DNS-01 requer imagem Caddy Cloudflare com digest incluído no manifesto de release assinado."
+}
+
+require_dns_caddy_image_digest() {
+  [ "${CLIENTIX_ACME_CHALLENGE:-direct}" != "dns" ] ||
+    [[ "${CADDY_IMAGE:-}" =~ ^[^[:space:]@]+@sha256:[a-f0-9]{64}$ ]] ||
+    die "INGRESS_DNS_IMAGE_UNAVAILABLE: DNS-01 requer imagem Caddy referenciada por digest."
+}
+
+validate_cloudflare_token_source() {
+  if [ "${CLIENTIX_ACME_CHALLENGE:-direct}" != "dns" ]; then
+    [ "$RUNTIME_SECRET_STDIN_REQUIRED" -eq 0 ] && [ -z "$CLI_DNS_SECRET_MODE" ] ||
+      die "CLOUDFLARE_SECRET_MODE_CONFLICT: segredo DNS-01 só pode ser usado quando CLIENTIX_ACME_CHALLENGE=dns."
+    return 0
+  fi
+  [ "${CLIENTIX_ACME_DNS_PROVIDER:-}" = "cloudflare" ] ||
+    die "INGRESS_ACME_MODE_INVALID: DNS-01 aceita somente o provider Cloudflare configurado explicitamente."
+  case "${CLIENTIX_ACME_SECRET_MODE:-}" in
+    external)
+      [ "$RUNTIME_SECRET_STDIN_REQUIRED" -eq 0 ] ||
+        die "CLOUDFLARE_SECRET_MODE_CONFLICT: selecione arquivo externo ou modo efêmero, sem combinar os dois."
+      CLIENTIX_CLOUDFLARE_TOKEN_FILE="$(validate_external_cloudflare_secret_file "${CLIENTIX_CLOUDFLARE_TOKEN_FILE:-}")" ||
+        die "CLOUDFLARE_EXTERNAL_SECRET_INVALID: informe um arquivo externo root-owned, regular, não-link e com permissões 0400 ou 0600."
+      ;;
+    ephemeral)
+      [ -z "${CLIENTIX_CLOUDFLARE_TOKEN_FILE:-}" ] ||
+        die "CLOUDFLARE_SECRET_MODE_CONFLICT: modo efêmero não aceita caminho persistido de segredo."
+      [ "$RUNTIME_SECRET_STDIN_REQUIRED" -eq 1 ] ||
+        die "CLOUDFLARE_EPHEMERAL_STDIN_REQUIRED: use --cloudflare-token-stdin para fornecer o segredo somente por stdin."
+      ;;
+    *)
+      die "CLOUDFLARE_SECRET_MODE_INVALID: use CLIENTIX_ACME_SECRET_MODE=external ou ephemeral."
+      ;;
+  esac
+}
+
+validate_external_cloudflare_secret_file() {
+  local path="${1:-}" canonical install_root metadata owner mode links allowed_owner=0
+  [[ "$path" == /* ]] || return 1
+  [[ "$path" =~ ^/[A-Za-z0-9._\ /-]+$ ]] || return 1
+  [ -f "$path" ] && [ ! -L "$path" ] && [ -s "$path" ] || return 1
+  canonical="$(realpath -e -- "$path" 2>/dev/null)" || return 1
+  [ "$canonical" = "$path" ] || return 1
+  install_root="$(realpath -m -- "$INSTALL_DIR" 2>/dev/null)" || return 1
+  if [ "$install_root" = "/" ]; then
+    return 1
+  fi
+  case "$canonical" in
+    "$install_root"|"$install_root"/*) return 1 ;;
+  esac
+  metadata="$(stat -c '%u %a %h' -- "$canonical" 2>/dev/null)" || return 1
+  read -r owner mode links <<<"$metadata"
+  if [[ -n "${CLIENTIX_CLOUDFLARE_TOKEN_OWNER_UID:-}" ]]; then
+    [[ "$CLIENTIX_CLOUDFLARE_TOKEN_OWNER_UID" =~ ^[0-9]+$ ]] || return 1
+    allowed_owner="$CLIENTIX_CLOUDFLARE_TOKEN_OWNER_UID"
+  fi
+  [ "$owner" = "0" ] || [ "$owner" = "$allowed_owner" ] || return 1
+  case "$mode" in 400|600) ;; *) return 1 ;; esac
+  [ "$links" = "1" ] || return 1
+  printf '%s' "$canonical"
+}
+
+persist_dns_secret_config() {
+  [ "${CLIENTIX_ACME_CHALLENGE:-direct}" = "dns" ] || return 0
+  case "$CLIENTIX_ACME_SECRET_MODE" in
+    external)
+      CLIENTIX_CLOUDFLARE_TOKEN_FILE="$(validate_external_cloudflare_secret_file "$CLIENTIX_CLOUDFLARE_TOKEN_FILE")" ||
+        die "CLOUDFLARE_EXTERNAL_SECRET_INVALID: arquivo externo deixou de cumprir o contrato de segurança."
+      set_env_value CLIENTIX_ACME_SECRET_MODE external
+      set_env_value CLIENTIX_CLOUDFLARE_TOKEN_FILE "'$CLIENTIX_CLOUDFLARE_TOKEN_FILE'"
+      ;;
+    ephemeral)
+      set_env_value CLIENTIX_ACME_SECRET_MODE ephemeral
+      set_env_value CLIENTIX_CLOUDFLARE_TOKEN_FILE ""
+      ;;
+  esac
+  load_env
+}
+
+read_runtime_cloudflare_token() {
+  local token="" extra=""
+  export -n token 2>/dev/null || true
+  set +x
+  if [ -t 0 ]; then
+    printf '%s' 'Token DNS-01 (entrada oculta): ' >&2
+    IFS= read -r -s token || [ -n "$token" ] ||
+      die "CLOUDFLARE_TOKEN_STDIN_EMPTY: stdin não contém um token DNS-01 válido."
+    printf '\n' >&2
+  else
+    if ! IFS= read -r token && [ -z "$token" ]; then
+      die "CLOUDFLARE_TOKEN_STDIN_EMPTY: stdin não contém um token DNS-01 válido."
+    fi
+    if IFS= read -r extra || [ -n "$extra" ]; then
+      die "CLOUDFLARE_TOKEN_STDIN_FORMAT_INVALID: stdin deve conter somente uma linha de token."
+    fi
+  fi
+  [[ "$token" =~ ^[A-Za-z0-9_-]{20,256}$ ]] ||
+    die "CLOUDFLARE_TOKEN_STDIN_FORMAT_INVALID: token sintético/runtime deve ser uma única sequência ASCII sem espaços."
+  RUNTIME_CLOUDFLARE_TOKEN="$token"
+  unset token extra
+}
+
+inject_runtime_cloudflare_token() {
+  local token="$1"
+  export -n token 2>/dev/null || true
+  printf '%s' "$token" | compose exec -T caddy sh -eu -c '
+    umask 077
+    target=/run/secrets/cloudflare_api_token
+    temporary="${target}.tmp.$$"
+    trap '\''rm -f -- "$temporary"'\'' EXIT
+    cat > "$temporary"
+    chmod 600 "$temporary"
+    mv -f -- "$temporary" "$target"
+    if [ "$(cat /proc/1/comm 2>/dev/null || true)" = caddy ]; then
+      /usr/bin/caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1
+    fi
+  ' >/dev/null 2>&1 || die "CLOUDFLARE_RUNTIME_INJECTION_FAILED: não foi possível injetar o segredo no tmpfs do Caddy."
+}
+
+inject_cloudflare_token_from_stdin() {
+  export -n RUNTIME_CLOUDFLARE_TOKEN 2>/dev/null || true
+  read_runtime_cloudflare_token
+  inject_runtime_cloudflare_token "$RUNTIME_CLOUDFLARE_TOKEN"
+  unset -v RUNTIME_CLOUDFLARE_TOKEN
+}
+
+remove_legacy_cloudflare_secret_after_ready() {
+  if [ -e "$LEGACY_CLOUDFLARE_TOKEN_FILE" ] || [ -L "$LEGACY_CLOUDFLARE_TOKEN_FILE" ]; then
+    rm -f -- "$LEGACY_CLOUDFLARE_TOKEN_FILE" ||
+      die "LEGACY_CLOUDFLARE_SECRET_CLEANUP_FAILED: não foi possível remover o arquivo legado após o novo ingress ficar saudável."
+    rmdir "$INSTALL_DIR/state/secrets" 2>/dev/null || true
+  fi
+}
+
+check_ingress_ports_available() {
+  local port owned_caddy=""
+  if [ -f "$COMPOSE_FILE" ]; then
+    owned_caddy="$(compose ps --status running -q caddy 2>/dev/null || true)"
+  fi
+  # A atualização pode encontrar o Caddy desta própria instalação já escutando.
+  [ -n "$owned_caddy" ] && return 0
+
+  for port in 80 443; do
+    if (exec 9<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null; then
+      die "INGRESS_PORT_IN_USE: a porta TCP $port já está ocupada. Libere-a antes de instalar/atualizar; nenhuma migration foi executada."
+    fi
+  done
 }
 
 validate_existing_runtime_config() {
@@ -337,6 +552,7 @@ validate_manifest() {
   VERIFIED_IMAGE_SCHEDULER="$(node -e 'const d=JSON.parse(process.argv[1]); process.stdout.write(d.images.scheduler)' "$VERIFIED_MANIFEST_JSON")"
   VERIFIED_IMAGE_VOICE_AGENT="$(node -e 'const d=JSON.parse(process.argv[1]); process.stdout.write(d.images.voice_agent)' "$VERIFIED_MANIFEST_JSON")"
   VERIFIED_IMAGE_MIGRATOR="$(node -e 'const d=JSON.parse(process.argv[1]); process.stdout.write(d.images.migrator)' "$VERIFIED_MANIFEST_JSON")"
+  VERIFIED_IMAGE_CADDY="$(node -e 'const d=JSON.parse(process.argv[1]); process.stdout.write(d.images.caddy || "")' "$VERIFIED_MANIFEST_JSON")"
   log "Manifesto assinado validado: Release $VERIFIED_RELEASE_VERSION (schema $VERIFIED_SCHEMA_TARGET; installer $INSTALLER_CURRENT_VERSION)."
 }
 
@@ -354,6 +570,7 @@ check_schema_compatibility() {
 ensure_target_images() {
   log "Verificando disponibilidade e integridade das imagens do release..."
   local images=("$VERIFIED_IMAGE_APP" "$VERIFIED_IMAGE_WORKER" "$VERIFIED_IMAGE_SCHEDULER" "$VERIFIED_IMAGE_VOICE_AGENT" "$VERIFIED_IMAGE_MIGRATOR")
+  [ -z "$VERIFIED_IMAGE_CADDY" ] || images+=("$VERIFIED_IMAGE_CADDY")
   local full_ref repo expected_digest repo_digests
   for full_ref in "${images[@]}"; do
     repo="${full_ref%@*}"
@@ -376,8 +593,68 @@ persist_verified_image_refs() {
   set_env_value SCHEDULER_IMAGE "$VERIFIED_IMAGE_SCHEDULER"
   set_env_value VOICE_AGENT_IMAGE "$VERIFIED_IMAGE_VOICE_AGENT"
   set_env_value MIGRATOR_IMAGE "$VERIFIED_IMAGE_MIGRATOR"
+  set_env_value CADDY_IMAGE "$VERIFIED_IMAGE_CADDY"
+  if ! grep -q '^CLIENTIX_ACME_CHALLENGE=' "$ENV_FILE"; then
+    set_env_value CLIENTIX_ACME_CHALLENGE "${CLIENTIX_ACME_CHALLENGE:-direct}"
+  fi
+  if ! grep -q '^CLIENTIX_ACME_DNS_PROVIDER=' "$ENV_FILE"; then
+    set_env_value CLIENTIX_ACME_DNS_PROVIDER "${CLIENTIX_ACME_DNS_PROVIDER:-}"
+  fi
   load_env
   validate_config_evolution
+}
+
+parse_dns_secret_options() {
+  local option
+  CLI_DNS_SECRET_MODE=""
+  CLI_DNS_SECRET_FILE=""
+  CLI_DNS_SECRET_FILE_SET=0
+  RUNTIME_SECRET_STDIN_REQUIRED=0
+  INSTALL_ADOPT=0
+  while [ "$#" -gt 0 ]; do
+    option="$1"
+    shift
+    case "$option" in
+      --cloudflare-token-file)
+        [ "$#" -gt 0 ] || die "CLOUDFLARE_EXTERNAL_PATH_REQUIRED: informe o caminho absoluto do arquivo externo."
+        [ -z "$CLI_DNS_SECRET_MODE" ] || die "CLOUDFLARE_SECRET_MODE_CONFLICT: selecione apenas um modo de segredo."
+        CLI_DNS_SECRET_MODE=external
+        CLI_DNS_SECRET_FILE="$1"
+        CLI_DNS_SECRET_FILE_SET=1
+        shift
+        ;;
+      --cloudflare-token-stdin)
+        [ -z "$CLI_DNS_SECRET_MODE" ] || die "CLOUDFLARE_SECRET_MODE_CONFLICT: selecione apenas um modo de segredo."
+        CLI_DNS_SECRET_MODE=ephemeral
+        CLI_DNS_SECRET_FILE=""
+        CLI_DNS_SECRET_FILE_SET=1
+        RUNTIME_SECRET_STDIN_REQUIRED=1
+        ;;
+      --adopt)
+        INSTALL_ADOPT=1
+        ;;
+      *)
+        die "ARGUMENTO_INVALIDO: opção não reconhecida para install/update/ingress reload."
+        ;;
+    esac
+  done
+}
+
+persist_runtime_dns_secret_mode() {
+  [ "${CLIENTIX_ACME_CHALLENGE:-direct}" = "dns" ] || return 0
+  persist_dns_secret_config
+}
+
+install_ingress_files() {
+  cp "$INSTALLER_DIR/compose.yaml" "$COMPOSE_FILE"
+  cp "$INSTALLER_DIR/compose.dns-cloudflare.yaml" "$DNS_EXTERNAL_COMPOSE_FILE"
+  cp "$INSTALLER_DIR/compose.dns-cloudflare-ephemeral.yaml" "$DNS_EPHEMERAL_COMPOSE_FILE"
+  if [ "${CLIENTIX_ACME_CHALLENGE:-direct}" = "dns" ]; then
+    cp "$INSTALLER_DIR/Caddyfile.dns-cloudflare" "$INSTALL_DIR/Caddyfile"
+  else
+    cp "$INSTALLER_DIR/Caddyfile" "$INSTALL_DIR/Caddyfile"
+  fi
+  load_env
 }
 
 # Credenciais do PostgreSQL entram no container por arquivo temporário protegido,
@@ -464,24 +741,28 @@ run_backup() {
   echo "$bkp_file"
 }
 
-# 11. Verificação de Saúde (Health Check com HTTP Probe)
+# 11. Verificação de Saúde (HTTPS público + health check interno)
 check_health() {
   local timeout="${1:-45}"
-  log "Aguardando boot e saúde da aplicação (HTTP probe / timeout: ${timeout}s)..."
+  log "Aguardando HTTPS público e saúde da aplicação (timeout: ${timeout}s)..."
   local elapsed=0
-  local port="${PORT:-3000}"
+  local response_headers
+  response_headers="$(mktemp)" || die "HTTPS_HEALTH_CHECK_FAILED: não foi possível preparar a verificação TLS."
 
   while [ $elapsed -lt $timeout ]; do
-    # A rota pública de saúde consulta as dependências que o app realmente usa;
-    # `/login` sozinho só prova que o Next devolveu uma página.
+    # --resolve fixa o destino local do teste, mas mantém SNI, Host e validação
+    # normal da cadeia/SAN do certificado público emitido para DOMAIN.
     local http_code
-    http_code="$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:${port}/api/v1/health" 2>/dev/null || true)"
-    if [ "$http_code" = "200" ]; then
-      log "Aplicação Clientix respondendo com sucesso (HTTP $http_code)."
+    http_code="$(curl --silent --show-error --max-time 5 --resolve "${DOMAIN}:443:127.0.0.1" \
+      --dump-header "$response_headers" --output /dev/null --write-out "%{http_code}" \
+      "https://${DOMAIN}/api/v1/health" 2>/dev/null || true)"
+    if [ "$http_code" = "200" ] && grep -qi '^strict-transport-security: max-age=31536000' "$response_headers"; then
+      rm -f "$response_headers"
+      log "Ingress HTTPS e aplicação Clientix respondendo com sucesso (HTTP $http_code)."
       
       # Verifica se contêineres vitais continuam ativos sem loop de restart
       local stopped
-      stopped="$(docker compose -f "$COMPOSE_FILE" ps --status exited -q 2>/dev/null || true)"
+      stopped="$(compose ps --status exited -q 2>/dev/null || true)"
       if [ -n "$stopped" ]; then
         die "CONTAINER_CRASH_DETECTED: Um ou mais serviços falharam no boot."
       fi
@@ -491,16 +772,22 @@ check_health() {
     elapsed=$((elapsed + 3))
   done
 
-  die "HEALTH_CHECK_FAILED: Aplicação não respondeu HTTP na porta $port após ${timeout}s."
+  rm -f "$response_headers"
+  die "HTTPS_INGRESS_NOT_READY: HTTPS com certificado válido e healthcheck não ficaram prontos para ${DOMAIN} após ${timeout}s. Confira DNS público, firewall TCP 80/443 e logs do serviço caddy; nenhuma instalação foi marcada como pronta."
 }
 
 # 12. Comando: install
 cmd_install() {
+  parse_dns_secret_options "$@"
   preflight
   [ ! -f "$STATE_FILE" ] || die "ALREADY_INSTALLED: Instalação existente detectada no estado. Para atualizar, use 'clientix-installer update'."
   load_env
   validate_external_config
+  validate_ingress_config
+  check_ingress_ports_available
   validate_manifest
+  validate_dns_ingress_release
+  validate_cloudflare_token_source
   check_external_dependencies
 
   registry_auth
@@ -520,7 +807,7 @@ cmd_install() {
   if [ "$state_type" = "FRESH_DATABASE" ]; then
     local db_action="install"
   elif [ "$state_type" = "EXISTING_UNTRACKED_INSTALLATION" ]; then
-    if [ "${ALLOW_ADOPT:-0}" = "1" ] || [ "${1:-}" = "--adopt" ]; then
+    if [ "${ALLOW_ADOPT:-0}" = "1" ] || [ "${INSTALL_ADOPT:-0}" = "1" ]; then
       log "Adotando instalação existente expressamente permitida..."
       local db_action="adopt"
     else
@@ -534,17 +821,23 @@ cmd_install() {
   fi
 
   # Só agora, após validar dependências, assinatura, digests e estado real do
-  # banco, o instalador cria arquivos e segredos locais.
+  # banco, o instalador cria arquivos de estado sem copiar nenhum segredo DNS.
   init_directories
   setup_env
   persist_verified_image_refs
-  cp "$INSTALLER_DIR/compose.yaml" "$COMPOSE_FILE"
+  persist_runtime_dns_secret_mode
+  install_ingress_files
+  compose config --quiet || die "INGRESS_COMPOSE_INVALID: configuração HTTPS do compose é inválida; nenhuma migration foi executada."
   run_migrator "$db_action"
 
   log "Subindo serviços Clientix..."
-  docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d
+  compose up -d
+  if [ "${CLIENTIX_ACME_CHALLENGE:-direct}" = "dns" ] && [ "$CLIENTIX_ACME_SECRET_MODE" = "ephemeral" ]; then
+    inject_cloudflare_token_from_stdin
+  fi
 
-  check_health 45
+  if [ "${CLIENTIX_ACME_CHALLENGE:-direct}" = "dns" ]; then check_health 300; else check_health 45; fi
+  remove_legacy_cloudflare_secret_after_ready
 
   local ver="$VERIFIED_RELEASE_VERSION"
   local schema_ver="$VERIFIED_SCHEMA_TARGET"
@@ -567,12 +860,17 @@ EOF
 
 # 13. Comando: update
 cmd_update() {
+  parse_dns_secret_options "$@"
   preflight
   [ -f "$STATE_FILE" ] || die "ESTADO_NAO_ENCONTRADO: Nenhuma instalação anterior encontrada para atualizar."
   load_env
   validate_external_config
+  validate_ingress_config
+  check_ingress_ports_available
   validate_existing_runtime_config
   validate_manifest
+  validate_dns_ingress_release
+  validate_cloudflare_token_source
   check_external_dependencies
   validate_installation_id_binding
   local current_ver
@@ -605,15 +903,21 @@ cmd_update() {
   [ -f "$INSTALL_DIR/state/installation_id" ] || write_installation_id_file "$INSTALLATION_ID"
   chown 1001:1001 "$INSTALL_DIR/state/installation_id" 2>/dev/null || die "INSTALLATION_ID_OWNERSHIP_FAILED: não foi possível entregar o ID ao runtime."
   chmod 640 "$INSTALL_DIR/state/installation_id" || die "INSTALLATION_ID_PERMISSIONS_FAILED: não foi possível proteger o ID persistente."
+  persist_verified_image_refs
+  persist_runtime_dns_secret_mode
+  install_ingress_files
+  compose config --quiet || die "INGRESS_COMPOSE_INVALID: configuração HTTPS do compose é inválida; nenhuma migration foi executada."
   run_migrator update --backup-ack
 
-  # Atualiza compose e reinicia serviços
-  persist_verified_image_refs
-  cp "$INSTALLER_DIR/compose.yaml" "$COMPOSE_FILE"
-  docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d
+  # Atualiza a stack depois que ingress e compose passaram na validação.
+  compose up -d
+  if [ "${CLIENTIX_ACME_CHALLENGE:-direct}" = "dns" ] && [ "$CLIENTIX_ACME_SECRET_MODE" = "ephemeral" ]; then
+    inject_cloudflare_token_from_stdin
+  fi
 
   # Valida saúde
-  check_health 45
+  if [ "${CLIENTIX_ACME_CHALLENGE:-direct}" = "dns" ]; then check_health 300; else check_health 45; fi
+  remove_legacy_cloudflare_secret_after_ready
 
   # Promove estado atômico
   cat <<EOF > "$STATE_FILE.tmp"
@@ -631,6 +935,40 @@ EOF
   chmod 600 "$STATE_FILE"
 
   log "ATUALIZACAO CONCLUIDA COM SUCESSO para $target_ver!"
+}
+
+cmd_secret_inject() {
+  [ "$#" -eq 1 ] && [ "$1" = "--stdin" ] ||
+    die "USO: clientix-installer secret inject --stdin"
+  RUNTIME_SECRET_STDIN_REQUIRED=1
+  preflight
+  load_env
+  validate_ingress_config
+  validate_cloudflare_token_source
+  require_dns_caddy_image_digest
+  compose config --quiet || die "INGRESS_COMPOSE_INVALID: configuração do ingress efêmero é inválida."
+  compose up -d caddy || die "CADDY_RUNTIME_UNAVAILABLE: não foi possível iniciar o Caddy para reinjeção efêmera."
+  inject_cloudflare_token_from_stdin
+  log "Segredo DNS-01 injetado somente no tmpfs do Caddy."
+}
+
+cmd_ingress_reload() {
+  parse_dns_secret_options "$@"
+  preflight
+  load_env
+  validate_ingress_config
+  validate_cloudflare_token_source
+  require_dns_caddy_image_digest
+  persist_runtime_dns_secret_mode
+  [ -f "$COMPOSE_FILE" ] || die "COMPOSE_FILE_AUSENTE: configuração da instalação não foi encontrada."
+  compose config --quiet || die "INGRESS_COMPOSE_INVALID: configuração HTTPS do compose é inválida."
+  compose up -d --force-recreate caddy || die "CADDY_RELOAD_FAILED: não foi possível recriar o Caddy com a origem atual do segredo."
+  if [ "${CLIENTIX_ACME_CHALLENGE:-direct}" = "dns" ] && [ "$CLIENTIX_ACME_SECRET_MODE" = "ephemeral" ]; then
+    inject_cloudflare_token_from_stdin
+  fi
+  if [ "${CLIENTIX_ACME_CHALLENGE:-direct}" = "dns" ]; then check_health 300; else check_health 45; fi
+  remove_legacy_cloudflare_secret_after_ready
+  log "Ingress Caddy recriado e validado."
 }
 
 # 14. Comando: status
@@ -671,7 +1009,7 @@ cmd_status() {
   fi
 
   echo "--- ESTADO DOS SERVIÇOS DOCKER ---"
-  docker compose -f "$COMPOSE_FILE" ps 2>/dev/null || true
+  compose ps 2>/dev/null || true
 }
 
 # Main CLI Dispatcher
@@ -685,11 +1023,23 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
       shift
       cmd_update "$@"
       ;;
+    ingress)
+      shift
+      [ "${1:-}" = "reload" ] || die "USO: clientix-installer ingress reload [opções de segredo DNS-01]"
+      shift
+      cmd_ingress_reload "$@"
+      ;;
+    secret)
+      shift
+      [ "${1:-}" = "inject" ] || die "USO: clientix-installer secret inject --stdin"
+      shift
+      cmd_secret_inject "$@"
+      ;;
     status)
       cmd_status
       ;;
     help|--help|-h)
-      echo "Uso: clientix-installer <install|update|status|help>"
+      echo "Uso: clientix-installer <install|update|ingress reload|secret inject|status|help>"
       ;;
     *)
       die "Comando desconhecido: ${1:-}"

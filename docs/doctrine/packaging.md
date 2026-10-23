@@ -51,9 +51,13 @@ o custo de bumpá-las a cada release não se paga hoje; o item 4 do checklist ma
 `waha` e `srh` — que tocam WhatsApp e rate limit — estão pinadas de verdade (tag exata e
 digest). O gate reprova tag ausente ou `:latest`, não o major flutuante.
 
-**Nenhuma peça upstream vira imagem nossa.** Não por preguiça: WAHA Plus é licenciado, e
-redistribuir o binário de terceiro dentro de uma imagem nossa é passivo jurídico numa
-dependência crítica. Referência, nunca cópia — e a regra vale para todas, não só a licenciada,
+**Serviços upstream continuam usando imagens do fornecedor.** WAHA Plus é licenciado, e
+redistribuir seu binário é passivo jurídico numa dependência crítica. Caddy tem uma exceção
+estreita: o pacote upstream não inclui o módulo necessário para DNS-01 Cloudflare. O artefato
+clientix-ingress é compilado no CI a partir de Caddy e do módulo oficial caddy-dns/cloudflare,
+com versões e digests base pinados; não contém token nem código de negócio. A instalação usa
+essa imagem somente quando o manifesto assinado a inclui, e o modo ACME direto continua
+compatível com a imagem upstream pinada.
 porque a exceção é o que apaga a regra.
 
 ---

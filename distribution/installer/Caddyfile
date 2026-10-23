@@ -1,0 +1,35 @@
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode gzip
+
+	# Caddy provisions and renews certificates in the persistent /data volume.
+	tls {
+		protocols tls1.2 tls1.3
+	}
+
+	# Only this HTTPS site emits HSTS. No subdomain or preload scope.
+	header Strict-Transport-Security "max-age=31536000"
+
+	route {
+		# The global WAHA webhook is internal-only; tenant-token routes remain public.
+		@waha_global path /api/v1/webhooks/waha
+		respond @waha_global 403
+
+		# Preserve the long-running agent request contract while proxying the app.
+		@agentrun path /api/internal/agents/run*
+		reverse_proxy @agentrun app:3000 {
+			transport http {
+				read_timeout 320s
+				write_timeout 320s
+			}
+		}
+
+		# Caddy terminates TLS and replaces forwarded headers from the direct client.
+		reverse_proxy app:3000 {
+			header_up X-Real-IP {remote_host}
+		}
+	}
+}

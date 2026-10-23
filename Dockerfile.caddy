@@ -1,0 +1,38 @@
+# syntax=docker/dockerfile:1.7
+# Custom Caddy distribution used only when a signed release enables DNS-01.
+# Both upstream images are pinned to immutable multi-platform index digests.
+ARG SOURCE_DATE_EPOCH=0
+
+FROM caddy:2.11.7-builder-alpine@sha256:bb53bc0dd94d5e93eca88bac50e435fd5f9dc6cc828fc6140086f282fb329e92 AS builder
+ARG SOURCE_DATE_EPOCH
+
+RUN xcaddy build v2.11.7 \
+    --with github.com/caddy-dns/cloudflare@v0.2.4 \
+    && touch -m -d "@${SOURCE_DATE_EPOCH}" /usr/bin/caddy \
+    && /usr/bin/caddy list-modules | grep -Fx 'dns.providers.cloudflare'
+
+FROM caddy:2.11.7-alpine@sha256:24ec7b05bc532c7bb57f727030c5056e257ff7138b4b50460306819ff79362bd
+
+ARG SOURCE_DATE_EPOCH
+ARG SOURCE_HEAD=unknown
+ARG SOURCE_DIRTY=true
+LABEL org.opencontainers.image.source="https://github.com/rafaelbravik/clientix-agencia" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.title="Clientix secure ingress" \
+      com.clientix.artifact="ingress-production" \
+      com.clientix.release-eligible="true" \
+      com.clientix.source-head="$SOURCE_HEAD" \
+      com.clientix.source-dirty="$SOURCE_DIRTY" \
+      com.clientix.caddy-version="2.11.7" \
+      com.clientix.cloudflare-dns-module-version="v0.2.4"
+
+# Keep generated files and destination-directory mtimes deterministic in one
+# layer. Separate COPY layers otherwise inherit the time each directory entry
+# was added, producing different image digests from identical file contents.
+RUN --mount=type=bind,from=builder,source=/usr/bin/caddy,target=/tmp/clientix-caddy,ro \
+    --mount=type=bind,source=distribution/installer/caddy-ephemeral-entrypoint.sh,target=/tmp/clientix-caddy-ephemeral-entrypoint,ro \
+    mkdir -p /usr/bin /usr/local/bin \
+    && cp /tmp/clientix-caddy /usr/bin/caddy \
+    && cp /tmp/clientix-caddy-ephemeral-entrypoint /usr/local/bin/clientix-caddy-ephemeral-entrypoint \
+    && chmod 0755 /usr/bin/caddy /usr/local/bin/clientix-caddy-ephemeral-entrypoint \
+    && touch -m -d "@${SOURCE_DATE_EPOCH}" /usr /usr/bin /usr/local /usr/local/bin /usr/bin/caddy /usr/local/bin/clientix-caddy-ephemeral-entrypoint

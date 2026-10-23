@@ -1,0 +1,11 @@
+# Optional overlay selected only by explicit DNS-01 Cloudflare mode.
+services:
+  caddy:
+    image: ${CADDY_IMAGE:?a signed release manifest must provide the Cloudflare-enabled Caddy image}
+    volumes:
+      - type: bind
+        source: ${CLIENTIX_CLOUDFLARE_TOKEN_FILE:?DNS-01 external secret path is required}
+        target: /run/secrets/cloudflare_api_token
+        read_only: true
+        bind:
+          create_host_path: false

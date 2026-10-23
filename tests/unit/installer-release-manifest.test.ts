@@ -18,6 +18,7 @@ const TEST_KEY_ID = "clientix-test-release-fixture";
 const CURRENT_SCHEMA = schemaRegistry.schema_target;
 
 type ImageKey = (typeof IMAGE_KEYS)[number];
+type OptionalImageKey = "caddy";
 type Image = { repository: string; tag: string; digest: string };
 type Payload = {
   release_version: string;
@@ -30,7 +31,7 @@ type Payload = {
     min_schema: string;
     max_schema: string;
   };
-  images: Record<ImageKey, Image>;
+  images: Record<ImageKey, Image> & Partial<Record<OptionalImageKey, Image>>;
 };
 type Manifest = {
   payload: Payload;
@@ -166,6 +167,43 @@ describe("installer signed release manifest gate", () => {
         `localhost:5000/clientix-${name.replace("_", "-")}@sha256:${"a".repeat(64)}`,
       ])),
     });
+  });
+
+  it("accepts and returns an optional digest-pinned Caddy ingress image", async () => {
+    const digest = "sha256:" + "b".repeat(64);
+    const payload = makePayload({
+      images: {
+        ...fixturePayload.images,
+        caddy: {
+          repository: "localhost:5000/clientix-ingress",
+          tag: "certification-fixture",
+          digest,
+        },
+      },
+    });
+    const manifestPath = await writeManifest("signed-caddy-fixture.json", signManifest(payload));
+    const result = runVerify(manifestPath);
+
+    expect(result.status).toBe(0);
+    expect(JSON.parse(result.stdout).images.caddy).toBe("localhost:5000/clientix-ingress@" + digest);
+  });
+
+  it("rejects a malformed optional Caddy image instead of ignoring it", async () => {
+    const payload = makePayload({
+      images: {
+        ...fixturePayload.images,
+        caddy: {
+          repository: "localhost:5000/clientix-ingress",
+          tag: "certification-fixture",
+          digest: "mutable-tag",
+        },
+      },
+    });
+    const manifestPath = await writeManifest("signed-invalid-caddy-fixture.json", signManifest(payload));
+    const result = runVerify(manifestPath);
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("INVALID_MANIFEST_DIGEST:caddy");
   });
 
   it("accepts an installer at or above the signed minimum and rejects older or malformed versions", () => {

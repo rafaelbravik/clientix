@@ -416,11 +416,11 @@ jobs:
           echo "esperando a publicação de v${VERSAO}…"
           for _ in $(seq 1 60); do
             faltando=""
-            for img in clientix-app clientix-worker clientix-scheduler clientix-voice-agent; do
+            for img in clientix-app clientix-worker clientix-scheduler clientix-voice-agent clientix-ingress; do
               [ -n "$(ghcr_digest "$img" "${VERSAO}")" ] || faltando="${faltando} ${img}"
             done
             if [ -z "$faltando" ]; then
-              echo "as três imagens respondem em ${VERSAO}"
+              echo "as cinco imagens respondem em ${VERSAO}"
               break
             fi
             sleep 30
@@ -435,14 +435,14 @@ jobs:
           # ─── O CANAL ACOMPANHOU? ──────────────────────────────────────────
           #
           # `stable` é o que o instalador escreve por padrão, então ele é o que
-          # o parque realmente recebe. Um canal que ficou para trás numa das três
+          # o parque realmente recebe. Um canal que ficou para trás numa das cinco
           # imagens é pior que uma imagem ausente: a instalação SOBE, misturada,
           # e o defeito aparece semanas depois como comportamento inexplicável.
           echo "conferindo se o canal stable acompanhou v${VERSAO}…"
           divergentes=""
           for _ in $(seq 1 20); do
             divergentes=""
-            for img in clientix-app clientix-worker clientix-scheduler clientix-voice-agent; do
+            for img in clientix-app clientix-worker clientix-scheduler clientix-voice-agent clientix-ingress; do
               d_versao=$(ghcr_digest "$img" "${VERSAO}")
               d_stable=$(ghcr_digest "$img" stable)
               echo "  ${img}: ${VERSAO}=${d_versao:-ausente} stable=${d_stable:-ausente}"

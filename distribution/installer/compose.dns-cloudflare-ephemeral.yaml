@@ -1,0 +1,7 @@
+# Explicit manual DNS-01 mode. Secret content exists only in this container tmpfs.
+services:
+  caddy:
+    image: ${CADDY_IMAGE:?a signed release manifest must provide the Cloudflare-enabled Caddy image}
+    entrypoint: ["/usr/local/bin/clientix-caddy-ephemeral-entrypoint"]
+    tmpfs:
+      - /run/secrets:mode=0700,uid=0,gid=0

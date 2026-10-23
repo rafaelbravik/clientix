@@ -116,7 +116,8 @@ GHCR. Instalação pinada grava `missing`; canal móvel continua `always`.
 | Recusado | Por quê | Reconsideraríamos se |
 |---|---|---|
 | **Republicar WAHA / WAHA Plus** | licenciado; redistribuir binário de terceiro numa imagem nossa é passivo jurídico sobre a dependência mais crítica do produto | nunca, enquanto a licença for essa |
-| **Republicar Redis, Caddy, `srh`, `postgres`** | não agregam nada; upstream referenciado com tag fixa é estritamente melhor | se algum deles for abandonado e precisarmos manter um fork |
+| **Republicar Redis, `srh`, `postgres`** | não agregam nada; upstream referenciado com tag fixa é estritamente melhor | se algum deles for abandonado e precisarmos manter um fork |
+| **Caddy sem módulos extras** | a imagem upstream já atende ao modo ACME direto e é referenciada com digest pinado | DNS-01 exige módulo ausente da distribuição padrão; clientix-ingress é compilado pelo CI com Caddy e o módulo oficial Cloudflare, sem credenciais nem código de negócio |
 | **`deskcomm-base`** | o build pesado do Next não se resolve com imagem base — resolve-se com cache do buildx no CI, que já está ligado (`cache-from: type=gha`). O único candidato a compartilhar seria `ffmpeg`, e não paga a indireção | 3+ imagens nossas passarem a compartilhar as mesmas deps de sistema |
 | **`deskcomm-migrate` one-shot** | a consultoria o propôs para substituir `supabase db push` na máquina do implementador — fluxo que **não existe** neste projeto. `install.sh` e `update.sh` já aplicam `supabase/baseline.sql` via `postgres:17-alpine` efêmero, dentro da VPS, sem CLI e sem participação humana. Seria um package resolvendo um problema que já está resolvido | o baseline deixar de ser aplicável por psql puro |
 | **Migrar de namespace** | ver D1 | ver D1 |

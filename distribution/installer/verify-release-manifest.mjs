@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const IMAGE_KEYS = ["app", "worker", "scheduler", "voice_agent", "migrator"];
+const OPTIONAL_IMAGE_KEYS = ["caddy"];
 const SHA256_RE = /^sha256:[0-9a-f]{64}$/;
 const NUMERIC_ID = "(?:0|[1-9][0-9]*)";
 const NON_NUMERIC_ID = "(?:[0-9]*[A-Za-z-][0-9A-Za-z-]*)";
@@ -122,6 +123,25 @@ function validatePayload(payload) {
 
   const imageRefs = {};
   for (const key of IMAGE_KEYS) {
+    const image = payload.images[key];
+    if (!image || typeof image !== "object" || Array.isArray(image)) {
+      throw new Error(`INVALID_MANIFEST_IMAGE:${key}`);
+    }
+    const validRepository = typeof image.repository === "string" &&
+      /^(?:[a-z0-9]+(?:[.-][a-z0-9]+)*(?::[0-9]+)?\/)?[a-z0-9]+(?:[._-][a-z0-9]+)*(?:\/[a-z0-9]+(?:[._-][a-z0-9]+)*)*$/.test(image.repository);
+    if (!validRepository) {
+      throw new Error(`INVALID_MANIFEST_REPOSITORY:${key}`);
+    }
+    if (typeof image.tag !== "string" || !/^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$/.test(image.tag)) {
+      throw new Error(`INVALID_MANIFEST_TAG:${key}`);
+    }
+    if (typeof image.digest !== "string" || !SHA256_RE.test(image.digest)) {
+      throw new Error(`INVALID_MANIFEST_DIGEST:${key}`);
+    }
+    imageRefs[key] = `${image.repository}@${image.digest}`;
+  }
+  for (const key of OPTIONAL_IMAGE_KEYS) {
+    if (payload.images[key] === undefined) continue;
     const image = payload.images[key];
     if (!image || typeof image !== "object" || Array.isArray(image)) {
       throw new Error(`INVALID_MANIFEST_IMAGE:${key}`);

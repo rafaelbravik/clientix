@@ -266,16 +266,20 @@ describe("packaging — o artefato que o cliente instala", () => {
     }
   });
 
-  it("o workflow publica as quatro imagens e injeta APP_VERSION", () => {
+  it("o workflow publica as imagens do runtime e injeta APP_VERSION", () => {
     const wf = fs.readFileSync(path.join(RAIZ, ".github/workflows/publish-image.yml"), "utf8");
     for (const imagem of [
       "clientix-app",
       "clientix-worker",
       "clientix-scheduler",
       "clientix-voice-agent",
+      "clientix-ingress",
     ]) {
       expect(wf, `publish-image.yml não publica '${imagem}'`).toContain(`name: ${imagem}`);
     }
+    expect(wf, "publish-image.yml não constrói Caddy com o módulo Cloudflare").toMatch(
+      /name: clientix-ingress\s+dockerfile: Dockerfile\.caddy/,
+    );
     expect(wf, "publish-image.yml não passa APP_VERSION como build-arg").toContain(
       "APP_VERSION=",
     );

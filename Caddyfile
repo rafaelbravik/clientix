@@ -8,6 +8,14 @@
 {$DOMAIN} {
 	encode gzip
 
+	# Keep production TLS at modern protocol versions; Caddy prefers TLS 1.3.
+	tls {
+		protocols tls1.2 tls1.3
+	}
+
+	# HTTPS is guaranteed by this named site. No subdomain or preload scope.
+	header Strict-Transport-Security "max-age=31536000"
+
 	# `route` é obrigatório aqui: fora dele o Caddy reordena as diretivas pela
 	# ordem padrão dele, na qual `respond` vem DEPOIS de `reverse_proxy` — o
 	# catch-all atendia primeiro e o 403 abaixo nunca era alcançado (medido: o

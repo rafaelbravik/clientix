@@ -55,11 +55,21 @@ export default defineConfig({
     projects: [
       {
         extends: true,
-        test: { name: "cercas", environment: "node", include: CERCAS },
+        test: {
+          name: "cercas",
+          environment: "node",
+          include: CERCAS,
+          sequence: { groupOrder: 0 },
+          // Cercas disputam leituras do mesmo workspace (busca de arquivos e
+          // imports transitivos). 16 workers estouraram três cercas; 8 passaram
+          // o mesmo conjunto com tempo total equivalente. O limite é local; as
+          // cercas rodam antes do produto para não concorrerem com os testes dele.
+          maxWorkers: 8,
+        },
       },
       {
         extends: true,
-        test: { name: "produto", exclude: CERCAS },
+        test: { name: "produto", exclude: CERCAS, sequence: { groupOrder: 1 } },
       },
     ],
   },
