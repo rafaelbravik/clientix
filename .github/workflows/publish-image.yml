@@ -4,7 +4,7 @@ name: Publicar imagem Docker (GHCR)
 # Container Registry. O leigo puxa no VPS (não builda lá). Roda nos runners do
 # GitHub, então o build pesado nunca cai no VPS do usuário.
 #
-# São CINCO imagens. As primeiras três (worker e scheduler inclusos) entraram
+# São SEIS imagens. As primeiras três (worker e scheduler inclusos) entraram
 # por um defeito real: esses serviços não tinham `image:` no compose de
 # produção, só `build:`. Serviço build-only é pulado por `docker compose pull`
 # e imune a `up -d` sem `--build` — ele era construído na VPS de cada cliente,
@@ -256,10 +256,14 @@ jobs:
             dockerfile: Dockerfile.voice-agent
             target: runner
             title: Clientix Agência voice agent
+          - name: clientix-migrator
+            dockerfile: Dockerfile.migrator
+            target: customer
+            title: Clientix database migrator
           - name: clientix-ingress
             dockerfile: Dockerfile.caddy
             title: Clientix secure ingress
-        name: [clientix-app, clientix-worker, clientix-scheduler, clientix-voice-agent, clientix-ingress]
+        name: [clientix-app, clientix-worker, clientix-scheduler, clientix-voice-agent, clientix-migrator, clientix-ingress]
         arch: [amd64, arm64]
 
     steps:
@@ -386,6 +390,7 @@ jobs:
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/clientix-worker
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/clientix-scheduler
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/clientix-voice-agent
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/clientix-migrator
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/clientix-ingress
           flavor: latest=false
           tags: |
@@ -566,7 +571,7 @@ jobs:
   # NÚMERO sempre (cada imagem, independente — ninguém instala por um número que
   # o instalador não escreveu) e mover o CANAL num job final.
   promover-stable:
-    # Sem `always()`, e isso é o ponto: `needs` só libera quando as cinco entradas
+    # Sem `always()`, e isso é o ponto: `needs` só libera quando as seis entradas
     # deram `success`. Com `always()` o canal andaria por cima de uma irmã que
     # falhou, que é exatamente o defeito de volta com outra roupa.
     # `imagens-de-fundo-sobem` entrou aqui de propósito (#604): worker ou
@@ -606,7 +611,7 @@ jobs:
           # canal deixaria de ser o mesmo manifesto que a versão.
           dono=$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')
           numero="${VERSAO#v}"
-          for img in clientix-app clientix-worker clientix-scheduler clientix-voice-agent clientix-ingress; do
+          for img in clientix-app clientix-worker clientix-scheduler clientix-voice-agent clientix-migrator clientix-ingress; do
             echo "::group::${img}"
             docker buildx imagetools create \
               --tag "${REGISTRY}/${dono}/${img}:stable" \
@@ -735,7 +740,7 @@ jobs:
             type=gha,scope=deskcommcrm-voice-agent
           cache-to: ${{ github.event_name == 'pull_request' && format('type=gha,mode=max,scope=deskcommcrm-voice-agent-{0}', matrix.arch) || '' }}
 
-      # A QUINTA imagem publica o módulo DNS Cloudflare usado pelo instalador;
+      # A sexta imagem publica o módulo DNS Cloudflare usado pelo instalador;
       # também precisa compilar nas duas arquiteturas em PR antes de entrar na matriz.
       - name: Build local da imagem do ingress com DNS-01 (sem push)
         uses: docker/build-push-action@v7
@@ -753,6 +758,23 @@ jobs:
             type=gha,scope=clientix-ingress-${{ matrix.arch }}
             type=gha,scope=clientix-ingress
           cache-to: ${{ github.event_name == 'pull_request' && format('type=gha,mode=max,scope=clientix-ingress-{0}', matrix.arch) || '' }}
+
+      # O instalador e o updater executam o migrator como imagem one-shot; ele
+      # precisa existir para cada release assinada e passar pelo build de PR.
+      - name: Build local da imagem do migrator (sem push)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile.migrator
+          target: customer
+          platforms: ${{ matrix.platform }}
+          push: false
+          load: true
+          tags: clientix-migrator:pr
+          cache-from: |
+            type=gha,scope=clientix-migrator-${{ matrix.arch }}
+            type=gha,scope=clientix-migrator
+          cache-to: ${{ github.event_name == 'pull_request' && format('type=gha,mode=max,scope=clientix-migrator-{0}', matrix.arch) || '' }}
 
       - name: O laço do event_log CARREGA dentro da imagem do worker?
         run: |

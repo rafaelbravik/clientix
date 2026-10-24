@@ -310,14 +310,15 @@ describe("o kit aponta para o que o CI realmente publica", () => {
   });
 
   it("o workflow constrói as imagens do kit e o ingress DNS-01 do instalador", () => {
-    // O kit usa quatro imagens; o instalador comercial também publica a imagem
-    // Caddy com DNS-01. A relação exata impede que um desses artefatos saia da
-    // matriz sem obrigar o kit a declarar Caddy como serviço próprio.
+    // O kit usa quatro imagens; o instalador comercial também publica o
+    // migrator one-shot e a imagem Caddy com DNS-01. A relação exata impede
+    // que um artefato obrigatório saia da matriz sem obrigar o kit legado a
+    // declarar esses serviços como próprios.
     const naMatriz = [...PUBLICA.matchAll(/^\s{10}- name: (\S+)$/gm)].map((m) => m[1]);
     expect(naMatriz.length, "a matriz de publish-image.yml veio vazia — o leitor cegou").toBeGreaterThanOrEqual(4);
     const imagensDoKit = reposDoKit();
     expect(naMatriz).toEqual(expect.arrayContaining(imagensDoKit));
-    expect([...naMatriz].sort()).toEqual([...imagensDoKit, "clientix-ingress"].sort());
+    expect([...naMatriz].sort()).toEqual([...imagensDoKit, "clientix-migrator", "clientix-ingress"].sort());
   });
 });
 
@@ -412,14 +413,25 @@ describe("catraca: ninguém mais repete o namespace", () => {
       });
   }
 
+  // O conjunto é imutável durante estes casos; calcular a lista uma vez evita
+  // repetir git ls-files e lstat de cada caminho na guarda de reincidência.
+  const candidatosDaBusca = arquivosDaBusca();
+
   /**
    * Varre arquivos rastreados e untracked nao ignorados pelo git.
    * Caminhos locais protegidos e artefatos sao filtrados antes de qualquer leitura.
    */
   function reincidentes(): string[] {
     const literal = Buffer.from(NAMESPACE_DESTE_REPO, "utf8");
-    return arquivosDaBusca()
-      .filter((arquivo) => fs.readFileSync(arquivo).includes(literal))
+    return candidatosDaBusca
+      .filter((arquivo) => {
+        try {
+          return fs.readFileSync(arquivo).includes(literal);
+        } catch (erro) {
+          if ((erro as NodeJS.ErrnoException).code === "ENOENT") return false;
+          throw erro;
+        }
+      })
       .filter((arquivo) => !PERMITIDO.has(arquivo))
       .sort();
   }
@@ -442,7 +454,7 @@ describe("catraca: ninguém mais repete o namespace", () => {
     // acontecido, e, pior, ele deixara de provar que a varredura alcança a
     // âncora de verdade. Medido: 2 ocorrências aqui, as duas em comentário.
     const alvo = "tests/unit/_identidade-deste-repo.ts";
-    expect(arquivosDaBusca()).toContain(alvo);
+    expect(candidatosDaBusca).toContain(alvo);
     expect(fs.readFileSync(alvo, "utf8")).toContain(NAMESPACE_DESTE_REPO);
   });
 

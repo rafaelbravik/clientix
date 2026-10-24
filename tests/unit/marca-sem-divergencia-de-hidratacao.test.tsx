@@ -217,14 +217,20 @@ describe("catraca: `branding()` é server-only", () => {
   }
 
   const varridos = RAIZES_VARRIDAS.flatMap((r) => arquivos(path.join(RAIZ, r)));
-  const chamaBranding = (arquivo: string) =>
-    /\bbranding\(\)/.test(semComentarios(fs.readFileSync(arquivo, "utf8")));
+  // A cerca examina centenas de arquivos em três casos. Ler e limpar a mesma
+  // árvore repetidamente fez esta verificação passar do timeout sob carga da
+  // suíte; o cache mantém todas as raízes/arquivos e aplica o mesmo corte uma vez.
+  const conteudos = new Map(varridos.map((arquivo) => [arquivo, fs.readFileSync(arquivo, "utf8")]));
+  const codigoSemComentarios = new Map(
+    varridos.map((arquivo) => [arquivo, semComentarios(conteudos.get(arquivo) ?? "")]),
+  );
+  const clientes = varridos.filter((arquivo) => /^["']use client["']/m.test(conteudos.get(arquivo) ?? ""));
+  const chamaBranding = (arquivo: string) => /\bbranding\(\)/.test(codigoSemComentarios.get(arquivo) ?? "");
 
   it("a varredura enxerga arquivo de verdade", () => {
     // Uma lista vazia faria a asserção principal passar sem medir nada — que é o
     // modo nº 1 de um gate ficar verde por engano.
     expect(varridos.length).toBeGreaterThan(500);
-    const clientes = varridos.filter((f) => /^["']use client["']/m.test(fs.readFileSync(f, "utf8")));
     expect(clientes.length).toBeGreaterThan(100);
   });
 
@@ -251,10 +257,7 @@ describe("catraca: `branding()` é server-only", () => {
   });
 
   it("nenhum componente `\"use client\"` chama `branding()`", () => {
-    const infratores = varridos.filter(
-      (arquivo) =>
-        /^["']use client["']/m.test(fs.readFileSync(arquivo, "utf8")) && chamaBranding(arquivo),
-    );
+    const infratores = clientes.filter(chamaBranding);
 
     expect(
       infratores.map((f) => relativoEmBarraNormal(RAIZ, f)),

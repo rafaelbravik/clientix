@@ -1257,14 +1257,14 @@ VERSAO_ALVO="$(ultima_versao_publicada "$REPO_URL")"
 # cliente receberia duas referências impossíveis e o kit as construiria aqui em
 # silêncio, do topo da main: app de uma release + worker de outro código.
 #
-# Cascata, do mais específico ao mais disponível. Cada nível pergunta pelas TRÊS
-# imagens juntas, porque instalar com elas desalinhadas é o defeito, não a
-# solução.
+# Cascata, do mais específico ao mais disponível. Cada nível pergunta pelo
+# conjunto completo de imagens próprias usado pelo kit, para não misturar
+# versões de runtime.
 if [ -n "$VERSAO_ALVO" ] && trio_publicado "$VERSAO_ALVO"; then
-  : # o caminho normal: as três publicadas na última versão
+  : # o caminho normal: todas as imagens do kit publicadas na versão solicitada
 elif trio_publicado "stable"; then
-  c_ylw "$(t "⚠ A versão {1} ainda não tem as três imagens publicadas." "${VERSAO_ALVO:-$(t "mais recente")}")"
-  c_ylw "$(t "  Instalando pelo canal 'stable' (a última versão completa).")"
+  c_ylw "$(t "⚠ A versão {1} ainda não tem todas as imagens do kit publicadas." "${VERSAO_ALVO:-$(t "mais recente")}")"
+  c_ylw "$(t "  Instalando pelo canal 'stable' (a última versão completa do kit).")"
   VERSAO_ALVO="stable"
 elif [ -n "$VERSAO_ALVO" ]; then
   # Nem a versão nem o `stable` têm o trio. Segue assim mesmo — o compose tem

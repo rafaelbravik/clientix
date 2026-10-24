@@ -176,6 +176,19 @@ describe("release updater preflight plan", () => {
     expect(() => plan({ images })).toThrow("IMAGE_DIGEST_INVALID_APP");
   });
 
+  it("requires the Clientix ingress repository and an immutable digest", () => {
+    expect(plan().target_images.caddy).toBe(TARGET_IMAGES.caddy);
+
+    const mutableIngress = { ...TARGET_IMAGES, caddy: `${REPOSITORIES.caddy}:1.70.1` };
+    expect(() => plan({ images: mutableIngress })).toThrow("IMAGE_DIGEST_INVALID_CADDY");
+
+    const untrustedIngress = {
+      ...TARGET_IMAGES,
+      caddy: `attacker.invalid/clientix-ingress@sha256:${"b".repeat(64)}`,
+    };
+    expect(() => plan({ images: untrustedIngress })).toThrow("IMAGE_REPOSITORY_UNAUTHORIZED_CADDY");
+  });
+
   it("rejects digest references from unauthorized production repositories", () => {
     const images = { ...TARGET_IMAGES, app: `attacker.invalid/clientix-app@sha256:${"b".repeat(64)}` };
     expect(() => plan({ images })).toThrow("IMAGE_REPOSITORY_UNAUTHORIZED_APP");

@@ -1416,10 +1416,11 @@ ghcr_status() {
 # impossíveis, e o kit as construiria na VPS **em silêncio**, do topo da main:
 # app de uma release + worker/scheduler de outro código. Exatamente a mistura de
 # versões que a doutrina existe para proibir, no caminho de primeira impressão.
-# O nome ficou de quando eram três; hoje são quatro, e a lista acompanha a
-# matriz de publish-image.yml — quem cobra é
-# tests/unit/listas-de-imagens-seguem-matriz.test.ts. Renomear a função
-# quebraria o leitor daquele teste sem ganhar nada: o que importa é a lista.
+# `trio_publicado` é um nome legado. Este preflight cobre os quatro runtimes
+# próprios usados pelo compose do kit HostGator; ele não representa todas as
+# imagens Clientix de uma release. O ingress e o migrator one-shot são usados
+# pela distribuição comercial e entram nos guards de publicação/release. O
+# teste `listas-de-imagens-seguem-matriz` confere cada conjunto com seu consumidor.
 trio_publicado() {
   local tag="$1" i
   for i in clientix-app clientix-worker clientix-scheduler clientix-voice-agent; do

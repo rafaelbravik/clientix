@@ -273,6 +273,7 @@ describe("packaging — o artefato que o cliente instala", () => {
       "clientix-worker",
       "clientix-scheduler",
       "clientix-voice-agent",
+      "clientix-migrator",
       "clientix-ingress",
     ]) {
       expect(wf, `publish-image.yml não publica '${imagem}'`).toContain(`name: ${imagem}`);

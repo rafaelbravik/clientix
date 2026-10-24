@@ -265,9 +265,9 @@ y, si de verdad es un Traefik, pon REVERSE_PROXY=traefik en el .env y vuelve a e
   ["por um programa do próprio servidor"]="por un programa del propio servidor"
 
   # ── install.sh: versión objetivo (canal stable/latest) ──────────────────
-  ["⚠ A versão {1} ainda não tem as três imagens publicadas."]="⚠ La versión {1} todavía no tiene las tres imágenes publicadas."
+  ["⚠ A versão {1} ainda não tem todas as imagens do kit publicadas."]="⚠ La versión {1} todavía no tiene publicadas todas las imágenes del kit."
   ["mais recente"]="más reciente"
-  ["  Instalando pelo canal 'stable' (a última versão completa)."]="  Instalando por el canal 'stable' (la última versión completa)."
+  ["  Instalando pelo canal 'stable' (a última versão completa do kit)."]="  Instalando por el canal 'stable' (la última versión completa del kit)."
   ["⚠ As imagens do worker e do agendador ainda não estão publicadas."]="⚠ Las imágenes del worker y del agendador todavía no están publicadas."
   ["  Elas serão construídas neste servidor — leva alguns minutos a mais."]="  Se van a construir en este servidor — toma algunos minutos más."
   ["  Rode 'bash hostgator-setup-kit/update.sh' quando a próxima versão sair."]="  Ejecuta 'bash hostgator-setup-kit/update.sh' cuando salga la próxima versión."

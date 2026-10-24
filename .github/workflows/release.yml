@@ -6,7 +6,7 @@ name: release
 #      a seção do CHANGELOG e abre um PR de release em português dizendo o que
 #      vai sair. Nada é publicado ainda.
 #   2. VOCÊ faz merge desse PR → ele cria a tag `vX.Y.Z`, e é a tag que faz o
-#      `publish-image.yml` publicar as três imagens que a VPS puxa.
+#      `publish-image.yml` publicar as seis imagens que compõem a release.
 #
 # Quem escreve (branch, PR, tag) é o token de um GitHub App, NUNCA o
 # GITHUB_TOKEN. A razão é uma armadilha documentada pelo próprio GitHub: evento
@@ -15,7 +15,7 @@ name: release
 # erro, e NENHUMA VPS receberia a atualização. Falha silenciosa, descoberta só
 # quando um cliente tentasse atualizar.
 #
-# Por isso o ato 2 não confia: ele espera a publicação e CONFERE as três imagens
+# Por isso o ato 2 não confia: ele espera a publicação e CONFERE as seis imagens
 # no registro, falhando alto se não aparecerem.
 
 on:
@@ -80,7 +80,7 @@ jobs:
             cat /tmp/corte.txt
             echo '```'
             echo
-            echo "Ao fazer merge deste PR, a tag \`v${VERSAO}\` é criada automaticamente e as três imagens são publicadas."
+            echo "Ao fazer merge deste PR, a tag \`v${VERSAO}\` é criada automaticamente e as seis imagens são publicadas."
             echo "Se algo aqui estiver errado, **feche o PR** em vez de editar o número: corrija o fragmento e dispare o workflow de novo."
           } > /tmp/corpo.md
           gh pr create --base main --head "release/${VERSAO}" \
@@ -385,7 +385,7 @@ jobs:
 
       # A falha desta cadeia é silenciosa por natureza — a tag existe e ninguém
       # vê erro —, então o workflow prova a CONSEQUÊNCIA em vez de supô-la.
-      - name: As três imagens existem nesta versão?
+      - name: As seis imagens existem nesta versão?
         if: steps.pendente.outputs.cortar == 'sim'
         env:
           VERSAO: ${{ steps.pendente.outputs.versao }}
@@ -416,11 +416,11 @@ jobs:
           echo "esperando a publicação de v${VERSAO}…"
           for _ in $(seq 1 60); do
             faltando=""
-            for img in clientix-app clientix-worker clientix-scheduler clientix-voice-agent clientix-ingress; do
+            for img in clientix-app clientix-worker clientix-scheduler clientix-voice-agent clientix-migrator clientix-ingress; do
               [ -n "$(ghcr_digest "$img" "${VERSAO}")" ] || faltando="${faltando} ${img}"
             done
             if [ -z "$faltando" ]; then
-              echo "as cinco imagens respondem em ${VERSAO}"
+              echo "as seis imagens respondem em ${VERSAO}"
               break
             fi
             sleep 30
@@ -435,14 +435,14 @@ jobs:
           # ─── O CANAL ACOMPANHOU? ──────────────────────────────────────────
           #
           # `stable` é o que o instalador escreve por padrão, então ele é o que
-          # o parque realmente recebe. Um canal que ficou para trás numa das cinco
+          # o parque realmente recebe. Um canal que ficou para trás numa das seis
           # imagens é pior que uma imagem ausente: a instalação SOBE, misturada,
           # e o defeito aparece semanas depois como comportamento inexplicável.
           echo "conferindo se o canal stable acompanhou v${VERSAO}…"
           divergentes=""
           for _ in $(seq 1 20); do
             divergentes=""
-            for img in clientix-app clientix-worker clientix-scheduler clientix-voice-agent clientix-ingress; do
+            for img in clientix-app clientix-worker clientix-scheduler clientix-voice-agent clientix-migrator clientix-ingress; do
               d_versao=$(ghcr_digest "$img" "${VERSAO}")
               d_stable=$(ghcr_digest "$img" stable)
               echo "  ${img}: ${VERSAO}=${d_versao:-ausente} stable=${d_stable:-ausente}"
@@ -458,7 +458,7 @@ jobs:
             echo "::error::Confira o job promover-stable no run de publish-image.yml da tag v${VERSAO}."
             exit 1
           fi
-          echo "stable e ${VERSAO} são o mesmo manifesto nas três imagens"
+          echo "stable e ${VERSAO} são o mesmo manifesto nas seis imagens"
 
       # ─── A VERSÃO CHEGOU À VITRINE? ───────────────────────────────────────
       #
@@ -547,7 +547,7 @@ jobs:
               fora_do_ar_seguidas=$((fora_do_ar_seguidas + 1))
               if [ "$fora_do_ar_seguidas" -ge 2 ]; then
                 echo "::error::A VITRINE está fora do ar, não é a versão que falta:${codigos}"
-                echo "::error::v${VERSAO} SAIU — tag, release e as três imagens já foram conferidas nos passos anteriores. Quem instalou numa VPS puxa do GHCR e não é alcançado por isto."
+                echo "::error::v${VERSAO} SAIU — tag, release e as seis imagens já foram conferidas nos passos anteriores. Quem instalou numa VPS puxa do GHCR e não é alcançado por isto."
                 echo "::error::Não redispare o corte: a tag já existe. Conserte ${LP} e a página se atualiza sozinha."
                 exit 1
               fi
