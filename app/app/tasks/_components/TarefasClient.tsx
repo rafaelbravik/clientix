@@ -14,6 +14,7 @@ import { useT } from "@/hooks/i18n/useT";
 import { ArrowsClockwise, CalendarBlank, ListChecks, Plus } from "@/lib/ui/icons";
 import { cn } from "@/lib/utils";
 import { useTasks } from "@/hooks/tasks/useTasks";
+import { useAssignableMembers } from "@/hooks/inbox/useAssignableMembers";
 import type { NovaTarefa, SituacaoDaTarefa, Tarefa } from "@/lib/tarefas/tipos";
 
 import { CalendarioDeTarefas } from "./CalendarioDeTarefas";
@@ -22,11 +23,20 @@ import { ListaDeTarefas } from "./ListaDeTarefas";
 
 /** "aberto" não é uma situação do banco: é o filtro que a tela abre por padrão. */
 type FiltroDeSituacao = "aberto" | SituacaoDaTarefa;
+type FiltroDeResponsavel = "todas" | "me" | "ninguem" | string;
 
-export function TarefasClient({ podeEditar }: { podeEditar: boolean }) {
+interface Props {
+  podeEditar: boolean;
+  organizationId: string;
+  userId: string;
+  filtroInicial: string;
+}
+
+export function TarefasClient({ podeEditar, organizationId, userId, filtroInicial }: Props) {
   const t = useT();
   const [modo, setModo] = useState<"lista" | "calendario">("lista");
   const [situacao, setSituacao] = useState<FiltroDeSituacao>("aberto");
+  const [responsavel, setResponsavel] = useState<FiltroDeResponsavel>(filtroInicial);
   const [emEdicao, setEmEdicao] = useState<Tarefa | null>(null);
   const [formAberto, setFormAberto] = useState(false);
   const [prazoSugerido, setPrazoSugerido] = useState<string | undefined>();
@@ -35,6 +45,7 @@ export function TarefasClient({ podeEditar }: { podeEditar: boolean }) {
   // "Nova tarefa" precisa de uma chave NOVA — senão a segunda abertura traz o
   // que ficou digitado na primeira.
   const [aberturas, setAberturas] = useState(0);
+  const { data: membrosAtribuiveis = [] } = useAssignableMembers(podeEditar, organizationId);
 
   const {
     tarefas,
@@ -46,7 +57,11 @@ export function TarefasClient({ podeEditar }: { podeEditar: boolean }) {
     apagarTarefa,
     alternarConcluida,
   } = useTasks(
-    situacao === "aberto" ? { aberto: true } : { status: situacao },
+    {
+      ...(situacao === "aberto" ? { aberto: true } : { status: situacao }),
+      ...(responsavel === "todas" ? {} : { assigned_to: responsavel }),
+    },
+    { organizationId, userId },
   );
 
   function abrirNova(dia?: string) {
@@ -94,6 +109,30 @@ export function TarefasClient({ podeEditar }: { podeEditar: boolean }) {
               <SelectItem value="in_progress">{t("Em andamento")}</SelectItem>
               <SelectItem value="done">{t("Concluída")}</SelectItem>
               <SelectItem value="cancelled">{t("Cancelada")}</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={responsavel} onValueChange={setResponsavel}>
+            <SelectTrigger className="h-9 w-[180px] text-xs" aria-label={t("Responsável")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todas">{t("Todas")}</SelectItem>
+              <SelectItem value="me">{t("Minhas")}</SelectItem>
+              <SelectItem value="ninguem">{t("Sem responsável")}</SelectItem>
+              {responsavel !== "todas" &&
+              responsavel !== "me" &&
+              responsavel !== "ninguem" &&
+              !membrosAtribuiveis.some((membro) => membro.user_id === responsavel) ? (
+                <SelectItem value={responsavel}>{t("Responsável selecionado")}</SelectItem>
+              ) : null}
+              {membrosAtribuiveis.map((membro, index) => (
+                <SelectItem key={membro.user_id} value={membro.user_id}>
+                  {membro.user_id === userId
+                    ? t("Você")
+                    : membro.full_name?.trim() || `${t("Pessoa da equipe")} ${index + 1}`}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
 
@@ -186,6 +225,9 @@ export function TarefasClient({ podeEditar }: { podeEditar: boolean }) {
         aoMudarAbertura={setFormAberto}
         tarefa={emEdicao}
         prazoSugerido={prazoSugerido}
+        podeAtribuir={podeEditar}
+        membros={membrosAtribuiveis}
+        responsavelInicial={responsavel === "me" ? userId : null}
         aoSalvar={salvar}
       />
     </div>

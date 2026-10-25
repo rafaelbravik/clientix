@@ -36,7 +36,10 @@ import { createClient } from "@/lib/supabase/server";
 
 vi.mock("@/lib/auth/require-role", () => ({ requireRole: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
-vi.mock("@/lib/audit", () => ({ audit: vi.fn(async () => undefined) }));
+vi.mock("@/lib/audit", () => ({
+  audit: vi.fn(async () => undefined),
+  isServiceRoleConfigured: vi.fn(() => false),
+}));
 vi.mock("@/lib/leads/activity-emitter", () => ({
   emitLeadActivity: vi.fn(async () => ({ ok: true })),
 }));

@@ -27,6 +27,9 @@ export type PrioridadeDaTarefa = (typeof PRIORIDADES_DA_TAREFA)[number];
 export const SITUACOES_DA_TAREFA = ["pending", "in_progress", "done", "cancelled"] as const;
 export type SituacaoDaTarefa = (typeof SITUACOES_DA_TAREFA)[number];
 
+/** Destino do push de atribuição; o executor de prazo ainda não existe neste worktree. */
+export const HREF_MINHAS_TAREFAS = "/app/tasks?assigned_to=me";
+
 /** Uma linha de `crm_tasks`, como a API a devolve. */
 export interface Tarefa {
   id: string;
@@ -40,6 +43,8 @@ export interface Tarefa {
   lead_id: string | null;
   contact_id: string | null;
   assigned_to: string | null;
+  /** Nome de apresentação derivado pela API; não é uma coluna do banco. */
+  assigned_to_name?: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;

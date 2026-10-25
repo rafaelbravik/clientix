@@ -23,6 +23,8 @@ export interface FiltrosDeTarefa {
   contact_id?: string;
   /** `true` = só o que ainda pede ação (pendente ou em andamento). */
   aberto?: boolean;
+  /** `me` é resolvido pela sessão na API; `ninguem` filtra tarefa sem dono. */
+  assigned_to?: string;
 }
 
 async function leJson<T>(res: Response, oQueFalhou: string): Promise<T> {
@@ -37,7 +39,10 @@ async function leJson<T>(res: Response, oQueFalhou: string): Promise<T> {
   return json.data;
 }
 
-export function useTasks(filtros: FiltrosDeTarefa = {}) {
+export function useTasks(
+  filtros: FiltrosDeTarefa = {},
+  escopo: { organizationId: string; userId: string },
+) {
   const queryClient = useQueryClient();
 
   const params = new URLSearchParams();
@@ -46,10 +51,12 @@ export function useTasks(filtros: FiltrosDeTarefa = {}) {
   if (filtros.lead_id) params.set("lead_id", filtros.lead_id);
   if (filtros.contact_id) params.set("contact_id", filtros.contact_id);
   if (filtros.aberto) params.set("aberto", "true");
+  if (filtros.assigned_to) params.set("assigned_to", filtros.assigned_to);
   const qs = params.toString();
 
   const query = useQuery({
-    queryKey: [...CHAVE, qs],
+    // `me` depende da identidade e todo resultado depende do tenant ativo.
+    queryKey: [...CHAVE, escopo.organizationId, escopo.userId, qs],
     queryFn: async () => {
       const res = await fetch(qs ? `${BASE}?${qs}` : BASE);
       return leJson<{ tasks: Tarefa[] }>(res, "Não foi possível carregar as tarefas.");

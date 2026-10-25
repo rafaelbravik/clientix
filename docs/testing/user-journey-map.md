@@ -3220,3 +3220,22 @@ respondeu; se a mensagem do fluxo saiu da janela do histórico (`historyLimit`),
 vale o horário, no segundo. Uma inbound sem texto acorda o nó, não é
 classificada, e a carência recomeça desse despertar (comportamento anterior do
 motor, não mexido aqui).
+
+## J39 — Atribuir uma tarefa e voltar direto para ela `[P2]` (2026-10-25)
+
+“Minhas” significa a identidade autenticada resolvida no servidor, nunca um
+UUID que o browser escolheu para se passar por outra pessoa. O filtro por
+responsável também valida a membership da organização antes de consultar
+`crm_tasks`; criação e edição validam a mesma fronteira. O executor de lembrete
+por prazo ainda não existe (`TASK_REMINDER_EXECUTOR=NOT_IMPLEMENTED`); o push
+existente de tarefa atribuída aponta para a visão “Minhas”.
+
+| # | Caso | Expectativa | Estado |
+|---|---|---|---|
+| J39.1 | Todas → Minhas → Todas | Cada modo usa filtro/chave próprios; “Minhas” envia só o modo semântico `me` | PASS focado (`TarefasClient.test.tsx`) |
+| J39.2 | Tarefa de outra pessoa ou sem responsável em Minhas | Não aparece; a API traduz `me` para `authz.user.id` | PASS focado (`route.test.ts`) |
+| J39.3 | Filtrar por membro ou sem responsável | consulta é escopada pela organização ativa; ID de outro tenant não vira oracle nem retorna tarefas | PASS focado (`route.test.ts`, `responsaveis.test.ts`) |
+| J39.4 | Criar, editar e trocar responsável | lista vem de membros ativos do tenant; edição sem troca preserva atribuição sem reenviar um ID antigo | PASS focado (`TarefasClient.test.tsx`) |
+| J39.5 | Notificação de tarefa atribuída | abre `/app/tasks?assigned_to=me`; não há executor de lembrete por prazo | PASS focado (`criar-tarefa.test.ts`) |
+| J39.6 | Pessoa sem escrita ou suporte somente-leitura | UI não oferece mutação e API recusa antes de escrever | PASS focado (`route.test.ts`) |
+| J39.7 | Os fluxos “Minhas” e atribuição na tela | desktop 1440, tablet 768, mobile 390, overflow e interação real | **PROVA VISUAL PENDENTE** |

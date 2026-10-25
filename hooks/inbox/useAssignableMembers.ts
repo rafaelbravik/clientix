@@ -9,9 +9,9 @@ export interface AssignableMember {
 }
 
 /** G3-01: destinos válidos de transferência (membros ativos agent+ da org). */
-export function useAssignableMembers(enabled: boolean) {
+export function useAssignableMembers(enabled: boolean, organizationId?: string) {
   return useQuery({
-    queryKey: ["team", "assignable"],
+    queryKey: ["team", "assignable", organizationId ?? null],
     queryFn: async () => apiClient.get<{ data: AssignableMember[] }>("/api/v1/team/assignable"),
     enabled,
     staleTime: 60_000,

@@ -1332,6 +1332,10 @@ export const DICIONARIO: Traducoes = {
   // ─── Kanban ───
   "Apenas atrasados": { es: "Solo atrasados" },
   "Sem responsável": { es: "Sin responsable" },
+  "Responsável atual": { es: "Responsable actual" },
+  "Pessoa da equipe": { es: "Persona del equipo" },
+  "Membro da equipe": { es: "Miembro del equipo" },
+  "Responsável selecionado": { es: "Responsable seleccionado" },
   "Editar campos": { es: "Editar campos" },
   "Linha do tempo": { es: "Línea de tiempo" },
   "DADOS DO NEGÓCIO": { es: "DATOS DEL NEGOCIO" },

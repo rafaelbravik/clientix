@@ -22,6 +22,7 @@ import { requireRole } from "@/lib/auth/require-role";
 import { traduzir } from "@/lib/i18n/dicionario";
 import { createClient } from "@/lib/supabase/server";
 import { registraAtividadeDaTarefa } from "@/lib/tarefas/atividade";
+import { validarResponsavelDaTarefa } from "@/lib/tarefas/responsaveis";
 import { PRIORIDADES_DA_TAREFA, SITUACOES_DA_TAREFA, type Tarefa } from "@/lib/tarefas/tipos";
 
 export const dynamic = "force-dynamic";
@@ -68,6 +69,24 @@ export async function PATCH(req: NextRequest, ctx: Contexto): Promise<Response> 
   }
 
   const supabase = await createClient();
+
+  if (Object.hasOwn(parsed.data, "assigned_to") && parsed.data.assigned_to) {
+    const membro = await validarResponsavelDaTarefa(
+      authz.org.orgId,
+      parsed.data.assigned_to,
+      authz.user.id,
+    );
+    if (membro === "membro_inexistente") {
+      return fail("validation_failed", t("O responsável não pertence a esta organização."), 422, {
+        requestId,
+      });
+    }
+    if (membro === "indisponivel") {
+      return fail("internal_error", t("Não foi possível validar o responsável."), 503, {
+        requestId,
+      });
+    }
+  }
 
   // A situação ANTES da edição decide se esta é a vez em que a tarefa fechou.
   // Sem ler antes, marcar "concluída" duas vezes emitiria duas linhas na

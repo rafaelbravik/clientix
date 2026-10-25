@@ -125,6 +125,11 @@ function Linha({
                 })
               : t("Sem prazo")}
           </span>
+          <span className="text-muted-foreground">
+            {tarefa.assigned_to
+              ? `${t("Responsável")}: ${tarefa.assigned_to_name?.trim() || t("Membro da equipe")}`
+              : t("Sem responsável")}
+          </span>
         </div>
       </div>
 

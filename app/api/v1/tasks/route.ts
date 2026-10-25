@@ -33,6 +33,10 @@ import { requireRole } from "@/lib/auth/require-role";
 import { traduzir } from "@/lib/i18n/dicionario";
 import { createClient } from "@/lib/supabase/server";
 import { registraAtividadeDaTarefa } from "@/lib/tarefas/atividade";
+import {
+  nomesDosResponsaveisDaTarefa,
+  validarResponsavelDaTarefa,
+} from "@/lib/tarefas/responsaveis";
 import { PRIORIDADES_DA_TAREFA, SITUACOES_DA_TAREFA, type Tarefa } from "@/lib/tarefas/tipos";
 
 export const dynamic = "force-dynamic";
@@ -61,6 +65,8 @@ const listaSchema = z.object({
   due_to: z.string().datetime({ offset: true }).optional(),
   /** "abertas" = o que ainda pede ação. É o default da tela. */
   aberto: z.enum(["true", "false"]).optional(),
+  /** `me` é semântico e sempre resolvido pela sessão; UUID filtra membro da org. */
+  assigned_to: z.union([z.literal("me"), z.literal("ninguem"), z.string().uuid()]).optional(),
 });
 
 export async function GET(req: NextRequest): Promise<Response> {
@@ -78,6 +84,22 @@ export async function GET(req: NextRequest): Promise<Response> {
     });
   }
   const filtros = parsed.data;
+
+  if (filtros.assigned_to && filtros.assigned_to !== "me" && filtros.assigned_to !== "ninguem") {
+    const membro = await validarResponsavelDaTarefa(
+      authz.org.orgId,
+      filtros.assigned_to,
+      authz.user.id,
+    );
+    // ID inexistente ou de outro tenant é uma lista vazia, sem tornar a rota
+    // um oráculo sobre a equipe de outra organização.
+    if (membro === "membro_inexistente") return ok({ tasks: [] }, { requestId });
+    if (membro === "indisponivel") {
+      return fail("internal_error", t("Não foi possível validar o responsável."), 503, {
+        requestId,
+      });
+    }
+  }
 
   const supabase = await createClient();
   // ⚠️ `organization_id` à mão mesmo com RLS ligada: é a regra do CLAUDE.md, e
@@ -98,13 +120,30 @@ export async function GET(req: NextRequest): Promise<Response> {
   if (filtros.due_from) query = query.gte("due_date", filtros.due_from);
   if (filtros.due_to) query = query.lte("due_date", filtros.due_to);
   if (filtros.aberto === "true") query = query.in("status", ["pending", "in_progress"]);
+  if (filtros.assigned_to === "me") query = query.eq("assigned_to", authz.user.id);
+  else if (filtros.assigned_to === "ninguem") query = query.is("assigned_to", null);
+  else if (filtros.assigned_to) query = query.eq("assigned_to", filtros.assigned_to);
 
   const { data, error } = await query;
   if (error) {
     return fail("internal_error", t("Erro ao listar as tarefas."), 500, { requestId });
   }
 
-  return ok({ tasks: (data ?? []) as unknown as Tarefa[] }, { requestId });
+  const tasks = (data ?? []) as unknown as Tarefa[];
+  const nomes = await nomesDosResponsaveisDaTarefa(
+    authz.org.orgId,
+    tasks.map((task) => task.assigned_to),
+    { id: authz.user.id, fullName: authz.user.full_name },
+  );
+  return ok(
+    {
+      tasks: tasks.map((task) => ({
+        ...task,
+        assigned_to_name: task.assigned_to ? (nomes.get(task.assigned_to) ?? null) : null,
+      })),
+    },
+    { requestId },
+  );
 }
 
 export async function POST(req: NextRequest): Promise<Response> {
@@ -127,6 +166,24 @@ export async function POST(req: NextRequest): Promise<Response> {
   }
 
   const supabase = await createClient();
+  if (parsed.data.assigned_to) {
+    const membro = await validarResponsavelDaTarefa(
+      authz.org.orgId,
+      parsed.data.assigned_to,
+      authz.user.id,
+    );
+    if (membro === "membro_inexistente") {
+      return fail("validation_failed", t("O responsável não pertence a esta organização."), 422, {
+        requestId,
+      });
+    }
+    if (membro === "indisponivel") {
+      return fail("internal_error", t("Não foi possível validar o responsável."), 503, {
+        requestId,
+      });
+    }
+  }
+
   const { data, error } = await supabase
     .from("crm_tasks")
     .insert({

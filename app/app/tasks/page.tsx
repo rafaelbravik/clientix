@@ -26,12 +26,33 @@ export const metadata: Metadata = { title: "Tarefas" };
  * Criar e editar é `agent` — e a rota cobra de novo (`requireRole("agent")`).
  * A tela esconder o botão é cortesia, não autorização.
  */
-export default async function TarefasPage() {
+interface Props {
+  searchParams: Promise<{ assigned_to?: string | string[] }>;
+}
+
+export default async function TarefasPage({ searchParams }: Props) {
   const user = await requireAuth();
   const activeOrg = await resolveActiveOrg(user);
   if (!activeOrg) redirect("/app");
 
+  const { assigned_to: assignedToParam } = await searchParams;
+  const assignedTo = Array.isArray(assignedToParam) ? assignedToParam[0] : assignedToParam;
+  const filtroInicial =
+    assignedTo === "me" ||
+    assignedTo === "ninguem" ||
+    (assignedTo !== undefined &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(assignedTo))
+      ? assignedTo
+      : "todas";
+
   const podeEditar = (user.is_platform_admin && !user.support) || ROLE_RANK[activeOrg.role] >= ROLE_RANK.agent;
 
-  return <TarefasClient podeEditar={podeEditar} />;
+  return (
+    <TarefasClient
+      podeEditar={podeEditar}
+      organizationId={activeOrg.orgId}
+      userId={user.id}
+      filtroInicial={filtroInicial}
+    />
+  );
 }

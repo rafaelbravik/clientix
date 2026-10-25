@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useT } from "@/hooks/i18n/useT";
+import type { AssignableMember } from "@/hooks/inbox/useAssignableMembers";
 import type {
   NovaTarefa,
   PrioridadeDaTarefa,
@@ -38,7 +39,12 @@ interface Props {
   aoSalvar: (entrada: NovaTarefa) => Promise<unknown>;
   leadId?: string | null;
   contactId?: string | null;
+  podeAtribuir: boolean;
+  membros: AssignableMember[];
+  responsavelInicial?: string | null;
 }
+
+const SEM_RESPONSAVEL = "__sem_responsavel__";
 
 /**
  * ISO → os dois campos que a pessoa preenche, no fuso DELA.
@@ -65,6 +71,9 @@ export function FormularioDeTarefa({
   aoSalvar,
   leadId,
   contactId,
+  podeAtribuir,
+  membros,
+  responsavelInicial,
 }: Props) {
   const t = useT();
   const editando = Boolean(tarefa);
@@ -82,6 +91,9 @@ export function FormularioDeTarefa({
   const [hora, setHora] = useState(tarefa?.due_date ? prazo.hora : "09:00");
   const [prioridade, setPrioridade] = useState<PrioridadeDaTarefa>(tarefa?.priority ?? "medium");
   const [situacao, setSituacao] = useState<SituacaoDaTarefa>(tarefa?.status ?? "pending");
+  const [responsavel, setResponsavel] = useState(
+    tarefa?.assigned_to ?? responsavelInicial ?? SEM_RESPONSAVEL,
+  );
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -95,6 +107,7 @@ export function FormularioDeTarefa({
     // Sem dia não há hora que valha, e uma hora solta viraria "hoje às 9h" sem
     // ninguém ter pedido.
     const prazo = dia ? new Date(`${dia}T${hora || "00:00"}:00`).toISOString() : null;
+    const responsavelMudou = !tarefa || responsavel !== (tarefa.assigned_to ?? SEM_RESPONSAVEL);
 
     setSalvando(true);
     setErro(null);
@@ -105,6 +118,9 @@ export function FormularioDeTarefa({
         due_date: prazo,
         priority: prioridade,
         status: situacao,
+        ...(podeAtribuir && responsavelMudou
+          ? { assigned_to: responsavel === SEM_RESPONSAVEL ? null : responsavel }
+          : {}),
         lead_id: tarefa?.lead_id ?? leadId ?? null,
         contact_id: tarefa?.contact_id ?? contactId ?? null,
       });
@@ -147,6 +163,31 @@ export function FormularioDeTarefa({
               placeholder={t("O que você vai querer lembrar quando chegar a hora")}
             />
           </div>
+
+          {podeAtribuir ? (
+            <div className="space-y-1.5">
+              <Label htmlFor="tarefa-responsavel">{t("Responsável")}</Label>
+              <Select value={responsavel} onValueChange={setResponsavel}>
+                <SelectTrigger id="tarefa-responsavel">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={SEM_RESPONSAVEL}>{t("Sem responsável")}</SelectItem>
+                  {tarefa?.assigned_to &&
+                  !membros.some((membro) => membro.user_id === tarefa.assigned_to) ? (
+                    <SelectItem value={tarefa.assigned_to}>
+                      {tarefa.assigned_to_name?.trim() || t("Responsável atual")}
+                    </SelectItem>
+                  ) : null}
+                  {membros.map((membro, index) => (
+                    <SelectItem key={membro.user_id} value={membro.user_id}>
+                      {membro.full_name?.trim() || `${t("Pessoa da equipe")} ${index + 1}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
