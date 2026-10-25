@@ -4,17 +4,19 @@ import { useTagDeIdioma } from "@/hooks/i18n/useLocaleDeData";
 import { useRef } from "react";
 
 import { useT } from "@/hooks/i18n/useT";
-import { useActiveOrg, useUser } from "@/hooks/auth/AuthProvider";
+import { useActiveOrg, usePermission, useUser } from "@/hooks/auth/AuthProvider";
 import { ROLE_RANK } from "@/lib/auth/types";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useLeadTimeline } from "@/hooks/leads/useLeadTimeline";
 import type { Lead } from "@/lib/types/leads";
+import type { Stage } from "@/lib/kanban/types";
 import { ContatoDoNegocio } from "./ContatoDoNegocio";
 import { ConversaNoDossie } from "./ConversaNoDossie";
 import { LeadFieldsForm } from "./LeadFieldsForm";
 import { ScoreSlot } from "./ScoreSlot";
 import { LeadTimeline } from "./LeadTimeline";
 import { PropostasDoNegocio } from "./PropostasDoNegocio";
+import { EtapaNoDossie } from "./EtapaNoDossie";
 import { OwnerBadge } from "./OwnerBadge";
 import { resolveLeadOwner } from "@/lib/kanban/owner";
 import { formatValorDoNegocio, MOEDA_PADRAO } from "@/lib/money";
@@ -28,6 +30,9 @@ interface Props {
   fieldDefs?: CustomFieldDef[];
   stageName: string;
   ownerNames?: Map<string, string | null>;
+  stages?: Stage[];
+  onMudarEtapa?: (stageId: string) => void;
+  movimentoPendente?: boolean;
 }
 
 function formatValor(cents: number | null, currency: string | null): string {
@@ -57,6 +62,9 @@ export function LeadDossier({
   fieldDefs = [],
   stageName,
   ownerNames,
+  stages,
+  onMudarEtapa,
+  movimentoPendente = false,
 }: Props) {
   const tagDoIdioma = useTagDeIdioma();
   const t = useT();
@@ -69,6 +77,7 @@ export function LeadDossier({
   // esta é a primeira, no padrão já estabelecido do kanban.
   const user = useUser();
   const activeOrg = useActiveOrg();
+  const podeMoverEtapa = usePermission("pipeline.move_card");
   const podeCriarProposta =
     user.is_platform_admin || (activeOrg && ROLE_RANK[activeOrg.role] >= ROLE_RANK.manager) || false;
 
@@ -94,7 +103,16 @@ export function LeadDossier({
           <span className="font-medium tabular-nums text-text">
             {formatValor(lead.value_cents, lead.currency)}
           </span>
-          <span className="text-text-muted">{stageName}</span>
+          {podeMoverEtapa && stages?.length && onMudarEtapa ? (
+            <EtapaNoDossie
+              etapaAtualId={lead.stage_id}
+              etapas={stages}
+              aoMudar={onMudarEtapa}
+              disabled={movimentoPendente}
+            />
+          ) : (
+            <span className="text-text-muted">{stageName}</span>
+          )}
           <OwnerBadge
             ownerKind={owner.kind}
             ownerName={owner.name}

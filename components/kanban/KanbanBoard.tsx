@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { DragDropContext, type DropResult } from "@hello-pangea/dnd";
 import { useT } from "@/hooks/i18n/useT";
 import { Card } from "@/components/ui/card";
@@ -8,12 +9,13 @@ import { useBoard } from "@/hooks/kanban/useBoard";
 import { useMoveCard, type RecusaDeCampos, type RetomadaPendente } from "@/hooks/kanban/useMoveCard";
 import { useRenameStage } from "@/hooks/kanban/useRenameStage";
 import { CamposObrigatoriosDialog } from "./CamposObrigatoriosDialog";
+import { LoseLeadDialog } from "./LoseLeadDialog";
 import { useAssignableMembers } from "@/hooks/inbox/useAssignableMembers";
 import { useAtRiskLeads } from "@/hooks/leads/useAtRiskLeads";
 import { useReactivations } from "@/hooks/leads/useReactivations";
 import { midpoint } from "@/lib/kanban/fractional-indexing";
 import type { Lead } from "@/lib/types/leads";
-import type { Pipeline, Stage } from "@/lib/kanban/types";
+import type { BoardData, Pipeline, Stage } from "@/lib/kanban/types";
 import { StageColumn } from "./StageColumn";
 import { LeadDossier } from "./LeadDossier";
 import { RetomarComoNovoNegocioDialog } from "./RetomarComoNovoNegocioDialog";
@@ -91,6 +93,7 @@ export function KanbanBoard({
   podeRenomearEtapa = false,
 }: KanbanBoardProps) {
   const t = useT();
+  const queryClient = useQueryClient();
   const useExternal = stagesProp !== undefined && leadsProp !== undefined;
   const queryResult = useBoard(useExternal ? null : pipelineId);
   const renameStage = useRenameStage(pipelineId);
@@ -146,19 +149,24 @@ export function KanbanBoard({
   // o histórico de captação tinha o id e nenhum lugar para levá-lo. Uma vez
   // aberto, o estado local manda (fechar não reabre pela URL).
   const [dossieId, setDossieId] = useState<string | null>(leadInicial ?? null);
+  const [leadParaPerder, setLeadParaPerder] = useState<string | null>(null);
   const [internalSelected, setInternalSelected] = useState<Set<string>>(new Set());
   const selectedLeadIds = useMemo(
     () => (selectedIds ? new Set(selectedIds) : internalSelected),
     [selectedIds, internalSelected],
   );
 
-  const data = useExternal
-    ? {
-        pipeline: pipelineProp ?? ({} as Pipeline),
-        stages: stagesProp,
-        leads: leadsProp,
-      }
-    : queryResult.data;
+  const data = useMemo(
+    () =>
+      useExternal
+        ? {
+            pipeline: pipelineProp ?? ({} as Pipeline),
+            stages: stagesProp,
+            leads: leadsProp,
+          }
+        : queryResult.data,
+    [leadsProp, pipelineProp, queryResult.data, stagesProp, useExternal],
+  );
   const isLoading = useExternal ? false : queryResult.isLoading;
   const isError = useExternal ? false : queryResult.isError;
   const error = useExternal ? null : queryResult.error;
@@ -166,6 +174,35 @@ export function KanbanBoard({
   const leadDoDossie = dossieId
     ? (data?.leads.find((l) => l.id === dossieId) ?? null)
     : null;
+
+  const moverPeloDossie = useCallback(
+    (stageId: string) => {
+      if (!data || !leadDoDossie || leadDoDossie.stage_id === stageId) return;
+      const destino = data.stages.find((stage) => stage.id === stageId && !stage.is_archived);
+      if (!destino) return;
+      if (destino.is_lost) {
+        setLeadParaPerder(leadDoDossie.id);
+        return;
+      }
+
+      // A lista sem filtro vem do cache canônico do quadro; usar `data.leads`
+      // aqui poderia empatar com um card oculto por filtro.
+      const quadro = queryClient.getQueryData<BoardData>(["board", pipelineId]) ?? data;
+      const primeiro = quadro.leads
+        .filter((lead) => lead.stage_id === stageId && lead.id !== leadDoDossie.id)
+        .sort((a, b) => a.position_in_stage - b.position_in_stage)[0];
+      const positionInStage = midpoint(null, primeiro?.position_in_stage ?? null);
+      if (!Number.isFinite(positionInStage)) return;
+
+      moveCard.mutate({
+        leadId: leadDoDossie.id,
+        stageId,
+        positionInStage,
+        expectedUpdatedAt: leadDoDossie.updated_at,
+      });
+    },
+    [data, leadDoDossie, moveCard, pipelineId, queryClient],
+  );
 
   const grouped = useMemo(() => {
     if (!data) return null;
@@ -314,8 +351,22 @@ export function KanbanBoard({
             data.stages.find((s) => s.id === leadDoDossie.stage_id)?.name ?? "—"
           }
           ownerNames={ownerNames}
+          stages={data.stages}
+          onMudarEtapa={moverPeloDossie}
+          movimentoPendente={moveCard.isPending}
         />
       )}
+
+      {leadParaPerder ? (
+        <LoseLeadDialog
+          open
+          onOpenChange={(aberto) => {
+            if (!aberto) setLeadParaPerder(null);
+          }}
+          leadId={leadParaPerder}
+          pipelineId={pipelineId}
+        />
+      ) : null}
 
       <CamposObrigatoriosDialog
         open={recusaDeCampos !== null}
