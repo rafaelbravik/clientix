@@ -97,6 +97,8 @@ fica em `http://127.0.0.1:54323` e o WAHA em `http://127.0.0.1:3030`.
 - **Conta de email principal** — vai usar pra criar contas em vários SaaS.
 - **Cartão de crédito** 💳 — alguns serviços pedem só pra "comprovar identidade" mesmo no plano grátis (Supabase, Sentry). Se ficar dentro do free tier, **não cobram nada**.
 
+**Runtime validado para desenvolvimento:** Node 22 continua sendo a base oficial do projeto: `.nvmrc`, CI e imagens Docker usam essa major; `engines.node` declara o mínimo `>=22`. Node 24.22.1 (libuv 1.52.1) foi validado neste host Windows para os gates pesados, mas isso não o torna requisito nem runtime certificado de produção. Neste host Windows 11 build 26200, Node 24.15.0 (libuv 1.51.0) apresentou crash nativo `0xC0000409`; para esses gates, use Node 22 ou Node 24.22.1.
+
 **Como o `.env.local` funciona:**
 - Fica na **raiz do projeto**: `/seu-caminho/DeskcommCRM/.env.local`.
 - Cada linha é `NOME_DA_VARIAVEL=valor` — sem espaço antes/depois do `=`.
