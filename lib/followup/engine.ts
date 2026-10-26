@@ -58,6 +58,11 @@ const MAX_STEPS = 80;
 const CLAIM_LEASE_SECONDS = 120;
 const DEFAULT_CLAIM_LIMIT = 20;
 const MAX_ERROR_LEN = 300;
+const STATUS_EXECUTAVEIS_NO_TICK: ReadonlySet<EnrollmentStatus> = new Set([
+  "active",
+  "waiting_reply",
+  "dormente",
+]);
 
 export interface EnrollmentPatch {
   status?: EnrollmentStatus;
@@ -600,6 +605,17 @@ async function processEnrollment(
   inboundBodyOverride?: string,
 ): Promise<void> {
   const { db, clock } = deps;
+  // Defesa final para uma linha cujo estado mudou enquanto o claim era
+  // resolvido. O claim normalmente só devolve active/waiting_reply/dormente,
+  // mas um cancelamento concorrente pode vencer a escrita depois da seleção.
+  // Um estado terminal nunca pode voltar ao grafo por um snapshot antigo.
+  if (!STATUS_EXECUTAVEIS_NO_TICK.has(enrollment.status)) {
+    logger.warn("followup: enrollment reclamado fora de estado executável; ignorado", {
+      enrollmentId: enrollment.id,
+      status: enrollment.status,
+    });
+    return;
+  }
   try { await db.assertServiceBoundary?.(enrollment); await db.assertAgenda?.(enrollment); }
   catch (error) {
     if(error instanceof AgendaDeferredError){

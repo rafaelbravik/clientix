@@ -17,17 +17,38 @@ import { POST } from "./route";
 
 const ID = "11111111-1111-4111-8111-111111111111";
 
-function client(status: string) {
+function client(
+  status: string,
+  options: { claimed_until?: string | null; updateReturnsRow?: boolean } = {},
+) {
   const atualizados: Array<Record<string, unknown>> = [];
+  const filtros: Array<[string, unknown]> = [];
+  const orFilters: string[] = [];
+  let modo: "read" | "update" = "read";
   const cadeia = {
     select: () => cadeia,
-    eq: () => cadeia,
-    maybeSingle: async () => ({ data: { id: ID, status, current_node_id: "t" }, error: null }),
-    update: (patch: Record<string, unknown>) => (atualizados.push(patch), cadeia),
-    single: async () => ({ data: { id: ID, status: "cancelled" }, error: null }),
+    eq: (campo: string, valor: unknown) => (filtros.push([campo, valor]), cadeia),
+    or: (filtro: string) => (orFilters.push(filtro), cadeia),
+    maybeSingle: async () => {
+      if (modo === "read") {
+        return {
+          data: { id: ID, status, current_node_id: "t", claimed_until: options.claimed_until ?? null },
+          error: null,
+        };
+      }
+      return {
+        data: options.updateReturnsRow === false ? null : { id: ID, status: "cancelled" },
+        error: null,
+      };
+    },
+    update: (patch: Record<string, unknown>) => {
+      atualizados.push(patch);
+      modo = "update";
+      return cadeia;
+    },
     insert: async () => ({ error: null }),
   };
-  return { atualizados, c: { from: () => cadeia } };
+  return { atualizados, filtros, orFilters, c: { from: () => cadeia } };
 }
 
 beforeEach(() => {
@@ -37,22 +58,66 @@ beforeEach(() => {
 });
 
 describe("POST /api/v1/ai/followups/enrollments/:id/cancel", () => {
-  it("roteiro 'coletando' é encerrado, não recusado com 409", async () => {
-    const { atualizados, c } = client("coletando");
+  it.each(["active", "coletando", "dormente"])('cancela o enrollment %s e remove o relógio', async (status) => {
+    const { atualizados, filtros, orFilters, c } = client(status);
     deps.client.mockResolvedValue(c);
     const res = await POST(new NextRequest(`http://localhost/x/${ID}/cancel`, { method: "POST" }), {
       params: Promise.resolve({ id: ID }),
     } as never);
     expect(res.status).toBe(200);
-    expect(atualizados[0]).toMatchObject({ status: "cancelled", cancel_reason: "manual" });
+    expect(atualizados[0]).toMatchObject({
+      status: "cancelled",
+      cancel_reason: "manual",
+      next_eval_at: null,
+      claimed_until: null,
+      outcome: null,
+    });
+    expect(filtros).toContainEqual(["status", status]);
+    expect(filtros).toContainEqual(["organization_id", "org"]);
+    expect(orFilters[0]).toMatch(/^claimed_until\.is\.null,claimed_until\.lt\./);
   });
 
-  it("o que já acabou continua 409", async () => {
-    const { c } = client("completed");
+  it("mantém o contrato terminal em concluído, cancelado e morto", async () => {
+    for (const status of ["completed", "cancelled", "dead"]) {
+      const { atualizados, c } = client(status);
+      deps.client.mockResolvedValue(c);
+      const res = await POST(new NextRequest(`http://localhost/x/${ID}/cancel`, { method: "POST" }), {
+        params: Promise.resolve({ id: ID }),
+      } as never);
+      expect(res.status).toBe(409);
+      expect(atualizados).toHaveLength(0);
+    }
+  });
+
+  it("não cancela enquanto o worker mantém o lease", async () => {
+    const { atualizados, c } = client("dormente", { claimed_until: new Date(Date.now() + 60_000).toISOString() });
     deps.client.mockResolvedValue(c);
     const res = await POST(new NextRequest(`http://localhost/x/${ID}/cancel`, { method: "POST" }), {
       params: Promise.resolve({ id: ID }),
     } as never);
     expect(res.status).toBe(409);
+    expect(atualizados).toHaveLength(0);
+  });
+
+  it("recusa conflito se estado/lease muda entre leitura e escrita", async () => {
+    const { atualizados, c } = client("dormente", { updateReturnsRow: false });
+    deps.client.mockResolvedValue(c);
+    const res = await POST(new NextRequest(`http://localhost/x/${ID}/cancel`, { method: "POST" }), {
+      params: Promise.resolve({ id: ID }),
+    } as never);
+    expect(res.status).toBe(409);
+    expect(atualizados).toHaveLength(1);
+  });
+
+  it("support_readonly não pode cancelar", async () => {
+    const { atualizados, c } = client("dormente");
+    deps.client.mockResolvedValue(c);
+    deps.support.mockResolvedValue(new Response("forbidden", { status: 403 }));
+    const res = await POST(new NextRequest(`http://localhost/x/${ID}/cancel`, { method: "POST" }), {
+      params: Promise.resolve({ id: ID }),
+    } as never);
+    expect(res.status).toBe(403);
+    expect(atualizados).toHaveLength(0);
+    expect(deps.client).not.toHaveBeenCalled();
   });
 });

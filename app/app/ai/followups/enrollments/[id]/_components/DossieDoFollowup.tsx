@@ -52,7 +52,7 @@ interface Props {
 
 const PAUSAVEL = new Set(["active", "waiting_reply"]);
 /** Pausado por uma pessoa também se cancela — sem ter de retomar antes só para encerrar. */
-const CANCELAVEL = new Set(["active", "waiting_reply", "paused_handoff", "paused_manual"]);
+const CANCELAVEL = new Set(["active", "waiting_reply", "dormente", "paused_handoff", "paused_manual"]);
 
 function absoluta(iso: string | null, locale: Locale): string {
   if (!iso) return "—";

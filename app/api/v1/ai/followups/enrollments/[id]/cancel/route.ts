@@ -1,7 +1,7 @@
 import { requireSupportWrite } from "@/lib/impersonate/support";
 /**
  * POST /api/v1/ai/followups/enrollments/:id/cancel (manager+) — encerra um
- *   enrollment VIVO (active|waiting_reply|paused_handoff) manualmente pela
+ *   enrollment ainda cancelável manualmente pela
  *   fila. 409 `already_terminal` se já tiver encerrado (completed/cancelled/
  *   dead) — cancelar 2x não é erro operacional, mas também não deve reescrever
  *   o desfecho de um enrollment que já fechou por conta própria.
@@ -22,12 +22,20 @@ import { traduzir } from "@/lib/i18n/dicionario";
 export const dynamic = "force-dynamic";
 
 const UUID_RX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-// `paused_manual` (0145) é cancelável: quem pausou tem o direito de desistir sem
-// ter de retomar antes só para poder encerrar — retomar reagendaria o próximo
-// passo, e entre o retomar e o cancelar o motor poderia mandar a mensagem.
-// `coletando` (0394) é o roteiro de atendimento em andamento: quem opera pode
-// encerrá-lo pela fila — antes, a rota devolvia 409 como se já tivesse acabado.
-const LIVE_STATUSES = ["active", "waiting_reply", "paused_handoff", "paused_manual", "coletando"];
+// Esta classificação é específica do cancelamento. `dormente` (0308) não é
+// ativo para reatividade nem ocupa vaga no índice anti-empilhamento, mas segue
+// logicamente em curso e pode ser encerrado sem ser acordado. Não ampliar a
+// lista LIVE da reatividade: cada consumidor tem uma semântica própria.
+// `paused_manual` (0145) pode sair sem ser retomado, e `coletando` (0394) pode
+// ser encerrado pela fila.
+const CANCELABLE_STATUSES = [
+  "active",
+  "waiting_reply",
+  "dormente",
+  "paused_handoff",
+  "paused_manual",
+  "coletando",
+];
 
 type RouteCtx = { params: Promise<{ id: string }> };
 
@@ -49,15 +57,26 @@ export async function POST(_req: NextRequest, ctx: RouteCtx): Promise<Response> 
   const supabase = await createClient();
   const { data: existing, error: fetchErr } = await supabase
     .from("followup_enrollments")
-    .select("id, status, current_node_id")
+    .select("id, status, current_node_id, claimed_until")
     .eq("id", id)
     .eq("organization_id", activeOrg.orgId)
     .maybeSingle();
   if (fetchErr) return fail("internal_error", fetchErr.message, 500, { requestId });
   if (!existing) return fail("not_found", t("Enrollment não encontrado."), 404, { requestId });
 
-  if (!LIVE_STATUSES.includes(existing.status)) {
+  if (!(CANCELABLE_STATUSES as readonly string[]).includes(existing.status)) {
     return fail("already_terminal", t("Enrollment já está encerrado."), 409, { requestId });
+  }
+
+  const agora = new Date();
+  const agoraIso = agora.toISOString();
+  if (existing.claimed_until && Date.parse(existing.claimed_until) > agora.getTime()) {
+    return fail(
+      "state_conflict",
+      t("O automático está executando este follow-up agora. Nada foi alterado — tente de novo em alguns instantes."),
+      409,
+      { requestId },
+    );
   }
 
   const { data: updated, error: updErr } = await supabase
@@ -66,18 +85,30 @@ export async function POST(_req: NextRequest, ctx: RouteCtx): Promise<Response> 
       status: "cancelled",
       cancel_reason: "manual",
       next_eval_at: null,
+      claimed_until: null,
       outcome: null,
-      completed_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      completed_at: agoraIso,
+      updated_at: agoraIso,
     })
     .eq("id", id)
     .eq("organization_id", activeOrg.orgId)
+    // A leitura não reserva a linha. CAS de status fecha a corrida com outro
+    // operador/reactivity; a condição do lease impede sobrescrever um tick que
+    // já foi reclamado entre a leitura e este UPDATE.
+    .eq("status", existing.status)
+    .or(`claimed_until.is.null,claimed_until.lt.${agoraIso}`)
     .select("id, status, cancel_reason, updated_at")
-    .single();
-  if (updErr || !updated) {
-    return fail("internal_error", updErr?.message ?? "followup_enrollment_cancel_failed", 500, {
-      requestId,
-    });
+    .maybeSingle();
+  if (updErr) {
+    return fail("internal_error", updErr.message, 500, { requestId });
+  }
+  if (!updated) {
+    return fail(
+      "state_conflict",
+      t("Este follow-up mudou de estado ou está sendo executado. Nada foi alterado — recarregue e confira."),
+      409,
+      { requestId },
+    );
   }
 
   const { error: eventErr } = await supabase.from("followup_enrollment_events").insert({
