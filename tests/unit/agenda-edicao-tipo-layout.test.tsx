@@ -55,6 +55,7 @@ describe("edição do tipo — lembretes dinâmicos", () => {
       <TiposDeAgendamentoClient
         tiposIniciais={[TIPO]}
         pessoas={[{ id: "user-1", papel: "admin", nome: "Secretária" }]}
+        moedaDaOrg="BRL"
         podeEditar
         usuarioAtualId="user-1"
         podeConfigurarGoogle={false}
@@ -81,6 +82,7 @@ describe("edição do tipo — lembretes dinâmicos", () => {
       <TiposDeAgendamentoClient
         tiposIniciais={[TIPO]}
         pessoas={[{ id: "user-1", papel: "admin", nome: "Secretária" }]}
+        moedaDaOrg="BRL"
         podeEditar
         usuarioAtualId="user-1"
         podeConfigurarGoogle={false}

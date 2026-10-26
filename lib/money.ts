@@ -1,58 +1,101 @@
 /**
- * Conversão de valor digitado (reais) para centavos.
+ * Converte um valor digitado para o contrato monetário `_cents` do Clientix.
+ * O separador nativo vem de `Intl` e da moeda informada pelo formulário.
  *
- * A versão anterior vivia copiada em três formulários de lead e fazia
- * `reais.replace(/\./g, "").replace(",", ".")` — ou seja, tratava TODO ponto
- * como separador de milhar. Quem digitasse "249.90" (o jeito natural em
- * teclado numérico) tinha o valor gravado como R$ 24.990,00: cem vezes maior,
- * sem erro na tela, alimentando funil e relatórios com número errado.
+ * BRL mantém a entrada legada com ponto decimal (`249.90`). Para USD, vírgula
+ * é agrupamento: `1,300` significa 1.300 dólares, enquanto `1,30` é recusado
+ * por ser um agrupamento inválido e não o separador decimal da moeda. O operador
+ * deve corrigir para `1.30`; não inferimos a intenção.
  *
- * A regra aqui desambigua sem adivinhação, porque em pt-BR grupo de milhar tem
- * SEMPRE 3 dígitos:
+ * O domínio atual persiste dinheiro em centésimos (×100) em todas as superfícies
+ * que usam este parser. A moeda controla a leitura dos separadores, não muda
+ * essa escala de armazenamento.
  *
- *   "249,90"      → vírgula é decimal                       → 24990
- *   "249.90"      → ponto seguido de 2 dígitos é decimal    → 24990
- *   "1.234"       → ponto seguido de 3 dígitos é milhar     → 123400
- *   "1.234,56"    → tem vírgula: pontos são milhar          → 123456
- *   "1,234.56"    → formato en: o último separador é decimal→ 123456
- *   "1.234.567"   → todos os grupos com 3 dígitos           → 123456700
- *
- * Devolve null quando não dá para ler um número — quem chama decide a mensagem.
+ * Devolve null para entrada inválida, moeda inválida, ambiguidade ou overflow.
  */
-export function parseReaisToCents(input: string): number | null {
-  const raw = input.trim();
-  if (raw.length === 0) return null;
+export function parseReaisToCents(input: string, moeda: string): number | null {
+  const raw = input.trim().replace(/[\u00a0\u202f]/g, " ");
+  if (!raw || !/^[A-Z]{3}$/.test(moeda) || !MOEDAS_INTL_SUPORTADAS.has(moeda)) return null;
   if (!/^[\d.,\s]+$/.test(raw)) return null;
 
-  const s = raw.replace(/\s/g, "");
-  const lastComma = s.lastIndexOf(",");
-  const lastDot = s.lastIndexOf(".");
-
-  let decimalSep = "";
-  if (lastComma >= 0 && lastDot >= 0) {
-    // Os dois presentes: o que vem por último é o decimal (pt-BR ou en).
-    decimalSep = lastComma > lastDot ? "," : ".";
-  } else if (lastComma >= 0) {
-    decimalSep = ",";
-  } else if (lastDot >= 0) {
-    // Só ponto: é milhar apenas se o grupo final tiver exatamente 3 dígitos.
-    decimalSep = s.length - lastDot - 1 === 3 ? "" : ".";
+  let decimalNativo: string;
+  let grupoNativo: string;
+  try {
+    const parts = new Intl.NumberFormat(localeDaMoeda(moeda), {
+      useGrouping: true,
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    }).formatToParts(12345.6);
+    decimalNativo = parts.find((part) => part.type === "decimal")?.value ?? "";
+    grupoNativo = parts.find((part) => part.type === "group")?.value ?? "";
+  } catch {
+    return null;
   }
+  if (!decimalNativo) return null;
+  if (/\s/.test(grupoNativo)) grupoNativo = " ";
 
-  let normalized: string;
-  if (decimalSep === "") {
-    normalized = s.replace(/[.,]/g, "");
+  const s = raw;
+  const virgula = s.lastIndexOf(",");
+  const ponto = s.lastIndexOf(".");
+  const temVirgula = virgula >= 0;
+  const temPonto = ponto >= 0;
+
+  const agrupar = (inteiro: string, separador: string): string | null => {
+    if (!separador || !inteiro.includes(separador)) return null;
+    const partes = inteiro.split(separador);
+    if (!/^\d{1,3}$/.test(partes[0] ?? "")) return null;
+    if (!partes.slice(1).every((parte) => /^\d{3}$/.test(parte))) return null;
+    return partes.join("");
+  };
+
+  let inteiro: string;
+  let fracao = "";
+  if (temVirgula && temPonto) {
+    const decimal = virgula > ponto ? "," : ".";
+    const corte = Math.max(virgula, ponto);
+    const sepGrupo = decimal === "," ? "." : ",";
+    const inteiroBruto = s.slice(0, corte);
+    fracao = s.slice(corte + 1);
+    const agrupado = agrupar(inteiroBruto, sepGrupo);
+    if (!agrupado || !/^\d{1,2}$/.test(fracao)) return null;
+    inteiro = agrupado;
   } else {
-    const cut = decimalSep === "," ? lastComma : lastDot;
-    const inteiro = s.slice(0, cut).replace(/[.,]/g, "");
-    const frac = s.slice(cut + 1);
-    if (!/^\d*$/.test(frac)) return null;
-    normalized = `${inteiro || "0"}.${frac}`;
+    const separador = temVirgula ? "," : temPonto ? "." : "";
+    if (!separador) {
+      const agrupado = grupoNativo === " " ? agrupar(s, " ") : null;
+      if (agrupado) inteiro = agrupado;
+      else if (/^\d+$/.test(s)) inteiro = s;
+      else return null;
+    } else {
+      const ocorrencias = s.split(separador).length - 1;
+      if (ocorrencias > 1) {
+        const agrupado = agrupar(s, separador);
+        if (!agrupado || separador !== grupoNativo) return null;
+        inteiro = agrupado;
+      } else {
+        const [antes = "", depois = ""] = s.split(separador);
+        const inteiroSemEspacos = /^\d*$/.test(antes) ? antes : grupoNativo === " " ? agrupar(antes, " ") : null;
+        if (inteiroSemEspacos === null || !/^\d*$/.test(depois)) return null;
+        const agrupadoNativo = separador === grupoNativo ? agrupar(s, separador) : null;
+        if (agrupadoNativo) {
+          inteiro = agrupadoNativo;
+        } else if (separador === decimalNativo || (moeda === "BRL" && separador === ".")) {
+          // A vírgula BRL é nativa. O ponto BRL continua aceito por compatibilidade.
+          if (depois.length > 2) return null;
+          inteiro = inteiroSemEspacos || "0";
+          fracao = depois;
+        } else {
+          return null;
+        }
+      }
+    }
   }
 
-  const n = Number(normalized);
-  if (!Number.isFinite(n) || n < 0) return null;
-  return Math.round(n * 100);
+  const normalizado = `${inteiro || "0"}${fracao ? `.${fracao.padEnd(2, "0")}` : ".00"}`;
+  const unidades = Number(normalizado);
+  if (!Number.isFinite(unidades) || unidades < 0) return null;
+  const cents = Math.round(unidades * 100);
+  return Number.isSafeInteger(cents) ? cents : null;
 }
 
 /** Centavos → "R$ 249,90". Para eco na tela do que foi entendido. */
@@ -403,6 +446,19 @@ export function formatSomaPorMoeda(
  */
 export const MOEDAS_SERVIDAS = ["AOA", "BRL", "EUR", "MXN", "USD"] as const;
 export type MoedaServida = (typeof MOEDAS_SERVIDAS)[number];
+
+/**
+ * `Intl.NumberFormat` aceita qualquer sequência de três letras como código de
+ * moeda, mesmo sem corresponder a uma moeda conhecida (`BAD`, por exemplo).
+ * O parser precisa rejeitar esses valores em vez de aplicar o locale fallback
+ * `en-US` e interpretar separadores com uma moeda inventada. Usa o catálogo do
+ * ICU quando disponível; em runtimes antigos, mantém ao menos todo o catálogo
+ * que a própria interface oferece.
+ */
+const MOEDAS_INTL_SUPORTADAS = new Set<string>([
+  ...MOEDAS_SERVIDAS,
+  ...(typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("currency") : []),
+]);
 
 /** O que o `default` da coluna grava quando ninguém escolheu. */
 export const MOEDA_PADRAO: MoedaServida = "BRL";

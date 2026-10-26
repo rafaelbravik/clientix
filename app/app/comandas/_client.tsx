@@ -285,6 +285,7 @@ export function Comandas({
             {comanda.status === "open" && podeLancar ? (
               <FormularioDeItem
                 tipos={tipos.data ?? []}
+                moeda={moeda}
                 onIncluir={(corpo) => incluirItem.mutate(corpo)}
                 pendente={incluirItem.isPending}
               />
@@ -310,12 +311,14 @@ export function Comandas({
   );
 }
 
-function FormularioDeItem({
+export function FormularioDeItem({
   tipos,
+  moeda,
   onIncluir,
   pendente,
 }: {
   tipos: Tipo[];
+  moeda: string;
   onIncluir: (corpo: Record<string, unknown>) => void;
   pendente: boolean;
 }) {
@@ -327,7 +330,7 @@ function FormularioDeItem({
   // O preço é digitado em reais e convertido AQUI. `parseReaisToCents` devolve
   // null no que não é dinheiro, e o botão fica desabilitado — em vez de mandar
   // `NaN` para uma rota que lança venda.
-  const cents = parseReaisToCents(preco);
+  const cents = parseReaisToCents(preco, moeda);
   const podeIncluir = descricao.trim().length > 0 && cents !== null && !pendente;
 
   return (

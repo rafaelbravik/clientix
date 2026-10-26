@@ -27,7 +27,7 @@ export type Recorrencia = {
   day_of_month: number;
 };
 
-export type ContaDoCatalogo = { id: string; name: string };
+export type ContaDoCatalogo = { id: string; name: string; currency: string };
 
 export function Recorrencias({
   recorrencias,
@@ -51,7 +51,8 @@ export function Recorrencias({
   const [direcao, setDirecao] = useState<"in" | "out">("out");
   const [contaId, setContaId] = useState("");
 
-  const cents = parseReaisToCents(valor);
+  const moedaDaConta = contas.find((conta) => conta.id === contaId)?.currency ?? "BRL";
+  const cents = parseReaisToCents(valor, moedaDaConta);
   const diaNumero = Number(dia);
   const diaValido = Number.isInteger(diaNumero) && diaNumero >= 1 && diaNumero <= 31;
   const pode = nome.trim().length >= 2 && cents !== null && cents > 0 && diaValido && contaId !== "";

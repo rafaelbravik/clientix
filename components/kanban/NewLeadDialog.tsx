@@ -117,7 +117,7 @@ export function NewLeadDialog({
     const reais = values.valueReais.trim();
     let valueCents: number | null = null;
     if (reais.length > 0) {
-      valueCents = parseReaisToCents(reais);
+      valueCents = parseReaisToCents(reais, moedaDoValor);
       if (valueCents === null) {
         form.setError("valueReais", { message: t("Valor inválido") });
         return;

@@ -13,39 +13,57 @@ import {
 } from "./money";
 
 describe("parseReaisToCents", () => {
-  it("lê ponto como decimal quando o grupo final não é de milhar", () => {
+  it("mantém o ponto decimal legado em BRL", () => {
     // O defeito que originou este arquivo: "249.90" virava 2499000 centavos
     // (R$ 24.990,00) porque todo ponto era descartado como separador de milhar.
-    expect(parseReaisToCents("249.90")).toBe(24990);
-    expect(parseReaisToCents("1234.5")).toBe(123450);
-    expect(parseReaisToCents("0.99")).toBe(99);
+    expect(parseReaisToCents("249.90", "BRL")).toBe(24990);
+    expect(parseReaisToCents("1234.5", "BRL")).toBe(123450);
+    expect(parseReaisToCents("0.99", "BRL")).toBe(99);
   });
 
   it("lê vírgula como decimal (pt-BR)", () => {
-    expect(parseReaisToCents("249,90")).toBe(24990);
-    expect(parseReaisToCents("1.234,56")).toBe(123456);
-    expect(parseReaisToCents("1.234.567,89")).toBe(123456789);
+    expect(parseReaisToCents("1,30", "BRL")).toBe(130);
+    expect(parseReaisToCents("249,90", "BRL")).toBe(24990);
+    expect(parseReaisToCents("1.234,56", "BRL")).toBe(123456);
+    expect(parseReaisToCents("1.234.567,89", "BRL")).toBe(123456789);
   });
 
   it("trata ponto seguido de 3 dígitos como milhar", () => {
-    expect(parseReaisToCents("1.234")).toBe(123400);
-    expect(parseReaisToCents("1.234.567")).toBe(123456700);
+    expect(parseReaisToCents("1.300", "BRL")).toBe(130000);
+    expect(parseReaisToCents("1.234", "BRL")).toBe(123400);
+    expect(parseReaisToCents("1.234.567", "BRL")).toBe(123456700);
   });
 
   it("aceita o formato en quando o último separador é o ponto", () => {
-    expect(parseReaisToCents("1,234.56")).toBe(123456);
+    expect(parseReaisToCents("1,234.56", "BRL")).toBe(123456);
+  });
+
+  it("lê agrupamento e decimal de USD pela convenção da moeda", () => {
+    expect(parseReaisToCents("1,300", "USD")).toBe(130000);
+    expect(parseReaisToCents("1,234.56", "USD")).toBe(123456);
+    expect(parseReaisToCents("1.30", "USD")).toBe(130);
+    // Vírgula é agrupamento em USD; 1,30 é inválido/ambíguo e pede correção.
+    expect(parseReaisToCents("1,30", "USD")).toBeNull();
+  });
+
+  it("lê EUR e agrupamento repetido", () => {
+    expect(parseReaisToCents("1.234,56", "EUR")).toBe(123456);
+    expect(parseReaisToCents("1,234,567", "USD")).toBe(123456700);
+    expect(parseReaisToCents("1 234,56", "EUR")).toBe(123456);
   });
 
   it("lê número simples", () => {
-    expect(parseReaisToCents("250")).toBe(25000);
-    expect(parseReaisToCents(" 250 ")).toBe(25000);
+    expect(parseReaisToCents("250", "BRL")).toBe(25000);
+    expect(parseReaisToCents(" 250 ", "BRL")).toBe(25000);
   });
 
   it("devolve null para o que não é valor", () => {
-    expect(parseReaisToCents("")).toBeNull();
-    expect(parseReaisToCents("abc")).toBeNull();
-    expect(parseReaisToCents("R$ 10")).toBeNull();
-    expect(parseReaisToCents("-5")).toBeNull();
+    expect(parseReaisToCents("", "BRL")).toBeNull();
+    expect(parseReaisToCents("abc", "BRL")).toBeNull();
+    expect(parseReaisToCents("R$ 10", "BRL")).toBeNull();
+    expect(parseReaisToCents("-5", "BRL")).toBeNull();
+    expect(parseReaisToCents("1.00", "USD")).toBe(100);
+    expect(parseReaisToCents("1.00", "BAD")).toBeNull();
   });
 });
 

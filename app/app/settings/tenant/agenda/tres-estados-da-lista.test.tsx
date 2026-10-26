@@ -26,15 +26,15 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { TiposDeAgendamentoClient, type TipoRow } from "./_client";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }) }));
-vi.mock("@/lib/api/client", () => ({
-  apiClient: { post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
-}));
+const apiClient = vi.hoisted(() => ({ post: vi.fn(), patch: vi.fn(), delete: vi.fn() }));
+vi.mock("@/lib/api/client", () => ({ apiClient }));
 
 const TIPO: TipoRow = {
   id: "11111111-1111-4111-8111-111111111111",
@@ -68,6 +68,7 @@ function montar(props: Partial<React.ComponentProps<typeof TiposDeAgendamentoCli
     <TiposDeAgendamentoClient
       tiposIniciais={[]}
       pessoas={[]}
+      moedaDaOrg="BRL"
       podeEditar
       usuarioAtualId="22222222-2222-4222-8222-222222222222"
       podeConfigurarGoogle={false}
@@ -119,5 +120,21 @@ describe("os três estados da lista de tipos", () => {
     // O defeito original: `const [{ data: tipos }] = await Promise.all(...)`.
     expect(fonte).toMatch(/\[\s*\{[^}]*\berror:\s*erroTipos\b[^}]*\}/);
     expect(fonte).toMatch(/erroDeLeitura=\{\s*erroTipos\b/);
+  });
+
+  it("salva preço padrão com parser na moeda da organização", async () => {
+    const usuario = userEvent.setup();
+    apiClient.patch.mockResolvedValue({});
+    montar({ tiposIniciais: [{ ...TIPO, default_price_cents: null }], moedaDaOrg: "USD" });
+
+    await usuario.click(screen.getByRole("button", { name: "Editar" }));
+    const formulario = screen.getByTestId(`form-editar-${TIPO.id}`);
+    await usuario.type(screen.getByTestId(`editar-preco-${TIPO.id}`), "1,300");
+    await usuario.click(within(formulario).getByRole("button", { name: "Salvar" }));
+
+    await waitFor(() => expect(apiClient.patch).toHaveBeenCalledWith(
+      "/api/v1/agenda/tipos",
+      expect.objectContaining({ default_price_cents: 130000 }),
+    ));
   });
 });

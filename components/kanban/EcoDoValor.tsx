@@ -26,7 +26,7 @@ export function EcoDoValor<T extends FieldValues>({
   const digitado = useWatch({ control, name: "valueReais" as Path<T> }) as unknown as
     | string
     | undefined;
-  const centavos = parseReaisToCents(digitado ?? "");
+  const centavos = parseReaisToCents(digitado ?? "", moeda);
   if (centavos === null) return null;
   // `formatValorDoNegocio`, e NÃO `formatCents`: o negócio guarda o valor ×100
   // em qualquer moeda (é o que `parseReaisToCents` acabou de fazer logo acima),

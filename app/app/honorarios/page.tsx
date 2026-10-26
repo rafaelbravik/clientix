@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 
 import { requireAuth, resolveActiveOrg } from "@/lib/auth/server";
+import { moedaDaOrganizacao } from "@/lib/catalogo/moeda-da-org";
 import { ROLE_RANK } from "@/lib/auth/types";
+import { createClient } from "@/lib/supabase/server";
 import { traduzir } from "@/lib/i18n/dicionario";
 
 import { Honorarios } from "./_client";
@@ -20,6 +22,7 @@ export default async function Page() {
   const user = await requireAuth();
   const org = await resolveActiveOrg(user);
   if (!org) redirect("/app");
+  const moedaDaOrg = await moedaDaOrganizacao(await createClient(), org.orgId);
 
   const t = (texto: string) => traduzir(texto, user.idioma);
 
@@ -31,7 +34,7 @@ export default async function Page() {
           {t("O modelo de cobrança de cada caso e o calendário de parcelas.")}
         </p>
       </div>
-      <Honorarios podeGerenciar={ROLE_RANK[org.role] >= ROLE_RANK.manager} />
+      <Honorarios podeGerenciar={ROLE_RANK[org.role] >= ROLE_RANK.manager} moedaDaOrg={moedaDaOrg} />
     </div>
   );
 }

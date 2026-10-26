@@ -304,6 +304,7 @@ function LembreteDoCompromisso({ tipo }: { tipo: TipoRow }) {
 export function TiposDeAgendamentoClient({
   tiposIniciais,
   pessoas,
+  moedaDaOrg,
   podeEditar,
   usuarioAtualId,
   podeConfigurarGoogle,
@@ -315,6 +316,7 @@ export function TiposDeAgendamentoClient({
 }: {
   tiposIniciais: TipoRow[];
   pessoas: Array<{ id: string; papel: string; nome: string }>;
+  moedaDaOrg: string;
   podeEditar: boolean;
   usuarioAtualId: string;
   podeConfigurarGoogle: boolean;
@@ -693,7 +695,7 @@ export function TiposDeAgendamentoClient({
                         default_price_cents: (() => {
                           const bruto = String(dados.get("default_price_cents") ?? "").trim();
                           if (bruto === "") return null;
-                          const cents = parseReaisToCents(bruto);
+                          const cents = parseReaisToCents(bruto, moedaDaOrg);
                           return cents === null ? null : cents;
                         })(),
                         reminder_enabled: dados.get("reminder_enabled") === "on",

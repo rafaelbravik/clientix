@@ -29,7 +29,7 @@ export type Lancamento = {
   origin: string;
 };
 
-export type Conta = { id: string; name: string };
+export type Conta = { id: string; name: string; currency: string };
 
 const hoje = () => new Date().toISOString().slice(0, 10);
 
@@ -59,7 +59,8 @@ export function ListaDeLancamentos({
   // Reais digitados viram centavos aqui. `parseReaisToCents` devolve null no que
   // não é dinheiro, e o botão fica desabilitado — em vez de mandar NaN para uma
   // rota que escreve no extrato.
-  const cents = parseReaisToCents(valor);
+  const moedaDaConta = contas.find((conta) => conta.id === contaId)?.currency ?? "BRL";
+  const cents = parseReaisToCents(valor, moedaDaConta);
   const pode = podeLancar && descricao.trim().length > 0 && cents !== null && contaId !== "";
 
   return (

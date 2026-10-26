@@ -285,7 +285,7 @@ export function CatalogoFinanceiro({ podeEditar }: { podeEditar: boolean }) {
 
       <Recorrencias
         recorrencias={recorrencias.data ?? []}
-        contas={(contas.data ?? []).map((c) => ({ id: c.id, name: c.name }))}
+        contas={(contas.data ?? []).map((c) => ({ id: c.id, name: c.name, currency: c.currency }))}
         podeEditar={podeEditar}
         carregando={recorrencias.isLoading}
         onCriar={(corpo) => criar.mutate({ tipo: "recorrencias", corpo })}

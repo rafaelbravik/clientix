@@ -25,13 +25,21 @@ const orgAtiva = vi.hoisted(() => ({ atual: null as { currency?: string | null; 
 vi.mock("@/hooks/auth/AuthProvider", () => ({ useActiveOrg: () => orgAtiva.atual }));
 vi.mock("@/hooks/i18n/useT", () => ({ useT: () => (s: string) => s }));
 const api = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), patch: vi.fn() }));
+const hooks = vi.hoisted(() => ({ criarLead: vi.fn(), editarLead: vi.fn() }));
 vi.mock("@/lib/api/client", () => ({ apiClient: api }));
+vi.mock("@/hooks/kanban/useCreateLead", () => ({
+  useCreateLead: () => ({ mutateAsync: hooks.criarLead, isPending: false }),
+}));
+vi.mock("@/hooks/kanban/useUpdateLead", () => ({
+  useEditLead: () => ({ mutateAsync: hooks.editarLead, isPending: false }),
+}));
 
 import { CustomFieldsEditor } from "@/components/contacts/CustomFieldsEditor";
 import { EditContactDialog } from "@/components/contacts/EditContactDialog";
 import { NewContactDialog } from "@/components/contacts/NewContactDialog";
 import { LeadFieldsForm } from "@/components/kanban/LeadFieldsForm";
 import { NewLeadDialog } from "@/components/kanban/NewLeadDialog";
+import { EditLeadDialog } from "@/components/kanban/EditLeadDialog";
 
 const XISTAO: PerfilDoPais = {
   codigo: "XI",
@@ -131,6 +139,73 @@ describe("o valor do negócio usa a moeda certa — e o eco embaixo do campo tam
       />,
     );
     expect(screen.getByText(/Valor \(€\)/)).toBeTruthy();
+  });
+
+  it("negócio novo em USD lê agrupamento como milhar", async () => {
+    orgAtiva.atual = { currency: "USD", country: null };
+    hooks.criarLead.mockResolvedValue(undefined);
+    const usuario = userEvent.setup();
+    render(
+      <NewLeadDialog
+        open
+        onOpenChange={() => {}}
+        contactId="55555555-5555-4555-8555-555555555555"
+        pipelineId={FUNIL}
+        stages={[{ id: "44444444-4444-4444-8444-444444444444", name: "Novo" } as never]}
+      />,
+    );
+
+    await usuario.type(screen.getByLabelText("Título"), "Lead USD");
+    await usuario.type(screen.getByLabelText(/Valor \(\$\)/), "1,300");
+    await usuario.click(screen.getByRole("button", { name: "Criar lead" }));
+
+    await waitFor(() => expect(hooks.criarLead).toHaveBeenCalledWith(
+      expect.objectContaining({ value_cents: 130000 }),
+    ));
+  });
+
+  it("edição do lead preserva a moeda gravada ao interpretar USD", async () => {
+    orgAtiva.atual = { currency: "BRL", country: null };
+    hooks.editarLead.mockResolvedValue(undefined);
+    const usuario = userEvent.setup();
+    render(
+      <LeadFieldsForm
+        lead={{ ...(NEGOCIO as object), currency: "USD", value_cents: 24990 } as never}
+        pipelineId={FUNIL}
+      />,
+    );
+
+    const valor = screen.getByLabelText(/Valor \(\$\)/);
+    await usuario.clear(valor);
+    await usuario.type(valor, "1,300");
+    await usuario.click(screen.getByRole("button", { name: "Salvar" }));
+
+    await waitFor(() => expect(hooks.editarLead).toHaveBeenCalledWith(
+      expect.objectContaining({ patch: expect.objectContaining({ value_cents: 130000 }) }),
+    ));
+  });
+
+  it("diálogo de edição interpreta o valor na moeda persistida do lead", async () => {
+    orgAtiva.atual = { currency: "BRL", country: null };
+    hooks.editarLead.mockResolvedValue(undefined);
+    const usuario = userEvent.setup();
+    render(
+      <EditLeadDialog
+        open
+        onOpenChange={() => {}}
+        lead={{ ...(NEGOCIO as object), currency: "USD", value_cents: 24990 } as never}
+        pipelineId={FUNIL}
+      />,
+    );
+
+    const valor = screen.getByLabelText(/Valor \(\$\)/);
+    await usuario.clear(valor);
+    await usuario.type(valor, "1,300");
+    await usuario.click(screen.getByRole("button", { name: "Salvar" }));
+
+    await waitFor(() => expect(hooks.editarLead).toHaveBeenCalledWith(
+      expect.objectContaining({ patch: expect.objectContaining({ value_cents: 130000 }) }),
+    ));
   });
 });
 

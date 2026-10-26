@@ -33,9 +33,11 @@ type Conta = { id: string; name: string };
 export function Parcelas({
   contratoId,
   podeGerenciar,
+  moeda,
 }: {
   contratoId: string;
   podeGerenciar: boolean;
+  moeda: string;
 }) {
   const t = useT();
   const tagDoIdioma = useTagDeIdioma();
@@ -107,6 +109,7 @@ export function Parcelas({
         <FormularioDeParcela
           proximoNumero={proximoNumero}
           criando={criar.isPending}
+          moeda={moeda}
           onCriar={(corpo) => criar.mutate(corpo)}
         />
       ) : null}
@@ -140,7 +143,7 @@ export function Parcelas({
                 <td className="py-1 text-text-muted">#{p.numero}</td>
                 <td className="py-1">{new Date(p.vencimento).toLocaleDateString(tagDoIdioma)}</td>
                 <td className="py-1 text-right tabular-nums">
-                  {formatCents(p.valor_cents, "BRL")}
+                  {formatCents(p.valor_cents, moeda)}
                 </td>
                 <td className="py-1 text-right text-xs text-text-muted">
                   {p.status === "pago" ? t("pago") : t("pendente")}
@@ -167,13 +170,15 @@ export function Parcelas({
   );
 }
 
-function FormularioDeParcela({
+export function FormularioDeParcela({
   proximoNumero,
   criando,
+  moeda,
   onCriar,
 }: {
   proximoNumero: number;
   criando: boolean;
+  moeda: string;
   onCriar: (corpo: Record<string, unknown>) => void;
 }) {
   const t = useT();
@@ -181,7 +186,7 @@ function FormularioDeParcela({
   const [vencimento, setVencimento] = useState("");
   const [valor, setValor] = useState("");
 
-  const cents = parseReaisToCents(valor);
+  const cents = parseReaisToCents(valor, moeda);
   const pode = !criando && Number(numero) > 0 && vencimento !== "" && cents !== null;
 
   return (

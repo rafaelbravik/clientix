@@ -16,7 +16,7 @@ import { useT } from "@/hooks/i18n/useT";
 import { useTagDeIdioma } from "@/hooks/i18n/useLocaleDeData";
 import { apiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/types";
-import { formatCents } from "@/lib/money";
+import { formatCents, parseReaisToCents } from "@/lib/money";
 
 import { Parcelas } from "./_parcelas";
 
@@ -38,14 +38,20 @@ function rotuloDoModelo(modelo: Modelo, t: (s: string) => string): string {
   return t("Misto");
 }
 
-function resumoDoValor(c: Contrato, t: (s: string) => string): string {
+function resumoDoValor(c: Contrato, t: (s: string) => string, moeda: string): string {
   const partes: string[] = [];
-  if (c.valor_fixo_cents != null) partes.push(formatCents(c.valor_fixo_cents, "BRL"));
+  if (c.valor_fixo_cents != null) partes.push(formatCents(c.valor_fixo_cents, moeda));
   if (c.percentual_exito != null) partes.push(`${c.percentual_exito}% ${t("de êxito")}`);
   return partes.join(" + ") || "—";
 }
 
-export function Honorarios({ podeGerenciar }: { podeGerenciar: boolean }) {
+export function Honorarios({
+  podeGerenciar,
+  moedaDaOrg,
+}: {
+  podeGerenciar: boolean;
+  moedaDaOrg: string;
+}) {
   const t = useT();
   const tagDoIdioma = useTagDeIdioma();
   const qc = useQueryClient();
@@ -89,6 +95,7 @@ export function Honorarios({ podeGerenciar }: { podeGerenciar: boolean }) {
       {podeGerenciar ? (
         <FormularioDeContrato
           criando={criar.isPending}
+          moeda={moedaDaOrg}
           onCriar={(corpo) => criar.mutate(corpo)}
         />
       ) : null}
@@ -110,7 +117,7 @@ export function Honorarios({ podeGerenciar }: { podeGerenciar: boolean }) {
                   data-testid={`contrato-${c.id}`}
                 >
                   <td className="py-2">{rotuloDoModelo(c.modelo, t)}</td>
-                  <td className="py-2 tabular-nums">{resumoDoValor(c, t)}</td>
+                  <td className="py-2 tabular-nums">{resumoDoValor(c, t, moedaDaOrg)}</td>
                   <td className="py-2 text-right text-xs text-text-muted">
                     {new Date(c.created_at).toLocaleDateString(tagDoIdioma)}
                   </td>
@@ -121,16 +128,20 @@ export function Honorarios({ podeGerenciar }: { podeGerenciar: boolean }) {
         )}
       </section>
 
-      {selecionado ? <Parcelas contratoId={selecionado} podeGerenciar={podeGerenciar} /> : null}
+      {selecionado ? (
+        <Parcelas contratoId={selecionado} podeGerenciar={podeGerenciar} moeda={moedaDaOrg} />
+      ) : null}
     </div>
   );
 }
 
-function FormularioDeContrato({
+export function FormularioDeContrato({
   criando,
+  moeda,
   onCriar,
 }: {
   criando: boolean;
+  moeda: string;
   onCriar: (corpo: Record<string, unknown>) => void;
 }) {
   const t = useT();
@@ -142,7 +153,7 @@ function FormularioDeContrato({
 
   const precisaFixo = modelo === "fixo" || modelo === "misto";
   const precisaExito = modelo === "exito" || modelo === "misto";
-  const valorFixoCents = valorFixo ? Math.round(Number(valorFixo.replace(",", ".")) * 100) : null;
+  const valorFixoCents = valorFixo ? parseReaisToCents(valorFixo, moeda) : null;
   const percentualExito = percentual ? Number(percentual.replace(",", ".")) : null;
 
   const pode =

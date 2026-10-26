@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { requireAuth, resolveActiveOrg } from "@/lib/auth/server";
 import { traduzir } from "@/lib/i18n/dicionario";
 import { ROLE_RANK } from "@/lib/auth/types";
+import { moedaDaOrganizacao } from "@/lib/catalogo/moeda-da-org";
 import { createClient } from "@/lib/supabase/server";
 import { clientePelaAgendaLigado, colegasPodemMexerNaAgendaLigado } from "@/lib/schemas/settings";
 import { nomesDosAtendentes } from "@/lib/users/nome-do-atendente";
@@ -43,6 +44,7 @@ export default async function TiposDeAgendamentoPage() {
   const podeEditar = (user.is_platform_admin && !user.support) || ROLE_RANK[activeOrg.role] >= ROLE_RANK.manager;
 
   const supabase = await createClient();
+  const moedaDaOrg = await moedaDaOrganizacao(supabase, activeOrg.orgId);
   // ⚠️ O `error` NÃO é descartável, e descartá-lo já mentiu para quem opera.
   //
   // Medido em 2026-09-16: esta consulta pedia `reminder_extra_offsets_minutes`,
@@ -101,6 +103,7 @@ export default async function TiposDeAgendamentoPage() {
       </header>
       <TiposDeAgendamentoClient
         tiposIniciais={(tipos ?? []) as TipoRow[]}
+        moedaDaOrg={moedaDaOrg}
         erroDeLeitura={erroTipos ? erroTipos.message : null}
         pessoas={(pessoas ?? []).map((p) => ({
           id: String(p.user_id),

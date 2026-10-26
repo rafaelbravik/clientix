@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 /**
@@ -76,6 +77,31 @@ describe("lançamentos do período", () => {
     expect(linha).toContain("+50,00 €");
     expect(linha).not.toContain("R$");
   });
+
+  it("interpreta o lançamento na moeda da conta escolhida", async () => {
+    const onCriar = vi.fn();
+    const usuario = userEvent.setup();
+    render(
+      <ListaDeLancamentos
+        lancamentos={[]}
+        contas={[{ id: "conta-usd", name: "Conta USD", currency: "USD" }]}
+        podeLancar
+        onCriar={onCriar}
+        onPagar={vi.fn()}
+        onRemover={vi.fn()}
+      />,
+    );
+
+    await usuario.selectOptions(screen.getByTestId("lancamento-conta"), "conta-usd");
+    await usuario.type(screen.getByTestId("lancamento-descricao"), "Licença");
+    await usuario.type(screen.getByTestId("lancamento-valor"), "1,300");
+    await usuario.click(screen.getByTestId("incluir-lancamento"));
+
+    expect(onCriar).toHaveBeenCalledWith(expect.objectContaining({
+      account_id: "conta-usd",
+      amount_cents: 130000,
+    }));
+  });
 });
 
 describe("lançamentos recorrentes", () => {
@@ -104,5 +130,31 @@ describe("lançamentos recorrentes", () => {
     const linha = linhaDe("Licença anual");
     expect(linha).toContain("50,00 €");
     expect(linha).not.toContain("R$");
+  });
+
+  it("interpreta recorrência na moeda da conta escolhida", async () => {
+    const onCriar = vi.fn();
+    const usuario = userEvent.setup();
+    render(
+      <Recorrencias
+        recorrencias={[]}
+        contas={[{ id: "conta-usd", name: "Conta USD", currency: "USD" }]}
+        podeEditar
+        carregando={false}
+        onCriar={onCriar}
+        onInativar={vi.fn()}
+      />,
+    );
+
+    await usuario.type(screen.getByLabelText("Nome do lançamento"), "Licença");
+    await usuario.selectOptions(screen.getByLabelText("Conta"), "conta-usd");
+    await usuario.clear(screen.getByLabelText("Valor"));
+    await usuario.type(screen.getByLabelText("Valor"), "1,300");
+    await usuario.click(screen.getByRole("button", { name: "Adicionar" }));
+
+    expect(onCriar).toHaveBeenCalledWith(expect.objectContaining({
+      account_id: "conta-usd",
+      amount_cents: 130000,
+    }));
   });
 });
