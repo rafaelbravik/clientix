@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "generated_at": "2026-10-19T20:50:37.927Z",
-  "schema_target": "0516",
+  "generated_at": "2026-10-26T14:09:54.681Z",
+  "schema_target": "0517",
   "baseline": {
     "file": "baseline.sql",
-    "checksum": "a16c0e413cd7ec70bd5e6e02e18b82a0cfb21d63b27f32a5cd19d827fe1a323e",
-    "size_bytes": 2426489,
-    "incorporated_through_sequence": 516
+    "checksum": "f178d5301c4c834535ed37044b7c3f3994842792c4f147f4fbd3564bd60a5370",
+    "size_bytes": 2324253,
+    "incorporated_through_sequence": 517
   },
   "migrations": [
     {
@@ -3376,7 +3376,15 @@
       "slug": "atomic_installation_tenant_limit",
       "checksum": "0118b3907742ba7393b98af4d89e090f47d773ca87b06e3f7cfa4b758ec75b7f",
       "transactional": true
+    },
+    {
+      "file": "20261024153053_0517_mfa_recovery_codes_server_only.sql",
+      "version": "20261024153053",
+      "sequence": 517,
+      "slug": "mfa_recovery_codes_server_only",
+      "checksum": "97df67220d62592e15082cb70f8b1ebb79cb712555e522618e642e19329b6608",
+      "transactional": true
     }
   ],
-  "updated_at": "2026-10-21T13:18:55.000Z"
+  "updated_at": "2026-10-26T14:09:54.681Z"
 }

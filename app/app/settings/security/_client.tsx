@@ -1,5 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import {
@@ -39,6 +40,7 @@ export function SecurityClient({
   empresaExige: boolean;
 }) {
   const t = useT();
+  const router = useRouter();
   const [codes, setCodes] = useState<string[] | null>(null);
   const [isPending, startTransition] = useTransition();
   const [isSigningOut, startSignOut] = useTransition();
@@ -54,6 +56,8 @@ export function SecurityClient({
       if (r.ok) {
         setCodes(r.recovery_codes);
         toast.success(t("Novos códigos gerados."));
+      } else if (r.error === "mfa_required") {
+        router.push("/login/mfa?next=/app/settings/security");
       } else {
         toast.error(`${t("Erro:")} ${r.error}`);
       }

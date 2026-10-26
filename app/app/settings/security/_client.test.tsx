@@ -16,6 +16,9 @@ import { SecurityClient } from "./_client";
 const regenerar = vi.hoisted(() => vi.fn());
 const sair = vi.hoisted(() => vi.fn());
 const desligarMfa = vi.hoisted(() => vi.fn());
+const push = vi.hoisted(() => vi.fn());
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 
 vi.mock("@/app/actions/settings/regenerateRecoveryCodes", () => ({
   regenerateRecoveryCodes: regenerar,
@@ -36,6 +39,7 @@ const semReload = vi.fn();
 
 beforeEach(() => {
   regenerar.mockReset().mockResolvedValue({ ok: true, recovery_codes: ["a", "b"] });
+  push.mockReset();
   sair.mockReset().mockResolvedValue(undefined);
   desligarMfa.mockReset().mockResolvedValue({ ok: true });
   semReload.mockReset();
@@ -92,6 +96,20 @@ describe("Configurações › Segurança — confirmação por AlertDialog", () 
 
     await user.click(within(dialogo).getByRole("button", { name: "Confirmar" }));
     await waitFor(() => expect(regenerar).toHaveBeenCalledTimes(1));
+  });
+
+  it("mfa_required abre o challenge e retorna às configurações de segurança", async () => {
+    regenerar.mockResolvedValue({ ok: false, error: "mfa_required" });
+    const user = userEvent.setup();
+    renderTela();
+
+    await user.click(screen.getByRole("button", { name: "Regenerar códigos de recuperação" }));
+    const dialogo = await screen.findByRole("alertdialog");
+    await user.click(within(dialogo).getByRole("button", { name: "Confirmar" }));
+
+    await waitFor(() => {
+      expect(push).toHaveBeenCalledWith("/login/mfa?next=/app/settings/security");
+    });
   });
 
   it("sair de todos os dispositivos só acontece depois de confirmar dentro do diálogo", async () => {

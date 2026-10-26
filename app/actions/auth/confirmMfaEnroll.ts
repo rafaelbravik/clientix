@@ -10,7 +10,11 @@ import { generateRecoveryCodes, hashRecoveryCode } from "@/lib/auth/recovery-cod
 
 export type ConfirmMfaEnrollResult =
   | { ok: true; recovery_codes: string[] }
-  | { ok: false; error: "invalid_code" | "challenge_failed" | "verify_failed"; message?: string };
+  | {
+      ok: false;
+      error: "invalid_code" | "challenge_failed" | "verify_failed" | "service_unavailable" | "storage_failed";
+      message?: string;
+    };
 
 /**
  * Confirms a TOTP enrollment by issuing a challenge + verifying the code, then
@@ -39,6 +43,11 @@ export async function confirmMfaEnroll(
     return { ok: false, error: "invalid_code" };
   }
 
+  // Códigos de recuperação são gravados somente pelo servidor. Se a chave
+  // privilegiada não estiver configurada, não confirmamos o enrollment nem
+  // devolvemos códigos que não poderiam ser usados depois.
+  if (!isServiceRoleConfigured()) return { ok: false, error: "service_unavailable" };
+
   const { data: challenge, error: challengeErr } = await supabase.auth.mfa.challenge({
     factorId,
   });
@@ -62,17 +71,14 @@ export async function confirmMfaEnroll(
     code_hash: hashRecoveryCode(c),
   }));
 
-  // Try user-scoped first (RLS policy `recovery_codes_self` permits insert
-  // where user_id = auth.uid()). Fall back to admin if RLS rejects (e.g. AAL
-  // policy mismatch).
-  let { error: insertErr } = await supabase.from("user_recovery_codes").insert(rows);
-  if (insertErr && isServiceRoleConfigured()) {
+  // Recovery code hashes are not writable through the authenticated client.
+  // The table ACL grants this operation only to the server's service role.
+  try {
     const admin = createAdminClient();
-    const r = await admin.from("user_recovery_codes").insert(rows);
-    insertErr = r.error;
-  }
-  if (insertErr) {
-    console.error("[confirmMfaEnroll] failed to insert recovery codes:", insertErr.message);
+    const { error } = await admin.from("user_recovery_codes").insert(rows);
+    if (error) return { ok: false, error: "storage_failed" };
+  } catch {
+    return { ok: false, error: "storage_failed" };
   }
 
   await audit({

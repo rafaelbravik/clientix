@@ -72,8 +72,9 @@ describe("signed installer compatibility contract", () => {
     const workerAclMigration = schemaManifest.migrations.find((entry) => entry.sequence === 514);
     const workerTriggerAclMigration = schemaManifest.migrations.find((entry) => entry.sequence === 515);
     const tenantLimitMigration = schemaManifest.migrations.find((entry) => entry.sequence === 516);
-    expect(schemaManifest.schema_target).toBe("0516");
-    expect(schemaManifest.baseline.incorporated_through_sequence).toBe(516);
+    const recoveryCodesMigration = schemaManifest.migrations.find((entry) => entry.sequence === 517);
+    expect(schemaManifest.schema_target).toBe("0517");
+    expect(schemaManifest.baseline.incorporated_through_sequence).toBe(517);
     expect(webchatMigration).toMatchObject({
       file: "20261010120000_0511_webchat_widget_bootstrap.sql",
       version: "20261010120000",
@@ -103,6 +104,11 @@ describe("signed installer compatibility contract", () => {
       file: "20261021131855_0516_atomic_installation_tenant_limit.sql",
       version: "20261021131855",
       sequence: 516,
+    });
+    expect(recoveryCodesMigration).toMatchObject({
+      file: "20261024153053_0517_mfa_recovery_codes_server_only.sql",
+      version: "20261024153053",
+      sequence: 517,
     });
 
     const baseline510Checksum = "a".repeat(64);
@@ -149,6 +155,14 @@ describe("signed installer compatibility contract", () => {
         { version: tenantLimitMigration.version, checksum: tenantLimitMigration.checksum },
       ],
     }, schemaManifest)).toMatchObject({ valid: true, currentSchema: "0516" });
+    const migrationsThrough517 = [
+      webchatMigration, agendaAclMigration, playbookAclMigration, workerAclMigration,
+      workerTriggerAclMigration, tenantLimitMigration, recoveryCodesMigration,
+    ].map(({ version, checksum }) => ({ version, checksum }));
+    expect(deriveCurrentSchema({
+      ...trackedState,
+      applied: [...trackedState.applied, ...migrationsThrough517],
+    }, schemaManifest)).toMatchObject({ valid: true, currentSchema: "0517" });
     expect(deriveCurrentSchema({ type: "FRESH_DATABASE" }, schemaManifest)).toMatchObject({ valid: true, currentSchema: null });
     expect(deriveCurrentSchema({ type: "EXISTING_UNTRACKED_INSTALLATION" }, schemaManifest).valid).toBe(false);
     expect(deriveCurrentSchema({ type: "TRACKED_INSTALLATION", applied: [] }, schemaManifest).valid).toBe(false);
