@@ -27,6 +27,8 @@ import { traduzir } from "@/lib/i18n/dicionario";
 import { emitLeadActivity } from "@/lib/leads/activity-emitter";
 import { registraFalhaDeAtividade } from "@/lib/leads/activity-write-failure";
 import {
+  camposFileExigidos,
+  carregarCamposComAnexo,
   recusaDeCamposObrigatorios,
   recusaDeMotivoDoGanho,
   settingsDoFunil,
@@ -191,11 +193,21 @@ export async function encerraDemanda(
     supabase,
     (lead as { pipeline_id: string }).pipeline_id,
   );
+  const destinoDosCampos = { stageId: stage.id, desfecho: input.desfecho } as const;
+  let camposComAnexo: ReadonlySet<string> | undefined;
+  if (camposFileExigidos(settings, destinoDosCampos).length > 0) {
+    const anexos = await carregarCamposComAnexo(supabase, ctx.organization_id, [input.leadId]);
+    if (anexos.error) {
+      throw new ApiError(500, "internal_error", undefined, ctx.requestId, anexos.error);
+    }
+    camposComAnexo = anexos.porLead.get(input.leadId);
+  }
   const vereditoDeCampos = validaCamposExigidos({
     lead: lead as Record<string, unknown>,
     settingsDoFunil: settings,
-    destino: { stageId: stage.id, desfecho: input.desfecho },
+    destino: destinoDosCampos,
     motivoDeGanho: input.desfecho === "won" ? input.motivo ?? null : null,
+    camposComAnexo,
   });
   if (vereditoDeCampos.faltando.length > 0) {
     const recusa = recusaDeCamposObrigatorios(

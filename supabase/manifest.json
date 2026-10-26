@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "generated_at": "2026-10-26T14:09:54.681Z",
-  "schema_target": "0518",
+  "generated_at": "2026-10-26T17:21:19.144Z",
+  "schema_target": "0519",
   "baseline": {
     "file": "baseline.sql",
-    "checksum": "c8027767516d7a98ce9b17dc134d9e8cb37bc5f184a1a7dd322b547d5e01ced8",
-    "size_bytes": 2463825,
-    "incorporated_through_sequence": 518
+    "checksum": "1a940bacfeb23be0ef658c5887d19577fe43b7a50184cdeefcc90d705b3aea83",
+    "size_bytes": 2485489,
+    "incorporated_through_sequence": 519
   },
   "migrations": [
     {
@@ -3392,7 +3392,15 @@
       "slug": "whatsapp_history_import",
       "checksum": "8f03a2673a0a6af451a146f655cba5e55b87397a14b0f250cd725d45610e2b4f",
       "transactional": true
+    },
+    {
+      "file": "20261026170000_0519_crm_lead_file_attachments.sql",
+      "version": "20261026170000",
+      "sequence": 519,
+      "slug": "crm_lead_file_attachments",
+      "checksum": "86a4ed97c467ed2f01f2321b28ec51d799f42e6e11831f49214d72a88d777bd5",
+      "transactional": true
     }
   ],
-  "updated_at": "2026-10-26T14:09:54.681Z"
+  "updated_at": "2026-10-26T17:07:38.682Z"
 }

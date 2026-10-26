@@ -38,7 +38,13 @@ export interface RetomadaPendente {
 export interface RecusaDeCampos {
   /** Os argumentos originais do move — o diálogo só acrescenta o que coletou. */
   args: MoveArgs;
-  faltando: { chave: string; rotulo: string; tipo?: string; opcoes?: { value: string; label: string }[] }[];
+  faltando: {
+    chave: string;
+    rotulo: string;
+    tipo?: string;
+    multiple?: boolean;
+    opcoes?: { value: string; label: string }[];
+  }[];
 }
 
 interface OpcoesDeMove {

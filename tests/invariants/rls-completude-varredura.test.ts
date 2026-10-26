@@ -75,6 +75,7 @@ interface Excecao {
  * linhas da OUTRA organização, não uma leitura como superusuário.
  */
 const PROVA_PROPRIA: readonly Excecao[] = [
+  { tabela: "crm_lead_attachments", razao: "tests/invariants/crm-lead-file-attachments.test.ts — JWT de dois tenants prova leitura isolada; authenticated não lê metadados sensíveis nem grava; RPC de exclusão valida tenant e anexo ativo; service_role é usado apenas nos fluxos internos." },
   { tabela: "whatsapp_history_imports", razao: "tests/invariants/whatsapp-history-import-acl.test.ts — job server-only; anon/authenticated não leem status, cursor ou contagens, e só RPCs service_role alteram lease/checkpoint" },
   { tabela: "whatsapp_history_suppressed_identities", razao: "tests/invariants/whatsapp-history-import-acl.test.ts — tombstones HMAC fechados a anon/authenticated; nenhum identificador em claro é persistido" },
   { tabela: "whatsapp_history_import_blocks", razao: "tests/invariants/whatsapp-history-import-acl.test.ts — bloqueio de privacidade server-only sem leitura ou escrita PostgREST" },

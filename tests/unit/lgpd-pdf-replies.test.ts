@@ -84,6 +84,7 @@ function payload(): ExportPayload {
         resolved_at: "2030-01-03T14:00:00Z",
       },
     ],
+  lead_attachments: [],
   };
 }
 

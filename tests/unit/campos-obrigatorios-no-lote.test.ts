@@ -55,6 +55,8 @@ const CAMPOS_DO_FUNIL = {
 interface Estado {
   /** `custom_fields` de cada card do lote. */
   campos: Record<string, Record<string, unknown>>;
+  settings: unknown;
+  anexos: Array<{ lead_id: string; custom_field_key: string }>;
   rpcChamado: boolean;
 }
 
@@ -85,13 +87,13 @@ function clienteStub(estado: Estado) {
           Promise.resolve({
             data:
               tabela === "crm_pipelines"
-                ? { settings: CAMPOS_DO_FUNIL }
+                ? { settings: estado.settings }
                 : { id: PROPOSTA_ID, name: "Proposta enviada", is_lost: false, is_won: false },
             error: null,
           }),
         then: (onF: (v: unknown) => unknown, onR?: (e: unknown) => unknown) => {
-          void tabela;
-          return Promise.resolve({ data: leads, error: null }).then(onF, onR);
+          const data = tabela === "crm_lead_attachments" ? estado.anexos : leads;
+          return Promise.resolve({ data, error: null }).then(onF, onR);
         },
       };
       return b;
@@ -157,7 +159,7 @@ function pedido() {
 describe("mover o lote para uma etapa que exige campo (#1536)", () => {
   let estado: Estado;
   beforeEach(() => {
-    estado = { campos: {}, rpcChamado: false };
+    estado = { campos: {}, settings: CAMPOS_DO_FUNIL, anexos: [], rpcChamado: false };
     vi.clearAllMocks();
   });
 
@@ -203,6 +205,29 @@ describe("mover o lote para uma etapa que exige campo (#1536)", () => {
     const res = await POST(pedido());
 
     expect(res.status).toBe(200);
+    expect(estado.rpcChamado).toBe(true);
+  });
+
+  it("campo file exigido só passa com anexo ativo consultado no tenant", async () => {
+    estado.settings = {
+      fields: [
+        { key: "documentos", label: "Documentos", type: "file", multiple: true, obrigatorio_em: { etapas: [PROPOSTA_ID] } },
+      ],
+    };
+    // Um valor arbitrário em custom_fields não comprova upload.
+    estado.campos[CARD_B] = { documentos: ["id-forjado-pelo-cliente"] };
+    estado.anexos = [{ lead_id: CARD_A, custom_field_key: "documentos" }];
+    sessao(estado);
+
+    const recusada = await POST(pedido());
+    expect(recusada.status).toBe(422);
+    const corpo = (await recusada.json()) as { error?: { details?: { lead_ids?: string[] } } };
+    expect(corpo.error?.details?.lead_ids).toEqual([CARD_B]);
+    expect(estado.rpcChamado).toBe(false);
+
+    estado.anexos.push({ lead_id: CARD_B, custom_field_key: "documentos" });
+    const aceita = await POST(pedido());
+    expect(aceita.status).toBe(200);
     expect(estado.rpcChamado).toBe(true);
   });
 

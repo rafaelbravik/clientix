@@ -19,6 +19,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useT } from "@/hooks/i18n/useT";
 import { cn } from "@/lib/utils";
+import { FileUploadCustomField } from "@/components/kanban/FileUploadCustomField";
 
 export type CustomFieldType =
   | "text"
@@ -30,13 +31,15 @@ export type CustomFieldType =
   | "boolean"
   | "email"
   | "phone"
-  | "url";
+  | "url"
+  | "file";
 
 export interface CustomFieldDef {
   key: string;
   label: string;
   type: CustomFieldType;
   required?: boolean;
+  multiple?: boolean;
   options?: Array<{ value: string; label: string }>;
 }
 
@@ -45,11 +48,13 @@ interface Props {
   value: Record<string, unknown>;
   onChange: (next: Record<string, unknown>) => void;
   mode: "lead" | "contact";
+  leadId?: string;
   disabled?: boolean;
+  fileDisabled?: boolean;
   className?: string;
 }
 
-export function CustomFieldsEditor({ fields, value, onChange, disabled, className }: Props) {
+export function CustomFieldsEditor({ fields, value, onChange, mode, leadId, disabled, fileDisabled, className }: Props) {
   const t = useT();
   // O campo é do mesmo caminho do contato: o exemplo segue o país da
   // organização, e não o DDI brasileiro em duro.
@@ -70,6 +75,30 @@ export function CustomFieldsEditor({ fields, value, onChange, disabled, classNam
             {f.required && <span className="ml-1 text-error-fg">*</span>}
           </Label>
         );
+
+        if (f.type === "file") {
+          return (
+            <div key={f.key} className="md:col-span-2">
+              {mode === "lead" ? (
+                <FileUploadCustomField
+                  leadId={leadId}
+                  fieldKey={f.key}
+                  label={f.label}
+                  multiple={f.multiple}
+                  required={f.required}
+                  disabled={disabled || fileDisabled}
+                />
+              ) : (
+                <div className="space-y-2">
+                  {labelEl}
+                  <p className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
+                    {t("Anexos ficam associados ao negócio, não ao contato.")}
+                  </p>
+                </div>
+              )}
+            </div>
+          );
+        }
 
         switch (f.type) {
           case "textarea":

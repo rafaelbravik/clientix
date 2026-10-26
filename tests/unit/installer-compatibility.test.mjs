@@ -74,8 +74,8 @@ describe("signed installer compatibility contract", () => {
     const tenantLimitMigration = schemaManifest.migrations.find((entry) => entry.sequence === 516);
     const recoveryCodesMigration = schemaManifest.migrations.find((entry) => entry.sequence === 517);
     const historyImportMigration = schemaManifest.migrations.find((entry) => entry.sequence === 518);
-    expect(schemaManifest.schema_target).toBe("0518");
-    expect(schemaManifest.baseline.incorporated_through_sequence).toBe(518);
+    expect(schemaManifest.schema_target).toBe("0519");
+    expect(schemaManifest.baseline.incorporated_through_sequence).toBe(519);
     expect(webchatMigration).toMatchObject({
       file: "20261010120000_0511_webchat_widget_bootstrap.sql",
       version: "20261010120000",

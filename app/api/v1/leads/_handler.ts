@@ -26,6 +26,8 @@ import {
   recusaReabertura,
 } from "@/lib/leads/reabertura";
 import {
+  camposFileExigidos,
+  carregarCamposComAnexo,
   recusaDeCamposObrigatorios,
   recusaDeMotivoDoGanho,
   settingsDoFunil,
@@ -965,6 +967,19 @@ export async function moveLeadHandler(
   // é "mesma etapa" — quem sabe é quem lê a etapa atual ao lado do destino.
   const mesmaEtapa = stage.id === lead.stage_id;
 
+  const destinoDosCampos = {
+    stageId: stage.id,
+    desfecho: stage.is_won ? "won" as const : stage.is_lost ? "lost" as const : null,
+  };
+  const camposComAnexo = new Set<string>();
+  if (!mesmaEtapa && camposFileExigidos(settings, destinoDosCampos).length > 0) {
+    const anexos = await carregarCamposComAnexo(supabase, ctx.organization_id, [leadId]);
+    if (anexos.error) {
+      throw new ApiError(500, "internal_error", undefined, ctx.requestId, anexos.error);
+    }
+    for (const chave of anexos.porLead.get(leadId) ?? []) camposComAnexo.add(chave);
+  }
+
   // ── OS CAMPOS OBRIGATÓRIOS (issue #1536) ────────────────────────────────────
   //
   // Este handler é o escritor de etapa de TODOS os clientes que não são o board
@@ -977,11 +992,9 @@ export async function moveLeadHandler(
     : validaCamposExigidos({
         lead: lead as Record<string, unknown>,
         settingsDoFunil: settings,
-        destino: {
-          stageId: stage.id,
-          desfecho: stage.is_won ? "won" : stage.is_lost ? "lost" : null,
-        },
+        destino: destinoDosCampos,
         motivoDeGanho: input.won_reason ?? null,
+        camposComAnexo,
       });
   if (vereditoDeCampos.faltando.length > 0) {
     const recusa = recusaDeCamposObrigatorios(vereditoDeCampos.faltando, ctx.idioma);

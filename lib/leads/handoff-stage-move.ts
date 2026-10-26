@@ -6,6 +6,8 @@ import { logger } from "@/lib/logger";
 import { emitLeadActivity, stageChangeReason } from "@/lib/leads/activity-emitter";
 import { registraFalhaDeAtividade } from "@/lib/leads/activity-write-failure";
 import {
+  camposFileExigidos,
+  carregarCamposComAnexo,
   recusaDeCamposObrigatorios,
   settingsDoFunil,
   validaCamposExigidos,
@@ -161,13 +163,28 @@ export async function moverLeadParaEtapaDeHandoff(
   // não lê o retorno.
   // Fail-open de `settingsDoFunil` vale aqui como em todos os caminhos.
   const settings = await settingsDoFunil(admin, leadRow.pipeline_id);
+  const destinoDosCampos = {
+    stageId: etapaRow.id,
+    desfecho: etapaRow.is_won ? "won" as const : etapaRow.is_lost ? "lost" as const : null,
+  };
+  let camposComAnexo: ReadonlySet<string> | undefined;
+  if (camposFileExigidos(settings, destinoDosCampos).length > 0) {
+    const anexos = await carregarCamposComAnexo(admin, input.organizationId, [leadRow.id]);
+    if (anexos.error) {
+      logger.warn("[handoff-stage-move] leitura de anexos obrigatórios falhou", {
+        lead_id: leadRow.id,
+        organization_id: input.organizationId,
+        error: anexos.error,
+      });
+      return { moveu: false, motivo: "indisponivel" };
+    }
+    camposComAnexo = anexos.porLead.get(leadRow.id);
+  }
   const vereditoDeCampos = validaCamposExigidos({
     lead: leadRow as unknown as Record<string, unknown>,
     settingsDoFunil: settings,
-    destino: {
-      stageId: etapaRow.id,
-      desfecho: etapaRow.is_won ? "won" : etapaRow.is_lost ? "lost" : null,
-    },
+    destino: destinoDosCampos,
+    camposComAnexo,
   });
   if (vereditoDeCampos.faltando.length > 0) {
     const detalhe = recusaDeCamposObrigatorios(vereditoDeCampos.faltando, null).mensagem;

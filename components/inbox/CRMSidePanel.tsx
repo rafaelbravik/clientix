@@ -35,6 +35,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { rotuloDoContato } from "@/lib/contacts/rotulo-do-contato";
 import { phoneForDisplay } from "@/lib/channels/phone-variants";
+import { camposDoFunil } from "@/lib/leads/campos-do-funil";
 
 interface Props {
   conversation: ConversationWithContact | null;
@@ -728,6 +729,7 @@ export function CRMSidePanel({ conversation }: Props) {
           onOpenChange={setLeadDialogOpen}
           pipelineId={defaultPipeline.data.pipeline.id}
           stages={defaultPipeline.data.stages}
+          fieldDefs={camposDoFunil(defaultPipeline.data.pipeline.settings ?? null)}
           contactId={contactId}
           onCreated={() => {
             setLeadAtivoId(null);

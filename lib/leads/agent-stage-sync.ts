@@ -1,6 +1,8 @@
 import { observeServiceOrigin } from "@/lib/atendimento/origem";
 import type { RiskBucket } from "@/lib/leads/risk-radar";
 import {
+  camposFileExigidos,
+  carregarCamposComAnexo,
   recusaDeCamposObrigatorios,
   settingsDoFunil,
   validaCamposExigidos,
@@ -328,13 +330,23 @@ export async function sincronizaEstagioDoAgente(
     is_won?: boolean | null;
   }>;
   const etapaDeDestino = etapasCandidatas.find((s) => s.id === destino.stageId);
+  const destinoDosCampos = {
+    stageId: destino.stageId,
+    desfecho: etapaDeDestino?.is_won ? "won" as const : etapaDeDestino?.is_lost ? "lost" as const : null,
+  };
+  let camposComAnexo: ReadonlySet<string> | undefined;
+  if (camposFileExigidos(settings, destinoDosCampos).length > 0) {
+    const anexos = await carregarCamposComAnexo(admin, input.organizationId, [lead.id]);
+    if (anexos.error) {
+      return { moveu: false, motivo: "indisponivel", leadId: lead.id, detalhe: anexos.error };
+    }
+    camposComAnexo = anexos.porLead.get(lead.id);
+  }
   const vereditoDeCampos = validaCamposExigidos({
     lead: lead as unknown as Record<string, unknown>,
     settingsDoFunil: settings,
-    destino: {
-      stageId: destino.stageId,
-      desfecho: etapaDeDestino?.is_won ? "won" : etapaDeDestino?.is_lost ? "lost" : null,
-    },
+    destino: destinoDosCampos,
+    camposComAnexo,
   });
   if (vereditoDeCampos.faltando.length > 0) {
     return {

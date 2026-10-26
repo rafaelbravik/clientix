@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { RecusaDeCampos } from "@/hooks/kanban/useMoveCard";
+import { FileUploadCustomField } from "@/components/kanban/FileUploadCustomField";
 
 /**
  * O DIAGNÓGICO EM FORMULÁRIO — o outro lado do 422 `required_fields_missing`
@@ -83,11 +84,15 @@ export function CamposObrigatoriosDialog({
 }: CamposObrigatoriosDialogProps) {
   const t = useT();
   const [valores, setValores] = useState<Record<string, string>>({});
+  const [camposComArquivo, setCamposComArquivo] = useState<Record<string, boolean>>({});
 
   // Troca de recusa zera o formulário: um diálogo reaproveitado com os valores
   // do card anterior pediria ao operador para confirmar dados que não são dele.
   useEffect(() => {
-    if (open) setValores({});
+    if (open) {
+      setValores({});
+      setCamposComArquivo({});
+    }
   }, [open, recusa]);
 
   if (!recusa) return null;
@@ -95,6 +100,7 @@ export function CamposObrigatoriosDialog({
   const campos = recusa.faltando;
 
   const valido = campos.every((campo) => {
+    if (campo.tipo === "file") return camposComArquivo[campo.chave] === true;
     if (campo.tipo === "boolean") return true;
     const valor = (valores[campo.chave] ?? "").trim();
     if (valor.length === 0) return false;
@@ -115,6 +121,7 @@ export function CamposObrigatoriosDialog({
     const customFields: Record<string, unknown> = {};
     let wonReason: string | undefined;
     for (const campo of campos) {
+      if (campo.tipo === "file") continue;
       const bruto = valores[campo.chave] ?? "";
       const valor = bruto.trim();
       if (campo.tipo === "boolean") {
@@ -150,6 +157,20 @@ export function CamposObrigatoriosDialog({
           {campos.map((campo) => {
             const nome = campo.chave === "won_reason" ? t("Motivo do ganho") : campo.rotulo;
             const rotuloCampo = `${nome}${campo.tipo === "boolean" ? "" : " *"}`;
+            if (campo.tipo === "file") {
+              return (
+                <FileUploadCustomField
+                  key={campo.chave}
+                  leadId={recusa.args.leadId}
+                  fieldKey={campo.chave}
+                  label={rotuloCampo}
+                  multiple={campo.multiple}
+                  required
+                  disabled={isPending}
+                  onChange={(present) => setCamposComArquivo((current) => ({ ...current, [campo.chave]: present }))}
+                />
+              );
+            }
             if (campo.tipo === "boolean") {
               return (
                 <div key={campo.chave} className="flex items-center gap-2">

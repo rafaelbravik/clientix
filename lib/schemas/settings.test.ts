@@ -4,6 +4,7 @@ import {
   profileSchema,
   tenantSchema,
   notificationPrefsSchema,
+  customFieldSchema,
   pipelineConfigPatchSchema,
 } from "./settings";
 
@@ -149,6 +150,14 @@ describe("pipelineConfigPatchSchema", () => {
       lost_reasons: ["Concorrente", "Preço"],
     });
     expect(r.success).toBe(true);
+  });
+});
+
+describe("customFieldSchema — anexos de negócio", () => {
+  it("aceita file simples e múltiplo, mas não habilita multiple em outros tipos", () => {
+    expect(customFieldSchema.safeParse({ key: "contrato", label: "Contrato", type: "file" }).success).toBe(true);
+    expect(customFieldSchema.safeParse({ key: "fotos", label: "Fotos", type: "file", multiple: true }).success).toBe(true);
+    expect(customFieldSchema.safeParse({ key: "nome", label: "Nome", type: "text", multiple: true }).success).toBe(false);
   });
 });
 

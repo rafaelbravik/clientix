@@ -136,6 +136,11 @@ const AUTHENTICATED_PERMITIDO: readonly Excecao[] = [
     razao: "PATCH app/api/v1/settings/routing/channels/route.ts usa createClient da sessão; RPC exige manager, suporte de escrita, MFA e canal/membros da org na mesma transação. tests/invariants/channel-routing.test.ts prova viewer, tenants A/B, membro revogado, policy vazia e MFA platform aal1/aal2.",
   },
   {
+    fn: "fn_delete_crm_lead_attachment(uuid,uuid,uuid)",
+    razao:
+      "DELETE app/api/v1/leads/[id]/attachments/[attachmentId]/route.ts chama a RPC pelo client de sessão. A função revalida auth.uid(), papel agent+, support_write, acesso ao lead e a tupla organization/lead/attachment; serializa por campo, impede remover o último anexo exigido e enfileira o objeto privado para expurgo na mesma transação. tests/invariants/crm-lead-file-attachments.test.ts prova authenticated sem DELETE direto e a RPC legítima, o campo obrigatório e a purge queue.",
+  },
+  {
     fn: "fn_reserve_channel_connection(uuid,uuid,text,text,boolean)",
     razao: "lib/channels/connect-waha.ts recebe createClient das rotas channel-sessions e onboarding/whatsapp/session; RPC exige admin, suporte e MFA, cria identidade org-owned com recibo privado. tests/invariants/channel-routing.test.ts prova lease/replay/ACL do recibo e MFA platform aal1/aal2.",
   },

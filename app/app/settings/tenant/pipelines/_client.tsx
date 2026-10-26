@@ -450,7 +450,8 @@ function PipelineEditor({
               value={f.type}
               onValueChange={(type) => {
                 const next = [...fields];
-                next[i] = { ...f, type: type as CustomFieldDef["type"] };
+                const tipo = type as CustomFieldDef["type"];
+                next[i] = { ...f, type: tipo, multiple: tipo === "file" ? (f.multiple ?? false) : undefined };
                 setFields(next);
               }}
             >
@@ -502,6 +503,21 @@ function PipelineEditor({
                   setFields(next);
                 }}
               />
+            )}
+            {f.type === "file" && (
+              <label className="flex items-center gap-2 text-xs md:col-span-4">
+                <input
+                  type="checkbox"
+                  aria-label={`${t("Permitir vários arquivos")} — ${f.label || i + 1}`}
+                  checked={f.multiple === true}
+                  onChange={(event) => {
+                    const next = [...fields];
+                    next[i] = { ...f, multiple: event.target.checked };
+                    setFields(next);
+                  }}
+                />
+                {t("Permitir vários arquivos (até 10)")}
+              </label>
             )}
             {/* ── QUANDO ESTE CAMPO OBRIGA (issue #1536) ────────────────────
                 O `obrigatorio_em` nasceu no schema sem nenhuma tela: quem

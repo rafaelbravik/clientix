@@ -53,7 +53,8 @@ let respostasRpc: Array<{ vencidas?: number; orfas?: number; expurgadas?: number
 let chamadasRpc = 0;
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
-    rpc: async () => {
+    rpc: async (name: string) => {
+      if (name === "fn_enqueue_orphan_crm_lead_attachments") return { data: { orfas: 0 }, error: null };
       const r = respostasRpc[Math.min(chamadasRpc, respostasRpc.length - 1)] ?? {};
       chamadasRpc += 1;
       return { data: r, error: null };

@@ -26,8 +26,10 @@ import {
 import { RECUSA_DE_TROCA_DE_FUNIL } from "@/lib/leads/clonar-para-funil";
 import { modoDeReabertura, recusaReabertura } from "@/lib/leads/reabertura";
 import {
+  camposFileExigidos,
   recusaDeCamposObrigatorios,
   recusaDeMotivoDoGanho,
+  carregarCamposComAnexo,
   settingsDoFunil,
   validaCamposExigidos,
 } from "@/lib/leads/campos-exigidos";
@@ -155,17 +157,24 @@ export async function POST(
   // mesma razão da perda abaixo — depois dele só existiria a linha recusada.
   // `details.faltando` nomeia chave e rótulo de cada campo: é ele que a tela
   // vira em diálogo (o único caminho onde dá para PREENCHER e tentar de novo).
+  const destinoDosCampos = {
+    stageId: stage.id,
+    desfecho: stage.is_won ? "won" as const : stage.is_lost ? "lost" as const : null,
+  };
+  const precisaAnexos = !mesmaEtapa && camposFileExigidos(settings, destinoDosCampos).length > 0;
+  const anexos = precisaAnexos
+    ? await carregarCamposComAnexo(supabase, authz.org.orgId, [leadId])
+    : { porLead: new Map<string, Set<string>>(), error: null };
+  if (anexos.error) return fail("internal_error", "Não foi possível validar os anexos obrigatórios.", 500, { requestId });
   const vereditoDeCampos = mesmaEtapa
     ? { faltando: [] }
     : validaCamposExigidos({
         lead: lead as Record<string, unknown>,
         settingsDoFunil: settings,
-        destino: {
-          stageId: stage.id,
-          desfecho: stage.is_won ? "won" : stage.is_lost ? "lost" : null,
-        },
+        destino: destinoDosCampos,
         motivoDeGanho: input.won_reason ?? null,
         customFieldsPropostos: input.custom_fields ?? null,
+        camposComAnexo: anexos.porLead.get(leadId),
       });
   if (vereditoDeCampos.faltando.length > 0) {
     const recusa = recusaDeCamposObrigatorios(vereditoDeCampos.faltando, user.idioma);

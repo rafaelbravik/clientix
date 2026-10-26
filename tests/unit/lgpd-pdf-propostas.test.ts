@@ -29,6 +29,7 @@ function payload(proposals: ProposalRow[] | undefined): ExportPayload {
     audit_log_extract: [], meeting_deliveries: [], voice_calls: [], prospecting_candidates: [], cases: [],
     case_events: [], case_chat_messages: [], checkpoints: [], passagens: [], avisos_de_caso: [], demandas: [],
     campaign_recipients: [], campaign_suppressions: [], appointment_notices: [],
+    lead_attachments: [],
     channel_session_groups: [], group_messages_authored: [],
   } as unknown as ExportPayload;
 }

@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Anexos privados em campos file do CRM",
+    "subtitle": "upload autenticado, metadata tenant-scoped e expurgo LGPD",
+    "quality_profile": "standard"
+  },
+  "lanes": [
+    { "id": "ui", "label": "CRM" },
+    { "id": "api", "label": "API autenticada" },
+    { "id": "database", "label": "Postgres" },
+    { "id": "storage", "label": "Storage privado" },
+    { "id": "retention", "label": "Retenção e LGPD" }
+  ],
+  "mainPath": [
+    "lead-form",
+    "attachment-api",
+    "validate",
+    "private-object",
+    "metadata-row",
+    "media-proxy",
+    "lead-dossier"
+  ],
+  "nodes": [
+    { "id": "lead-form", "lane": "ui", "col": 1, "type": "frontend", "label": "Campo file do negócio", "sublabel": "limite, MIME e quantidade visíveis; sem path interno" },
+    { "id": "attachment-api", "lane": "api", "col": 2, "type": "backend", "label": "API de anexos", "sublabel": "auth, role, support-write e tenant resolvidos no servidor" },
+    { "id": "validate", "lane": "api", "col": 3, "type": "security", "label": "Validação de conteúdo", "sublabel": "tamanho + MIME + extensão + magic bytes; URL arbitrária recusada" },
+    { "id": "private-object", "lane": "storage", "col": 4, "type": "database", "label": "internal-media privado", "sublabel": "org/lead/attachment UUID path, sem URL pública permanente" },
+    { "id": "metadata-row", "lane": "database", "col": 5, "type": "database", "label": "crm_lead_attachments", "sublabel": "FK composta tenant/lead, RLS e grants mínimos" },
+    { "id": "media-proxy", "lane": "api", "col": 6, "type": "security", "label": "Proxy autenticado", "sublabel": "revalida usuário, organização, lead e attachment antes de baixar" },
+    { "id": "lead-dossier", "lane": "ui", "col": 7, "type": "frontend", "label": "Dossiê do negócio", "sublabel": "preview, download e remoção via API" },
+    { "id": "required-stage", "lane": "database", "col": 8, "type": "security", "label": "Campo file obrigatório", "sublabel": "regra canônica da aplicação e trigger bloqueiam movimento sem anexo" },
+    { "id": "purge", "lane": "retention", "col": 9, "type": "backend", "label": "Fila LGPD e retenção", "sublabel": "exclusão/anonymização enfileira purge; anexos ativos ficam fora da poda" },
+    { "id": "audit", "lane": "database", "col": 9, "type": "messagebus", "label": "Audit", "sublabel": "upload/removal e sweep sem conteúdo nem URL assinada" }
+  ],
+  "edges": [
+    { "from": "lead-form", "to": "attachment-api", "label": "arquivo e chave do campo" },
+    { "from": "attachment-api", "to": "validate", "label": "lead e campo conferidos no tenant ativo" },
+    { "from": "validate", "to": "private-object", "label": "bytes validados, path criado no servidor" },
+    { "from": "private-object", "to": "metadata-row", "label": "trigger confirma objeto e configuração do campo" },
+    { "from": "metadata-row", "to": "media-proxy", "label": "sessão vê apenas metadata permitida" },
+    { "from": "media-proxy", "to": "private-object", "label": "download interno após revalidar posse" },
+    { "from": "media-proxy", "to": "lead-dossier", "label": "stream privado, nosniff e no-store" },
+    { "from": "metadata-row", "to": "required-stage", "label": "anexo persistido satisfaz campo obrigatório" },
+    { "from": "metadata-row", "to": "purge", "label": "exclusão LGPD e objeto órfão antigo" },
+    { "from": "attachment-api", "to": "audit", "label": "ator, lead, tamanho e MIME" },
+    { "from": "purge", "to": "audit", "label": "contagem sanitizada do expurgo" }
+  ],
+  "cards": [
+    {
+      "title": "Limite de arquivo",
+      "body": "Cada anexo aceita até 5 MiB; o campo aceita um arquivo por padrão ou até 10 quando configurado como múltiplo. Tipos aceitos: PDF, PNG, JPEG e WebP; extensão, MIME declarado e assinatura binária precisam concordar."
+    },
+    {
+      "title": "Isolamento e acesso",
+      "body": "A organização vem da sessão autenticada. O banco vincula organização e lead por FK composta, aplica RLS e não dá escrita direta a authenticated. Respostas HTTP nunca incluem storage_path ou URL pública; download passa pelo proxy que revalida tenant, lead e anexo."
+    },
+    {
+      "title": "Etapas obrigatórias e LGPD",
+      "body": "Campos file exigidos são verificados pela regra canônica antes do movimento e por trigger no banco. A remoção do último anexo exigido é bloqueada. Anonimização/exclusão enfileira a remoção do objeto; a varredura de órfãos não remove anexos com metadata ativa."
+    },
+    {
+      "title": "Privacidade de conteúdo",
+      "body": "O arquivo não é enviado à IA. Auditoria e exportação LGPD carregam somente metadata necessária; bytes, URL assinada e path interno não entram no audit nem no export."
+    }
+  ]
+}

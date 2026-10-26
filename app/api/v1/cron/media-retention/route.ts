@@ -53,7 +53,7 @@ export async function GET(req: NextRequest): Promise<Response> {
   // `vencidas + orfas = 0` e não auditava (#1765). `tandas` continua o que era:
   // quantas chamadas a função recebeu, para saber se a rodada esbarrou no
   // teto e sobrou trabalho para a próxima.
-  const total = { vencidas: 0, orfas: 0, expurgadas: 0, tandas: 0 };
+  const total = { vencidas: 0, orfas: 0, anexos_orfaos: 0, expurgadas: 0, tandas: 0 };
   for (let i = 0; i < MAX_TANDAS; i++) {
     const { data, error } = await admin.rpc("fn_enfileirar_midia_vencida" as never, { p_limite: TANDA } as never);
     if (error) {
@@ -86,7 +86,30 @@ export async function GET(req: NextRequest): Promise<Response> {
     if (vencidas < TANDA && orfas < TANDA) break;
   }
 
-  if (total.vencidas + total.orfas + total.expurgadas > 0) {
+  // Anexo de negócio é permanente enquanto houver metadata ativa. Este RPC
+  // só enfileira objetos do prefixo lead-attachments com mais de um dia e sem
+  // metadata ativa; não entra no varredor de mídia temporária.
+  const { data: anexosOrfaos, error: erroAnexosOrfaos } = await admin.rpc(
+    "fn_enqueue_orphan_crm_lead_attachments",
+    { p_limit: TANDA } as never,
+  );
+  if (erroAnexosOrfaos) {
+    logger.error("[media-retention] a varredura de anexos órfãos falhou", {
+      request_id: requestId,
+      error: erroAnexosOrfaos.message,
+    });
+    void audit({
+      action: "retention.sweep_run",
+      organizationId: null,
+      bypassedRls: true,
+      metadata: { origem: "media-retention", falhou: true, erro: erroAnexosOrfaos.message.slice(0, 300), ...total },
+      requestId,
+    });
+    return fail("internal_error", "media_retention_failed", 500, { requestId });
+  }
+  total.anexos_orfaos = Number((anexosOrfaos as { orfas?: number } | null)?.orfas ?? 0);
+
+  if (total.vencidas + total.orfas + total.anexos_orfaos + total.expurgadas > 0) {
     logger.info("[media-retention] arquivos enfileirados para remoção", { request_id: requestId, ...total });
     void audit({
       action: "retention.sweep_run",

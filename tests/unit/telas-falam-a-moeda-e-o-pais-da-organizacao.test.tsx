@@ -22,7 +22,11 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { PERFIS_DO_PAIS, type PerfilDoPais } from "@/lib/legal/perfil-do-pais";
 
 const orgAtiva = vi.hoisted(() => ({ atual: null as { currency?: string | null; country?: string | null } | null }));
-vi.mock("@/hooks/auth/AuthProvider", () => ({ useActiveOrg: () => orgAtiva.atual }));
+vi.mock("@/hooks/auth/AuthProvider", () => ({
+  useActiveOrg: () => orgAtiva.atual,
+  usePermission: () => true,
+  useUser: () => ({ support: null }),
+}));
 vi.mock("@/hooks/i18n/useT", () => ({ useT: () => (s: string) => s }));
 const api = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), patch: vi.fn() }));
 const hooks = vi.hoisted(() => ({ criarLead: vi.fn(), editarLead: vi.fn() }));

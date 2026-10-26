@@ -28,7 +28,9 @@ import {
   recusaReabertura,
 } from "@/lib/leads/reabertura";
 import {
+  camposFileExigidos,
   recusaDeCamposObrigatorios,
+  carregarCamposComAnexo,
   settingsDoFunil,
   validaCamposExigidos,
 } from "@/lib/leads/campos-exigidos";
@@ -252,20 +254,32 @@ export async function POST(req: NextRequest): Promise<Response> {
       // montado acima), nunca a do primeiro da lista.
       const leadIdsSemCampos: string[] = [];
       const faltandoPorCard: Record<string, { chave: string; rotulo: string }[]> = {};
+      const destinoDosCampos = {
+        stageId: etapaDeDestino.id,
+        desfecho: etapaDeDestino.is_won
+          ? "won" as const
+          : etapaDeDestino.is_lost
+            ? "lost" as const
+            : null,
+      };
+      const precisaAnexos = visible.some((linha) =>
+        camposFileExigidos(
+          settingsPorFunil.get(linha.pipeline_id ?? "") ?? null,
+          destinoDosCampos,
+        ).length > 0,
+      );
+      const anexos = precisaAnexos
+        ? await carregarCamposComAnexo(supabase, organizationId, visibleIds)
+        : { porLead: new Map<string, Set<string>>(), error: null };
+      if (anexos.error) return fail("internal_error", "Não foi possível validar os anexos obrigatórios.", 500, { requestId });
       for (const linha of visible) {
         const funilId = (linha as { pipeline_id?: string | null }).pipeline_id ?? null;
         const veredito = validaCamposExigidos({
           lead: linha as unknown as Record<string, unknown>,
           settingsDoFunil: settingsPorFunil.get(funilId ?? "") ?? null,
-          destino: {
-            stageId: etapaDeDestino.id,
-            desfecho: etapaDeDestino.is_won
-              ? "won"
-              : etapaDeDestino.is_lost
-                ? "lost"
-                : null,
-          },
+          destino: destinoDosCampos,
           motivoDeGanho: (linha as { won_reason?: string | null }).won_reason ?? null,
+          camposComAnexo: anexos.porLead.get(linha.id),
         });
         if (veredito.faltando.length > 0) {
           leadIdsSemCampos.push(linha.id);

@@ -29,6 +29,7 @@ import { Plus } from "@/lib/ui/icons";
 import type { LeadFilters } from "@/lib/kanban/filters";
 import { applyFilters, filtersFromParams, filtersToParams } from "@/lib/kanban/filters";
 import { categoriaDoMotivo } from "@/lib/leads/motivos-de-perda-do-funil";
+import { camposDoFunil } from "@/lib/leads/campos-do-funil";
 import { ROLE_RANK, type Role } from "@/lib/auth/types";
 
 export function PipelinePageClient({
@@ -127,6 +128,7 @@ export function PipelinePageClient({
           onOpenChange={setNewOpen}
           pipelineId={pipelineId}
           stages={data.stages}
+          fieldDefs={camposDoFunil(data.pipeline.settings ?? null)}
         />
       )}
       <FilterBar

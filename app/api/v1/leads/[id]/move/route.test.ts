@@ -40,8 +40,14 @@ function bancoFalso(
   stageExtra: Record<string, unknown> = {},
   /** `status` do lead (issue #1538); o padrão é aberto. */
   statusDoLead = "open",
+  anexosExistentes: Array<{ lead_id: string; custom_field_key: string }> = [],
 ) {
-  const banco = { updatedAt: CARREGADO, stageId: STAGE_A, ultimoPatch: null as Record<string, unknown> | null };
+  const banco = {
+    updatedAt: CARREGADO,
+    stageId: STAGE_A,
+    ultimoPatch: null as Record<string, unknown> | null,
+    anexosExistentes,
+  };
   vi.mocked(emitLeadActivity).mockImplementation(async () => {
     banco.updatedAt = DEPOIS_DA_ATIVIDADE;
     return { ok: true } as never;
@@ -86,6 +92,14 @@ function bancoFalso(
           },
           error: null,
         }),
+      };
+      return chain;
+    }
+    if (tabela === "crm_lead_attachments") {
+      const chain = {
+        select: () => chain,
+        eq: () => chain,
+        in: async () => ({ data: banco.anexosExistentes, error: null }),
       };
       return chain;
     }
@@ -232,6 +246,50 @@ describe("POST /api/v1/leads/[id]/move", () => {
       { params: Promise.resolve({ id: LEAD_ID }) },
     );
     expect(response.status).toBe(200);
+  });
+
+  it("campo file obrigatório exige anexo persistido, não um ID fornecido pelo cliente", async () => {
+    const campoArquivoExigido = {
+      fields: [
+        {
+          key: "documentos",
+          label: "Documentos",
+          type: "file",
+          multiple: true,
+          obrigatorio_em: { etapas: [STAGE_B] },
+        },
+      ],
+    };
+    const semAnexo = bancoFalso(campoArquivoExigido);
+    vi.mocked(createClient).mockResolvedValue(semAnexo as never);
+    const { POST } = await import("./route");
+
+    const recusada = await POST(
+      request({ stage_id: STAGE_B, position_in_stage: 1500, expected_updated_at: CARREGADO }),
+      { params: Promise.resolve({ id: LEAD_ID }) },
+    );
+
+    expect(recusada.status).toBe(422);
+    expect(semAnexo.banco.stageId).toBe(STAGE_A);
+    expect(semAnexo.banco.ultimoPatch).toBeNull();
+    const corpoRecusado = (await recusada.json()) as {
+      error?: { details?: { faltando?: Array<{ chave: string; tipo?: string }> } };
+    };
+    expect(corpoRecusado.error?.details?.faltando).toEqual([
+      { chave: "documentos", rotulo: "Documentos", tipo: "file", multiple: true },
+    ]);
+
+    const comAnexo = bancoFalso(campoArquivoExigido, {}, "open", [
+      { lead_id: LEAD_ID, custom_field_key: "documentos" },
+    ]);
+    vi.mocked(createClient).mockResolvedValue(comAnexo as never);
+    const aceita = await POST(
+      request({ stage_id: STAGE_B, position_in_stage: 1500, expected_updated_at: CARREGADO }),
+      { params: Promise.resolve({ id: LEAD_ID }) },
+    );
+
+    expect(aceita.status).toBe(200);
+    expect(comAnexo.banco.stageId).toBe(STAGE_B);
   });
 
   // ── A MESMA ETAPA PASSA (CR do mantenedor) ──────────────────────────────────

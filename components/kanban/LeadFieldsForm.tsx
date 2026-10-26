@@ -1,6 +1,6 @@
 "use client";
 
-import { useActiveOrg } from "@/hooks/auth/AuthProvider";
+import { useActiveOrg, usePermission, useUser } from "@/hooks/auth/AuthProvider";
 import { useT } from "@/hooks/i18n/useT";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -16,6 +16,7 @@ import { updateLeadSchema, type UpdateLeadInput } from "@/lib/schemas/leads";
 import { MOEDA_PADRAO, parseReaisToCents, simboloDaMoeda } from "@/lib/money";
 import { CustomFieldsEditor, type CustomFieldDef } from "@/components/contacts/CustomFieldsEditor";
 import { EcoDoValor } from "./EcoDoValor";
+import { isSupportReadonly } from "@/lib/auth/support-readonly-provider";
 
 interface FormShape {
   title: string;
@@ -52,6 +53,8 @@ function centsToReais(cents: number | null | undefined): string {
 export function LeadFieldsForm({ lead, pipelineId, fieldDefs = [], onSaved, onCancel }: Props) {
   const t = useT();
   const org = useActiveOrg();
+  const user = useUser();
+  const podeAlterarAnexos = usePermission("pipeline.move_card") && !isSupportReadonly(user.support);
   // A moeda do negócio JÁ GRAVADO vence: trocar a moeda da empresa não
   // reescreve o que nasceu antes, e o cartão e o dossiê mostram a persistida.
   const moedaDoValor = lead.currency ?? org?.currency ?? MOEDA_PADRAO;
@@ -181,6 +184,8 @@ export function LeadFieldsForm({ lead, pipelineId, fieldDefs = [], onSaved, onCa
               value={customFields}
               onChange={setCustomFields}
               mode="lead"
+              leadId={lead.id}
+              fileDisabled={!podeAlterarAnexos}
             />
           </div>
         )}

@@ -88,6 +88,7 @@ function payload(patch: Partial<ExportPayload> = {}): ExportPayload {
     channel_session_groups: [],
     group_messages_authored: [],
   appointment_notices: [],
+  lead_attachments: [],
     ...patch,
   };
 }

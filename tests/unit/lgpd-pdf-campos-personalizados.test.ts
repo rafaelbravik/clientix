@@ -90,6 +90,7 @@ function payload(): ExportPayload {
         resolved_at: "2030-01-03T14:00:00Z",
       },
     ],
+    lead_attachments: [],
   };
 }
 
@@ -164,4 +165,33 @@ it("o PDF lista as respostas pelo rótulo da pergunta, e o CPF só na linha do d
   ])
     expect(pdf.text).toContain(valor);
   for (const valor of ["modelo_interesse", "cidade_natal", "52998224725", "Seu CPF"]) expect(pdf.text).not.toContain(valor);
+});
+
+it("o PDF lista metadados dos anexos sem exportar caminho interno ou URL", async () => {
+  const data = payload();
+  data.leads = [{
+    id: "lead-1",
+    pipeline_id: "pipeline-1",
+    stage_id: "stage-1",
+    title: "Proposta teste",
+    status: "open",
+    value_cents: null,
+    currency: "BRL",
+    created_at: "2030-01-02T13:05:00Z",
+  }];
+  data.lead_attachments = [{
+    id: "attachment-1",
+    lead_id: "lead-1",
+    custom_field_key: "documentos",
+    filename: "proposta-privada.pdf",
+    mime_type: "application/pdf",
+    size_bytes: 321,
+    created_at: "2030-01-02T13:05:00Z",
+  }];
+  const pdf = await rendered(data);
+  expect(pdf.text).toContain("Arquivos associados aos negócios");
+  expect(pdf.text).toContain("proposta-privada.pdf");
+  expect(pdf.text).toContain("application/pdf");
+  expect(pdf.text).not.toContain("storage_path");
+  expect(pdf.text).not.toContain("/api/v1/leads/");
 });

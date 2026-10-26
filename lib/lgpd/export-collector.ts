@@ -88,6 +88,17 @@ export interface LeadRow {
   created_at: string;
 }
 
+/** Metadados do arquivo ligado ao negócio; o blob e o caminho privado nunca são exportados. */
+export interface LeadAttachmentRow {
+  id: string;
+  lead_id: string;
+  custom_field_key: string;
+  filename: string;
+  mime_type: string;
+  size_bytes: number;
+  created_at: string;
+}
+
 export interface OrderRow {
   id: string;
   external_id: string | null;
@@ -552,6 +563,7 @@ export interface ExportPayload {
   messages_count_total: number;
   messages_recent: MessageRow[];
   leads: LeadRow[];
+  lead_attachments: LeadAttachmentRow[];
   /**
    * Módulo opcional de honorários (advocacia, ADR-0002). Vazio nas instalações
    * que não o instalaram, ou quando o titular não tem contrato — nunca ausente:
@@ -1112,6 +1124,37 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
     } else if (data) {
       leads = data;
     }
+  }
+
+  // Anexos dos negócios do titular. Só metadados necessários para o titular
+  // reconhecer o arquivo: sem bytes, Storage path ou URL de acesso.
+  let lead_attachments: LeadAttachmentRow[] = [];
+  if (leads.length > 0) {
+    const { data, error } = await admin
+      .from("crm_lead_attachments")
+      .select("id, lead_id, custom_field_key, safe_filename, mime_type, size_bytes, created_at")
+      .eq("organization_id", organizationId)
+      .in("lead_id", leads.map((lead) => lead.id));
+    if (error) {
+      throw new Error(`crm_lead_attachments_load_failed: ${error.message}`);
+    }
+    lead_attachments = ((data ?? []) as unknown as Array<{
+      id: string;
+      lead_id: string;
+      custom_field_key: string;
+      safe_filename: string;
+      mime_type: string;
+      size_bytes: number;
+      created_at: string;
+    }>).map((row) => ({
+      id: row.id,
+      lead_id: row.lead_id,
+      custom_field_key: row.custom_field_key,
+      filename: row.safe_filename,
+      mime_type: row.mime_type,
+      size_bytes: Number(row.size_bytes),
+      created_at: row.created_at,
+    }));
   }
 
   // Honorários — módulo opcional (ADR-0002/D8). Deriva dos ids de `leads` já
@@ -2029,6 +2072,7 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
     messages_count_total,
     messages_recent,
     leads,
+    lead_attachments,
     honorarios_contratos,
     honorarios_parcelas,
     orders,
@@ -2086,6 +2130,7 @@ function emptyPayload(
     messages_count_total: 0,
     messages_recent: [],
     leads: [],
+    lead_attachments: [],
     honorarios_contratos: [],
     honorarios_parcelas: [],
     orders: [],

@@ -334,6 +334,24 @@ export function LgpdExportPdf({ data, unsignedWarning }: Props): React.ReactElem
           </View>
         ) : null}
 
+        {/* Dados sobre os arquivos do lead; nunca incluir bytes, caminho ou URL. */}
+        {data.lead_attachments.length > 0 ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Arquivos associados aos negócios</Text>
+            {data.lead_attachments.map((attachment) => {
+              const lead = data.leads.find((item) => item.id === attachment.lead_id);
+              return (
+                <View key={attachment.id} style={styles.itemBlock}>
+                  <Text>{lead?.title ?? "Negócio sem título"} · {attachment.filename}</Text>
+                  <Text style={styles.small}>
+                    {attachment.mime_type} · {attachment.size_bytes} bytes · {fmtDate(attachment.created_at)}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        ) : null}
+
         {/* Orders */}
         {data.orders.length > 0 ? (
           <View style={styles.section}>

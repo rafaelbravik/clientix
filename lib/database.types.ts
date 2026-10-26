@@ -4921,6 +4921,69 @@ export type Database = {
           },
         ]
       }
+      crm_lead_attachments: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          custom_field_key: string
+          id: string
+          lead_id: string
+          mime_type: string
+          multiple: boolean
+          organization_id: string
+          original_filename: string
+          safe_filename: string
+          size_bytes: number
+          storage_bucket: string
+          storage_path: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          custom_field_key: string
+          id?: string
+          lead_id: string
+          mime_type: string
+          multiple?: boolean
+          organization_id: string
+          original_filename: string
+          safe_filename: string
+          size_bytes: number
+          storage_bucket?: string
+          storage_path: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          custom_field_key?: string
+          id?: string
+          lead_id?: string
+          mime_type?: string
+          multiple?: boolean
+          organization_id?: string
+          original_filename?: string
+          safe_filename?: string
+          size_bytes?: number
+          storage_bucket?: string
+          storage_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_lead_attachments_lead_org_fkey"
+            columns: ["organization_id", "lead_id"]
+            isOneToOne: false
+            referencedRelation: "crm_leads"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "crm_lead_attachments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       crm_lead_links: {
         Row: {
           created_at: string
@@ -10220,6 +10283,18 @@ export type Database = {
           p_org: string
           p_session?: string
         }
+        Returns: Json
+      }
+      fn_delete_crm_lead_attachment: {
+        Args: {
+          p_attachment_id: string
+          p_lead_id: string
+          p_organization_id: string
+        }
+        Returns: boolean
+      }
+      fn_enqueue_orphan_crm_lead_attachments: {
+        Args: { p_limit?: number }
         Returns: Json
       }
       fn_demanda_encerrar: {

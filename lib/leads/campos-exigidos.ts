@@ -94,6 +94,8 @@ export interface CampoFaltando {
    */
   tipo?: CustomFieldDef["type"];
   opcoes?: { value: string; label: string }[];
+  /** Em campos file a janela oferece o uploader correto e o limite de cardinalidade. */
+  multiple?: boolean;
 }
 
 /** O veredito: lista vazia = pode escrever. */
@@ -127,6 +129,33 @@ interface EntradaDeCampos {
    * cairia na mesma recusa da primeira: o lead ainda não foi gravado.
    */
   customFieldsPropostos?: Record<string, unknown> | null;
+  /** Chaves file com pelo menos um anexo ativo persistido para este lead. */
+  camposComAnexo?: ReadonlySet<string>;
+}
+
+/**
+ * Lê os anexos ativos em lote. Um erro de banco é devolvido ao chamador para
+ * impedir que falha de leitura seja interpretada como campo file preenchido.
+ */
+export async function carregarCamposComAnexo(
+  supabase: SupabaseClient,
+  organizationId: string,
+  leadIds: readonly string[],
+): Promise<{ porLead: Map<string, Set<string>>; error: string | null }> {
+  if (leadIds.length === 0) return { porLead: new Map(), error: null };
+  const { data, error } = await supabase
+    .from("crm_lead_attachments")
+    .select("lead_id, custom_field_key")
+    .eq("organization_id", organizationId)
+    .in("lead_id", [...new Set(leadIds)]);
+  if (error) return { porLead: new Map(), error: error.message };
+  const porLead = new Map<string, Set<string>>();
+  for (const row of (data ?? []) as unknown as Array<{ lead_id: string; custom_field_key: string }>) {
+    const chaves = porLead.get(row.lead_id) ?? new Set<string>();
+    chaves.add(row.custom_field_key);
+    porLead.set(row.lead_id, chaves);
+  }
+  return { porLead, error: null };
 }
 
 /** `undefined`/`null`/branco/array vazio são ausência; `false` e `0` são resposta. */
@@ -164,6 +193,16 @@ function campoExigidoNoDestino(
   return false;
 }
 
+/** Evita leituras extras de anexos em movimentos cujo destino não exige file. */
+export function camposFileExigidos(
+  settingsDoFunil: unknown,
+  destino: DestinoDaEscrita,
+): CustomFieldDef[] {
+  return camposDoFunil(settingsComoRecord(settingsDoFunil)).filter(
+    (campo) => campo.type === "file" && campoExigidoNoDestino(campo, destino),
+  );
+}
+
 /**
  * Devolve o que FALTA para esta escrita poder acontecer — nunca decide se a
  * escrita acontece (quem escreve é quem chama, e a recusa é 422 com esta lista
@@ -183,12 +222,16 @@ export function validaCamposExigidos(entrada: EntradaDeCampos): VereditoDeCampos
 
   for (const campo of camposDoFunil(settings)) {
     if (!campoExigidoNoDestino(campo, entrada.destino)) continue;
-    if (valorPreenchido(valores[campo.key])) continue;
+    const preenchido = campo.type === "file"
+      ? entrada.camposComAnexo?.has(campo.key) === true
+      : valorPreenchido(valores[campo.key]);
+    if (preenchido) continue;
     faltando.push({
       chave: campo.key,
       rotulo: campo.label,
       tipo: campo.type,
       ...(campo.options ? { opcoes: campo.options } : {}),
+      ...(campo.type === "file" && campo.multiple ? { multiple: true } : {}),
     });
   }
 

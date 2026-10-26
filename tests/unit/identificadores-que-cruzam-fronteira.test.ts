@@ -172,6 +172,9 @@ const SITES: { arquivo: string; fronteira: string; papel?: "gerador" | "validado
   // O anexo da nota interna (#1863, F3): MESMO molde de chave da rota irmã
   // (`{org}/{conversa}/note-{uuid}.{ext}`), bucket próprio `internal-media`.
   { arquivo: "app/api/v1/conversations/[id]/notes/media/route.ts", fronteira: "storage.chave-de-objeto" },
+  // Anexos de campos file do CRM: `{org}/lead-attachments/{lead}/{attachment}.{ext}`,
+  // sempre privados e servidos pelo proxy autenticado.
+  { arquivo: "app/api/v1/leads/[id]/attachments/route.ts", fronteira: "storage.chave-de-objeto" },
   { arquivo: "app/api/v1/ai/knowledge/sources/upload/route.ts", fronteira: "storage.chave-de-objeto" },
   { arquivo: "app/api/v1/ai/knowledge/sources/route.ts", fronteira: "storage.chave-de-objeto" },
   // O PDF da proposta comercial (#1832): `<org>/<proposta>.pdf`, dois uuids.

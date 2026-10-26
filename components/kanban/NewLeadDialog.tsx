@@ -25,6 +25,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCreateLead } from "@/hooks/kanban/useCreateLead";
+import type { CustomFieldDef } from "@/lib/schemas/settings";
+import {
+  LEAD_ATTACHMENT_MAX_FILES,
+  LEAD_ATTACHMENT_MIME_TYPES,
+  validateLeadAttachment,
+} from "@/lib/leads/attachment-validation";
 import type { Stage } from "@/lib/kanban/types";
 import { createLeadSchema, type CreateLeadInput } from "@/lib/schemas/leads";
 import { MOEDA_PADRAO, parseReaisToCents, simboloDaMoeda } from "@/lib/money";
@@ -51,6 +57,7 @@ interface Props {
   contactId?: string | null;
   /** Depois do INSERT — o inbox relê o resumo para o lead novo aparecer no formulário. */
   onCreated?: () => void;
+  fieldDefs?: CustomFieldDef[];
 }
 
 function defaultStageId(stages: Stage[]): string {
@@ -65,6 +72,7 @@ export function NewLeadDialog({
   stages,
   contactId,
   onCreated,
+  fieldDefs = [],
 }: Props) {
   const t = useT();
   const org = useActiveOrg();
@@ -74,6 +82,8 @@ export function NewLeadDialog({
   const initialStage = useMemo(() => defaultStageId(stages), [stages]);
   // Quem abre o diálogo já sabendo o contato (Inbox) não escolhe de novo.
   const [contato, setContato] = useState<Contact | null>(null);
+  const [arquivosPendentes, setArquivosPendentes] = useState<Record<string, File[]>>({});
+  const [errosDeArquivo, setErrosDeArquivo] = useState<Record<string, string>>({});
   // O contato é o único campo deste diálogo que cria VÍNCULO, e o componente
   // NÃO desmonta ao fechar: o funil o mantém montado enquanto há dados
   // (`app/app/pipelines/[id]/_client.tsx`). Sem esquecê-lo, quem escolheu um
@@ -87,7 +97,11 @@ export function NewLeadDialog({
   const [estavaAberto, setEstavaAberto] = useState(open);
   if (open !== estavaAberto) {
     setEstavaAberto(open);
-    if (!open) setContato(null);
+    if (!open) {
+      setContato(null);
+      setArquivosPendentes({});
+      setErrosDeArquivo({});
+    }
   }
 
   const form = useForm<FormShape>({
@@ -109,6 +123,11 @@ export function NewLeadDialog({
   }, [initialStage, form]);
 
   async function onSubmit(values: FormShape) {
+    const erroDeArquivo = Object.values(errosDeArquivo)[0];
+    if (erroDeArquivo) {
+      toast.error(erroDeArquivo);
+      return;
+    }
     const tags = values.tagsRaw
       .split(",")
       .map((s) => s.trim())
@@ -149,8 +168,27 @@ export function NewLeadDialog({
     }
 
     try {
-      await create.mutateAsync(parsed.data as CreateLeadInput);
-      toast.success(t("Lead criado"));
+      const response = await create.mutateAsync(parsed.data as CreateLeadInput);
+      const leadId = response.data.id;
+      let falhouAnexo = false;
+      for (const campo of fieldDefs.filter((f) => f.type === "file")) {
+        const arquivos = arquivosPendentes[campo.key] ?? [];
+        if (arquivos.length === 0) continue;
+        const formData = new FormData();
+        formData.set("custom_field_key", campo.key);
+        for (const arquivo of arquivos) formData.append("files", arquivo, arquivo.name);
+        const upload = await fetch(`/api/v1/leads/${encodeURIComponent(leadId)}/attachments`, {
+          method: "POST",
+          credentials: "same-origin",
+          body: formData,
+        }).catch(() => null);
+        if (!upload?.ok) {
+          falhouAnexo = true;
+          break;
+        }
+      }
+      if (falhouAnexo) toast.error(t("Lead criado, mas um ou mais anexos não foram enviados. Abra o dossiê para tentar novamente."));
+      else toast.success(t("Lead criado"));
       onCreated?.();
       form.reset({
         title: "",
@@ -161,6 +199,8 @@ export function NewLeadDialog({
         expected_close_date: "",
       });
       setContato(null);
+      setArquivosPendentes({});
+      setErrosDeArquivo({});
       onOpenChange(false);
     } catch {
       // toast already shown
@@ -183,7 +223,7 @@ export function NewLeadDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t("Novo Lead")}</DialogTitle>
           <DialogDescription>
@@ -278,6 +318,67 @@ export function NewLeadDialog({
               {...form.register("tagsRaw")}
             />
           </div>
+
+          {fieldDefs.some((campo) => campo.type === "file") && (
+            <section className="space-y-3 border-t border-border pt-4" aria-label={t("Anexos do negócio")}>
+              <p className="text-sm font-medium">{t("Anexos do negócio")}</p>
+              {fieldDefs.filter((campo) => campo.type === "file").map((campo) => {
+                const selecionados = arquivosPendentes[campo.key] ?? [];
+                const limite = campo.multiple ? LEAD_ATTACHMENT_MAX_FILES : 1;
+                return (
+                  <div key={campo.key} className="space-y-2">
+                    <Label htmlFor={`novo-file-${campo.key}`}>
+                      {campo.label}{campo.required && <span className="ml-1 text-error-fg">*</span>}
+                    </Label>
+                    <input
+                      id={`novo-file-${campo.key}`}
+                      className="block min-w-0 w-full text-sm file:mr-3 file:min-h-11 file:rounded-sm file:border-0 file:bg-accent-soft file:px-3 file:text-sm file:font-medium file:text-text"
+                      type="file"
+                      accept={LEAD_ATTACHMENT_MIME_TYPES.join(",")}
+                      multiple={campo.multiple === true}
+                      disabled={create.isPending}
+                      onChange={async (event) => {
+                        const files = Array.from(event.currentTarget.files ?? []);
+                        event.currentTarget.value = "";
+                        if (files.length > limite) {
+                          setErrosDeArquivo((current) => ({ ...current, [campo.key]: t("Este campo aceita até {limite} arquivo(s).").replace("{limite}", String(limite)) }));
+                          return;
+                        }
+                        for (const file of files) {
+                          const validation = validateLeadAttachment({
+                            name: file.name,
+                            type: file.type,
+                            size: file.size,
+                            bytes: new Uint8Array(await file.arrayBuffer()),
+                          });
+                          if (!validation.ok) {
+                            setErrosDeArquivo((current) => ({
+                              ...current,
+                              [campo.key]: t("Cada arquivo deve ser PDF, PNG, JPEG ou WebP válido e ter até 5 MB."),
+                            }));
+                            return;
+                          }
+                        }
+                        setArquivosPendentes((current) => ({
+                          ...current,
+                          [campo.key]: files,
+                        }));
+                        setErrosDeArquivo((current) => {
+                          const next = { ...current };
+                          delete next[campo.key];
+                          return next;
+                        });
+                      }}
+                    />
+                    <p className="text-xs text-muted-foreground">{t("PDF, PNG, JPEG ou WebP · até 5 MB por arquivo")} · {t("máximo {limite}").replace("{limite}", String(limite))}</p>
+                    {selecionados.length > 0 && <p className="break-all text-xs text-muted-foreground">{selecionados.map((file) => file.name).join(", ")}</p>}
+                    {errosDeArquivo[campo.key] && <p role="alert" className="text-xs text-error-fg">{errosDeArquivo[campo.key]}</p>}
+                    {campo.required && !selecionados.length && <p role="status" className="text-xs text-warning-fg">{t("Anexe o arquivo no dossiê após criar o negócio.")}</p>}
+                  </div>
+                );
+              })}
+            </section>
+          )}
 
           <DialogFooter>
             <Button

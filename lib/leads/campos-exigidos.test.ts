@@ -79,6 +79,26 @@ describe("validaCamposExigidos — o que o funil exige", () => {
     expect(outra.faltando).toEqual([]);
   });
 
+  it("campo file ignora custom_fields e só passa com metadado de anexo ativo", () => {
+    const settings = {
+      fields: [
+        {
+          key: "documentos",
+          label: "Documentos",
+          type: "file",
+          multiple: true,
+          obrigatorio_em: { etapas: [ETAPA_PROPOSTA] },
+        },
+      ],
+    };
+    const lead = { custom_fields: { documentos: ["id-forjado-pelo-cliente"] } };
+    const args = { lead, settingsDoFunil: settings, destino: { stageId: ETAPA_PROPOSTA } };
+    expect(validaCamposExigidos(args).faltando).toEqual([
+      { chave: "documentos", rotulo: "Documentos", tipo: "file", multiple: true },
+    ]);
+    expect(validaCamposExigidos({ ...args, camposComAnexo: new Set(["documentos"]) }).faltando).toEqual([]);
+  });
+
   it("o valor preenchido passa — e vem do lead OU da escrita (overlay do diálogo)", () => {
     const settings = settingsDeCampo({ obrigatorio_em: { etapas: [ETAPA_PROPOSTA] } });
     const destino = { stageId: ETAPA_PROPOSTA };

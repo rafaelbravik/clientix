@@ -164,7 +164,10 @@ export const customFieldSchema = z.object({
     "email",
     "phone",
     "url",
+    "file",
   ]),
+  /** Para `file`, false/ausente = um anexo; true = até o limite global. */
+  multiple: z.boolean().optional(),
   required: z.boolean().optional(),
   /**
    * QUANDO este campo passa a OBRIGAR (issue #1536).
@@ -190,6 +193,10 @@ export const customFieldSchema = z.object({
   options: z
     .array(z.object({ value: z.string().min(1), label: z.string().min(1) }))
     .optional(),
+}).superRefine((field, ctx) => {
+  if (field.multiple === true && field.type !== "file") {
+    ctx.addIssue({ code: "custom", path: ["multiple"], message: "Múltiplos arquivos só se aplicam ao tipo file." });
+  }
 });
 export type CustomFieldDef = z.infer<typeof customFieldSchema>;
 
