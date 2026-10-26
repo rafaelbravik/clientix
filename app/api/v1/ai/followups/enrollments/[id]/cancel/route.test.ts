@@ -19,7 +19,7 @@ const ID = "11111111-1111-4111-8111-111111111111";
 
 function client(
   status: string,
-  options: { claimed_until?: string | null; updateReturnsRow?: boolean } = {},
+  options: { claimed_until?: string | null; updateReturnsRow?: boolean; tenantId?: string } = {},
 ) {
   const atualizados: Array<Record<string, unknown>> = [];
   const filtros: Array<[string, unknown]> = [];
@@ -31,8 +31,13 @@ function client(
     or: (filtro: string) => (orFilters.push(filtro), cadeia),
     maybeSingle: async () => {
       if (modo === "read") {
+        const tenantFilter = filtros.find(([campo]) => campo === "organization_id")?.[1];
+        const tenantDaLinha = options.tenantId ?? "org";
         return {
-          data: { id: ID, status, current_node_id: "t", claimed_until: options.claimed_until ?? null },
+          data:
+            tenantDaLinha === tenantFilter
+              ? { id: ID, status, current_node_id: "t", claimed_until: options.claimed_until ?? null }
+              : null,
           error: null,
         };
       }
@@ -107,6 +112,18 @@ describe("POST /api/v1/ai/followups/enrollments/:id/cancel", () => {
     } as never);
     expect(res.status).toBe(409);
     expect(atualizados).toHaveLength(1);
+  });
+
+  it("não encontra nem altera enrollment de outro tenant", async () => {
+    const { atualizados, filtros, c } = client("dormente", { tenantId: "org-outro" });
+    deps.client.mockResolvedValue(c);
+    const res = await POST(new NextRequest(`http://localhost/x/${ID}/cancel`, { method: "POST" }), {
+      params: Promise.resolve({ id: ID }),
+    } as never);
+
+    expect(res.status).toBe(404);
+    expect(filtros).toContainEqual(["organization_id", "org"]);
+    expect(atualizados).toHaveLength(0);
   });
 
   it("support_readonly não pode cancelar", async () => {

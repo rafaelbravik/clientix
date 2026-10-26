@@ -47,13 +47,6 @@ beforeAll(async () => {
     [ORG, pointers[0]!.id, versions[0]!.id, contacts[0]!.id],
   );
   enrollmentId = enrollments[0]!.id;
-  await pool.query(
-    `update followup_enrollments
-        set status = 'cancelled', cancel_reason = 'manual', next_eval_at = null,
-            claimed_until = null, completed_at = now(), updated_at = now()
-      where id = $1 and organization_id = $2`,
-    [enrollmentId, ORG],
-  );
 });
 
 afterAll(async () => {
@@ -61,8 +54,46 @@ afterAll(async () => {
 });
 
 describe("follow-up dormente cancelado — claim do scheduler", () => {
-  it("não reclama nem reativa a inscrição cancelada e mantém o relógio removido", async () => {
-    const { rows: claimed } = await pool.query<{ id: string }>(
+  it("cancelamento após lease expirado vence o worker antigo e o scheduler não reativa", async () => {
+    const { rows: workerClaim } = await pool.query<{ id: string; revision: number | string }>(
+      `select id, revision from fn_claim_due_followup_enrollments($1, $2)`,
+      [5, 1],
+    );
+    const workerSnapshot = workerClaim.find(({ id }) => id === enrollmentId);
+    expect(workerSnapshot).toBeDefined();
+
+    // A linha permanece com lease no banco; o relógio avança até ele vencer,
+    // simulando um worker antigo que ainda não terminou o processamento.
+    await new Promise((resolve) => setTimeout(resolve, 1_100));
+    const { rows: cancelled } = await pool.query<{ id: string }>(
+      `update followup_enrollments
+          set status = 'cancelled', cancel_reason = 'manual', next_eval_at = null,
+              claimed_until = null, completed_at = now(), updated_at = now()
+        where id = $1 and organization_id = $2 and status = 'active' and claimed_until < now()
+        returning id`,
+      [enrollmentId, ORG],
+    );
+    expect(cancelled.map(({ id }) => id)).toContain(enrollmentId);
+
+    let workerWriteError: unknown;
+    try {
+      await pool.query(
+        `select fn_followup_patch($1, $2, $3, $4::jsonb)`,
+        [
+          ORG,
+          enrollmentId,
+          workerSnapshot!.revision,
+          JSON.stringify({ status: "active", next_eval_at: new Date().toISOString(), claimed_until: null }),
+        ],
+      );
+    } catch (error) {
+      workerWriteError = error;
+    }
+    expect(workerWriteError).toMatchObject({ code: "P0001" });
+    expect(workerWriteError).toBeInstanceOf(Error);
+    expect((workerWriteError as Error).message).toContain("followup_stale");
+
+    const { rows: claimedAfterCancellation } = await pool.query<{ id: string }>(
       `select id from fn_claim_due_followup_enrollments($1, $2)`,
       [5, 120],
     );
@@ -77,7 +108,7 @@ describe("follow-up dormente cancelado — claim do scheduler", () => {
       [enrollmentId, ORG],
     );
 
-    expect(claimed.map(({ id }) => id)).not.toContain(enrollmentId);
+    expect(claimedAfterCancellation.map(({ id }) => id)).not.toContain(enrollmentId);
     expect(rows[0]).toMatchObject({ status: "cancelled", cancel_reason: "manual" });
     expect(rows[0]?.next_eval_at).toBeNull();
     expect(rows[0]?.claimed_until).toBeNull();
