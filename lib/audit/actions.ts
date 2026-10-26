@@ -242,6 +242,11 @@ export const AUDIT_ACTIONS = [
   "channel.social_configured",
   "channel.ai_access_updated",
   "channel.reconnected",
+  "channel.history_import_previewed",
+  "channel.history_import_started",
+  "channel.history_import_completed",
+  "channel.history_import_failed",
+  "channel.history_import_cancelled",
   // Duas ações distintas de propósito: `deleted` apagou a linha (canal virgem),
   // `archived` só a escondeu porque conversas/mensagens ainda a referenciam.
   // A auditoria precisa distinguir o que sumiu do que continua no banco.

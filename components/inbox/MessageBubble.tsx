@@ -20,6 +20,7 @@ import { MediaRenderer } from "@/components/inbox/media/MediaRenderer";
 import { ContactCard } from "@/components/inbox/media/ContactCard";
 import { LocationCard } from "@/components/inbox/media/LocationCard";
 import { localizacaoDaMensagem } from "@/lib/messaging/localizacao";
+import { isHistoricalImportedMessage } from "@/lib/messaging/historical-message";
 import {
   extractCitations,
   isAiGeneratedMessage,
@@ -97,6 +98,7 @@ export function MessageBubble({
   const localeDaData = useLocaleDeData();
   const t = useT();
   const isOutbound = message.direction === "outbound";
+  const historica = isHistoricalImportedMessage(message);
   const time = format(new Date(message.sent_at), "HH:mm", { locale: localeDaData });
   const isFailed = message.status === "failed";
   const hasMedia = Boolean(message.media_url || message.media_storage_path);
@@ -333,6 +335,11 @@ export function MessageBubble({
             {senderLabel && t(senderLabel)}
           </div>
         )}
+        {historica && (
+          <div className="mb-1 text-[10px] font-medium opacity-70" data-testid="historical-message-label">
+            {t("Histórico importado")}
+          </div>
+        )}
 
         {editando ? (
           <div ref={editorRef} className="space-y-2">
@@ -376,6 +383,9 @@ export function MessageBubble({
               <div className={cn(message.body && "mb-1")}>
                 <MediaRenderer message={message} />
               </div>
+            )}
+            {!hasMedia && historica && message.metadata?.media_status === "unavailable" && (
+              <p className="italic opacity-70">{t("Mídia histórica indisponível no provedor")}</p>
             )}
 
             {isContact && !hasMedia && (

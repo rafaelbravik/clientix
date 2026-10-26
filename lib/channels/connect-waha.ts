@@ -26,7 +26,7 @@ type Transport = Pick<WahaClient, "createSession" | "startExistingSession" | "st
   & Partial<Pick<WahaClient, "definirRecebimentoDeGrupos">>;
 export interface ConnectChannelInput {
   organizationId: string; idempotencyKey: string; userId: string; requestId: string;
-  displayName?: string; onboarding?: boolean; restart?: boolean;
+  displayName?: string; onboarding?: boolean; restart?: boolean; guardarHistorico?: boolean;
 }
 
 /** Única reserva WAHA: auth client reserva, service client confirma por lease+org.
@@ -77,7 +77,7 @@ export async function connectWahaChannel(authDb: SupabaseClient, serviceDb: Supa
     });
   }
 
-  const hash = createHash("sha256").update(JSON.stringify({ display_name: input.displayName ?? null, onboarding: input.onboarding ?? false, restart: input.restart ?? false })).digest("hex");
+  const hash = createHash("sha256").update(JSON.stringify({ display_name: input.displayName ?? null, onboarding: input.onboarding ?? false, restart: input.restart ?? false, guardar_historico: input.guardarHistorico ?? false })).digest("hex");
   const { data, error } = await authDb.rpc("fn_reserve_channel_connection", {
     p_org: input.organizationId, p_key: input.idempotencyKey, p_hash: hash,
     p_display_name: input.displayName ?? null, p_onboarding: input.onboarding ?? false,
@@ -130,7 +130,9 @@ export async function connectWahaChannel(authDb: SupabaseClient, serviceDb: Supa
   }
   try {
     if (input.restart) await waha.stopSession(channel.waha_session_name);
-    const creation = await waha.createSession(channel.waha_session_name);
+    const creation = input.guardarHistorico
+      ? await waha.createSession(channel.waha_session_name, { guardarHistorico: true })
+      : await waha.createSession(channel.waha_session_name);
     created = creation.created;
     if (created) await finish("remote_created");
     const remote = await waha.startExistingSession(channel.waha_session_name);

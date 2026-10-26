@@ -53,6 +53,7 @@ interface ConvOpts {
   aiGate?: string | null;
   aiAuthorizedAt?: string | null;
   convError?: string;
+  historical?: boolean;
 }
 
 function makeAdminStub(opts: ConvOpts, queried: string[]) {
@@ -79,7 +80,10 @@ function makeAdminStub(opts: ConvOpts, queried: string[]) {
 
   const from = (table: string) => {
     queried.push(table);
-    const result = table === "conversations" ? convRow : table === "messages" ? { id: MSG_ID, body: "oi", direction: "inbound", organization_id: ORG_ID } : null;
+    const result = table === "conversations" ? convRow : table === "messages" ? {
+      id: MSG_ID, body: "oi", direction: "inbound", organization_id: ORG_ID,
+      metadata: opts.historical ? { historico_importado: "true", importacao_id: "job1" } : {},
+    } : null;
     let selectCols = "";
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const chain: any = {
@@ -165,5 +169,16 @@ describe("ai-response-worker (legado) · gate de elegibilidade", () => {
     const result = await processMessageReceived(eventRow);
     expect(result.status).toBe("skipped");
     expect(result.reason).toBe("nao_elegivel_para_ia");
+  });
+
+  it("mensagem histórica termina antes de carregar agente e ferramentas", async () => {
+    const queried: string[] = [];
+    vi.mocked(createAdminClient).mockReturnValue(
+      makeAdminStub({ historical: true }, queried),
+    );
+    const result = await processMessageReceived(eventRow);
+    expect(result).toMatchObject({ status: "skipped", reason: "historical_import" });
+    expect(queried).toContain("messages");
+    expect(queried).not.toContain("ai_agents");
   });
 });

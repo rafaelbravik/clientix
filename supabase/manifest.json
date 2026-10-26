@@ -1,12 +1,12 @@
 {
   "version": 1,
   "generated_at": "2026-10-26T14:09:54.681Z",
-  "schema_target": "0517",
+  "schema_target": "0518",
   "baseline": {
     "file": "baseline.sql",
-    "checksum": "f178d5301c4c834535ed37044b7c3f3994842792c4f147f4fbd3564bd60a5370",
-    "size_bytes": 2324253,
-    "incorporated_through_sequence": 517
+    "checksum": "c8027767516d7a98ce9b17dc134d9e8cb37bc5f184a1a7dd322b547d5e01ced8",
+    "size_bytes": 2463825,
+    "incorporated_through_sequence": 518
   },
   "migrations": [
     {
@@ -3383,6 +3383,14 @@
       "sequence": 517,
       "slug": "mfa_recovery_codes_server_only",
       "checksum": "97df67220d62592e15082cb70f8b1ebb79cb712555e522618e642e19329b6608",
+      "transactional": true
+    },
+    {
+      "file": "20261026015206_0518_whatsapp_history_import.sql",
+      "version": "20261026015206",
+      "sequence": 518,
+      "slug": "whatsapp_history_import",
+      "checksum": "8f03a2673a0a6af451a146f655cba5e55b87397a14b0f250cd725d45610e2b4f",
       "transactional": true
     }
   ],

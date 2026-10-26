@@ -10,6 +10,7 @@ import { avatarUrlServivel } from "@/lib/notifications/avatar_url";
 import { entregarAviso } from "@/lib/notifications/deliver";
 import { shouldNotifyInbound } from "@/lib/notifications/policy";
 import { syncPushSubscription } from "@/lib/notifications/push_client";
+import { isHistoricalImportedMessage } from "@/lib/messaging/historical-message";
 
 function tabFocused(): boolean {
   if (typeof document === "undefined") return false;
@@ -119,6 +120,7 @@ export function useInboundMessageAlerts(): void {
   const onChange = useCallback((payload: unknown) => {
     const row = rowFromRealtime(payload);
     if (!row) return;
+    if (isHistoricalImportedMessage(row)) return;
     const conversationId = typeof row.conversation_id === "string" ? row.conversation_id : null;
     const direction = typeof row.direction === "string" ? row.direction : null;
     if (

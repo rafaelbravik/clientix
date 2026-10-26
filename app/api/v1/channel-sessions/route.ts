@@ -137,6 +137,7 @@ export async function POST(req: NextRequest): Promise<Response> {
     const result = await connectWahaChannel(await createClient(), admin, waha, {
       organizationId: activeOrg.orgId, idempotencyKey: req.headers.get("Idempotency-Key") ?? "",
       userId: user.id, requestId, displayName: parsed.data.display_name,
+      guardarHistorico: parsed.data.guardar_historico,
     });
     return ok(result.channel, { requestId, status: result.replay ? 200 : 201 });
   } catch (error) {

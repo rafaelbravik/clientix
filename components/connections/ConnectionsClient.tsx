@@ -38,6 +38,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   ArrowsClockwise,
@@ -53,6 +54,7 @@ import {
 import { lerEstadoDoCanal } from "@/lib/channels/estado";
 import { fonteDeTemplates } from "@/lib/channels/templates-fonte";
 import { useT } from "@/hooks/i18n/useT";
+import { ChannelHistorico } from "./ChannelHistorico";
 
 type Variant = "success" | "warning" | "error" | "neutral";
 
@@ -145,6 +147,8 @@ export function ConnectionsClient({ wahaConfigured }: { wahaConfigured: boolean 
   const [connectionDetail, setConnectionDetail] = useState<string | null>(null);
   const routing = useQuery({ queryKey: ["channel-routing-settings"], queryFn: () => apiClient.get<{ data: ChannelRoutingSettings }>("/api/v1/settings/routing/channels") });
   const [creating, setCreating] = useState(false);
+  const [connectOptionsOpen, setConnectOptionsOpen] = useState(false);
+  const [guardarHistorico, setGuardarHistorico] = useState(false);
   const [checking, setChecking] = useState(false);
   const [qr, setQr] = useState<{ sessionId: string; title: string } | null>(null);
   const [antiBanId, setAntiBanId] = useState<string | null>(null);
@@ -194,11 +198,13 @@ export function ConnectionsClient({ wahaConfigured }: { wahaConfigured: boolean 
     try {
       const res = await apiClient.post<{ data: ChannelSession }>(
         "/api/v1/channel-sessions",
-        {},
+        { guardar_historico: guardarHistorico },
         { idempotencyKey: createKey.current ??= randomId(), timeoutMs: 120_000 },
       );
       invalidate();
       createKey.current = null;
+      setConnectOptionsOpen(false);
+      setGuardarHistorico(false);
       setQr({ sessionId: res.data.id, title: t("Conectar novo WhatsApp") });
     } catch (err) {
       toast.error(errMsg(err, "Não foi possível iniciar a conexão.", t));
@@ -207,7 +213,7 @@ export function ConnectionsClient({ wahaConfigured }: { wahaConfigured: boolean 
     } finally {
       setCreating(false);
     }
-  }, [invalidate, t]);
+  }, [guardarHistorico, invalidate, t]);
 
   // Reconexão suave: a maioria das quedas é passageira (rede, container
   // reiniciado) e a credencial pareada continua boa, então o número volta sem
@@ -277,7 +283,7 @@ export function ConnectionsClient({ wahaConfigured }: { wahaConfigured: boolean 
               {t("Atualizar saúde")}
             </Button>
           )}
-          <Button size="sm" disabled={creating || !wahaConfigured} onClick={handleConnectNew}>
+          <Button size="sm" disabled={creating || !wahaConfigured} onClick={() => setConnectOptionsOpen(true)}>
             {creating ? (
               <CircleNotch size={14} className="animate-spin" aria-hidden />
             ) : (
@@ -418,6 +424,7 @@ export function ConnectionsClient({ wahaConfigured }: { wahaConfigured: boolean 
                     : t("Ainda não verificado")}
                 </p>
                 <ChannelAiAccess channelId={c.id} />
+                {c.provider === "waha" && <ChannelHistorico channelId={c.id} status={c.status} />}
                 <p className="text-xs text-muted-foreground">{t(!policy ? "Consulte os responsáveis em Atendimento." : policy.mode === "legacy_unconfigured" ? "Usa todos os atendentes elegíveis da organização." : policy.mode === "restricted_empty" ? "Ninguém configurado — as conversas ficarão na fila." : "Somente as pessoas selecionadas recebem este número.")}</p>
                 <div className="mt-auto flex flex-wrap gap-2">
                   {/* Some no canal oficial em vez de aparecer desabilitado: não é
@@ -480,6 +487,39 @@ export function ConnectionsClient({ wahaConfigured }: { wahaConfigured: boolean 
           onClose={() => setAntiBanId(null)}
         />
       )}
+
+      <Dialog open={connectOptionsOpen} onOpenChange={(open) => !creating && setConnectOptionsOpen(open)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t("Conectar novo WhatsApp")}</DialogTitle>
+            <DialogDescription>
+              {t("Escolha se o WAHA deve armazenar o histórico antes de parear o número. Essa opção não recupera mensagens antigas se for ligada depois.")}
+            </DialogDescription>
+          </DialogHeader>
+          <label className="flex items-start gap-3 rounded-md border p-3 text-sm">
+            <input
+              type="checkbox"
+              className="mt-1 size-4 accent-primary"
+              checked={guardarHistorico}
+              onChange={(event) => setGuardarHistorico(event.target.checked)}
+              disabled={creating}
+            />
+            <span>
+              <span className="font-medium">{t("Guardar histórico para poder importar depois")}</span>
+              <span className="mt-1 block text-xs text-muted-foreground">
+                {t("O armazenamento começa no primeiro pareamento. A importação é iniciada separadamente em cada conexão.")}
+              </span>
+            </span>
+          </label>
+          <DialogFooter>
+            <Button variant="outline" disabled={creating} onClick={() => setConnectOptionsOpen(false)}>{t("Cancelar")}</Button>
+            <Button disabled={creating || !wahaConfigured} onClick={() => void handleConnectNew()}>
+              {creating ? <CircleNotch size={14} className="animate-spin" aria-hidden /> : <Plus size={14} aria-hidden />}
+              {t("Continuar para parear")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Sem checagem de papel aqui: quem chega a `ConnectionsClient` já passou
           pelo gate de `/app/connections` (admin+, `app/app/connections/page.tsx`),

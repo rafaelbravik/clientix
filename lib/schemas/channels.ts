@@ -7,6 +7,9 @@ import { z } from "zod";
  */
 export const createChannelSchema = z.object({
   display_name: z.string().trim().min(1).max(80).optional(),
+  // Deve ser ligado antes do primeiro QR. O WAHA não reconstitui histórico
+  // retroativamente quando o store é ativado numa sessão já pareada.
+  guardar_historico: z.boolean().optional().default(false),
 });
 
 export type CreateChannelInput = z.infer<typeof createChannelSchema>;

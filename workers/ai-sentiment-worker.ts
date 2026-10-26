@@ -45,6 +45,7 @@ import type { EventRow } from "@/lib/event-log/dispatcher";
 import { normalizarIdioma } from "@/lib/i18n/idiomas";
 import { aiDispatchModeSchema } from "@/lib/schemas/settings";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isHistoricalImportedMessage } from "@/lib/messaging/historical-message";
 import { aConversaAgora, perguntarOsPedidosDoCliente } from "@/workers/ai-sentiment-worker.pedidos";
 
 const SENTIMENT_MODEL = DEFAULT_CLASSIFIER_MODEL; // "anthropic/claude-haiku-4-5"
@@ -149,6 +150,9 @@ export async function processSentiment(event: EventRow): Promise<SentimentResult
 
     if (msgErr || !message) {
       return { skipped: true, reason: "message_not_found" };
+    }
+    if (isHistoricalImportedMessage(message)) {
+      return { skipped: true, reason: "historical_import" };
     }
 
     // ── Guard: inbound only ───────────────────────────────────────────────

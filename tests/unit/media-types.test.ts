@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   extFromMime,
+  mimeRealDoBuffer,
   storagePathFor,
   MAX_MEDIA_BYTES,
 } from "@/lib/messaging/media/types";
@@ -36,5 +37,22 @@ describe("storagePathFor", () => {
 describe("MAX_MEDIA_BYTES", () => {
   it("é 50MB", () => {
     expect(MAX_MEDIA_BYTES).toBe(52_428_800);
+  });
+});
+
+describe("mimeRealDoBuffer", () => {
+  it("confere assinatura real e recusa MIME incompatível", () => {
+    expect(mimeRealDoBuffer(Buffer.from([0xff, 0xd8, 0xff, 0xd9]), "image/jpeg")).toBe("image/jpeg");
+    expect(mimeRealDoBuffer(Buffer.from([0xff, 0xd8, 0xff, 0xd9]), "text/html")).toBeNull();
+    expect(mimeRealDoBuffer(Buffer.from("login_required"), "image/jpeg")).toBeNull();
+  });
+
+  it("reconhece documentos OpenXML pelo nome das entradas ZIP", () => {
+    const docx = Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.from("word/document.xml")]);
+    const xlsx = Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.from("xl/workbook.xml")]);
+    expect(mimeRealDoBuffer(docx, "application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
+      .toBe("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+    expect(mimeRealDoBuffer(xlsx, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+      .toBe("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   });
 });

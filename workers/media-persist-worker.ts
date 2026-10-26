@@ -19,7 +19,8 @@ import {
   type ChannelProvider,
   type ChannelSessionRef,
 } from "@/lib/channels";
-import { storagePathFor } from "@/lib/messaging/media/types";
+import { mimeRealDoBuffer, storagePathFor } from "@/lib/messaging/media/types";
+import { isHistoricalImportedMessage } from "@/lib/messaging/historical-message";
 import { logger } from "@/lib/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -119,6 +120,17 @@ export async function persistMessageMedia(row: EventRow): Promise<HandlerResult>
     return { consumer_key, status: "error", detail };
   }
 
+  const historica = isHistoricalImportedMessage(msg);
+  if (historica) {
+    const mimeReal = mimeRealDoBuffer(media.buffer, media.mime);
+    if (!mimeReal) {
+      await markStatus("failed", { media_error_code: "historical_media_type_invalid" });
+      logger.warn("[media-persist] historical attachment rejected by content type", { message_id: msg.id });
+      return { consumer_key, status: "skipped", detail: "historical_media_type_invalid" };
+    }
+    media.mime = mimeReal;
+  }
+
   const path = storagePathFor(msg.organization_id, msg.conversation_id, msg.id, media.mime);
   const { error: uploadErr } = await admin.storage
     .from("whatsapp-media")
@@ -139,6 +151,10 @@ export async function persistMessageMedia(row: EventRow): Promise<HandlerResult>
     media_size_bytes: media.buffer.byteLength,
     media_mime: media.mime,
   });
+
+  // A importação histórica preserva a mídia no bucket, mas não pede visão nem
+  // transcrição: isso seria custo e processamento automático sobre o passado.
+  if (historica) return { consumer_key, status: "ok" };
 
   // Grupo nunca é derivado: a IA não serve grupos, e derivar custaria visão/
   // transcrição PAGA sem consumidor nenhum do outro lado — ninguém leria "o

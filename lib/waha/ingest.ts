@@ -18,6 +18,7 @@ import { audit } from "@/lib/audit";
 import { sincronizarSaudeDaConexao } from "@/lib/channels/health";
 import { marcarConversaComMensagem } from "@/lib/channels/marcar-conversa";
 import { aplicarEfeitosPosEntrada } from "@/lib/channels/pos-entrada";
+import { isHistoricalImportedMessage } from "@/lib/messaging/historical-message";
 import {
   MOTIVO_COMANDO_OFF,
   pausarIaDuravelmente,
@@ -721,10 +722,10 @@ async function mensagemIngeridaPorExternalId(
   admin: Admin,
   orgId: string,
   externalId: string,
-): Promise<{ id: string; contact_id: string; body: string | null } | null> {
+): Promise<{ id: string; contact_id: string; body: string | null; metadata: Record<string, unknown> | null } | null> {
   const { data, error } = await admin
     .from("messages")
-    .select("id, contact_id, body")
+    .select("id, contact_id, body, metadata")
     .eq("organization_id", orgId)
     .eq("external_id", externalId)
     .eq("direction", "inbound")
@@ -856,7 +857,41 @@ async function handleInbound(
     // `aplicarEfeitosPosEntrada` — a reentrega cai aqui. Reacelerar só o
     // pipeline (sem re-despachar o agente) destrava o match_reply.
     const existente = await mensagemIngeridaPorExternalId(admin, session.organization_id, p.id);
-    if (existente) {
+    if (existente && isHistoricalImportedMessage(existente)) {
+      const { data: accepted, error: acceptError } = await admin.rpc(
+        "fn_whatsapp_history_accept_live_duplicate" as never,
+        {
+          p_org: session.organization_id,
+          p_session: session.id,
+          p_contact: contactId,
+          p_conversation: conversationId,
+          p_external_id: p.id,
+        } as never,
+      );
+      if (acceptError) lancarFalhaDeIngestao("history live collision", acceptError);
+      if (accepted === true) {
+        const at = dataDoTimestamp(p.timestamp, now);
+        await markConversation(admin, session.organization_id, conversationId, "inbound", previewFromMessage(p), at);
+        await audit({
+          action: "message.received",
+          organizationId: session.organization_id,
+          resourceType: "message",
+          requestId,
+          metadata: { conversation_id: conversationId, type: p.type, external_id: p.id },
+        });
+        await aplicarEfeitosPosEntrada(admin, {
+          organizationId: session.organization_id,
+          contactId,
+          conversationId,
+          messageId: existente.id,
+          channelSessionId: session.id,
+          texto,
+          nomeDoContato: notifyNameOf(p),
+          requestId,
+          origem: "waha-live-history-collision",
+        });
+      }
+    } else if (existente) {
       try {
         await acelerarPipelineDeEventos(admin, {
           organizationId: session.organization_id,

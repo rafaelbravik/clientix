@@ -25,8 +25,23 @@ export async function fetchWahaMedia(
   let url: URL;
   try {
     const advertised = new URL(mediaUrl);
-    // Host/porta descartados: só path+query sobrevivem, resolvidos na base.
-    url = new URL(advertised.pathname + advertised.search, base ?? "");
+    const baseUrl = new URL(base ?? "");
+    const decodedPath = decodeURIComponent(advertised.pathname);
+    // WAHA media must stay on its file endpoint. Restricting the path matters
+    // because this request carries the configured API key to the WAHA origin.
+    if (
+      !["http:", "https:"].includes(baseUrl.protocol)
+      || !decodedPath.startsWith("/api/files/")
+      || /%2f|%5c/i.test(advertised.pathname)
+      || decodedPath.split("/").some((segment) => segment === "." || segment === "..")
+      || decodedPath.includes("\\")
+      || advertised.username
+      || advertised.password
+    ) throw new Error("invalid media path");
+    // Host is discarded; only a validated file path and its provider query
+    // survive, resolved against the configured WAHA origin.
+    url = new URL(advertised.pathname + advertised.search, baseUrl);
+    if (url.origin !== baseUrl.origin) throw new Error("invalid media origin");
   } catch {
     throw new Error("waha_media_untrusted_host");
   }
@@ -35,6 +50,7 @@ export async function fetchWahaMedia(
   const res = await fetch(url.toString(), {
     headers: apiKey ? { "X-Api-Key": apiKey } : {},
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    redirect: "error",
   });
   if (!res.ok) throw new Error(`waha_media_${res.status}`);
 

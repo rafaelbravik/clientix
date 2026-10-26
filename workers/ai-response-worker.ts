@@ -54,6 +54,7 @@ import type { EventRow } from "@/lib/event-log/dispatcher";
 import { resolverModeloDoPonto } from "@/lib/ai/gateway-binding";
 import { logger } from "@/lib/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isHistoricalImportedMessage } from "@/lib/messaging/historical-message";
 
 const RECENT_MESSAGES_LIMIT = 20;
 const RAG_TOP_K = 5;
@@ -717,12 +718,13 @@ async function buildContext(input: BuildContextInput): Promise<GuardDecision> {
   // Inbound message body (the trigger payload doesn't carry it).
   const { data: msg, error: msgErr } = await admin
     .from("messages")
-    .select("id, body, direction, organization_id")
+    .select("id, body, direction, organization_id, metadata")
     .eq("id", input.messageId)
     .eq("organization_id", input.organizationId)
     .maybeSingle();
   if (msgErr) return skip("conversation_not_found", msgErr.message);
   if (!msg) return skip("conversation_not_found", "message not found");
+  if (isHistoricalImportedMessage(msg)) return skip("historical_import");
   if (msg.direction !== "inbound") return skip("duplicate_outbound");
   const inbound_body = (msg.body ?? "").trim();
   if (!inbound_body) return skip("empty_inbound_body");

@@ -10,7 +10,7 @@ const messageRow = {
   media_url: "http://localhost:3030/api/files/abc.jpg",
   media_mime: "image/jpeg",
   media_storage_path: null as string | null,
-  metadata: { raw_type: "image" },
+  metadata: { raw_type: "image" } as Record<string, unknown>,
 };
 
 // Grupo nunca deriva (Task 8, controller A): a IA não serve grupos, e a
@@ -104,6 +104,7 @@ describe("persistMessageMedia", () => {
     updateEqMock.mockReset();
     rpcMock.mockReset().mockResolvedValue({ error: null });
     messageRow.media_storage_path = null;
+    messageRow.metadata = { raw_type: "image" };
     conversationRow.is_group = false;
     conversationReadError = null;
     loggerWarnMock.mockReset();
@@ -157,6 +158,26 @@ describe("persistMessageMedia", () => {
       "emit_event",
       expect.objectContaining({ p_event_type: "media.derive_requested" }),
     );
+  });
+
+  it("histórico importado: persiste mídia validada sem pedir visão/transcrição", async () => {
+    messageRow.metadata = { historico_importado: "true", importacao_id: "job1", media_status: "pending" };
+    vi.mocked(fetchWahaMedia).mockResolvedValue({
+      buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
+      mime: "image/jpeg",
+    });
+    const result = await persistMessageMedia(eventRow());
+    expect(result.status).toBe("ok");
+    expect(uploadMock).toHaveBeenCalled();
+    expect(updateEqMock).toHaveBeenCalledWith(expect.objectContaining({
+      media_storage_path: "org1/conv1/msg1.jpg",
+      metadata: expect.objectContaining({ historico_importado: "true", media_status: "stored" }),
+    }));
+    expect(rpcMock).not.toHaveBeenCalledWith(
+      "emit_event",
+      expect.objectContaining({ p_event_type: "media.derive_requested" }),
+    );
+    messageRow.metadata = { raw_type: "image" };
   });
 
   it("erro ao ler conversations.is_group: fecha FECHADO — NÃO pede derivação, avisa com organização/conversa/causa", async () => {

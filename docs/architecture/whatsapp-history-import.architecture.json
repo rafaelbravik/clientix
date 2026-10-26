@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Importação segura de histórico WhatsApp",
+    "subtitle": "histórico persistido sem virar entrada ao vivo",
+    "quality_profile": "standard"
+  },
+  "lanes": [
+    { "id": "ui", "label": "Operação" },
+    { "id": "api", "label": "API" },
+    { "id": "scheduler", "label": "Scheduler e worker" },
+    { "id": "provider", "label": "Canal" },
+    { "id": "database", "label": "Banco" },
+    { "id": "effects", "label": "Efeitos e Inbox" }
+  ],
+  "mainPath": [
+    "connections",
+    "history-route",
+    "import-job",
+    "history-cron",
+    "history-tick",
+    "history-pages",
+    "identity-check",
+    "atomic-persist",
+    "historical-marker",
+    "inbox"
+  ],
+  "nodes": [
+    { "id": "connections", "lane": "ui", "col": 1, "type": "frontend", "label": "Conexões · Importar histórico", "sublabel": "prévia, período limitado, iniciar, progresso e cancelar" },
+    { "id": "history-route", "lane": "api", "col": 2, "type": "backend", "label": "channel-sessions/[id]/historico", "sublabel": "manager + MFA; sessão escopada à organização autenticada" },
+    { "id": "import-job", "lane": "database", "col": 3, "type": "database", "label": "whatsapp_history_imports", "sublabel": "RLS fechada; status, cursor, lease, tentativas e contadores" },
+    { "id": "history-cron", "lane": "api", "col": 4, "type": "backend", "label": "/api/v1/cron/historico-import", "sublabel": "segredo interno existente" },
+    { "id": "history-tick", "lane": "scheduler", "col": 5, "type": "backend", "label": "runHistoryImportTick", "sublabel": "uma conversa por tick; lease e checkpoint persistentes" },
+    { "id": "history-pages", "lane": "provider", "col": 6, "type": "external", "label": "Histórico do canal", "sublabel": "páginas limitadas; sem payload bruto armazenado" },
+    { "id": "identity-check", "lane": "scheduler", "col": 7, "type": "security", "label": "Validação da conversa inteira", "sublabel": "duas leituras estáveis; telefone/LID/participantes; falha fechada" },
+    { "id": "privacy-tombstone", "lane": "database", "col": 7, "type": "security", "label": "Supressão LGPD por HMAC", "sublabel": "identidade apagada não é recriada; legado ambíguo bloqueia importação" },
+    { "id": "atomic-persist", "lane": "database", "col": 8, "type": "database", "label": "fn_whatsapp_history_persist_conversation", "sublabel": "tenant + sessão + lease; conversa inteira em uma transação" },
+    { "id": "historical-marker", "lane": "database", "col": 9, "type": "database", "label": "messages.metadata.historico_importado", "sublabel": "marcador persistente definido pelo servidor" },
+    { "id": "live-guards", "lane": "effects", "col": 10, "type": "security", "label": "Cerca de não disparo", "sublabel": "triggers e workers ignoram mensagem histórica" },
+    { "id": "media-event", "lane": "database", "col": 10, "type": "messagebus", "label": "media.persist_requested", "sublabel": "único evento emitido pela persistência histórica" },
+    { "id": "media-worker", "lane": "scheduler", "col": 11, "type": "backend", "label": "media-persist-worker", "sublabel": "Storage privado + MIME real; sem visão ou transcrição" },
+    { "id": "inbox", "lane": "ui", "col": 11, "type": "frontend", "label": "Inbox e histórico do contato", "sublabel": "direção e timestamp originais; sem notificação de entrada nova" },
+    { "id": "ai-automation", "lane": "effects", "col": 12, "type": "backend", "label": "IA, automações e follow-up", "sublabel": "não recebem evento de entrada histórico" },
+    { "id": "live-collision", "lane": "scheduler", "col": 12, "type": "backend", "label": "Colisão histórico + webhook vivo", "sublabel": "só o webhook real promove a linha e emite uma entrada ao vivo" }
+  ],
+  "edges": [
+    { "from": "connections", "to": "history-route", "label": "prévia, iniciar ou cancelar" },
+    { "from": "history-route", "to": "import-job", "label": "organização vem da sessão autenticada" },
+    { "from": "history-cron", "to": "history-tick", "label": "autorização interna" },
+    { "from": "history-tick", "to": "import-job", "label": "claim SKIP LOCKED + lease/CAS" },
+    { "from": "history-tick", "to": "history-pages", "label": "cursor e limite por rodada" },
+    { "from": "history-pages", "to": "identity-check", "label": "página completa de mensagens" },
+    { "from": "identity-check", "to": "privacy-tombstone", "label": "verifica todos os identificadores" },
+    { "from": "privacy-tombstone", "to": "atomic-persist", "label": "permitido e não anonimizado" },
+    { "from": "identity-check", "to": "atomic-persist", "label": "somente IDENTIDADE_VALID" },
+    { "from": "import-job", "to": "atomic-persist", "label": "escopo e lease revalidados" },
+    { "from": "atomic-persist", "to": "historical-marker", "label": "origem explícita e durável" },
+    { "from": "historical-marker", "to": "live-guards", "label": "triggers não emitem message.received" },
+    { "from": "live-guards", "to": "ai-automation", "label": "sem IA, regras, campanhas ou follow-up" },
+    { "from": "atomic-persist", "to": "media-event", "label": "somente anexos importados" },
+    { "from": "media-event", "to": "media-worker", "label": "persistência no bucket privado" },
+    { "from": "media-worker", "to": "inbox", "label": "media_storage_path" },
+    { "from": "historical-marker", "to": "inbox", "label": "timestamp, direção e autor preservados" },
+    { "from": "historical-marker", "to": "live-collision", "label": "webhook legítimo encontra mesmo external_id" },
+    { "from": "live-collision", "to": "ai-automation", "label": "promoção ocorre apenas no inbound vivo" }
+  ],
+  "cards": [
+    {
+      "title": "Garantia de origem",
+      "body": "Importação grava messages.metadata.historico_importado dentro da função de persistência. O webhook ao vivo não copia esse campo do payload externo. Reentrega histórica continua histórica após reload e restart."
+    },
+    {
+      "title": "Identidade e atomicidade",
+      "body": "O importador valida uma conversa completa em duas leituras e valida novamente após resolver metadados de mídia. Identidade ambígua, divergente, tenant ou sessão incompatíveis não gravam mensagem alguma dessa conversa."
+    },
+    {
+      "title": "Corrida com a entrada ao vivo",
+      "body": "A unicidade por organização e external_id evita duplicação. Se a importação vence, só o webhook real remove o marcador e emite os efeitos de entrada; repetição do webhook não emite novamente."
+    },
+    {
+      "title": "LGPD e mídia",
+      "body": "Identidades de contatos anonimizados viram HMAC por organização. Histórico legado sem identidade recuperável bloqueia a importação. A mídia é validada pelo MIME real e armazenada em bucket privado; a importação não solicita derivação de visão ou áudio."
+    },
+    {
+      "title": "Dados e acesso",
+      "body": "A tabela de jobs e as funções internas são exclusivas do service_role. A API deriva tenant e channel_session da sessão autenticada e filtra manualmente cada consulta administrativa. Cursor e payload bruto do provedor não são expostos à UI."
+    }
+  ]
+}

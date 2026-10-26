@@ -107,7 +107,9 @@ describe("dedup do ingest deixa rastro", () => {
   it("dedup inbound reacelera o pipeline de follow-up (âncora no fonte)", () => {
     const fonte = readFileSync(join(process.cwd(), "lib/waha/ingest.ts"), "utf8");
     const inbound = fonte.split('if (insertErr?.code === "23505")')[1] ?? "";
-    expect(inbound.slice(0, 2000), "reentrega WAHA tem que destravar match_reply").toMatch(
+    const fimDoDedup = inbound.indexOf("    return;\n  }\n\n  await markConversation");
+    expect(fimDoDedup, "o fim do bloco de dedup deve continuar delimitado").toBeGreaterThan(0);
+    expect(inbound.slice(0, fimDoDedup), "reentrega WAHA tem que destravar match_reply").toMatch(
       /acelerarPipelineDeEventos/,
     );
   });

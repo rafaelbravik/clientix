@@ -52,6 +52,7 @@ export type SkipReason =
   | "conversation_not_found"
   | "empty_inbound_body"
   | "duplicate_outbound"
+  | "historical_import"
   /**
    * A organização tem agente PUBLICADO, e quem responde publicado é o
    * agent-engine (issue #129). Este worker é o caminho pré-engine: ele não

@@ -75,6 +75,9 @@ interface Excecao {
  * linhas da OUTRA organização, não uma leitura como superusuário.
  */
 const PROVA_PROPRIA: readonly Excecao[] = [
+  { tabela: "whatsapp_history_imports", razao: "tests/invariants/whatsapp-history-import-acl.test.ts — job server-only; anon/authenticated não leem status, cursor ou contagens, e só RPCs service_role alteram lease/checkpoint" },
+  { tabela: "whatsapp_history_suppressed_identities", razao: "tests/invariants/whatsapp-history-import-acl.test.ts — tombstones HMAC fechados a anon/authenticated; nenhum identificador em claro é persistido" },
+  { tabela: "whatsapp_history_import_blocks", razao: "tests/invariants/whatsapp-history-import-acl.test.ts — bloqueio de privacidade server-only sem leitura ou escrita PostgREST" },
   { tabela: "golden_candidates", razao: "tests/invariants/golden-candidates.test.ts — dois tenants reais por JWT (agent): leitura positiva local e ZERO do vizinho nos dois sentidos, a tabela inteira sem filtro igual à própria, anon recusado, e insert/update/delete de authenticated sem efeito (só o servidor grava)." },
   { tabela: "jev_observacoes", razao: "tests/invariants/jev-observacoes.test.ts — dois tenants reais por JWT (agent): leitura positiva local e ZERO do vizinho nos dois sentidos, a tabela inteira sem filtro igual à própria, anon recusado, e insert/update/delete de authenticated sem efeito (só o servidor grava)." },
   { tabela: "prospecting_settings", razao: "tests/invariants/prospecting.test.ts — tabela exclusiva do servidor, ACL e RLS verificadas; FK composta e comandos autenticados cercam a organização." },

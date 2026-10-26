@@ -7,6 +7,7 @@
  */
 import { z } from "zod";
 import { describeWahaServer, type WahaServerCapabilities } from "@/lib/channels/waha-server";
+import { wahaPayloadSchema, type WahaPayload } from "@/lib/waha/envelope";
 
 import { logger } from "@/lib/logger";
 import { classificarFalhaDeAlcance, explicarFalhaDeAlcance } from "@/lib/net/alcance";
@@ -135,6 +136,11 @@ export interface WahaClientOpts {
   tetoMs?: number;
 }
 
+export interface WahaHistoryPage {
+  items: WahaPayload[];
+  hasMore: boolean;
+}
+
 const sessionSnapshotSchema = z.object({
   name: z.string(),
   status: z.string(),
@@ -234,6 +240,11 @@ export class WahaClient {
     return this.sessionAfter(name, "start", 502);
   }
 
+  async sessionSupportsHistory(name: string): Promise<boolean> {
+    const session = await this.getVerifiedSession(name);
+    return Boolean(session && this.isHistoryStoreEnabled(session));
+  }
+
   private async compatibleSession(session: WahaSessionSnapshot): Promise<boolean> {
     if (!session.config) return false;
     const engine = typeof session.engine === "string" ? session.engine : session.engine?.engine;
@@ -249,11 +260,20 @@ export class WahaClient {
   }
 
   /** Porta granular para a futura reserva: created nunca significa ownership. */
-  async createSession(name: string): Promise<{ created: boolean; session: WahaSessionSnapshot }> {
+  async createSession(
+    name: string,
+    options: { guardarHistorico?: boolean } = {},
+  ): Promise<{ created: boolean; session: WahaSessionSnapshot }> {
+    const config = {
+      ignore: CONVERSAS_IGNORADAS,
+      ...(options.guardarHistorico
+        ? { noweb: { store: { enabled: true, fullSync: true } } }
+        : {}),
+    };
     const res = await this.fetchComTeto(`${this.baseUrl}/api/sessions`, {
       method: "POST",
       headers: { "X-Api-Key": this.apiKey, "Content-Type": "application/json" },
-      body: JSON.stringify({ name, start: false, config: { ignore: CONVERSAS_IGNORADAS } }),
+      body: JSON.stringify({ name, start: false, config }),
     });
     if (!res.ok && !knownSessionConflict(await res.json().catch(() => null), res.status, "create", name)) {
       throw new WahaSessionError("create", res.status);
@@ -262,7 +282,135 @@ export class WahaClient {
     if (!res.ok && res.status !== 422) throw new WahaSessionError("create", res.status);
     const session = await this.sessionAfter(name, "create", res.status);
     if (!session || !(await this.compatibleSession(session))) throw new WahaSessionError("create", res.status);
+    if (options.guardarHistorico && !this.isHistoryStoreEnabled(session)) {
+      // A sessão já existia sem o store antes do QR. Alterar isso depois do
+      // pareamento não recupera o histórico e pode dar uma falsa promessa.
+      throw new WahaSessionError("create", res.status);
+    }
     return { created: res.ok, session };
+  }
+
+  isHistoryStoreEnabled(session: WahaSessionSnapshot): boolean {
+    const noweb = session.config?.noweb;
+    if (!noweb || typeof noweb !== "object" || Array.isArray(noweb)) return false;
+    const store = (noweb as Record<string, unknown>).store;
+    if (!store || typeof store !== "object" || Array.isArray(store)) return false;
+    const config = store as Record<string, unknown>;
+    return config.enabled === true && config.fullSync === true;
+  }
+
+  private async historyResponse(path: string, timeoutMs?: number): Promise<unknown> {
+    const res = await this.fetchComTeto(`${this.baseUrl}${path}`, {
+      headers: { "X-Api-Key": this.apiKey },
+      redirect: "manual",
+    }, timeoutMs);
+    if (!res.ok || res.status >= 300 && res.status < 400) throw new Error(`waha_history_${res.status}`);
+    const contentType = res.headers.get("content-type");
+    if (contentType && !/^application\/(?:[a-z0-9.+-]+\+)?json(?:\s*;|$)/i.test(contentType.trim())) {
+      throw new Error("waha_history_malformed_response");
+    }
+    return res.json().catch(() => {
+      throw new Error("waha_history_malformed_response");
+    });
+  }
+
+  /** Lista chats com ordenação estável; grupos/status são filtrados pelo importador. */
+  async listarChatsHistorico(
+    session: string,
+    input: { limit: number; offset: number; timeoutMs?: number },
+  ): Promise<WahaHistoryPage> {
+    const params = new URLSearchParams({
+      limit: String(input.limit), offset: String(input.offset), sortBy: "id", sortOrder: "asc",
+    });
+    const raw = await this.historyResponse(
+      `/api/${encodeURIComponent(session)}/chats?${params.toString()}`,
+      input.timeoutMs,
+    );
+    const list = Array.isArray(raw)
+      ? raw
+      : raw && typeof raw === "object" && Array.isArray((raw as Record<string, unknown>).data)
+        ? ((raw as Record<string, unknown>).data as unknown[])
+        : null;
+    if (!list) throw new Error("waha_history_malformed_response");
+    const items = list.flatMap((item): WahaPayload[] => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+      const value = item as Record<string, unknown>;
+      const id = typeof value.id === "string"
+        ? value.id
+        : value.id && typeof value.id === "object" && typeof (value.id as Record<string, unknown>)._serialized === "string"
+          ? (value.id as Record<string, unknown>)._serialized as string
+          : typeof value.chatId === "string" ? value.chatId : null;
+      if (!id) return [];
+      // Preserve only the opaque chat identity for the importer, never the full
+      // WAHA chat object (which may contain contact content).
+      return [{ id } as WahaPayload];
+    });
+    if (items.length !== list.length) throw new Error("waha_history_malformed_response");
+    const hasMore = list.length >= input.limit || Boolean(
+      raw && typeof raw === "object" && (raw as Record<string, unknown>).hasMore === true,
+    );
+    return { items, hasMore };
+  }
+
+  /** Lista mensagens de um chat; a resposta precisa ser uma página válida inteira. */
+  async listarMensagensHistorico(
+    session: string,
+    chatId: string,
+    input: { limit: number; offset: number; desde: number; timeoutMs?: number },
+  ): Promise<WahaHistoryPage> {
+    const params = new URLSearchParams({
+      limit: String(input.limit), offset: String(input.offset), downloadMedia: "false",
+      sortBy: "timestamp", sortOrder: "asc", "filter.timestamp.gte": String(input.desde),
+    });
+    const raw = await this.historyResponse(
+      `/api/${encodeURIComponent(session)}/chats/${encodeURIComponent(chatId)}/messages?${params.toString()}`,
+      input.timeoutMs,
+    );
+    const list = Array.isArray(raw)
+      ? raw
+      : raw && typeof raw === "object" && Array.isArray((raw as Record<string, unknown>).data)
+        ? ((raw as Record<string, unknown>).data as unknown[])
+        : null;
+    if (!list) throw new Error("waha_history_malformed_response");
+    const items = list.map((item) => {
+      const parsed = wahaPayloadSchema.safeParse(item);
+      if (!parsed.success) throw new Error("waha_history_malformed_response");
+      return parsed.data;
+    });
+    const hasMore = list.length >= input.limit || Boolean(
+      raw && typeof raw === "object" && (raw as Record<string, unknown>).hasMore === true,
+    );
+    return { items, hasMore };
+  }
+
+  /** Obtém metadados da mídia pelo endpoint autenticado e confere a identidade da mensagem. */
+  async obterMensagemMidiaHistorica(session: string, chatId: string, messageId: string): Promise<WahaPayload> {
+    const params = new URLSearchParams({ downloadMedia: "true" });
+    const raw = await this.historyResponse(
+      `/api/${encodeURIComponent(session)}/chats/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}?${params.toString()}`,
+    );
+    const parsed = wahaPayloadSchema.safeParse(raw);
+    if (!parsed.success || parsed.data.id !== messageId) throw new Error("waha_history_malformed_response");
+    const mediaUrl = parsed.data.mediaUrl ?? parsed.data.media?.url;
+    return { ...parsed.data, mediaUrl: mediaUrl ? this.urlMidiaHistorica(mediaUrl) : null };
+  }
+
+  /** Só aceita caminhos da rota interna de arquivos do WAHA; o host do payload nunca é usado. */
+  urlMidiaHistorica(raw: string): string {
+    let base: URL;
+    let advertised: URL;
+    try {
+      base = new URL(this.baseUrl);
+      advertised = new URL(raw, base);
+    } catch {
+      throw new Error("waha_history_media_url_invalid");
+    }
+    if (advertised.pathname.startsWith("/api/files/") !== true || advertised.username || advertised.password) {
+      throw new Error("waha_history_media_url_invalid");
+    }
+    // URLs temporárias podem vir com query token; reconstruímos sem ela para
+    // não persistir credencial na linha da mensagem nem em uma URL de preview.
+    return `${base.origin}${advertised.pathname}`;
   }
 
   /** Compatível com os callers: cria se necessário e inicia, confirmando GET. */
@@ -575,21 +723,45 @@ export class WahaClient {
    * não sei", não "não existe" — quem chama precisa poder tentar de novo depois
    * sem tratar isto como erro.
    */
-  async resolvePhoneForLid(session: string, lid: string): Promise<string | null> {
+  async resolvePhoneForLid(
+    session: string,
+    lid: string,
+    opts: { falhaLanca?: boolean } = {},
+  ): Promise<string | null> {
     try {
       const res = await this.fetchComTeto(
         `${this.baseUrl}/api/${encodeURIComponent(session)}/lids/${encodeURIComponent(lid)}`,
         { headers: { "X-Api-Key": this.apiKey } },
       );
-      if (!res.ok) return null;
-      const body = (await res.json()) as { pn?: string | null };
+      // O canal ainda não conhecer o telefone (4xx ou pn vazio) é um estado
+      // legítimo: a identidade continua verificável pelo LID. Transporte,
+      // 5xx e resposta malformada não podem ser confundidos com esse estado
+      // durante a validação fail-closed do histórico.
+      if (!res.ok) {
+        if (opts.falhaLanca && res.status >= 500) throw new Error(`waha_lid_${res.status}`);
+        return null;
+      }
+      const body = await res.json().catch(() => null) as { pn?: unknown } | null;
+      if (!body || typeof body !== "object" || Array.isArray(body)) {
+        if (opts.falhaLanca) throw new Error("waha_lid_malformed_response");
+        return null;
+      }
       // `595981402525@c.us` → `+595981402525`. O sufixo é endereçamento do
       // canal, não parte do número, e guardá-lo faria a tela mostrar lixo.
       const pn = body.pn;
-      if (!pn) return null;
-      const digitos = String(pn).split("@")[0]?.replace(/\D/g, "") ?? "";
-      return digitos.length >= 8 ? `+${digitos}` : null;
-    } catch {
+      if (pn == null || pn === "") return null;
+      if (typeof pn !== "string") {
+        if (opts.falhaLanca) throw new Error("waha_lid_malformed_response");
+        return null;
+      }
+      const digitos = pn.split("@")[0]?.replace(/\D/g, "") ?? "";
+      if (digitos.length < 8 || digitos.length > 15) {
+        if (opts.falhaLanca) throw new Error("waha_lid_malformed_response");
+        return null;
+      }
+      return `+${digitos}`;
+    } catch (error) {
+      if (opts.falhaLanca) throw error;
       return null;
     }
   }
