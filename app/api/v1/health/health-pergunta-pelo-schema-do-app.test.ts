@@ -72,7 +72,12 @@ describe("GET /api/v1/health — o ping do banco declara o schema", () => {
     const chamadas: Parameters<typeof fetch>[] = [];
     vi.stubGlobal("fetch", (...args: Parameters<typeof fetch>) => {
       chamadas.push(args);
-      return Promise.resolve(new Response("[]", { status: 200 }));
+      return Promise.resolve(
+        new Response("[]", {
+          status: 200,
+          headers: { "content-type": "application/json", "content-range": "*/0" },
+        }),
+      );
     });
 
     const { GET } = await import("./route");
@@ -96,7 +101,10 @@ describe("GET /api/v1/health — o ping do banco declara o schema", () => {
       const pediuPublic = new Headers(init?.headers).get("Accept-Profile") === "public";
       return Promise.resolve(
         pediuPublic
-          ? new Response("[]", { status: 200 })
+          ? new Response("[]", {
+              status: 200,
+              headers: { "content-type": "application/json", "content-range": "*/0" },
+            })
           : new Response(
               JSON.stringify({
                 code: "PGRST205",

@@ -33,6 +33,13 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 type CheckStatus = "ok" | "degraded" | "down";
+/** Alcance diz se houve resposta HTTP; identidade confirma o protocolo do serviço. */
+type Alcance = "reachable" | "unreachable" | "unknown";
+type Identidade = "verified" | "rejected" | "unknown";
+/** Credencial é independente do alcance: um 401 pode vir do serviço correto. */
+type Credencial = "accepted" | "rejected" | "unknown" | "not_required";
+/** Readiness exige resposta semântica válida de uma dependência configurada. */
+type Readiness = "ready" | "not_ready" | "unknown" | "not_configured";
 
 /** Por que o check não passou. `credencial_recusada` é o 401/403 — chegamos lá, e fomos barrados. */
 type MotivoDeFalha =
@@ -45,6 +52,10 @@ type MotivoDeFalha =
 type Check = {
   status: CheckStatus;
   latency_ms: number;
+  reachability: Alcance;
+  identity: Identidade;
+  credentials: Credencial;
+  readiness: Readiness;
   error?: string;
   reason?: MotivoDeFalha;
   /** Protocolo + host + porta que tentamos. Só com `?verbose=1` autenticado. */
@@ -52,6 +63,40 @@ type Check = {
 };
 
 const TIMEOUT_MS = 3_000;
+
+function check(
+  status: CheckStatus,
+  latency_ms: number,
+  extras: Partial<Omit<Check, "status" | "latency_ms">> = {},
+): Check {
+  return {
+    status,
+    latency_ms,
+    reachability: "unknown",
+    identity: "unknown",
+    credentials: "unknown",
+    readiness: status === "degraded" ? "not_configured" : "not_ready",
+    ...extras,
+  };
+}
+
+function jsonContentType(value: string | null): boolean {
+  return Boolean(value && /^application\/(?:[a-z0-9.+-]*\+)?json(?:\s*;|$)/i.test(value));
+}
+
+async function corpoJson(res: Response): Promise<unknown | null> {
+  if (!jsonContentType(res.headers.get("content-type"))) return null;
+  const texto = await withTimeout(res.text());
+  try {
+    return JSON.parse(texto) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+function objeto(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
 
 async function withTimeout<T>(p: Promise<T>, ms = TIMEOUT_MS): Promise<T> {
   return Promise.race([
@@ -75,8 +120,8 @@ async function checkSupabase(): Promise<Check> {
   // CRM inteiro funcionando ao lado. Sem a variável, é a pública, como sempre.
   const url = urlDoSupabaseNoServidor(env.SUPABASE_SERVER_URL, env.NEXT_PUBLIC_SUPABASE_URL);
   try {
-    // Ping leve via REST com anon key — não precisa de service_role pra health check.
-    // Se chegar 200/401/empty body, conexão e API key estão OK.
+    // Ping REST leve com anon key. Redirects ficam visíveis para o check em vez
+    // de levar a sonda a uma tela de login que possa devolver HTML 200.
     const key = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     const res = await withTimeout(
       fetch(`${url}/rest/v1/organizations?select=id&limit=1`, {
@@ -105,27 +150,69 @@ async function checkSupabase(): Promise<Check> {
           "Accept-Profile": "public",
         },
         cache: "no-store",
+        redirect: "manual",
       }),
     );
-    // 200 (lista vazia por RLS) ou 401/403 (auth ok mas RLS bloqueia anon) → conexão OK
-    if (res.status === 200 || res.status === 401 || res.status === 403) {
-      return { status: "ok", latency_ms: Date.now() - t0, target: alvoDe(url) };
+    if (res.status === 401 || res.status === 403) {
+      const body = await corpoJson(res);
+      const erroPostgrest = objeto(body) && typeof body.code === "string" && /^PGRST\d{3}$/.test(body.code);
+      return check("down", Date.now() - t0, {
+        reachability: "reachable",
+        identity: erroPostgrest ? "verified" : "unknown",
+        // 401 explicita credencial inválida. 403 prova que houve resposta e
+        // que a operação foi recusada, mas não separa chave válida sem acesso
+        // do proxy ou de uma regra de autorização.
+        credentials: res.status === 401 ? "rejected" : "unknown",
+        readiness: "not_ready",
+        error: `http_${res.status}`,
+        reason: "credencial_recusada",
+        target: alvoDe(url),
+      });
     }
-    return {
-      status: "down",
-      latency_ms: Date.now() - t0,
-      error: `http_${res.status}`,
-      reason: motivoDoStatusHttp(res.status),
+    if (res.status !== 200) {
+      return check("down", Date.now() - t0, {
+        reachability: "reachable",
+        error: `http_${res.status}`,
+        reason: motivoDoStatusHttp(res.status),
+        target: alvoDe(url),
+      });
+    }
+
+    const body = await corpoJson(res);
+    const contentRange = res.headers.get("content-range")?.trim() ?? "";
+    // PostgREST inclui Content-Range em respostas de recursos, inclusive quando
+    // RLS ou uma tabela recém-instalada não deixa linhas visíveis (`*/0`). A
+    // forma da lista sozinha não identifica o serviço: qualquer proxy pode
+    // responder `[]` com 200.
+    const rangePostgrestValido = /^(?:\*|\d+-\d+)\/(?:\*|\d+)$/.test(contentRange);
+    const respostaPostgrest =
+      rangePostgrestValido &&
+      Array.isArray(body) &&
+      body.every((item) => objeto(item) && typeof item.id === "string");
+    if (!respostaPostgrest) {
+      return check("down", Date.now() - t0, {
+        reachability: "reachable",
+        identity: "rejected",
+        error: "resposta_inesperada",
+        reason: "resposta_inesperada",
+        target: alvoDe(url),
+      });
+    }
+    return check("ok", Date.now() - t0, {
+      reachability: "reachable",
+      identity: "verified",
+      credentials: "accepted",
+      readiness: "ready",
       target: alvoDe(url),
-    };
+    });
   } catch (e) {
-    return {
-      status: "down",
-      latency_ms: Date.now() - t0,
+    return check("down", Date.now() - t0, {
+      reachability: "unreachable",
+      readiness: "not_ready",
       error: e instanceof Error ? e.message : String(e),
       reason: classificarFalhaDeAlcance(e),
       target: alvoDe(url),
-    };
+    });
   }
 }
 
@@ -154,15 +241,17 @@ async function checkRedis(): Promise<Check> {
   const config = validarConfigRedisRest(url, token);
   if (!config.ok) {
     if (config.reason === "nao_configurado") {
-      return { status: "degraded", latency_ms: 0, error: "not_configured", reason: "nao_configurado" };
+      return check("degraded", 0, {
+        error: "not_configured",
+        reason: "nao_configurado",
+        readiness: "not_configured",
+      });
     }
-    return {
-      status: "down",
-      latency_ms: 0,
+    return check("down", 0, {
       error: `configuracao_invalida: UPSTASH_REDIS_REST_URL=${url}`,
       reason: "configuracao_invalida",
       target: alvoDe(url),
-    };
+    });
   }
   try {
     // Protocolo REST do Upstash (compatível com serverless-redis-http): comando no
@@ -173,26 +262,43 @@ async function checkRedis(): Promise<Check> {
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify(["PING"]),
         cache: "no-store",
+        redirect: "manual",
       }),
     );
     if (!res.ok) {
-      return {
-        status: "down",
-        latency_ms: Date.now() - t0,
+      return check("down", Date.now() - t0, {
+        reachability: "reachable",
+        credentials: res.status === 401 ? "rejected" : "unknown",
         error: `http_${res.status}`,
         reason: motivoDoStatusHttp(res.status),
         target: alvoDe(url),
-      };
+      });
     }
-    return { status: "ok", latency_ms: Date.now() - t0, target: alvoDe(url) };
+    const body = await corpoJson(res);
+    if (!objeto(body) || body.result !== "PONG") {
+      return check("down", Date.now() - t0, {
+        reachability: "reachable",
+        identity: "rejected",
+        error: "resposta_inesperada",
+        reason: "resposta_inesperada",
+        target: alvoDe(url),
+      });
+    }
+    return check("ok", Date.now() - t0, {
+      reachability: "reachable",
+      identity: "verified",
+      credentials: "accepted",
+      readiness: "ready",
+      target: alvoDe(url),
+    });
   } catch (e) {
-    return {
-      status: "down",
-      latency_ms: Date.now() - t0,
+    return check("down", Date.now() - t0, {
+      reachability: "unreachable",
+      readiness: "not_ready",
       error: e instanceof Error ? e.message : String(e),
       reason: classificarFalhaDeAlcance(e),
       target: alvoDe(url),
-    };
+    });
   }
 }
 
@@ -200,35 +306,64 @@ async function checkWaha(): Promise<Check> {
   const t0 = Date.now();
   const base = env.WAHA_API_BASE_URL;
   if (!base) {
-    return { status: "degraded", latency_ms: 0, error: "not_configured", reason: "nao_configurado" };
+    return check("degraded", 0, {
+      error: "not_configured",
+      reason: "nao_configurado",
+      readiness: "not_configured",
+    });
   }
   try {
-    // /api/sessions valida conectividade E autenticação num tiro só. O WAHA Core não
-    // expõe /api/health (daria 404 mesmo autenticado).
+    // /api/server/status identifica o contrato WAHA sem depender de haver uma
+    // sessão WhatsApp pareada. /api/sessions pode legitimamente ser `[]` numa
+    // instalação nova, portanto não basta para provar identidade semântica.
     const res = await withTimeout(
-      fetch(`${base.replace(/\/$/, "")}/api/sessions`, {
+      fetch(`${base.replace(/\/$/, "")}/api/server/status`, {
         headers: env.WAHA_API_KEY ? { "X-Api-Key": env.WAHA_API_KEY } : {},
         cache: "no-store",
+        redirect: "manual",
       }),
     );
     if (!res.ok) {
-      return {
-        status: "down",
-        latency_ms: Date.now() - t0,
+      return check("down", Date.now() - t0, {
+        reachability: "reachable",
+        credentials: res.status === 401 ? "rejected" : "unknown",
         error: `http_${res.status}`,
         reason: motivoDoStatusHttp(res.status),
         target: alvoDe(base),
-      };
+      });
     }
-    return { status: "ok", latency_ms: Date.now() - t0, target: alvoDe(base) };
+    const body = await corpoJson(res);
+    const respostaWaha =
+      objeto(body) &&
+      Number.isSafeInteger(body.startTimestamp) &&
+      (body.startTimestamp as number) > 0 &&
+      typeof body.uptime === "number" &&
+      Number.isFinite(body.uptime) &&
+      body.uptime >= 0;
+    if (!respostaWaha) {
+      return check("down", Date.now() - t0, {
+        reachability: "reachable",
+        identity: "rejected",
+        error: "resposta_inesperada",
+        reason: "resposta_inesperada",
+        target: alvoDe(base),
+      });
+    }
+    return check("ok", Date.now() - t0, {
+      reachability: "reachable",
+      identity: "verified",
+      credentials: env.WAHA_API_KEY ? "accepted" : "not_required",
+      readiness: "ready",
+      target: alvoDe(base),
+    });
   } catch (e) {
-    return {
-      status: "down",
-      latency_ms: Date.now() - t0,
+    return check("down", Date.now() - t0, {
+      reachability: "unreachable",
+      readiness: "not_ready",
       error: e instanceof Error ? e.message : String(e),
       reason: classificarFalhaDeAlcance(e),
       target: alvoDe(base),
-    };
+    });
   }
 }
 

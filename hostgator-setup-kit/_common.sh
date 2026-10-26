@@ -988,6 +988,17 @@ app_health_probe() {
     2>/dev/null || echo ''
 }
 
+# Resultado visível do healthcheck manual: o status global é a única régua.
+# O status `ok` de um subsistema não compensa outro serviço crítico `down`.
+report_healthcheck_status() {
+  case "${1:-}" in
+    healthy) c_grn "✓ app saudável"; return 0 ;;
+    degraded) c_ylw "⚠ app parcialmente disponível (serviço opcional ausente)."; return 0 ;;
+    unhealthy) c_red "✗ app indisponível: há serviço necessário em falha."; return 1 ;;
+    *) c_ylw "⚠ não foi possível confirmar a saúde global do app."; return 1 ;;
+  esac
+}
+
 # wait_app_healthy [tentativas] [intervalo_s] — 0 quando o app se declara
 # `healthy` ou `degraded`, 1 caso contrário. `degraded` entra de propósito:
 # significa que algum serviço OPCIONAL ainda não foi configurado (o check

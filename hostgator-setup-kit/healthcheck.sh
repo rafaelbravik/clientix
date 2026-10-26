@@ -2,20 +2,22 @@
 # Diagnóstico rápido: estado dos containers + saúde do app (Supabase/Redis/WAHA).
 source "$(dirname "$0")/_common.sh"
 enter_project
+falha_health_app=0
 
 step "Containers"
 dc ps
 
 step "Saúde interna do app (/api/v1/health)"
 # Roda de dentro da rede do compose (a rota não é exposta publicamente sem TLS).
-out="$(dc exec -T app node -e "
-fetch('http://127.0.0.1:3000/api/v1/health').then(r=>r.text()).then(t=>{console.log(t);process.exit(0)}).catch(e=>{console.error(e.message);process.exit(1)})
-" 2>/dev/null || echo '')"
-if [ -n "$out" ]; then
-  printf '%s\n' "$out"
-  printf '%s' "$out" | grep -q '"status":"ok"' && c_grn "✓ app saudável" || c_ylw "⚠ algum subsistema degradado (veja o JSON acima)."
+out="$(app_health_probe)"
+status="$(printf '%s\n' "$out" | head -1 | tr -d '\r')"
+body="$(printf '%s\n' "$out" | tail -n +2)"
+if [ -n "$body" ]; then
+  printf '%s\n' "$body"
+  report_healthcheck_status "$status" || falha_health_app=1
 else
   c_ylw "⚠ app não respondeu. Logs: docker compose $(dc_files) logs --tail=50 app"
+  falha_health_app=1
 fi
 
 step "Atualização pela tela (agente do host)"
@@ -126,3 +128,5 @@ fetch('http://127.0.0.1:3000/email-templates/confirmation').then(r=>r.text()).th
     fi
     ;;
 esac
+
+if [ "$falha_health_app" -ne 0 ]; then exit 1; fi

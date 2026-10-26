@@ -657,6 +657,29 @@ saude_ok "unhealthy AINDA QUE o redis esteja ok" nao      unhealthy "$UNHEALTHY"
 saude_ok "porta aberta, app mudo"                nao      ''        ''
 saude_ok "proxy devolveu HTML de erro"           nao      ''        '<html>502 Bad Gateway</html>'
 
+echo "healthcheck mostra o status global"
+for status in healthy degraded; do
+  if report_healthcheck_status "$status" >/dev/null 2>&1; then
+    printf '  ✓ %s é diagnóstico não bloqueante\n' "$status"
+  else
+    printf '  ✗ %s foi recusado\n' "$status"
+    fail=1
+  fi
+done
+if report_healthcheck_status unhealthy >/dev/null 2>&1; then
+  printf '  ✗ status global unhealthy passou como saudável\n'
+  fail=1
+else
+  printf '  ✓ unhealthy falha mesmo com checks individuais ok\n'
+fi
+if grep -q 'out="$(app_health_probe)"' ./healthcheck.sh \
+   && ! grep -q '"status":"ok"' ./healthcheck.sh; then
+  printf '  ✓ healthcheck.sh decide pelo status global, sem grep de check individual\n'
+else
+  printf '  ✗ healthcheck.sh pode aprovar por status de serviço individual\n'
+  fail=1
+fi
+
 echo "rascunho das respostas (save_partial → load_env)"
 # Quem trava na connection string — a pergunta mais difícil, e a última das
 # credenciais — perdia as 11 respostas anteriores. O que importa aqui é o

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 /**
@@ -57,7 +57,14 @@ function pedido(query = "", headers: Record<string, string> = {}): NextRequest {
 }
 
 describe("GET /api/v1/health — o endereço interno não sai para quem não tem o segredo", () => {
-  beforeEach(() => vi.resetModules());
+  beforeEach(() => {
+    vi.resetModules();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("[]", { status: 200, headers: { "content-type": "application/json" } })),
+    );
+  });
+  afterEach(() => vi.unstubAllGlobals());
 
   it("não publica o host numa resposta anônima, nem pelo error", async () => {
     const { GET } = await import("./route");
