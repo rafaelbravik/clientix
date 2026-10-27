@@ -48,7 +48,10 @@ class FakeQuery implements PromiseLike<{ data: unknown; error: { message: string
   private orderAsc = true;
   private limitN?: number;
 
-  constructor(private table: string) {}
+  constructor(
+    private table: string,
+    private beforeUpdate?: (table: string, payload: Record<string, unknown>) => void,
+  ) {}
 
   select(cols: string): this {
     if (this.mode === "update") {
@@ -152,6 +155,7 @@ class FakeQuery implements PromiseLike<{ data: unknown; error: { message: string
 
   private async execute(): Promise<{ data: unknown; error: { message: string } | null }> {
     try {
+      if (this.mode === "update" && this.updateData) this.beforeUpdate?.(this.table, this.updateData);
       const needsRows = this.mode === "select" || this.selectAfterUpdate;
       if (needsRows) {
         // json_agg over a multi-column row inserts line breaks between fields
@@ -182,8 +186,10 @@ class FakeQuery implements PromiseLike<{ data: unknown; error: { message: string
   }
 }
 
-function fakeAdminClient(): SupabaseClient {
-  return { from: (table: string) => new FakeQuery(table) } as unknown as SupabaseClient;
+function fakeAdminClient(
+  beforeUpdate?: (table: string, payload: Record<string, unknown>) => void,
+): SupabaseClient {
+  return { from: (table: string) => new FakeQuery(table, beforeUpdate) } as unknown as SupabaseClient;
 }
 
 function emitDrainCase(mode: string, eventType = "test.drain_case"): string {
@@ -261,6 +267,16 @@ registerHandler({
   events: ["test.drain_retry_no_backoff"],
   async handle(): Promise<HandlerResult> {
     return { consumer_key: "test-drain-retry-no-backoff", status: "retry" };
+  },
+});
+
+registerHandler({
+  key: "test-drain-concurrent-handler",
+  naOrgParada: "roda",
+  events: ["test.drain_concurrent"],
+  async handle(row: EventRow): Promise<HandlerResult> {
+    calls.push(row.id);
+    return { consumer_key: "test-drain-concurrent-handler", status: "ok" };
   },
 });
 
@@ -416,5 +432,34 @@ describe("drainEventLog — cron driver genérico do event_log (migration 0037)"
     await drainEventLog(fakeAdminClient(), { limit: 50 });
 
     expect(rowState(emCurso).status, "reclamou um evento que estava em curso").toBe("processing");
+  });
+
+  it("revalida retry reagendado entre seleção e claim; claim antigo perde", async () => {
+    const reagendado = emitDrainCase("ok", "test.drain_concurrent");
+    const idsAntes = calls.filter((id) => id === reagendado).length;
+    const admin = fakeAdminClient((table, payload) => {
+      if (table === "event_log" && payload.status === "processing") {
+        sql(`update public.event_log set next_attempt_at = now() + interval '1 hour' where id = '${reagendado}';`);
+      }
+    });
+
+    await drainEventLog(admin, { limit: 50 });
+
+    expect(rowState(reagendado).status).toBe("pending");
+    expect(new Date(rowState(reagendado).next_attempt_at!).getTime()).toBeGreaterThan(Date.now());
+    expect(calls.filter((id) => id === reagendado)).toHaveLength(idsAntes);
+  });
+
+  it("dois drains concorrentes só entregam uma vez o mesmo evento", async () => {
+    const concorrente = emitDrainCase("ok", "test.drain_concurrent");
+    const idsAntes = calls.filter((id) => id === concorrente).length;
+
+    await Promise.all([
+      drainEventLog(fakeAdminClient(), { limit: 50 }),
+      drainEventLog(fakeAdminClient(), { limit: 50 }),
+    ]);
+
+    expect(rowState(concorrente).status).toBe("done");
+    expect(calls.filter((id) => id === concorrente)).toHaveLength(idsAntes + 1);
   });
 });

@@ -306,6 +306,10 @@ export async function drainEventLog(
       .update({ status: "processing", updated_at: new Date().toISOString() })
       .eq("id", row.id)
       .eq("status", "pending")
+      // Revalida a elegibilidade no próprio CAS. Um retry pode ter sido
+      // reagendado depois da seleção inicial; nesse caso este worker perde a
+      // corrida e não executa o evento antes do novo next_attempt_at.
+      .or(`next_attempt_at.is.null,next_attempt_at.lte.${nowIso}`)
       .select("id");
     if (!claimed?.length) continue;
 

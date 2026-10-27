@@ -275,6 +275,23 @@ describe("drainEventLog — evento preso volta para a fila, e a volta conta", ()
     expect(iSeleciona).toBeGreaterThan(iReclama);
   });
 
+  it("o claim revalida next_attempt_at junto do CAS, além da seleção inicial", async () => {
+    dispatch.mockResolvedValue([{ consumer_key: "k", status: "ok" }]);
+    const { admin, chamadas } = dublarAdmin([LINHA]);
+
+    await drainEventLog(admin as never);
+
+    const claim = chamadas.find(
+      (c) => c.tabela === "event_log" && c.op === "update" && c.payload?.status === "processing",
+    );
+    expect(claim, "claim otimista não foi executado").toBeDefined();
+    expect(claim!.filtros).toContainEqual([
+      "or",
+      "",
+      expect.stringMatching(/^next_attempt_at\.is\.null,next_attempt_at\.lte\./),
+    ]);
+  });
+
   it("sem evento preso, nada é reclamado (controle)", async () => {
     dispatch.mockResolvedValue([{ consumer_key: "k", status: "ok" }]);
     const { admin, chamadas } = dublarAdmin([]);
