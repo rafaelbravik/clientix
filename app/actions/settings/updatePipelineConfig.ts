@@ -91,6 +91,9 @@ export async function updatePipelineConfig(
   if (parsed.data.entrada_do_inbox !== undefined) {
     nextSettings.entrada_do_inbox = parsed.data.entrada_do_inbox;
   }
+  if (parsed.data.ocultar_encerrados_dias !== undefined) {
+    nextSettings.ocultar_encerrados_dias = parsed.data.ocultar_encerrados_dias;
+  }
 
   const { error } = await supabase
     .from("crm_pipelines")
@@ -113,6 +116,7 @@ export async function updatePipelineConfig(
       won_reason_required: parsed.data.won_reason_required ?? null,
       reabertura: parsed.data.reabertura ?? null,
       entrada_do_inbox_ativa: parsed.data.entrada_do_inbox?.ativa ?? null,
+      ocultar_encerrados_dias: parsed.data.ocultar_encerrados_dias ?? null,
     },
   });
 

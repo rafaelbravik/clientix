@@ -93,6 +93,7 @@ correspondentes localizados no repo):
 - **Atendimento WhatsApp** — inbox de 3 painéis em tempo real, conexões WAHA multi-número,
   mídia via Storage, anti-banimento (throttle + jitter + janela de horário), STOP detection.
 - **CRM & pedidos** — kanban com vocabulário configurável por nicho (fractional indexing),
+  Lista do funil paginada no banco, recorte opcional de negócios encerrados antigos no Quadro,
   customer 360, contatos, tags, Nuvemshop.
 - **IA nativa** — agentes com RAG por tenant (pgvector), sentiment, handoff IA→humano,
   budget por org, MCP server interno.

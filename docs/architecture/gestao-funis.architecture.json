@@ -40,7 +40,13 @@
     { "id": "rules", "lane": "dependente", "col": 4, "type": "database", "label": "automation_rules", "sublabel": "pipeline_id dentro de jsonb — SEM FK" },
     { "id": "entradaInbox", "lane": "humano", "col": 5, "type": "frontend", "label": "Etapa de entrada do Inbox", "sublabel": "no funil padrão · ativa/desativa sem apagar a seleção" },
     { "id": "entradaAction", "lane": "borda", "col": 5, "type": "service", "label": "updatePipelineConfig", "sublabel": "valida etapa, tenant e funil padrão antes de salvar settings" },
-    { "id": "nascimento", "lane": "regra", "col": 4, "type": "service", "label": "funilDeEntrada", "sublabel": "usa etapa válida configurada; falha segura para a primeira etapa aberta" }
+    { "id": "nascimento", "lane": "regra", "col": 4, "type": "service", "label": "funilDeEntrada", "sublabel": "usa etapa válida configurada; falha segura para a primeira etapa aberta" },
+    { "id": "pipelineList", "lane": "humano", "col": 6, "type": "frontend", "label": "ListaDoFunil", "sublabel": "páginas do banco · abre o mesmo LeadDossier · mobile com rolagem interna" },
+    { "id": "listHook", "lane": "humano", "col": 7, "type": "frontend", "label": "useLeadsPaginados", "sublabel": "cache tenant-scoped · invalida a página no Realtime" },
+    { "id": "listRoute", "lane": "borda", "col": 6, "type": "api", "label": "GET /api/v1/pipelines/[id]/leads", "sublabel": "viewer · tenant + pipeline · ORDER · RANGE · total exato" },
+    { "id": "pageIndex", "lane": "dados", "col": 5, "type": "database", "label": "idx_crm_leads_org_pipeline_position_id", "sublabel": "0523 · filtros tenant/funil + página em ordem estável" },
+    { "id": "closedCut", "lane": "regra", "col": 5, "type": "service", "label": "recortaEncerradosAntigos", "sublabel": "apenas apresentação do Quadro · closed_at · sem alterar status" },
+    { "id": "dossier", "lane": "humano", "col": 8, "type": "frontend", "label": "LeadDossier", "sublabel": "a Lista reaproveita o dossiê já usado pelo Kanban" }
   ],
   "edges": [
     { "id": "e1", "from": "lista", "to": "pipelines", "label": "select … .eq(organization_id, org ATIVA) — a RLS sozinha misturava as orgs" },
@@ -76,7 +82,16 @@
     { "id": "e31", "from": "entradaInbox", "to": "entradaAction", "label": "configuração da etapa de entrada" },
     { "id": "e32", "from": "entradaAction", "to": "pipelines", "label": "persistência em settings do funil padrão" },
     { "id": "e33", "from": "nascimento", "to": "pipelines", "label": "resolve o funil padrão e sua configuração" },
-    { "id": "e34", "from": "nascimento", "to": "stages", "label": "valida org, funil e estado; fallback para etapa aberta" }
+    { "id": "e34", "from": "nascimento", "to": "stages", "label": "valida org, funil e estado; fallback para etapa aberta" },
+    { "id": "e35", "from": "board", "to": "closedCut", "label": "filtra somente o conjunto já carregado para o Quadro" },
+    { "id": "e36", "from": "closedCut", "to": "pipelines", "label": "lê ocultar_encerrados_dias; 0/ausente desliga; lead em deep-link fica visível" },
+    { "id": "e37", "from": "pipelineList", "to": "listHook", "label": "page + per_page" },
+    { "id": "e38", "from": "listHook", "to": "listRoute", "label": "GET independente; não busca /board" },
+    { "id": "e39", "from": "listRoute", "to": "pipelines", "label": "valida organização da sessão e devolve 404 cross-tenant" },
+    { "id": "e40", "from": "listRoute", "to": "leads", "label": "filtro explícito · ORDER position/id · RANGE · count exact" },
+    { "id": "e41", "from": "listRoute", "to": "stages", "label": "resolve rótulos somente das etapas da página atual" },
+    { "id": "e42", "from": "listRoute", "to": "pageIndex", "label": "índice atende filtros e ordenação estável" },
+    { "id": "e43", "from": "pipelineList", "to": "dossier", "label": "abre a mesma ficha do Kanban; página permanece na URL" }
   ],
   "cards": [
     {
@@ -105,6 +120,16 @@
         "crm_pipelines_select libera TODAS as organizações do usuário e libera tudo para platform admin — a RLS responde 'pode ver?', não 'quer ver agora?'",
         "como o gatilho (e28) cria um 'Pedidos' em cada org, a lista mostrava várias linhas idênticas, cada uma abrindo um quadro diferente",
         "provado por sabotagem: sem o .eq da e1, o e2e fica vermelho com 'Expected: 1, Received: 2'"
+      ]
+    },
+    {
+      "dot": "sky",
+      "title": "Lista do funil e recorte visual",
+      "items": [
+        "a Lista não carrega o board escondido: o endpoint aplica tenant/funil, ordenação por position_in_stage + id e RANGE no banco; o índice 0523 acompanha esse caminho",
+        "o total da Lista é exato por contrato e custa contagem sob RLS; a página continua limitada no banco e a resposta informa has_more",
+        "ocultar_encerrados_dias recorta somente o Quadro por closed_at; negócios abertos e encerrados sem closed_at ficam, e a Lista continua mostrando o histórico permitido",
+        "o recorte do Quadro ocorre depois da leitura já existente; esta wave não reduz o volume lido pelo endpoint do board"
       ]
     }
   ]

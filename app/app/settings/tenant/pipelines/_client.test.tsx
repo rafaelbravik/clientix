@@ -396,3 +396,33 @@ describe("etapa de entrada do Inbox", () => {
     expect(screen.queryByLabelText("Ativar etapa de entrada do Inbox")).not.toBeInTheDocument();
   });
 });
+
+describe("recorte de negócios encerrados no Quadro", () => {
+  beforeEach(() => vi.mocked(updatePipelineConfig).mockClear());
+  const salvar = () => fireEvent.click(screen.getByRole("button", { name: "Salvar vocabulário e campos" }));
+
+  it("salva a quantidade configurada por funil", async () => {
+    render(<PipelinesClient pipelines={[FUNIL]} etapas={{}} podeEditarConfig />);
+    const habilitar = screen.getByLabelText("Ocultar negócios encerrados antigos");
+    expect(habilitar).not.toBeChecked();
+    fireEvent.click(habilitar);
+    fireEvent.change(screen.getByLabelText("Dias até ocultar negócios encerrados"), { target: { value: "45" } });
+    salvar();
+
+    await vi.waitFor(() => expect(updatePipelineConfig).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(updatePipelineConfig).mock.calls[0]?.[1].ocultar_encerrados_dias).toBe(45);
+  });
+
+  it("desligar grava 0 explicitamente em vez de conservar o corte anterior", async () => {
+    const configurado: PipelineRow = {
+      ...FUNIL,
+      settings: { ...FUNIL.settings, ocultar_encerrados_dias: 30 },
+    };
+    render(<PipelinesClient pipelines={[configurado]} etapas={{}} podeEditarConfig />);
+    fireEvent.click(screen.getByLabelText("Ocultar negócios encerrados antigos"));
+    salvar();
+
+    await vi.waitFor(() => expect(updatePipelineConfig).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(updatePipelineConfig).mock.calls[0]?.[1].ocultar_encerrados_dias).toBe(0);
+  });
+});

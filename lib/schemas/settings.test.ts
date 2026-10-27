@@ -170,6 +170,14 @@ describe("pipelineConfigPatchSchema", () => {
       }).success,
     ).toBe(false);
   });
+
+  it("aceita recorte de 0 (desligado) a 3650 dias e rejeita fora da faixa", () => {
+    expect(pipelineConfigPatchSchema.safeParse({ ocultar_encerrados_dias: 0 }).success).toBe(true);
+    expect(pipelineConfigPatchSchema.safeParse({ ocultar_encerrados_dias: 1 }).success).toBe(true);
+    expect(pipelineConfigPatchSchema.safeParse({ ocultar_encerrados_dias: 3650 }).success).toBe(true);
+    expect(pipelineConfigPatchSchema.safeParse({ ocultar_encerrados_dias: 3651 }).success).toBe(false);
+    expect(pipelineConfigPatchSchema.safeParse({ ocultar_encerrados_dias: 1.5 }).success).toBe(false);
+  });
 });
 
 describe("customFieldSchema — anexos de negócio", () => {

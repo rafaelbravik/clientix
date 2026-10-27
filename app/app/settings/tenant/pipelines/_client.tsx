@@ -19,6 +19,11 @@ import { updatePipelineConfig } from "@/app/actions/settings/updatePipelineConfi
 import type { PipelineConfigPatch } from "@/lib/schemas/settings";
 import { camposDoFunil } from "@/lib/leads/campos-do-funil";
 import { modoDeReabertura } from "@/lib/leads/reabertura";
+import {
+  DIAS_MAXIMO_DO_RECORTE,
+  DIAS_PADRAO_DO_RECORTE,
+  diasDeRecorte,
+} from "@/lib/kanban/recorte-de-encerrados";
 import { CATEGORIAS_DE_PERDA } from "@/lib/schemas/leads";
 import { customFieldSchema, type CustomFieldDef } from "@/lib/schemas/settings";
 import { Plus, Trash } from "@/lib/ui/icons";
@@ -254,6 +259,11 @@ function PipelineEditor({
   const [entradaStageId, setEntradaStageId] = useState(
     typeof entrada?.stage_id === "string" ? entrada.stage_id : "__sem__",
   );
+  const diasDeRecorteSalvos = diasDeRecorte(pipeline.settings);
+  const [ocultarEncerrados, setOcultarEncerrados] = useState(diasDeRecorteSalvos !== null);
+  const [diasEncerrados, setDiasEncerrados] = useState(
+    String(diasDeRecorteSalvos ?? DIAS_PADRAO_DO_RECORTE),
+  );
   const [isPending, startTransition] = useTransition();
 
   function handleSave() {
@@ -305,6 +315,15 @@ function PipelineEditor({
       .map((s2) => s2.trim())
       .filter((s2) => s2.length > 0);
 
+    const diasRecorte = ocultarEncerrados ? Number(diasEncerrados) : 0;
+    if (
+      ocultarEncerrados &&
+      (!Number.isInteger(diasRecorte) || diasRecorte < 1 || diasRecorte > DIAS_MAXIMO_DO_RECORTE)
+    ) {
+      toast.error(t(`Informe um número de dias entre 1 e ${DIAS_MAXIMO_DO_RECORTE}.`));
+      return;
+    }
+
     const patch: PipelineConfigPatch = {
       vocabulary: { lead, deal, won, lost },
       fields: ok,
@@ -312,6 +331,8 @@ function PipelineEditor({
       won_reasons: wonReasons,
       won_reason_required: wonRequired,
       reabertura: retomaComoNovo ? "novo_negocio" : "mesmo_registro",
+      // 0 é explícito: desativar não pode deixar um valor antigo ativo.
+      ocultar_encerrados_dias: diasRecorte,
       ...(pipeline.is_default
         ? {
             entrada_do_inbox: {
@@ -370,6 +391,39 @@ function PipelineEditor({
           </div>
         </section>
       )}
+
+      <section className="space-y-3 rounded-md border border-border p-3">
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            aria-label={t("Ocultar negócios encerrados antigos")}
+            checked={ocultarEncerrados}
+            onChange={(event) => setOcultarEncerrados(event.target.checked)}
+          />
+          {t("Ocultar negócios encerrados antigos")}
+        </label>
+        <div className="flex max-w-md flex-wrap items-center gap-2">
+          <Label htmlFor={`dias-encerrados-${pipeline.id}`} className="text-xs">
+            {t("Ocultar após")}
+          </Label>
+          <Input
+            id={`dias-encerrados-${pipeline.id}`}
+            aria-label={t("Dias até ocultar negócios encerrados")}
+            type="number"
+            min={1}
+            max={DIAS_MAXIMO_DO_RECORTE}
+            step={1}
+            disabled={!ocultarEncerrados}
+            value={diasEncerrados}
+            onChange={(event) => setDiasEncerrados(event.target.value)}
+            className="w-28"
+          />
+          <span className="text-xs text-muted-foreground">{t("dias")}</span>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {t("Aplica-se somente ao Quadro. A Lista continua mostrando o histórico permitido. Use de 1 a 3650 dias; ao desligar, todos os negócios encerrados voltam ao Quadro.")}
+        </p>
+      </section>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <div className="space-y-1">

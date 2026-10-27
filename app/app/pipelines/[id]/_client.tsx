@@ -32,6 +32,7 @@ import { categoriaDoMotivo } from "@/lib/leads/motivos-de-perda-do-funil";
 import { camposDoFunil } from "@/lib/leads/campos-do-funil";
 import { ROLE_RANK, type Role } from "@/lib/auth/types";
 import { ListaDoFunil } from "@/components/kanban/ListaDoFunil";
+import { diasDeRecorte, recortaEncerradosAntigos } from "@/lib/kanban/recorte-de-encerrados";
 
 export function PipelinePageClient({
   pipelineId,
@@ -74,6 +75,14 @@ export function PipelinePageClient({
     return (motivo: string) => categoriaDoMotivo(motivo, settings);
   }, [settings]);
   const filteredLeads = data ? applyFilters(data.leads, filters, { categoriaDo }) : [];
+  const leadsDoQuadro = data
+    ? recortaEncerradosAntigos(
+        filteredLeads,
+        diasDeRecorte(data.pipeline.settings),
+        new Date(),
+        searchParams.get("lead"),
+      )
+    : [];
   // NÃO é a conta do FilterBar: o seletor de filtro lista as três caixas
   // (`marcadoresDoCard`: negócio, contato e conversa), e esta lista, a da tag em
   // lote, só `lead.tags` — é lá que a ação em lote grava (#852). O `useMemo` é o
@@ -185,7 +194,7 @@ export function PipelinePageClient({
         <KanbanBoard
           pipelineId={pipelineId}
           stages={data.stages}
-          leads={filteredLeads}
+          leads={leadsDoQuadro}
           pulses={pulses}
           pipeline={data.pipeline}
           selectedIds={selectedIds}

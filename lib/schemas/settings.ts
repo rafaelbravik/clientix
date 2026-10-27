@@ -11,6 +11,7 @@ import { z } from "zod";
 import { ehHexValido } from "@/lib/branding/rampa";
 import { IDIOMAS } from "@/lib/i18n/idiomas";
 import { MOEDAS_SERVIDAS } from "@/lib/money";
+import { DIAS_MAXIMO_DO_RECORTE } from "@/lib/kanban/recorte-de-encerrados";
 
 import { conversationTagSchema } from "./messaging";
 
@@ -274,6 +275,8 @@ export const pipelineConfigPatchSchema = z.object({
       path: ["stage_id"],
     })
     .optional(),
+  /** 0 desliga; quando positivo, o quadro esconde encerrados após N dias. */
+  ocultar_encerrados_dias: z.number().int().min(0).max(DIAS_MAXIMO_DO_RECORTE).optional(),
 });
 export type PipelineConfigPatch = z.infer<typeof pipelineConfigPatchSchema>;
 
