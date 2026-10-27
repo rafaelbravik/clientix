@@ -1007,6 +1007,9 @@ export const AUDIT_ACTIONS = [
   "company_people.updated",
   "contacts.person_linked",
   "imports.companies_people",
+  // Alteração administrativa de uma fonte RAG; registra somente campos e
+  // contagem, nunca perguntas, respostas ou conteúdo do acervo.
+  "ai.knowledge_source_updated",
 ] as const;
 
 /** Um código de auditoria. Derivado de `AUDIT_ACTIONS` — não redigite a lista. */

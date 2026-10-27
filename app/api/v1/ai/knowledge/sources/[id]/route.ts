@@ -11,10 +11,11 @@ import { randomUUID } from "node:crypto";
 import { type NextRequest } from "next/server";
 import { z } from "zod";
 import { ok, fail } from "@/lib/api/wrappers";
+import { audit } from "@/lib/audit";
 import { requireRole } from "@/lib/auth/require-role";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { aceitaTextoColado, canonizarTipoDeFonte } from "@/lib/ai/rag/tipos-de-fonte";
+import { canonizarTipoDeFonte } from "@/lib/ai/rag/tipos-de-fonte";
 
 export const dynamic = "force-dynamic";
 
@@ -110,7 +111,7 @@ export async function PATCH(
 
   const ctx = await resolveContext(requestId);
   if (ctx.error) return ctx.error;
-  const { activeOrg } = ctx as Exclude<typeof ctx, { error: Response }>;
+  const { authUser, activeOrg } = ctx as Exclude<typeof ctx, { error: Response }>;
 
   // Parse + validate body.
   let rawBody: unknown;
@@ -134,7 +135,7 @@ export async function PATCH(
   const supabase = await createClient();
   const { data: existing, error: fetchErr } = await supabase
     .from("ai_knowledge_sources")
-    .select("id, source_type, agent_id")
+    .select("id, source_type")
     .eq("id", sourceId)
     .eq("organization_id", activeOrg.orgId)
     .maybeSingle();
@@ -147,95 +148,62 @@ export async function PATCH(
     return fail("not_found", "Fonte de conhecimento não encontrada.", 404, { requestId });
   }
 
-  const ksRow = existing as { id: string; source_type: string; agent_id: string | null };
-  const tipo = canonizarTipoDeFonte(ksRow.source_type);
+  const tipo = canonizarTipoDeFonte(existing.source_type as string);
 
-  // Build update payload (only provided fields).
-  const updatePayload: Record<string, unknown> = {};
-  if (input.name !== undefined) updatePayload.name = input.name;
-  if (input.source_metadata !== undefined) updatePayload.source_metadata = input.source_metadata;
-
-  const admin = createAdminClient();
-
-  if (Object.keys(updatePayload).length > 0) {
-    const { error: updateErr } = await admin
-      .from("ai_knowledge_sources")
-      .update(updatePayload)
-      .eq("id", sourceId)
-      .eq("organization_id", activeOrg.orgId);
-
-    if (updateErr) {
-      console.error("[ai-knowledge-sources] PATCH update failed:", updateErr.message);
-      return fail("internal_error", "Erro ao atualizar fonte.", 500, { requestId });
-    }
-  }
-
-  // Replace FAQ items if provided.
-  let itemsCount: number | undefined;
-  // Itens mandados para um tipo que não os ingere eram DESCARTADOS em silêncio:
-  // a pessoa editava o conteúdo, recebia 200, e nada mudava.
-  if (input.items !== undefined && tipo !== null && !aceitaTextoColado(tipo)) {
+  // A lista de pergunta/resposta só tem contrato de persistência em uma fonte
+  // FAQ. Não confirme 200 deixando os itens recebidos sem efeito.
+  if (input.items !== undefined && tipo !== "faq") {
     return fail(
       "unprocessable_entity",
-      "Este material não é preenchido por texto colado — envie o arquivo ou aguarde a rotina que o alimenta.",
+      "Itens de perguntas e respostas só podem ser alterados em uma fonte FAQ.",
       422,
       { requestId },
     );
   }
 
-  if (input.items !== undefined && tipo === "faq") {
-    // Delete existing items.
-    const { error: delErr } = await admin
-      .from("ai_faq_items")
-      .delete()
-      .eq("knowledge_source_id", sourceId)
-      .eq("organization_id", activeOrg.orgId);
+  const admin = createAdminClient();
+  const { data: result, error: updateErr } = await admin.rpc(
+    "fn_update_ai_knowledge_source_atomic" as never,
+    {
+      p_source_id: sourceId,
+      p_organization_id: activeOrg.orgId,
+      p_patch: input,
+    } as never,
+  );
 
-    if (delErr) {
-      console.error("[ai-knowledge-sources] PATCH delete items failed:", delErr.message);
-      return fail("internal_error", "Erro ao remover itens antigos.", 500, { requestId });
+  if (updateErr) {
+    if (updateErr.code === "P0002") {
+      return fail("not_found", "Fonte de conhecimento não encontrada.", 404, { requestId });
     }
-
-    if (input.items.length > 0) {
-      const rows = input.items.map((item, idx) => ({
-        organization_id: activeOrg.orgId,
-        knowledge_source_id: sourceId,
-        question: item.question,
-        answer: item.answer,
-        tags: item.tags,
-        locale: item.locale,
-        position: idx,
-      }));
-
-      const { error: insertErr } = await admin.from("ai_faq_items").insert(rows);
-
-      if (insertErr) {
-        console.error("[ai-knowledge-sources] PATCH insert items failed:", insertErr.message);
-        return fail("internal_error", "Erro ao inserir novos itens FAQ.", 500, { requestId });
-      }
-      itemsCount = rows.length;
-    } else {
-      itemsCount = 0;
+    if (updateErr.code === "22023") {
+      return fail("unprocessable_entity", "O conjunto de itens da fonte é inválido.", 422, { requestId });
     }
+    if (updateErr.code === "23505") {
+      return fail("knowledge_source_name_in_use", "Já existe um material com este nome.", 409, { requestId });
+    }
+    console.error("[ai-knowledge-sources] PATCH atomic update failed:", updateErr.code ?? "unknown");
+    return fail("internal_error", "Erro ao atualizar fonte.", 500, { requestId });
   }
 
-  // Emit knowledge_source.updated (fire-and-forget).
-  const { error: emitErr } = await admin.rpc("emit_event" as never, {
-    p_event_type: "knowledge_source.updated",
-    p_entity_kind: "ai_knowledge_source",
-    p_entity_id: sourceId,
-    p_payload: {
-      knowledge_source_id: sourceId,
-      agent_id: ksRow.agent_id,
-      source_type: ksRow.source_type,
+  const changedFields = [
+    ...(input.name !== undefined ? ["name"] : []),
+    ...(input.source_metadata !== undefined ? ["source_metadata"] : []),
+    ...(input.items !== undefined ? ["items"] : []),
+  ];
+  void audit({
+    action: "ai.knowledge_source_updated",
+    actorUserId: authUser.id,
+    organizationId: activeOrg.orgId,
+    resourceType: "ai_knowledge_source",
+    resourceId: sourceId,
+    requestId,
+    metadata: {
+      changed_fields: changedFields,
+      ...(input.items !== undefined ? { faq_items_count: input.items.length } : {}),
     },
-    p_organization_id: activeOrg.orgId,
-  } as never);
+  });
 
-  if (emitErr) {
-    console.warn("[ai-knowledge-sources] emit_event failed (non-blocking):", emitErr.message);
-  }
-
+  const itemsCount = (result as { items_count?: number } | null)?.items_count;
   return ok(
     { id: sourceId, ...(itemsCount !== undefined ? { items_count: itemsCount } : {}) },
     { requestId },

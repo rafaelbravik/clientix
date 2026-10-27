@@ -86,7 +86,7 @@ describe("baseline do migrador customer", () => {
   it("atualiza checksum e tamanho do manifest migrador ao baseline customer", () => {
     const { baseline, manifest } = materializarBaselineCustomer();
 
-    expect(manifest.schema_target).toBe("0519");
+    expect(manifest.schema_target).toBe("0520");
     expect(manifest.baseline.checksum).toBe(
       createHash("sha256").update(baseline, "utf8").digest("hex"),
     );

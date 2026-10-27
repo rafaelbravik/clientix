@@ -74,8 +74,10 @@ describe("signed installer compatibility contract", () => {
     const tenantLimitMigration = schemaManifest.migrations.find((entry) => entry.sequence === 516);
     const recoveryCodesMigration = schemaManifest.migrations.find((entry) => entry.sequence === 517);
     const historyImportMigration = schemaManifest.migrations.find((entry) => entry.sequence === 518);
-    expect(schemaManifest.schema_target).toBe("0519");
-    expect(schemaManifest.baseline.incorporated_through_sequence).toBe(519);
+    const leadAttachmentsMigration = schemaManifest.migrations.find((entry) => entry.sequence === 519);
+    const knowledgeSourceAtomicMigration = schemaManifest.migrations.find((entry) => entry.sequence === 520);
+    expect(schemaManifest.schema_target).toBe("0520");
+    expect(schemaManifest.baseline.incorporated_through_sequence).toBe(520);
     expect(webchatMigration).toMatchObject({
       file: "20261010120000_0511_webchat_widget_bootstrap.sql",
       version: "20261010120000",
@@ -115,6 +117,16 @@ describe("signed installer compatibility contract", () => {
       file: "20261026015206_0518_whatsapp_history_import.sql",
       version: "20261026015206",
       sequence: 518,
+    });
+    expect(leadAttachmentsMigration).toMatchObject({
+      file: "20261026170000_0519_crm_lead_file_attachments.sql",
+      version: "20261026170000",
+      sequence: 519,
+    });
+    expect(knowledgeSourceAtomicMigration).toMatchObject({
+      file: "20261026235409_0520_knowledge_source_patch_atomic.sql",
+      version: "20261026235409",
+      sequence: 520,
     });
 
     const baseline510Checksum = "a".repeat(64);
@@ -175,6 +187,21 @@ describe("signed installer compatibility contract", () => {
         version: historyImportMigration.version, checksum: historyImportMigration.checksum,
       }],
     }, schemaManifest)).toMatchObject({ valid: true, currentSchema: "0518" });
+    const migrationsThrough519 = [
+      ...migrationsThrough517,
+      { version: historyImportMigration.version, checksum: historyImportMigration.checksum },
+      { version: leadAttachmentsMigration.version, checksum: leadAttachmentsMigration.checksum },
+    ];
+    expect(deriveCurrentSchema({
+      ...trackedState,
+      applied: [...trackedState.applied, ...migrationsThrough519],
+    }, schemaManifest)).toMatchObject({ valid: true, currentSchema: "0519" });
+    expect(deriveCurrentSchema({
+      ...trackedState,
+      applied: [...trackedState.applied, ...migrationsThrough519, {
+        version: knowledgeSourceAtomicMigration.version, checksum: knowledgeSourceAtomicMigration.checksum,
+      }],
+    }, schemaManifest)).toMatchObject({ valid: true, currentSchema: "0520" });
     expect(deriveCurrentSchema({ type: "FRESH_DATABASE" }, schemaManifest)).toMatchObject({ valid: true, currentSchema: null });
     expect(deriveCurrentSchema({ type: "EXISTING_UNTRACKED_INSTALLATION" }, schemaManifest).valid).toBe(false);
     expect(deriveCurrentSchema({ type: "TRACKED_INSTALLATION", applied: [] }, schemaManifest).valid).toBe(false);

@@ -1,12 +1,12 @@
 {
   "version": 1,
   "generated_at": "2026-10-26T17:21:19.144Z",
-  "schema_target": "0519",
+  "schema_target": "0520",
   "baseline": {
     "file": "baseline.sql",
-    "checksum": "1a940bacfeb23be0ef658c5887d19577fe43b7a50184cdeefcc90d705b3aea83",
-    "size_bytes": 2485489,
-    "incorporated_through_sequence": 519
+    "checksum": "8afb89cd03ed73b4117e06338e9637066bf9093970a38214ee4671e1eb2108ae",
+    "size_bytes": 2490498,
+    "incorporated_through_sequence": 520
   },
   "migrations": [
     {
@@ -3398,7 +3398,15 @@
       "version": "20261026170000",
       "sequence": 519,
       "slug": "crm_lead_file_attachments",
-      "checksum": "86a4ed97c467ed2f01f2321b28ec51d799f42e6e11831f49214d72a88d777bd5",
+      "checksum": "d4540fb5a1db0f909da53e24f5d31168ad153369d27e36baa21b15d11bf2ad64",
+      "transactional": true
+    },
+    {
+      "file": "20261026235409_0520_knowledge_source_patch_atomic.sql",
+      "version": "20261026235409",
+      "sequence": 520,
+      "slug": "knowledge_source_patch_atomic",
+      "checksum": "e387641602b4cc0fccb176ea9740d9c80a629bd238eab1eb3a66119ced8f312e",
       "transactional": true
     }
   ],
