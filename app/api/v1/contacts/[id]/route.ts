@@ -49,6 +49,14 @@ export async function GET(
 
   const decryptPurpose = req.headers.get("x-decrypt-purpose");
 
+  // A leitura comum segue disponível para agent+. A descriptografia é dado
+  // sensível: passa pelo guard canônico de manager, que exige AAL2 quando a
+  // conta tem TOTP verificado e também reduz support_readonly a viewer.
+  if (decryptPurpose) {
+    const cpfAuthz = await requireRole("manager", { requestId, resource: "contacts" });
+    if (!cpfAuthz.ok) return cpfAuthz.response;
+  }
+
   try {
     const result = await getContactHandler(
       supabase,
