@@ -151,6 +151,25 @@ describe("pipelineConfigPatchSchema", () => {
     });
     expect(r.success).toBe(true);
   });
+
+  it("valida etapa de entrada do Inbox e preserva a escolha quando desligada", () => {
+    const stageId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    expect(
+      pipelineConfigPatchSchema.safeParse({
+        entrada_do_inbox: { ativa: true, stage_id: stageId },
+      }).success,
+    ).toBe(true);
+    expect(
+      pipelineConfigPatchSchema.safeParse({
+        entrada_do_inbox: { ativa: false, stage_id: stageId },
+      }).success,
+    ).toBe(true);
+    expect(
+      pipelineConfigPatchSchema.safeParse({
+        entrada_do_inbox: { ativa: true, stage_id: null },
+      }).success,
+    ).toBe(false);
+  });
 });
 
 describe("customFieldSchema — anexos de negócio", () => {

@@ -3240,3 +3240,39 @@ existente de tarefa atribuída aponta para a visão “Minhas”.
 | J39.5 | Notificação de tarefa atribuída | abre `/app/tasks?assigned_to=me`; não há executor de lembrete por prazo | PASS focado (`criar-tarefa.test.ts`) |
 | J39.6 | Pessoa sem escrita ou suporte somente-leitura | UI não oferece mutação e API recusa antes de escrever | PASS focado (`route.test.ts`) |
 | J39.7 | Os fluxos “Minhas” e atribuição na tela | desktop 1440, tablet 768, mobile 390, overflow e interação real | **PROVA VISUAL PENDENTE** |
+
+## J40 — Configurar a etapa inicial do Inbox `[P1]` (2026-10-27)
+
+O funil padrão continua sendo a única origem do lead criado por conversa. A configuração pode escolher uma etapa aberta desse mesmo funil; configuração desligada, UUID inválido, etapa de outro pipeline/organização, arquivada ou terminal volta à primeira etapa aberta. A escolha de etapa não altera a idempotência de nascimento do card.
+
+| # | Caso | Expectativa | Estado |
+|---|---|---|---|
+| J40.1 | Sem configuração ou configuração desativada | primeira etapa válida; nenhum pipeline paralelo | PASS focado (`nascimento-do-lead.test.ts`) |
+| J40.2 | Etapa válida configurada e conversa recebe outra mensagem | primeiro lead usa a etapa configurada; mensagens seguintes reutilizam o mesmo lead | PASS no invariante DB (`nascimento-do-lead.test.ts`) |
+| J40.3 | Configuração aponta para UUID inválido, outro tenant/pipeline ou etapa arquivada | fallback seguro sem impedir o lead | PASS no invariante DB (`nascimento-do-lead.test.ts`) |
+| J40.4 | Administrador desativa e reativa a opção | `stage_id` escolhido permanece salvo e aparece na UI | PASS focado (`_client.test.tsx`) |
+| J40.5 | Configuração em desktop 1440, tablet 768 e mobile 390 | salvar, recarregar, fluxo sem overflow | **PROVA VISUAL PENDENTE** |
+
+## J41 — Um roteiro começa na entrada da etapa, no próximo turno `[P1]` (2026-10-27)
+
+O roteador explícito continua prioritário; sem escolha dele, uma palavra-gatilho específica vence a etapa atual do negócio. A etapa é avaliada no turno, não cria enrollment por relógio, e só inicia roteiro uma vez para cada entrada do lead naquela etapa.
+
+| # | Caso | Expectativa | Estado |
+|---|---|---|---|
+| J41.1 | Card entra numa etapa configurada e chega mensagem sem palavra-gatilho | o roteiro correspondente começa no turno e registra `origem=etapa` | PASS focado (`roteiro-no-turno.test.ts`) |
+| J41.2 | Roteador ou gatilho específico escolhe outro roteiro | escolha explícita ou textual vence a etapa | PASS focado (`roteiro-no-turno.test.ts`) |
+| J41.3 | Entrada já consumida, etapa inválida, lead terminal ou ambíguo | não inicia; não há enrollment duplicado | PASS focado (`atendimento.test.ts`, `roteiro-no-turno.test.ts`) |
+| J41.4 | Empate entre roteiros compatíveis | escolha determinística por nome e id | PASS focado (`atendimento.test.ts`) |
+| J41.5 | Configurar “Etapa · Funil” no editor | a etapa fica associada ao funil correto após reload | **PROVA VISUAL PENDENTE** |
+
+## J42 — Cada nova espera humana recebe sua própria cadência `[P1]` (2026-10-27)
+
+Ao entrar em `awaiting_human`, o banco inicia um relógio e contador por espera. Ao sair, limpa ambos; se o caso voltar, começa um ciclo novo. O claim horário abre avisos somente na Central e usa bloqueio concorrente atômico.
+
+| # | Caso | Expectativa | Estado |
+|---|---|---|---|
+| J42.1 | Caso novo entra em `awaiting_human` | relógio presente, contador 0, `followup_attempts` preservado | PASS no invariante DB (`case-wait-reminders.test.ts`) |
+| J42.2 | Caso sai da espera e depois volta | novo timestamp e contador 0 | PASS no invariante DB (`case-wait-reminders.test.ts`) |
+| J42.3 | Intervalo, limite e enabled por organização | aviso só no vencimento, respeita teto e isolamento de config | PASS no invariante DB (`case-wait-reminders.test.ts`) |
+| J42.4 | Dois workers reivindicam o mesmo caso vencido | exatamente um aviso e um avanço do contador | PASS no invariante DB (`case-wait-reminders.test.ts`) |
+| J42.5 | Admin altera enabled, cadência e teto pela Central | gravação validada, auditada e reaparece após reload | **PROVA VISUAL PENDENTE** |

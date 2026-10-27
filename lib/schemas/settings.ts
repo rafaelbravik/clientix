@@ -263,6 +263,17 @@ export const pipelineConfigPatchSchema = z.object({
   reabertura: z.enum(["mesmo_registro", "novo_negocio"]).optional(),
   /** O que a retomada copia da origem; ausente é o piso (`custom_fields` e tags). */
   reabertura_campos: z.array(z.enum(CAMPOS_COPIAVEIS_NA_RETOMADA)).max(8).optional(),
+  /** Etapa usada quando a primeira conversa cria um lead no funil padrão. */
+  entrada_do_inbox: z
+    .object({
+      ativa: z.boolean(),
+      stage_id: z.string().uuid().nullable(),
+    })
+    .refine((config) => !config.ativa || config.stage_id !== null, {
+      message: "Selecione uma etapa válida para a entrada do Inbox.",
+      path: ["stage_id"],
+    })
+    .optional(),
 });
 export type PipelineConfigPatch = z.infer<typeof pipelineConfigPatchSchema>;
 

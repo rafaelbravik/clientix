@@ -30,6 +30,7 @@ vi.mock("@/lib/env", () => ({
 }));
 
 const auditou = vi.fn();
+const claimCases = vi.fn();
 vi.mock("@/lib/audit", () => ({ audit: (...args: unknown[]) => auditou(...args) }));
 vi.mock("@/lib/logger", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
@@ -59,6 +60,7 @@ const registro: Registro = { inserts: [], updates: [], consultas: [] };
  */
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
+    rpc: (...args: unknown[]) => claimCases(...args),
     from: (tabela: keyof Banco) => {
       let linhas = [...(banco[tabela] ?? [])];
       let limite = Infinity;
@@ -146,6 +148,10 @@ async function rodar() {
 
 beforeEach(() => {
   auditou.mockClear();
+  claimCases.mockReset().mockResolvedValue({
+    data: [{ examinados: 0, avisados: 0, ja_avisados: 0 }],
+    error: null,
+  });
   banco.agent_cases = [];
   banco.agent_inbox_items = [];
   banco.passagens_de_atendimento = [];
@@ -290,26 +296,17 @@ describe("o vigia cobra a passagem que ninguém assumiu", () => {
   });
 
   it("o braço dos CASOS continua de pé — o segundo não substituiu o primeiro", async () => {
-    // Guarda de regressão: os dois braços vivem na mesma rota e a varredura de
-    // casos é o motivo de ela existir. Quebrá-la ao acrescentar a de passagens
-    // seria trocar um buraco por outro.
-    banco.agent_cases = [
-      {
-        id: "c1",
-        organization_id: ORG,
-        title: "Cliente quer trocar o produto",
-        opened_at: ONTEM,
-        updated_at: ONTEM,
-        followup_attempts: 0,
-        status: "awaiting_human",
-      },
-    ];
+    // O claim de casos é atômico no banco. Esta unidade confirma que a rota
+    // mantém o primeiro braço ao lado da cobrança de passagens; a mutação real
+    // e sua concorrência são cobertas pelo invariante DB dedicado.
+    claimCases.mockResolvedValueOnce({
+      data: [{ examinados: 1, avisados: 1, ja_avisados: 0 }],
+      error: null,
+    });
 
     const { body } = await rodar();
 
     expect(body.data?.avisados).toBe(1);
-    expect(
-      registro.inserts.find((i) => i.tabela === "agent_inbox_items")?.linha,
-    ).toMatchObject({ kind: "case_stale", ref_kind: "agent_case" });
+    expect(claimCases).toHaveBeenCalledWith("fn_claim_case_wait_reminders", { p_limit: 200 });
   });
 });

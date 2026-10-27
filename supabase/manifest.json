@@ -1,12 +1,12 @@
 {
   "version": 1,
   "generated_at": "2026-10-26T17:21:19.144Z",
-  "schema_target": "0520",
+  "schema_target": "0522",
   "baseline": {
     "file": "baseline.sql",
-    "checksum": "8afb89cd03ed73b4117e06338e9637066bf9093970a38214ee4671e1eb2108ae",
-    "size_bytes": 2490498,
-    "incorporated_through_sequence": 520
+    "checksum": "bd2ed8fdba90fc129ceffac616621020c3f27f4acaf0821dc86ab045df94ef0e",
+    "size_bytes": 2500767,
+    "incorporated_through_sequence": 522
   },
   "migrations": [
     {
@@ -258,14 +258,6 @@
       "transactional": true
     },
     {
-      "file": "20260717190001_0038_webhooks_automation.sql",
-      "version": "20260717190001",
-      "sequence": 38,
-      "slug": "webhooks_automation",
-      "checksum": "9cfff1e1d339d263be7d15892fc01826566f5136b183d14c203f8f1faf0cb898",
-      "transactional": true
-    },
-    {
       "file": "20260717200000_0035_visibility_mode_conversation_rls.sql",
       "version": "20260717200000",
       "sequence": 35,
@@ -287,6 +279,14 @@
       "sequence": 37,
       "slug": "attendant_metrics",
       "checksum": "46141c7810db935b0ace9c6ec2d6093c243a653684dcd30399e0b9f956dabbd8",
+      "transactional": true
+    },
+    {
+      "file": "20260717190001_0038_webhooks_automation.sql",
+      "version": "20260717190001",
+      "sequence": 38,
+      "slug": "webhooks_automation",
+      "checksum": "9cfff1e1d339d263be7d15892fc01826566f5136b183d14c203f8f1faf0cb898",
       "transactional": true
     },
     {
@@ -442,19 +442,19 @@
       "transactional": true
     },
     {
-      "file": "20260722160001_0064_followup_enrollment_exclusivity.sql",
-      "version": "20260722160001",
-      "sequence": 64,
-      "slug": "followup_enrollment_exclusivity",
-      "checksum": "67b1fb892585539a71a1b93e0e1fc1522a89c32a9db3b030cc70e954f1abea1d",
-      "transactional": true
-    },
-    {
       "file": "20260723120000_0063_conversation_notes.sql",
       "version": "20260723120000",
       "sequence": 63,
       "slug": "conversation_notes",
       "checksum": "8f9b221c877e5c09c3ebbab0b2ab421545c466daf296530f989ca47608e911e3",
+      "transactional": true
+    },
+    {
+      "file": "20260722160001_0064_followup_enrollment_exclusivity.sql",
+      "version": "20260722160001",
+      "sequence": 64,
+      "slug": "followup_enrollment_exclusivity",
+      "checksum": "67b1fb892585539a71a1b93e0e1fc1522a89c32a9db3b030cc70e954f1abea1d",
       "transactional": true
     },
     {
@@ -618,14 +618,6 @@
       "transactional": true
     },
     {
-      "file": "20260725150000_0113_ai_pricing_backfill.sql",
-      "version": "20260725150000",
-      "sequence": 113,
-      "slug": "ai_pricing_backfill",
-      "checksum": "fc63070ccb69bb358a06573cad76d7606103cff69fa76cca4b6e900c5d6af330",
-      "transactional": true
-    },
-    {
       "file": "20260726000000_0085_intent_router.sql",
       "version": "20260726000000",
       "sequence": 85,
@@ -674,19 +666,19 @@
       "transactional": true
     },
     {
-      "file": "20260729000000_0092_stage_names_acentos.sql",
-      "version": "20260729000000",
-      "sequence": 92,
-      "slug": "stage_names_acentos",
-      "checksum": "7e2cb64afb2cccf2f79cfc08ba46cfa007644b50e1ffe0d74e0d9047cabed161",
-      "transactional": true
-    },
-    {
       "file": "20260729120000_0091_message_type_template.sql",
       "version": "20260729120000",
       "sequence": 91,
       "slug": "message_type_template",
       "checksum": "fe187d564a5ff4afdf2b68c2c203fbce91cda70e224808d3de288c9957672a6b",
+      "transactional": true
+    },
+    {
+      "file": "20260729000000_0092_stage_names_acentos.sql",
+      "version": "20260729000000",
+      "sequence": 92,
+      "slug": "stage_names_acentos",
+      "checksum": "7e2cb64afb2cccf2f79cfc08ba46cfa007644b50e1ffe0d74e0d9047cabed161",
       "transactional": true
     },
     {
@@ -746,14 +738,6 @@
       "transactional": true
     },
     {
-      "file": "20260804180000_0102_cron_jobs_retorno_cancelado.sql",
-      "version": "20260804180000",
-      "sequence": 102,
-      "slug": "cron_jobs_retorno_cancelado",
-      "checksum": "8a980181050cd5f2318b10d268c4685a0b268bcb53ad9ab0d89eeeaef5bed94a",
-      "transactional": true
-    },
-    {
       "file": "20260804200000_0100_agent_case_events_agent_noted.sql",
       "version": "20260804200000",
       "sequence": 100,
@@ -767,6 +751,14 @@
       "sequence": 101,
       "slug": "autoria_da_configuracao",
       "checksum": "7bd4767dd2a7970a05bacbf729d20f050d1fccf8a690328018fe4bf6aaeacd67",
+      "transactional": true
+    },
+    {
+      "file": "20260804180000_0102_cron_jobs_retorno_cancelado.sql",
+      "version": "20260804180000",
+      "sequence": 102,
+      "slug": "cron_jobs_retorno_cancelado",
+      "checksum": "8a980181050cd5f2318b10d268c4685a0b268bcb53ad9ab0d89eeeaef5bed94a",
       "transactional": true
     },
     {
@@ -842,19 +834,27 @@
       "transactional": true
     },
     {
-      "file": "20260806120000_0114_ai_invocations_agent_id_nullable.sql",
-      "version": "20260806120000",
-      "sequence": 114,
-      "slug": "ai_invocations_agent_id_nullable",
-      "checksum": "4d3413b8fc665ef65ed8f96de7f8be8c7faff25b11694d0cd73f70033d6a5357",
-      "transactional": true
-    },
-    {
       "file": "20260806140000_0112_operator_tool_ids.sql",
       "version": "20260806140000",
       "sequence": 112,
       "slug": "operator_tool_ids",
       "checksum": "8f3d61aff98e1e0199b42b7a9bd9a20eff69da78072c9e567d70151c4d03ce28",
+      "transactional": true
+    },
+    {
+      "file": "20260725150000_0113_ai_pricing_backfill.sql",
+      "version": "20260725150000",
+      "sequence": 113,
+      "slug": "ai_pricing_backfill",
+      "checksum": "fc63070ccb69bb358a06573cad76d7606103cff69fa76cca4b6e900c5d6af330",
+      "transactional": true
+    },
+    {
+      "file": "20260806120000_0114_ai_invocations_agent_id_nullable.sql",
+      "version": "20260806120000",
+      "sequence": 114,
+      "slug": "ai_invocations_agent_id_nullable",
+      "checksum": "4d3413b8fc665ef65ed8f96de7f8be8c7faff25b11694d0cd73f70033d6a5357",
       "transactional": true
     },
     {
@@ -866,51 +866,27 @@
       "transactional": true
     },
     {
-      "file": "20260806190000_0133_fn_atrito_metrics.sql",
-      "version": "20260806190000",
-      "sequence": 133,
-      "slug": "fn_atrito_metrics",
-      "checksum": "dd9178f3f3d39596a3c1b28756ee4cc7b072fb398c3b17000a995925799622d8",
+      "file": "20260807160000_0116_definer_nova_nasce_exposta.sql",
+      "version": "20260807160000",
+      "sequence": 116,
+      "slug": "definer_nova_nasce_exposta",
+      "checksum": "5429fd23d3612f718cb4c8b8e5f498c854f129f9d7493ff043edbb92d52beeea",
       "transactional": true
     },
     {
-      "file": "20260806210000_0134_atrito_abandono.sql",
-      "version": "20260806210000",
-      "sequence": 134,
-      "slug": "atrito_abandono",
-      "checksum": "d5d6e4097cc49526cba3a66f0bf937abb744e06aee5b5073303d7edf6d29a5c8",
+      "file": "20260808180000_0119_contato_lookup_telefone.sql",
+      "version": "20260808180000",
+      "sequence": 119,
+      "slug": "contato_lookup_telefone",
+      "checksum": "a75d2220b1dc6bf7a40fec779672dbeb915d306bf50f133de4b464c2a061f2d7",
       "transactional": true
     },
     {
-      "file": "20260806230000_0135_atrito_repeticao_espera.sql",
-      "version": "20260806230000",
-      "sequence": 135,
-      "slug": "atrito_repeticao_espera",
-      "checksum": "fd501b27538dda18ed37c7872991dbab45f941e3fe3da5828024ead1bb14963d",
-      "transactional": true
-    },
-    {
-      "file": "20260807010000_0136_demandas.sql",
-      "version": "20260807010000",
-      "sequence": 136,
-      "slug": "demandas",
-      "checksum": "a566a9958721ca3497453c4af49671cc6e773cb5a80a9d747a78b4cb63909d12",
-      "transactional": true
-    },
-    {
-      "file": "20260807030000_0137_atrito_denominador_demanda.sql",
-      "version": "20260807030000",
-      "sequence": 137,
-      "slug": "atrito_denominador_demanda",
-      "checksum": "8becf91ed4bf1c5a594081eb6aadbc9c197d8a57e6fbdb837ea5a8fe5db81487",
-      "transactional": true
-    },
-    {
-      "file": "20260807050000_0138_demanda_no_ponto_de_entrada.sql",
-      "version": "20260807050000",
-      "sequence": 138,
-      "slug": "demanda_no_ponto_de_entrada",
-      "checksum": "ef2da705849d3782cd18b78d8b59ab41e3913cedb4603f49394d681423461714",
+      "file": "20260808200000_0120_avisos_de_canal.sql",
+      "version": "20260808200000",
+      "sequence": 120,
+      "slug": "avisos_de_canal",
+      "checksum": "ec14f2dffd0d99ca5c2179cae41d9ab1c2308515c1832dc188d530bad1d67f3f",
       "transactional": true
     },
     {
@@ -962,14 +938,6 @@
       "transactional": true
     },
     {
-      "file": "20260807160000_0116_definer_nova_nasce_exposta.sql",
-      "version": "20260807160000",
-      "sequence": 116,
-      "slug": "definer_nova_nasce_exposta",
-      "checksum": "5429fd23d3612f718cb4c8b8e5f498c854f129f9d7493ff043edbb92d52beeea",
-      "transactional": true
-    },
-    {
       "file": "20260807160500_0128_llm_calls_registra_falha.sql",
       "version": "20260807160500",
       "sequence": 128,
@@ -1010,6 +978,54 @@
       "transactional": true
     },
     {
+      "file": "20260806190000_0133_fn_atrito_metrics.sql",
+      "version": "20260806190000",
+      "sequence": 133,
+      "slug": "fn_atrito_metrics",
+      "checksum": "dd9178f3f3d39596a3c1b28756ee4cc7b072fb398c3b17000a995925799622d8",
+      "transactional": true
+    },
+    {
+      "file": "20260806210000_0134_atrito_abandono.sql",
+      "version": "20260806210000",
+      "sequence": 134,
+      "slug": "atrito_abandono",
+      "checksum": "d5d6e4097cc49526cba3a66f0bf937abb744e06aee5b5073303d7edf6d29a5c8",
+      "transactional": true
+    },
+    {
+      "file": "20260806230000_0135_atrito_repeticao_espera.sql",
+      "version": "20260806230000",
+      "sequence": 135,
+      "slug": "atrito_repeticao_espera",
+      "checksum": "fd501b27538dda18ed37c7872991dbab45f941e3fe3da5828024ead1bb14963d",
+      "transactional": true
+    },
+    {
+      "file": "20260807010000_0136_demandas.sql",
+      "version": "20260807010000",
+      "sequence": 136,
+      "slug": "demandas",
+      "checksum": "a566a9958721ca3497453c4af49671cc6e773cb5a80a9d747a78b4cb63909d12",
+      "transactional": true
+    },
+    {
+      "file": "20260807030000_0137_atrito_denominador_demanda.sql",
+      "version": "20260807030000",
+      "sequence": 137,
+      "slug": "atrito_denominador_demanda",
+      "checksum": "8becf91ed4bf1c5a594081eb6aadbc9c197d8a57e6fbdb837ea5a8fe5db81487",
+      "transactional": true
+    },
+    {
+      "file": "20260807050000_0138_demanda_no_ponto_de_entrada.sql",
+      "version": "20260807050000",
+      "sequence": 138,
+      "slug": "demanda_no_ponto_de_entrada",
+      "checksum": "ef2da705849d3782cd18b78d8b59ab41e3913cedb4603f49394d681423461714",
+      "transactional": true
+    },
+    {
       "file": "20260808040000_0139_kind_check_completo.sql",
       "version": "20260808040000",
       "sequence": 139,
@@ -1034,51 +1050,11 @@
       "transactional": true
     },
     {
-      "file": "20260808180000_0119_contato_lookup_telefone.sql",
-      "version": "20260808180000",
-      "sequence": 119,
-      "slug": "contato_lookup_telefone",
-      "checksum": "a75d2220b1dc6bf7a40fec779672dbeb915d306bf50f133de4b464c2a061f2d7",
-      "transactional": true
-    },
-    {
-      "file": "20260808200000_0120_avisos_de_canal.sql",
-      "version": "20260808200000",
-      "sequence": 120,
-      "slug": "avisos_de_canal",
-      "checksum": "ec14f2dffd0d99ca5c2179cae41d9ab1c2308515c1832dc188d530bad1d67f3f",
-      "transactional": true
-    },
-    {
       "file": "20260809100000_0142_camadas_de_seguranca_por_org.sql",
       "version": "20260809100000",
       "sequence": 142,
       "slug": "camadas_de_seguranca_por_org",
       "checksum": "0253c046d67cd75207bafa7dac9ee76024b5b876fb9409ec4faf89de14819664",
-      "transactional": true
-    },
-    {
-      "file": "20260810120000_0145_dossie_do_followup.sql",
-      "version": "20260810120000",
-      "sequence": 145,
-      "slug": "dossie_do_followup",
-      "checksum": "18f2326400238facae11786bde2587e73c9bb6ba8b19893b22744e2b265d84e6",
-      "transactional": true
-    },
-    {
-      "file": "20260810121000_0144_followup_timing_plan.sql",
-      "version": "20260810121000",
-      "sequence": 144,
-      "slug": "followup_timing_plan",
-      "checksum": "0703ff3a480fc0a485c60ccf3dd0a8924ef4d42fa74bbcbf8c8b66902332c891",
-      "transactional": true
-    },
-    {
-      "file": "20260810122000_0146_claim_justo_entre_organizacoes.sql",
-      "version": "20260810122000",
-      "sequence": 146,
-      "slug": "claim_justo_entre_organizacoes",
-      "checksum": "520626dc0c8b21eae54b8c441f87a1c73fb8e6f6bb32f9cc052bc9772c6a4507",
       "transactional": true
     },
     {
@@ -1090,27 +1066,35 @@
       "transactional": true
     },
     {
+      "file": "20260810121000_0144_followup_timing_plan.sql",
+      "version": "20260810121000",
+      "sequence": 144,
+      "slug": "followup_timing_plan",
+      "checksum": "0703ff3a480fc0a485c60ccf3dd0a8924ef4d42fa74bbcbf8c8b66902332c891",
+      "transactional": true
+    },
+    {
+      "file": "20260810120000_0145_dossie_do_followup.sql",
+      "version": "20260810120000",
+      "sequence": 145,
+      "slug": "dossie_do_followup",
+      "checksum": "18f2326400238facae11786bde2587e73c9bb6ba8b19893b22744e2b265d84e6",
+      "transactional": true
+    },
+    {
+      "file": "20260810122000_0146_claim_justo_entre_organizacoes.sql",
+      "version": "20260810122000",
+      "sequence": 146,
+      "slug": "claim_justo_entre_organizacoes",
+      "checksum": "520626dc0c8b21eae54b8c441f87a1c73fb8e6f6bb32f9cc052bc9772c6a4507",
+      "transactional": true
+    },
+    {
       "file": "20260810160000_0147_relogio_do_banco.sql",
       "version": "20260810160000",
       "sequence": 147,
       "slug": "relogio_do_banco",
       "checksum": "c382f1cae271b591ca26114de54bf4afe2edb434f95264f140035f74f8b989c0",
-      "transactional": true
-    },
-    {
-      "file": "20260810180000_0153_mensagem_editada_e_apagada.sql",
-      "version": "20260810180000",
-      "sequence": 153,
-      "slug": "mensagem_editada_e_apagada",
-      "checksum": "0e7be0b1131a7b0d3cd58b3f9a697eeee7abd1bf4c3ac6c98eec8ace11801dc7",
-      "transactional": true
-    },
-    {
-      "file": "20260810210000_0154_template_sabe_de_qual_conexao.sql",
-      "version": "20260810210000",
-      "sequence": 154,
-      "slug": "template_sabe_de_qual_conexao",
-      "checksum": "70981d9dd1a1d8e770ab83a492aee97273fdf62695c499e0fcf6388a4cecd805",
       "transactional": true
     },
     {
@@ -1151,6 +1135,22 @@
       "sequence": 152,
       "slug": "o_gatilho_manda_o_texto",
       "checksum": "396d0b80a2a22ba6d8079e6a391a8c899811a17e06ab9ef5a79a98a7f6616018",
+      "transactional": true
+    },
+    {
+      "file": "20260810180000_0153_mensagem_editada_e_apagada.sql",
+      "version": "20260810180000",
+      "sequence": 153,
+      "slug": "mensagem_editada_e_apagada",
+      "checksum": "0e7be0b1131a7b0d3cd58b3f9a697eeee7abd1bf4c3ac6c98eec8ace11801dc7",
+      "transactional": true
+    },
+    {
+      "file": "20260810210000_0154_template_sabe_de_qual_conexao.sql",
+      "version": "20260810210000",
+      "sequence": 154,
+      "slug": "template_sabe_de_qual_conexao",
+      "checksum": "70981d9dd1a1d8e770ab83a492aee97273fdf62695c499e0fcf6388a4cecd805",
       "transactional": true
     },
     {
@@ -1234,19 +1234,19 @@
       "transactional": true
     },
     {
-      "file": "20260820120000_0166_indice_do_claim_da_fila.sql",
-      "version": "20260820120000",
-      "sequence": 166,
-      "slug": "indice_do_claim_da_fila",
-      "checksum": "aee2e5535221c3a20c5735b6482676e8849406a17e74870097f1bb292fc7199c",
-      "transactional": true
-    },
-    {
       "file": "20260820160000_0165_identificador_de_canal_unico_entre_ativos.sql",
       "version": "20260820160000",
       "sequence": 165,
       "slug": "identificador_de_canal_unico_entre_ativos",
       "checksum": "28f3646bd6ac5924729bb4a9d9f75aab1b3e3e81ca4bb371de4953b79de3483f",
+      "transactional": true
+    },
+    {
+      "file": "20260820120000_0166_indice_do_claim_da_fila.sql",
+      "version": "20260820120000",
+      "sequence": 166,
+      "slug": "indice_do_claim_da_fila",
+      "checksum": "aee2e5535221c3a20c5735b6482676e8849406a17e74870097f1bb292fc7199c",
       "transactional": true
     },
     {
@@ -1290,19 +1290,19 @@
       "transactional": true
     },
     {
-      "file": "20260826140000_0181_o_acervo_e_da_organizacao.sql",
-      "version": "20260826140000",
-      "sequence": 181,
-      "slug": "o_acervo_e_da_organizacao",
-      "checksum": "fad3f941e1e78a30906fb27a3f02080aeee8f2592106ac95b66072ef5b8ce4d8",
-      "transactional": true
-    },
-    {
       "file": "20260826190000_0177_agenda_o_compromisso_marcado.sql",
       "version": "20260826190000",
       "sequence": 177,
       "slug": "agenda_o_compromisso_marcado",
       "checksum": "475ccc34486f8e13e438aa935667524855b87caa91c9b176ca58fa11e3a3a878",
+      "transactional": true
+    },
+    {
+      "file": "20260826140000_0181_o_acervo_e_da_organizacao.sql",
+      "version": "20260826140000",
+      "sequence": 181,
+      "slug": "o_acervo_e_da_organizacao",
+      "checksum": "fad3f941e1e78a30906fb27a3f02080aeee8f2592106ac95b66072ef5b8ce4d8",
       "transactional": true
     },
     {
@@ -1506,27 +1506,11 @@
       "transactional": true
     },
     {
-      "file": "20260903143000_0210_tarefas_do_crm.sql",
-      "version": "20260903143000",
-      "sequence": 210,
-      "slug": "tarefas_do_crm",
-      "checksum": "3f6774198bf4268f3954483a4132345b7b26dbfddbf6589be38ed1d99ef00beb",
-      "transactional": true
-    },
-    {
       "file": "20260903210000_0207_credenciais_de_ia_voltam_a_ser_lidas_por_manager.sql",
       "version": "20260903210000",
       "sequence": 207,
       "slug": "credenciais_de_ia_voltam_a_ser_lidas_por_manager",
       "checksum": "8c529c5f0f3ddb459f72a1ad56ebb20957837e075603372b014e00d0a9a590af",
-      "transactional": true
-    },
-    {
-      "file": "20260903230000_0211_contact_custom_fields.sql",
-      "version": "20260903230000",
-      "sequence": 211,
-      "slug": "contact_custom_fields",
-      "checksum": "e3bb79086b561842e510917f7d9037c96cfe442b8424e13a700d39696b086672",
       "transactional": true
     },
     {
@@ -1543,6 +1527,22 @@
       "sequence": 209,
       "slug": "mover_em_lote_sem_colidir_posicao",
       "checksum": "f75ec58386dd74df83b360f775343019c9174a9bc7afd372e277eeaeaed2b92a",
+      "transactional": true
+    },
+    {
+      "file": "20260903143000_0210_tarefas_do_crm.sql",
+      "version": "20260903143000",
+      "sequence": 210,
+      "slug": "tarefas_do_crm",
+      "checksum": "3f6774198bf4268f3954483a4132345b7b26dbfddbf6589be38ed1d99ef00beb",
+      "transactional": true
+    },
+    {
+      "file": "20260903230000_0211_contact_custom_fields.sql",
+      "version": "20260903230000",
+      "sequence": 211,
+      "slug": "contact_custom_fields",
+      "checksum": "e3bb79086b561842e510917f7d9037c96cfe442b8424e13a700d39696b086672",
       "transactional": true
     },
     {
@@ -1594,11 +1594,11 @@
       "transactional": true
     },
     {
-      "file": "20260905120000_0231_organizacao_e_acesso_atomicos.sql",
-      "version": "20260905120000",
-      "sequence": 231,
-      "slug": "organizacao_e_acesso_atomicos",
-      "checksum": "cc7a9c777fb8dbdb8bac276607350b5ba19b6891d20f89db9dfe565472033aec",
+      "file": "20260905160000_0218_configuracao_pre_go_live_atomica.sql",
+      "version": "20260905160000",
+      "sequence": 218,
+      "slug": "configuracao_pre_go_live_atomica",
+      "checksum": "f738a1303109500ec585c89dde8b4f0c3b5d352c6283fadcbdf92e0ae888fc13",
       "transactional": true
     },
     {
@@ -1607,14 +1607,6 @@
       "sequence": 219,
       "slug": "recibo_de_criacao_confiavel",
       "checksum": "3dd58a79a247d635f632025ebb10734f2d25044291246447a4e142a7b781c037",
-      "transactional": true
-    },
-    {
-      "file": "20260905160000_0218_configuracao_pre_go_live_atomica.sql",
-      "version": "20260905160000",
-      "sequence": 218,
-      "slug": "configuracao_pre_go_live_atomica",
-      "checksum": "f738a1303109500ec585c89dde8b4f0c3b5d352c6283fadcbdf92e0ae888fc13",
       "transactional": true
     },
     {
@@ -1706,6 +1698,22 @@
       "transactional": true
     },
     {
+      "file": "20260905120000_0231_organizacao_e_acesso_atomicos.sql",
+      "version": "20260905120000",
+      "sequence": 231,
+      "slug": "organizacao_e_acesso_atomicos",
+      "checksum": "cc7a9c777fb8dbdb8bac276607350b5ba19b6891d20f89db9dfe565472033aec",
+      "transactional": true
+    },
+    {
+      "file": "20260909190000_0232_nome_de_sessao_waha_cabe_no_teto_do_waha.sql",
+      "version": "20260909190000",
+      "sequence": 232,
+      "slug": "nome_de_sessao_waha_cabe_no_teto_do_waha",
+      "checksum": "ac186ac456be251a596e376a0c508447e21afbed5fdf3e886eb05fbcfb39211d",
+      "transactional": true
+    },
+    {
       "file": "20260907120000_0233_chamada_de_voz_wacalls.sql",
       "version": "20260907120000",
       "sequence": 233,
@@ -1730,27 +1738,11 @@
       "transactional": true
     },
     {
-      "file": "20260909190000_0232_nome_de_sessao_waha_cabe_no_teto_do_waha.sql",
-      "version": "20260909190000",
-      "sequence": 232,
-      "slug": "nome_de_sessao_waha_cabe_no_teto_do_waha",
-      "checksum": "ac186ac456be251a596e376a0c508447e21afbed5fdf3e886eb05fbcfb39211d",
-      "transactional": true
-    },
-    {
       "file": "20260911120000_0236_opt_in_de_chamada_de_voz.sql",
       "version": "20260911120000",
       "sequence": 236,
       "slug": "opt_in_de_chamada_de_voz",
       "checksum": "fd8f1f7fcf9392029caf4344a493fa49e26a427fddc6338abf5e6873526dd40d",
-      "transactional": true
-    },
-    {
-      "file": "20260911170000_0238_convites_de_time_persistidos.sql",
-      "version": "20260911170000",
-      "sequence": 238,
-      "slug": "convites_de_time_persistidos",
-      "checksum": "ad8ad80e1418a88b3501f5678f73e170392a8f9b49c7543040853053fb4320ff",
       "transactional": true
     },
     {
@@ -1762,6 +1754,14 @@
       "transactional": true
     },
     {
+      "file": "20260911170000_0238_convites_de_time_persistidos.sql",
+      "version": "20260911170000",
+      "sequence": 238,
+      "slug": "convites_de_time_persistidos",
+      "checksum": "ad8ad80e1418a88b3501f5678f73e170392a8f9b49c7543040853053fb4320ff",
+      "transactional": true
+    },
+    {
       "file": "20260912200000_0239_registro_nao_fica_pendente.sql",
       "version": "20260912200000",
       "sequence": 239,
@@ -1770,27 +1770,11 @@
       "transactional": true
     },
     {
-      "file": "20260912210000_0247_indices_fks_mensagens_e_runs.sql",
-      "version": "20260912210000",
-      "sequence": 247,
-      "slug": "indices_fks_mensagens_e_runs",
-      "checksum": "50c9764d3ee0058b09857aa92feca17dcf24a1a7481fe854435958e39c7dd1f2",
-      "transactional": true
-    },
-    {
       "file": "20260912220000_0240_credencial_de_enfeite_nao_derruba_a_leitura.sql",
       "version": "20260912220000",
       "sequence": 240,
       "slug": "credencial_de_enfeite_nao_derruba_a_leitura",
       "checksum": "db37c0488a62923760de5c95b62e5a164bf88a24aed2656302983265a8d37e41",
-      "transactional": true
-    },
-    {
-      "file": "20260914090000_0248_caso_tem_assunto.sql",
-      "version": "20260914090000",
-      "sequence": 248,
-      "slug": "caso_tem_assunto",
-      "checksum": "26bb5b75aba862bd74970c225a0c34fc02c5f85518dcf34e71e32cec49b2e4f9",
       "transactional": true
     },
     {
@@ -1826,19 +1810,35 @@
       "transactional": true
     },
     {
-      "file": "20260914190000_0249_agenda_prazo_de_expiracao_do_pendente.sql",
-      "version": "20260914190000",
-      "sequence": 249,
-      "slug": "agenda_prazo_de_expiracao_do_pendente",
-      "checksum": "ac33e4126957355bf949dd669c70268c5c6083f3dab23f55cd5997db01c98fd4",
-      "transactional": true
-    },
-    {
       "file": "20260914195200_0245_followup_stale_nao_e_retry.sql",
       "version": "20260914195200",
       "sequence": 245,
       "slug": "followup_stale_nao_e_retry",
       "checksum": "b06126c8b53a5c1fbed95b48aaa2a66ddcf67a2ea608fdbc696208c5d5ff19b7",
+      "transactional": true
+    },
+    {
+      "file": "20260912210000_0247_indices_fks_mensagens_e_runs.sql",
+      "version": "20260912210000",
+      "sequence": 247,
+      "slug": "indices_fks_mensagens_e_runs",
+      "checksum": "50c9764d3ee0058b09857aa92feca17dcf24a1a7481fe854435958e39c7dd1f2",
+      "transactional": true
+    },
+    {
+      "file": "20260914090000_0248_caso_tem_assunto.sql",
+      "version": "20260914090000",
+      "sequence": 248,
+      "slug": "caso_tem_assunto",
+      "checksum": "26bb5b75aba862bd74970c225a0c34fc02c5f85518dcf34e71e32cec49b2e4f9",
+      "transactional": true
+    },
+    {
+      "file": "20260914190000_0249_agenda_prazo_de_expiracao_do_pendente.sql",
+      "version": "20260914190000",
+      "sequence": 249,
+      "slug": "agenda_prazo_de_expiracao_do_pendente",
+      "checksum": "ac33e4126957355bf949dd669c70268c5c6083f3dab23f55cd5997db01c98fd4",
       "transactional": true
     },
     {
@@ -1994,14 +1994,6 @@
       "transactional": true
     },
     {
-      "file": "20260917150000_0274_travas_de_suporte_cobrem_toda_tabela.sql",
-      "version": "20260917150000",
-      "sequence": 274,
-      "slug": "travas_de_suporte_cobrem_toda_tabela",
-      "checksum": "933d0d9648c3b1c2f23fd8718e8e7f677824094beffb6555c778a223c3630cbb",
-      "transactional": true
-    },
-    {
       "file": "20260917150401_0273_zona_de_perigo_apaga_com_resposta_revisada.sql",
       "version": "20260917150401",
       "sequence": 273,
@@ -2010,19 +2002,19 @@
       "transactional": true
     },
     {
+      "file": "20260917150000_0274_travas_de_suporte_cobrem_toda_tabela.sql",
+      "version": "20260917150000",
+      "sequence": 274,
+      "slug": "travas_de_suporte_cobrem_toda_tabela",
+      "checksum": "933d0d9648c3b1c2f23fd8718e8e7f677824094beffb6555c778a223c3630cbb",
+      "transactional": true
+    },
+    {
       "file": "20260918001726_0276_rodada_do_banco.sql",
       "version": "20260918001726",
       "sequence": 276,
       "slug": "rodada_do_banco",
       "checksum": "521417a604a11b21e3a2d0c300445e4d104d63c332761f3cf79163f5a0be8095",
-      "transactional": true
-    },
-    {
-      "file": "20260918011500_0282_extensoes_perfil_v2.sql",
-      "version": "20260918011500",
-      "sequence": 282,
-      "slug": "extensoes_perfil_v2",
-      "checksum": "05398e9742d357ca08f4aa0e534a19e0d232e7a1927a18c74c9864abd5224758",
       "transactional": true
     },
     {
@@ -2058,19 +2050,19 @@
       "transactional": true
     },
     {
+      "file": "20260918011500_0282_extensoes_perfil_v2.sql",
+      "version": "20260918011500",
+      "sequence": 282,
+      "slug": "extensoes_perfil_v2",
+      "checksum": "05398e9742d357ca08f4aa0e534a19e0d232e7a1927a18c74c9864abd5224758",
+      "transactional": true
+    },
+    {
       "file": "20260918110000_0291_passagem_para_humano_tem_registro.sql",
       "version": "20260918110000",
       "sequence": 291,
       "slug": "passagem_para_humano_tem_registro",
       "checksum": "9a51f439101f957e70e390a5d58100b7e610b0ccefcd8380cd2a0bd5b4436d5d",
-      "transactional": true
-    },
-    {
-      "file": "20260918120000_0310_csv_como_material_de_conhecimento.sql",
-      "version": "20260918120000",
-      "sequence": 310,
-      "slug": "csv_como_material_de_conhecimento",
-      "checksum": "5535b2c8c90175d61c582c0f97169088a91b570c71223be9b32134112e8aebe7",
       "transactional": true
     },
     {
@@ -2122,6 +2114,14 @@
       "transactional": true
     },
     {
+      "file": "20260918120000_0310_csv_como_material_de_conhecimento.sql",
+      "version": "20260918120000",
+      "sequence": 310,
+      "slug": "csv_como_material_de_conhecimento",
+      "checksum": "5535b2c8c90175d61c582c0f97169088a91b570c71223be9b32134112e8aebe7",
+      "transactional": true
+    },
+    {
       "file": "20260918230000_0311_webhook_do_numero_no_canal_oficial.sql",
       "version": "20260918230000",
       "sequence": 311,
@@ -2138,19 +2138,19 @@
       "transactional": true
     },
     {
-      "file": "20260919103000_0322_automacao_tem_numero_proprio.sql",
-      "version": "20260919103000",
-      "sequence": 322,
-      "slug": "automacao_tem_numero_proprio",
-      "checksum": "69ac5ff4a65860f5993159d400fdd827e5eecda9ce1a6212fbdef182bfe1bfb0",
-      "transactional": true
-    },
-    {
       "file": "20260919120000_0321_recibo_de_idempotencia_em_curso.sql",
       "version": "20260919120000",
       "sequence": 321,
       "slug": "recibo_de_idempotencia_em_curso",
       "checksum": "57c316e701f93cd95f4e45aa4938b4b1d1fceefe4d4f9ac6bcdb09d939d69fb8",
+      "transactional": true
+    },
+    {
+      "file": "20260919103000_0322_automacao_tem_numero_proprio.sql",
+      "version": "20260919103000",
+      "sequence": 322,
+      "slug": "automacao_tem_numero_proprio",
+      "checksum": "69ac5ff4a65860f5993159d400fdd827e5eecda9ce1a6212fbdef182bfe1bfb0",
       "transactional": true
     },
     {
@@ -2167,6 +2167,14 @@
       "sequence": 324,
       "slug": "destinos_internos_da_instalacao",
       "checksum": "4a6feca8e2c8bfe5585039b7cb878bf3d0fe86ba8e4e6cd6e536db38c636f9f2",
+      "transactional": true
+    },
+    {
+      "file": "20260919153000_0325_protecao_de_tabela_de_organizacao_sai_do_laco.sql",
+      "version": "20260919153000",
+      "sequence": 325,
+      "slug": "protecao_de_tabela_de_organizacao_sai_do_laco",
+      "checksum": "128ac1bc446d299bd1837e37893fa89046de46d872fb56ff01853ca518652336",
       "transactional": true
     },
     {
@@ -2210,14 +2218,6 @@
       "transactional": true
     },
     {
-      "file": "20260919153000_0325_protecao_de_tabela_de_organizacao_sai_do_laco.sql",
-      "version": "20260919153000",
-      "sequence": 325,
-      "slug": "protecao_de_tabela_de_organizacao_sai_do_laco",
-      "checksum": "128ac1bc446d299bd1837e37893fa89046de46d872fb56ff01853ca518652336",
-      "transactional": true
-    },
-    {
       "file": "20260919154000_0333_transporte_smtp_da_instalacao.sql",
       "version": "20260919154000",
       "sequence": 333,
@@ -2231,14 +2231,6 @@
       "sequence": 335,
       "slug": "marcador_do_contato_normalizado",
       "checksum": "2172a07cc50d204deac14c827ce8b6deabaee396af2f94b9325ffce0a18f9fc9",
-      "transactional": true
-    },
-    {
-      "file": "20260919160431_0343_agenda_dos_colegas.sql",
-      "version": "20260919160431",
-      "sequence": 343,
-      "slug": "agenda_dos_colegas",
-      "checksum": "328275d75b1cf1c81cf0a0a4859e516c9392a2cc7b5a55f2ccf61d57ee772fc9",
       "transactional": true
     },
     {
@@ -2258,14 +2250,6 @@
       "transactional": true
     },
     {
-      "file": "20260919234000_0342_catalogo_deepseek.sql",
-      "version": "20260919234000",
-      "sequence": 342,
-      "slug": "catalogo_deepseek",
-      "checksum": "0897cf532d5b91d4d71f5a59392617a803f4cdbb090c7da89193b9301bf700de",
-      "transactional": true
-    },
-    {
       "file": "20260919235000_0340_modulo_instalado.sql",
       "version": "20260919235000",
       "sequence": 340,
@@ -2279,6 +2263,22 @@
       "sequence": 341,
       "slug": "configuracao_da_instalacao_pela_tela",
       "checksum": "0d9308132abd0c3e28757edc53e74fe520a7aa82ab56c7beac0ca954f71cef37",
+      "transactional": true
+    },
+    {
+      "file": "20260919234000_0342_catalogo_deepseek.sql",
+      "version": "20260919234000",
+      "sequence": 342,
+      "slug": "catalogo_deepseek",
+      "checksum": "0897cf532d5b91d4d71f5a59392617a803f4cdbb090c7da89193b9301bf700de",
+      "transactional": true
+    },
+    {
+      "file": "20260919160431_0343_agenda_dos_colegas.sql",
+      "version": "20260919160431",
+      "sequence": 343,
+      "slug": "agenda_dos_colegas",
+      "checksum": "328275d75b1cf1c81cf0a0a4859e516c9392a2cc7b5a55f2ccf61d57ee772fc9",
       "transactional": true
     },
     {
@@ -2562,14 +2562,6 @@
       "transactional": true
     },
     {
-      "file": "20260922164700_0387_canal_datafy.sql",
-      "version": "20260922164700",
-      "sequence": 387,
-      "slug": "canal_datafy",
-      "checksum": "1e87c282cdc95537a89cedb7897c751e34513bd9440df4259ec1947cfb216800",
-      "transactional": true
-    },
-    {
       "file": "20260922190000_0384_banco_externo_vira_modulo_opcional.sql",
       "version": "20260922190000",
       "sequence": 384,
@@ -2591,6 +2583,14 @@
       "sequence": 386,
       "slug": "preco_catalogo_e_conta_openai",
       "checksum": "b76036eb6768f913a55f40ca0209cad0fbe701d59b06139411564f81d834713b",
+      "transactional": true
+    },
+    {
+      "file": "20260922164700_0387_canal_datafy.sql",
+      "version": "20260922164700",
+      "sequence": 387,
+      "slug": "canal_datafy",
+      "checksum": "1e87c282cdc95537a89cedb7897c751e34513bd9440df4259ec1947cfb216800",
       "transactional": true
     },
     {
@@ -2642,6 +2642,14 @@
       "transactional": true
     },
     {
+      "file": "20260924060000_0400_moeda_do_negocio_da_conversa.sql",
+      "version": "20260924060000",
+      "sequence": 400,
+      "slug": "moeda_do_negocio_da_conversa",
+      "checksum": "2bf4dec588bc7b3191849b18139786a54ff5ec84449c80a64a84fe841d330169",
+      "transactional": true
+    },
+    {
       "file": "20260924053717_0401_conversoes_processamento_e_reenvio.sql",
       "version": "20260924053717",
       "sequence": 401,
@@ -2655,14 +2663,6 @@
       "sequence": 402,
       "slug": "google_captura_e_qualificacao",
       "checksum": "2cc0bf4fbbe3251d2aed9f8a396cb3fa576c3b2ef0a4252814166db93ddb2244",
-      "transactional": true
-    },
-    {
-      "file": "20260924060000_0400_moeda_do_negocio_da_conversa.sql",
-      "version": "20260924060000",
-      "sequence": 400,
-      "slug": "moeda_do_negocio_da_conversa",
-      "checksum": "2bf4dec588bc7b3191849b18139786a54ff5ec84449c80a64a84fe841d330169",
       "transactional": true
     },
     {
@@ -2794,19 +2794,19 @@
       "transactional": true
     },
     {
-      "file": "20260926030000_0421_jev_observacoes.sql",
-      "version": "20260926030000",
-      "sequence": 421,
-      "slug": "jev_observacoes",
-      "checksum": "ed529d38efabed8c2f62563a32792f5eb390a706a5f89895b932ab921148c974",
-      "transactional": true
-    },
-    {
       "file": "20260926035000_0420_motivo_de_ganho.sql",
       "version": "20260926035000",
       "sequence": 420,
       "slug": "motivo_de_ganho",
       "checksum": "15bfb116ee9f27d0772f4678f33c977036803688576ea3fb329a5d06ee4c56be",
+      "transactional": true
+    },
+    {
+      "file": "20260926030000_0421_jev_observacoes.sql",
+      "version": "20260926030000",
+      "sequence": 421,
+      "slug": "jev_observacoes",
+      "checksum": "ed529d38efabed8c2f62563a32792f5eb390a706a5f89895b932ab921148c974",
       "transactional": true
     },
     {
@@ -3408,7 +3408,15 @@
       "slug": "knowledge_source_patch_atomic",
       "checksum": "e387641602b4cc0fccb176ea9740d9c80a629bd238eab1eb3a66119ced8f312e",
       "transactional": true
+    },
+    {
+      "file": "20261027100000_0522_case_wait_reminders.sql",
+      "version": "20261027100000",
+      "sequence": 522,
+      "slug": "case_wait_reminders",
+      "checksum": "d5e078f97184a41a33f4b81c64aa570b98d6b98bfed6541da5a3a2f5e22e5bda",
+      "transactional": true
     }
   ],
-  "updated_at": "2026-10-26T17:07:38.682Z"
+  "updated_at": "2026-10-27T16:32:55.594Z"
 }

@@ -1,6 +1,6 @@
 # Spec 15 — Casos Humanos (loop assíncrono IA↔humano)
 
-> **Status:** design aprovado (brainstorming 2026-07-23). Pré-implementação.
+> **Status:** design aprovado (brainstorming 2026-07-23); o ciclo de lembretes por espera humana está implementado na migration 0522.
 > **Épico alvo:** `feat/inbox-multimodal` (ou épico próprio "human-cases").
 > **Runtime:** `lib/agent-engine/` (harness 24/7). **NÃO** o runtime nativo `lib/ai/runtime/`.
 
@@ -253,8 +253,14 @@ Reusa o shell `app/app/ai/inbox/` (assistente), **seção/tab própria "Casos"**
 - **Clareza (requisito):** o estado do caso é sempre visível (esperando você / esperando cliente / resolvido / escalado). A UI não deixa ambíguo de quem é a bola.
 - **Quem é avisado fora da tela, e quando** *(migration 0292, tela `/app/ai/cases/avisos`)*:
   - **existe**: uma mensagem no WhatsApp de um número da equipe, **na ABERTURA do caso**, uma vez por caso. É opt-in de quem administra (`config_aviso_de_caso.ligado`), sai fora do horário comercial de propósito (a janela protege o cliente, e a equipe é interna) e o registro de cada tentativa fica em `entregas_de_aviso_de_caso`;
-  - **existe**: o vigia `case-stale-watcher`, que cobra até três vezes **na Central** o caso que ninguém abriu;
-  - **NÃO existe**: re-notificação quando o cliente responde e o caso volta de `awaiting_lead` para `awaiting_human`. O aviso não se repete, e a tela do aviso diz isso com essas palavras. Quem quiser acompanhar a volta usa a Central.
+  - **existe**: o vigia `case-stale-watcher`, que cria avisos **na Central** por uma cadência e um limite configuráveis pela organização;
+  - **existe**: cada entrada nova em `awaiting_human`, inclusive a volta de `awaiting_lead`, inicia sua própria espera e reinicia o contador de lembretes. O caso continua sem envio de cobrança ao cliente.
+
+### 9.1 Lembrete por espera humana (migration 0522)
+
+`agent_cases.case_wait_started_at` e `case_wait_reminders_sent` pertencem à espera atual, não à vida inteira do caso nem a `updated_at`. A trigger inicia o relógio e zera o contador ao entrar em `awaiting_human`; ao sair, limpa os dois. Uma volta posterior inicia um ciclo novo. `followup_attempts` preserva seu significado histórico e continua sendo incrementado pelos avisos entregues.
+
+A configuração fica em `organizations.settings.case_wait_reminders`, com defaults `enabled=true`, `interval_hours=24` e `limit=3`. A interface administrativa valida intervalo de 1–168 horas e teto de 1–10 avisos, aplica MFA conforme a política existente e grava auditoria sem conteúdo privado do caso. O scheduler permanece horário. `fn_claim_case_wait_reminders` usa `FOR UPDATE SKIP LOCKED`, só é executável por `service_role` e cria aviso na Central sem alterar `updated_at`; o backfill reinicia o relógio no instante da migration e herda até três avisos legados para impedir rajada de catch-up.
 
 - Rota API: `POST /api/v1/ai/cases/[id]/reply` — molde `app/api/v1/leads/[id]/win/route.ts`: `requireRole("agent", {requestId, resource})` (valida JWT via `getUser()`, org do cookie validado — nunca do body), Zod no body, `audit(...)`, `ok()`/`fail()`, `X-Request-Id`. **Sem rate-limit** (rota autenticada de staff, não pública — doutrina: rate-limit só em rota pública). `GET /api/v1/ai/cases` e `GET /api/v1/ai/cases/[id]` (detalhe + timeline) seguem o molde de `app/api/v1/ai/inbox/route.ts`.
 

@@ -1507,6 +1507,16 @@
         "não-ligação deliberada: o Jev NÃO está no Modelo padrão, no seletor dos pontos nem no do agente, e ai_models não o recebe — ele não escreve texto, e escolhido ali todo atendimento morreria",
         "não-ligação deliberada: a marca '(percebido pelo Jev)' nunca vai na mensagem ao cliente, só no que a equipe lê (e114)"
       ]
+    },
+    {
+      "dot": "teal",
+      "title": "Lembretes por espera humana (migration 0522)",
+      "items": [
+        "agent_cases.case_wait_started_at e case_wait_reminders_sent pertencem à espera atual; a trigger inicia e zera ao entrar em awaiting_human e limpa ao sair",
+        "organizations.settings.case_wait_reminders configura habilitação, intervalo de 1–168 horas e limite de 1–10; defaults: habilitado, 24h e 3 avisos",
+        "o scheduler continua horário; fn_claim_case_wait_reminders usa SKIP LOCKED, é service_role-only e cria avisos na Central sem alterar updated_at ou enviar mensagem ao cliente",
+        "followup_attempts mantém a métrica vitalícia; o backfill reinicia o relógio na aplicação da migration e herda até três avisos já contabilizados para evitar catch-up burst"
+      ]
     }
   ]
 }
