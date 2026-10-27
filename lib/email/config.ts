@@ -80,11 +80,29 @@ export async function saveSmtpConfig(input: Omit<SmtpConfig, "source"> & { updat
   let encrypted: string | null = null;
   if (input.password) encrypted = await encryptWebhookSecret(admin, input.password);
   else {
-    const { data } = await admin
-      .from("platform_smtp_settings")
-      .select("smtp_password_encrypted")
-      .eq("id", 1)
-      .maybeSingle();
+    let data: unknown;
+    let readError: { message: string } | null;
+    try {
+      ({ data, error: readError } = await admin
+        .from("platform_smtp_settings")
+        .select("smtp_password_encrypted")
+        .eq("id", 1)
+        .maybeSingle());
+    } catch {
+      return {
+        ok: false as const,
+        error: "Não foi possível confirmar a senha SMTP atual; nenhuma configuração foi salva.",
+      };
+    }
+    // Sem uma senha nova, a única forma segura de manter o segredo é ler o
+    // ciphertext atual. Erro de leitura não significa “sem senha”: aborta antes
+    // do upsert para não apagar credenciais nem trocar parcialmente o remetente.
+    if (readError) {
+      return {
+        ok: false as const,
+        error: "Não foi possível confirmar a senha SMTP atual; nenhuma configuração foi salva.",
+      };
+    }
     encrypted =
       (data as { smtp_password_encrypted?: string | null } | null)?.smtp_password_encrypted ?? null;
   }
