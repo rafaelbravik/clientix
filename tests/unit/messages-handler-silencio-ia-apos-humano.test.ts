@@ -16,6 +16,7 @@ import { createServer } from 'node:http';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { sendMessageHandler } from '@/app/api/v1/messages/_handler';
+import { audit } from '@/lib/audit';
 import type { HandlerCtx } from '@/lib/api/handlers/types';
 import type { SendMessageInput } from '@/lib/schemas';
 import { criarDubleDoHandler } from '@/tests/helpers/duble-do-handler';
@@ -127,6 +128,49 @@ describe('sendMessageHandler — silêncio da IA de 5min após resposta manual h
 
     const convPatch = patches[patches.length - 1]!;
     expect(convPatch.bot_silenced_until, 'a IA silenciou a si mesma ao responder').toBeUndefined();
+  });
+
+  it('API token envia em nome de atendente validado → aplica silêncio humano e preserva os dois atores no audit', async () => {
+    wahaConfigured();
+    vi.mocked(audit).mockClear();
+    const ctx: HandlerCtx = {
+      organization_id: ORG,
+      actor: { type: 'api_token', id: 'token-1' },
+      onBehalfOf: { userId: USER, userName: 'Atendente', tokenName: 'Integração' },
+      requestId: 'req-on-behalf',
+    };
+    const { supabase, patches } = dubleDo(null);
+
+    const before = Date.now();
+    await sendMessageHandler(supabase, ctx, { ...input, on_behalf_of_user_id: USER });
+    const after = Date.now();
+
+    const silence = patches[patches.length - 1]!.bot_silenced_until as string;
+    expect(new Date(silence).getTime()).toBeGreaterThanOrEqual(before + 5 * 60 * 1000 - 1000);
+    expect(new Date(silence).getTime()).toBeLessThanOrEqual(after + 5 * 60 * 1000 + 1000);
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'message.sent',
+      actorUserId: null,
+      actorApiTokenId: 'token-1',
+      metadata: expect.objectContaining({
+        actor_type: 'api_token',
+        on_behalf_of_user_id: USER,
+      }),
+    }));
+  });
+
+  it('API token sem on_behalf_of_user_id não ganha semântica humana nem pausa a IA', async () => {
+    wahaConfigured();
+    const ctx: HandlerCtx = {
+      organization_id: ORG,
+      actor: { type: 'api_token', id: 'token-2' },
+      requestId: 'req-token-only',
+    };
+    const { supabase, patches } = dubleDo(null);
+
+    await sendMessageHandler(supabase, ctx, input);
+
+    expect(patches[patches.length - 1]!.bot_silenced_until).toBeUndefined();
   });
 
   it('handoff permanente (infinity) já ativo → resposta manual NÃO encurta para 5min', async () => {

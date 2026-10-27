@@ -1184,7 +1184,9 @@ export async function sendMessageHandler(
     // a conversa contando a espera que a própria resposta acabou de encerrar.
     awaiting_since: c.last_inbound_at,
   };
-  if (ctx.actor.type === "user") {
+  // O token continua sendo o ator técnico, mas um envio validado em nome de
+  // atendente representa a mesma decisão humana da resposta pela UI.
+  if (ctx.actor.type === "user" || ctx.onBehalfOf) {
     const silenceUntil = extendBotSilence(c.bot_silenced_until, now);
     if (silenceUntil) conversationUpdate.bot_silenced_until = silenceUntil;
   }
