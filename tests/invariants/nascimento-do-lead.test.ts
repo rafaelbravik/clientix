@@ -63,6 +63,33 @@ async function criarContato(org: string, nome: string | null): Promise<string> {
   return rows[0]!.id;
 }
 
+async function comEtapaDeEntrada<T>(
+  organizationId: string,
+  entrada: { ativa: boolean; stage_id: string | null },
+  executar: (pipelineId: string) => Promise<T>,
+): Promise<T> {
+  const { rows } = await pool.query<{ id: string; settings: Record<string, unknown> | null }>(
+    "select id, settings from crm_pipelines where organization_id = $1 and is_default = true",
+    [organizationId],
+  );
+  const pipeline = rows[0];
+  if (!pipeline) throw new Error("fixture sem funil padrão");
+  await pool.query(
+    `update crm_pipelines
+        set settings = jsonb_set(coalesce(settings, '{}'::jsonb), '{entrada_do_inbox}', $2::jsonb, true)
+      where id = $1`,
+    [pipeline.id, JSON.stringify(entrada)],
+  );
+  try {
+    return await executar(pipeline.id);
+  } finally {
+    await pool.query("update crm_pipelines set settings = $2::jsonb where id = $1", [
+      pipeline.id,
+      JSON.stringify(pipeline.settings ?? {}),
+    ]);
+  }
+}
+
 beforeAll(async () => {
   await criarOrg(ORG_VIVA, "org-nascimento-viva");
   await criarOrg(ORG_SEM_FUNIL, "org-nascimento-sem-funil");
@@ -160,6 +187,112 @@ describe("o lead NASCE", () => {
       [r.leadId],
     );
     expect(lead.stage_name).toBe(primeira[0]!.name);
+  });
+
+  it("usa a etapa válida configurada e a segunda mensagem continua idempotente", async () => {
+    const { rows } = await pool.query<{ id: string }>(
+      `select id from crm_stages
+        where organization_id = $1 and is_archived = false and is_won = false and is_lost = false
+        order by position asc offset 1 limit 1`,
+      [ORG_VIVA],
+    );
+    const escolhida = rows[0]?.id;
+    expect(escolhida, "fixture precisa de uma segunda etapa aberta").toBeTruthy();
+    if (!escolhida) return;
+
+    await comEtapaDeEntrada(ORG_VIVA, { ativa: true, stage_id: escolhida }, async (pipelineId) => {
+      const destino = await funilDeEntrada(db, ORG_VIVA);
+      expect(destino).toEqual({ pipelineId, stageId: escolhida });
+
+      const contato = await criarContato(ORG_VIVA, "Etapa configurada");
+      const dados = {
+        organizationId: ORG_VIVA,
+        contactId: contato,
+        conversationId: CONVERSA,
+        nomeDoContato: "Etapa configurada",
+      };
+      const primeira = await garantirLeadDaConversa(db, dados);
+      const segunda = await garantirLeadDaConversa(db, dados);
+      expect(primeira.criado).toBe(true);
+      if (primeira.criado) {
+        const { rows: leadRows } = await pool.query<{ stage_id: string }>(
+          "select stage_id from crm_leads where id = $1 and organization_id = $2",
+          [primeira.leadId, ORG_VIVA],
+        );
+        expect(leadRows[0]?.stage_id).toBe(escolhida);
+      }
+      expect(segunda).toEqual({ criado: false, motivo: "ja_existe" });
+      const { rows: count } = await pool.query<{ n: string }>(
+        "select count(*)::text as n from crm_leads where contact_id = $1 and organization_id = $2",
+        [contato, ORG_VIVA],
+      );
+      expect(count[0]?.n).toBe("1");
+    });
+  });
+
+  it("cai na primeira etapa quando a configuração está desligada ou inválida", async () => {
+    const primeiro = await funilDeEntrada(db, ORG_VIVA);
+    expect(primeiro).not.toHaveProperty("erro");
+    if ("erro" in primeiro) return;
+
+    await comEtapaDeEntrada(ORG_VIVA, { ativa: false, stage_id: primeiro.stageId }, async () => {
+      expect(await funilDeEntrada(db, ORG_VIVA)).toEqual(primeiro);
+    });
+    await comEtapaDeEntrada(
+      ORG_VIVA,
+      { ativa: true, stage_id: "nao-e-uuid" },
+      async () => expect(await funilDeEntrada(db, ORG_VIVA)).toEqual(primeiro),
+    );
+
+    const { rows: outraOrg } = await pool.query<{ id: string }>(
+      `select id from crm_stages
+        where organization_id = $1 and is_archived = false and is_won = false and is_lost = false
+        order by position asc limit 1`,
+      [ORG_GANHO_PRIMEIRO],
+    );
+    expect(outraOrg[0]?.id).toBeTruthy();
+    if (!outraOrg[0]?.id) return;
+    await comEtapaDeEntrada(
+      ORG_VIVA,
+      { ativa: true, stage_id: outraOrg[0].id },
+      async () => expect(await funilDeEntrada(db, ORG_VIVA)).toEqual(primeiro),
+    );
+  });
+
+  it("cai na primeira etapa se a etapa configurada pertence a outro funil ou está arquivada", async () => {
+    const primeiro = await funilDeEntrada(db, ORG_VIVA);
+    expect(primeiro).not.toHaveProperty("erro");
+    if ("erro" in primeiro) return;
+
+    const { rows: outroFunil } = await pool.query<{ id: string }>(
+      `insert into crm_pipelines (organization_id, name, slug, is_default, position)
+       values ($1, 'Outro funil sintético', 'outro-funil-nascimento', false, 9000)
+       returning id`,
+      [ORG_VIVA],
+    );
+    const { rows: etapaDeOutroFunil } = await pool.query<{ id: string }>(
+      `insert into crm_stages (organization_id, pipeline_id, name, slug, position, is_won, is_lost)
+       values ($1, $2, 'Etapa alheia sintética', 'etapa-alheia-nascimento', 0, false, false)
+       returning id`,
+      [ORG_VIVA, outroFunil[0]!.id],
+    );
+    await comEtapaDeEntrada(
+      ORG_VIVA,
+      { ativa: true, stage_id: etapaDeOutroFunil[0]!.id },
+      async () => expect(await funilDeEntrada(db, ORG_VIVA)).toEqual(primeiro),
+    );
+
+    const { rows: arquivada } = await pool.query<{ id: string }>(
+      `insert into crm_stages (organization_id, pipeline_id, name, slug, position, is_won, is_lost, is_archived)
+       values ($1, $2, 'Arquivada sintética', 'arquivada-nascimento', 9000, false, false, true)
+       returning id`,
+      [ORG_VIVA, primeiro.pipelineId],
+    );
+    await comEtapaDeEntrada(
+      ORG_VIVA,
+      { ativa: true, stage_id: arquivada[0]!.id },
+      async () => expect(await funilDeEntrada(db, ORG_VIVA)).toEqual(primeiro),
+    );
   });
 
   it("emite atividade de sistema — card que aparece sozinho destrói a confiança no automatismo", async () => {

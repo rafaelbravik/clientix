@@ -14,7 +14,7 @@
     { "id": "dados", "label": "Banco" },
     { "id": "dependente", "label": "Quem depende do funil" }
   ],
-  "mainPath": ["lista", "hooks", "post", "regras", "pipelines"],
+  "mainPath": ["lista", "hooks", "post", "regras", "pipelines", "entradaInbox", "nascimento"],
   "nodes": [
     { "id": "lista", "lane": "humano", "col": 1, "type": "frontend", "label": "/app/kanban (page)", "sublabel": "Server Component · filtra organization_id da org ATIVA" },
     { "id": "client", "lane": "humano", "col": 2, "type": "frontend", "label": "FunisClient", "sublabel": "criar · renomear · ↑↓ · padrão · arquivar" },
@@ -37,7 +37,10 @@
 
     { "id": "leads", "lane": "dependente", "col": 2, "type": "database", "label": "crm_leads", "sublabel": "FK ON DELETE RESTRICT" },
     { "id": "sources", "lane": "dependente", "col": 3, "type": "database", "label": "webhook_sources", "sublabel": "FK ON DELETE **CASCADE** — o perigo" },
-    { "id": "rules", "lane": "dependente", "col": 4, "type": "database", "label": "automation_rules", "sublabel": "pipeline_id dentro de jsonb — SEM FK" }
+    { "id": "rules", "lane": "dependente", "col": 4, "type": "database", "label": "automation_rules", "sublabel": "pipeline_id dentro de jsonb — SEM FK" },
+    { "id": "entradaInbox", "lane": "humano", "col": 5, "type": "frontend", "label": "Etapa de entrada do Inbox", "sublabel": "no funil padrão · ativa/desativa sem apagar a seleção" },
+    { "id": "entradaAction", "lane": "borda", "col": 5, "type": "service", "label": "updatePipelineConfig", "sublabel": "valida etapa, tenant e funil padrão antes de salvar settings" },
+    { "id": "nascimento", "lane": "regra", "col": 4, "type": "service", "label": "funilDeEntrada", "sublabel": "usa etapa válida configurada; falha segura para a primeira etapa aberta" }
   ],
   "edges": [
     { "id": "e1", "from": "lista", "to": "pipelines", "label": "select … .eq(organization_id, org ATIVA) — a RLS sozinha misturava as orgs" },
@@ -69,7 +72,11 @@
     { "id": "e27", "from": "delete", "to": "pipelines", "label": "is_archived=true (ou delete no caso limpo)" },
     { "id": "e28", "from": "trigger", "to": "pipelines", "label": "toda org nova nasce com 'Pedidos' — a razão de a clínica precisar desta tela" },
     { "id": "e29", "from": "trigger", "to": "stages", "label": "8 etapas de e-commerce" },
-    { "id": "e30", "from": "board", "to": "stages", "label": "as colunas do quadro" }
+    { "id": "e30", "from": "board", "to": "stages", "label": "as colunas do quadro" },
+    { "id": "e31", "from": "entradaInbox", "to": "entradaAction", "label": "configuração da etapa de entrada" },
+    { "id": "e32", "from": "entradaAction", "to": "pipelines", "label": "persistência em settings do funil padrão" },
+    { "id": "e33", "from": "nascimento", "to": "pipelines", "label": "resolve o funil padrão e sua configuração" },
+    { "id": "e34", "from": "nascimento", "to": "stages", "label": "valida org, funil e estado; fallback para etapa aberta" }
   ],
   "cards": [
     {

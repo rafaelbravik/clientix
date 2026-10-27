@@ -32,6 +32,7 @@ export interface PipelineRow {
   slug: string;
   vocabulary: Record<string, string> | null;
   settings: Record<string, unknown> | null;
+  is_default?: boolean;
 }
 
 /**
@@ -71,6 +72,8 @@ export interface EtapaDoFunil {
   id: string;
   name: string;
   is_archived: boolean;
+  is_won?: boolean;
+  is_lost?: boolean;
 }
 
 /**
@@ -242,6 +245,15 @@ function PipelineEditor({
     modoDeReabertura(pipeline.settings) === "novo_negocio",
   );
   const [fields, setFields] = useState<CustomFieldDef[]>(camposDoFunil(pipeline.settings));
+  const entradaSalva = (pipeline.settings as { entrada_do_inbox?: unknown } | null)?.entrada_do_inbox;
+  const entrada =
+    typeof entradaSalva === "object" && entradaSalva !== null
+      ? (entradaSalva as { ativa?: unknown; stage_id?: unknown })
+      : null;
+  const [entradaAtiva, setEntradaAtiva] = useState(entrada?.ativa === true);
+  const [entradaStageId, setEntradaStageId] = useState(
+    typeof entrada?.stage_id === "string" ? entrada.stage_id : "__sem__",
+  );
   const [isPending, startTransition] = useTransition();
 
   function handleSave() {
@@ -300,6 +312,14 @@ function PipelineEditor({
       won_reasons: wonReasons,
       won_reason_required: wonRequired,
       reabertura: retomaComoNovo ? "novo_negocio" : "mesmo_registro",
+      ...(pipeline.is_default
+        ? {
+            entrada_do_inbox: {
+              ativa: entradaAtiva,
+              stage_id: entradaStageId === "__sem__" ? null : entradaStageId,
+            },
+          }
+        : {}),
     };
     startTransition(async () => {
       const r = await updatePipelineConfig(pipeline.id, patch);
@@ -317,6 +337,39 @@ function PipelineEditor({
   return (
     <div className="space-y-4 border-t border-border pt-6">
       <h3 className="text-sm font-semibold">{t("Vocabulário e campos")}</h3>
+
+      {pipeline.is_default && (
+        <section className="space-y-3 rounded-md border border-border p-3" aria-label={t("Etapa de entrada do Inbox")}>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              aria-label={t("Ativar etapa de entrada do Inbox")}
+              checked={entradaAtiva}
+              onChange={(event) => setEntradaAtiva(event.target.checked)}
+            />
+            {t("Ativar etapa de entrada do Inbox")}
+          </label>
+          <div className="max-w-md space-y-1">
+            <Label className="text-xs">{t("Etapa")}</Label>
+            <Select value={entradaStageId} onValueChange={setEntradaStageId}>
+              <SelectTrigger aria-label={t("Etapa de entrada do Inbox")}>
+                <SelectValue placeholder={t("Escolha uma etapa")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__sem__">{t("Escolha uma etapa")}</SelectItem>
+                {etapas
+                  .filter((stage) => !stage.is_archived && !stage.is_won && !stage.is_lost)
+                  .map((stage) => (
+                    <SelectItem key={stage.id} value={stage.id}>{stage.name}</SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {t("Quando desligada ou se a etapa salva deixar de ser válida, novos leads entram na primeira etapa aberta do funil padrão.")}
+            </p>
+          </div>
+        </section>
+      )}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <div className="space-y-1">

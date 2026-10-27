@@ -30,10 +30,11 @@
  * ═══ NADA É FIXO ═══
  *
  * O funil de entrada é `crm_pipelines.is_default` — que já existe, já tem tela e
- * já tem regra de exclusividade (`lib/pipelines/pipeline-editing.ts`). A etapa é
- * a de menor `position` entre as não-arquivadas. Criar `is_entry_pipeline` ou uma
- * flag de primeira etapa seria um segundo lugar para uma verdade que já existe, e
- * é daí que a divergência nasce.
+ * já tem regra de exclusividade (`lib/pipelines/pipeline-editing.ts`). Uma etapa
+ * válida configurada em `settings.entrada_do_inbox` vence; sem ela, ou se ficar
+ * inválida, a primeira etapa aberta continua sendo o destino seguro. Criar
+ * `is_entry_pipeline` ou uma flag de primeira etapa seria um segundo lugar para
+ * uma verdade que já existe, e é daí que a divergência nasce.
  *
  * ⚠️ ESTE CABEÇALHO DIZIA "nenhum campo novo", E DEIXOU DE SER VERDADE na
  * migration 0262, que criou `crm_pipelines.is_client_pipeline` — o funil de quem
@@ -200,7 +201,7 @@ export async function funilDeEntrada(
 
   const { data: funil } = await db
     .from("crm_pipelines")
-    .select("id")
+    .select("id, settings")
     .eq("organization_id", organizationId)
     .eq("is_default", true)
     .eq("is_archived", false)
@@ -208,9 +209,44 @@ export async function funilDeEntrada(
 
   if (!funil) return { erro: "sem_funil_de_entrada" };
 
-  const stageId = await primeiraEtapa(db, organizationId, funil.id as string);
+  const pipelineId = funil.id as string;
+  const settings = funil.settings as Record<string, unknown> | null;
+  const entrada = settings?.entrada_do_inbox;
+  if (typeof entrada === "object" && entrada !== null) {
+    const config = entrada as { ativa?: unknown; stage_id?: unknown };
+    const stageId = config.stage_id;
+    if (
+      config.ativa === true &&
+      typeof stageId === "string" &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(stageId)
+    ) {
+      const { data: etapaConfigurada, error: erroEtapa } = await db
+        .from("crm_stages")
+        .select("id")
+        .eq("id", stageId)
+        .eq("organization_id", organizationId)
+        .eq("pipeline_id", pipelineId)
+        .eq("is_archived", false)
+        .eq("is_won", false)
+        .eq("is_lost", false)
+        .maybeSingle();
+      if (etapaConfigurada && !erroEtapa) {
+        return { pipelineId, stageId: etapaConfigurada.id as string };
+      }
+      // Settings pode ficar obsoleto por remoção/arquivamento de etapa. O lead
+      // ainda deve nascer; o destino seguro é a primeira etapa aberta válida.
+      if (erroEtapa) {
+        logger.warn("Etapa de entrada do Inbox inválida; usando a primeira etapa aberta", {
+          organizationId,
+          pipelineId,
+        });
+      }
+    }
+  }
+
+  const stageId = await primeiraEtapa(db, organizationId, pipelineId);
   if (!stageId) return { erro: "sem_etapa" };
-  return { pipelineId: funil.id as string, stageId };
+  return { pipelineId, stageId };
 }
 
 /**

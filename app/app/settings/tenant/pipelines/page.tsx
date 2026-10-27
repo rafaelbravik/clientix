@@ -34,7 +34,7 @@ export default async function PipelinesSettingsPage() {
   const supabase = await createClient();
   const { data } = await supabase
     .from("crm_pipelines")
-    .select("id, name, slug, vocabulary, settings")
+    .select("id, name, slug, vocabulary, settings, is_default")
     .eq("organization_id", activeOrg.orgId)
     .eq("is_archived", false)
     .order("position");
@@ -47,7 +47,7 @@ export default async function PipelinesSettingsPage() {
   // do servidor: o editor não espera rede nenhuma para renderizar.
   const { data: etapas } = await supabase
     .from("crm_stages")
-    .select("id, pipeline_id, name, is_archived")
+    .select("id, pipeline_id, name, is_archived, is_won, is_lost")
     .eq("organization_id", activeOrg.orgId)
     .order("position", { ascending: true });
   const etapasPorFunil: Record<string, EtapaDoFunil[]> = {};

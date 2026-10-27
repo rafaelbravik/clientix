@@ -348,3 +348,51 @@ describe("retomada de negócio encerrado (#1538)", () => {
     expect(vi.mocked(updatePipelineConfig).mock.calls.at(-1)![1].reabertura).toBe("mesmo_registro");
   });
 });
+
+describe("etapa de entrada do Inbox", () => {
+  const entradaId = "44444444-4444-4444-8444-444444444444";
+  const pipelineDefault: PipelineRow = {
+    ...FUNIL,
+    is_default: true,
+    settings: {
+      ...FUNIL.settings,
+      entrada_do_inbox: { ativa: true, stage_id: entradaId },
+    },
+  };
+  const stages: Record<string, EtapaDoFunil[]> = {
+    [pipelineDefault.id]: [
+      { id: entradaId, name: "Qualificação", is_archived: false, is_won: false, is_lost: false },
+      { id: "55555555-5555-4555-8555-555555555555", name: "Antiga", is_archived: true },
+      { id: "66666666-6666-4666-8666-666666666666", name: "Ganho", is_archived: false, is_won: true },
+    ],
+  };
+
+  beforeEach(() => vi.mocked(updatePipelineConfig).mockClear());
+
+  it("mostra ativação e etapas abertas do funil padrão", async () => {
+    render(<PipelinesClient pipelines={[pipelineDefault]} etapas={stages} podeEditarConfig />);
+    expect(screen.getByLabelText("Ativar etapa de entrada do Inbox")).toBeChecked();
+    const seletor = screen.getByRole("combobox", { name: "Etapa de entrada do Inbox" });
+    expect(seletor.textContent).toContain("Qualificação");
+    fireEvent.keyDown(seletor, { key: "ArrowDown" });
+    expect(await screen.findByRole("option", { name: "Qualificação" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Antiga" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Ganho" })).not.toBeInTheDocument();
+  });
+
+  it("salva a etapa selecionada e mantém o stage_id ao desativar", async () => {
+    render(<PipelinesClient pipelines={[pipelineDefault]} etapas={stages} podeEditarConfig />);
+    fireEvent.click(screen.getByLabelText("Ativar etapa de entrada do Inbox"));
+    fireEvent.click(screen.getByRole("button", { name: "Salvar vocabulário e campos" }));
+    await vi.waitFor(() => expect(updatePipelineConfig).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(updatePipelineConfig).mock.calls[0]?.[1].entrada_do_inbox).toEqual({
+      ativa: false,
+      stage_id: entradaId,
+    });
+  });
+
+  it("não mostra esta configuração em funil que não é o padrão", () => {
+    render(<PipelinesClient pipelines={[FUNIL]} etapas={stages} podeEditarConfig />);
+    expect(screen.queryByLabelText("Ativar etapa de entrada do Inbox")).not.toBeInTheDocument();
+  });
+});

@@ -1570,6 +1570,19 @@ export const DICIONARIO: Traducoes = {
   "Menu do usuário": { es: "Menú del usuario" },
   Sair: { es: "Cerrar sesión" },
   "Central de avisos": { es: "Central de avisos" },
+  "Lembrete de caso parado": { es: "Recordatorio de caso detenido" },
+  "Cada nova espera humana inicia uma cadência própria. O verificador roda de hora em hora.": {
+    es: "Cada nueva espera humana inicia una cadencia propia. El verificador se ejecuta cada hora.",
+  },
+  "Ativar lembretes de caso parado": { es: "Activar recordatorios de casos detenidos" },
+  "Intervalo entre lembretes (horas)": { es: "Intervalo entre recordatorios (horas)" },
+  "De 1 a 168 horas": { es: "De 1 a 168 horas" },
+  "Máximo por espera humana": { es: "Máximo por espera humana" },
+  "De 1 a 10 lembretes": { es: "De 1 a 10 recordatorios" },
+  "Lembrete de caso parado salvo.": { es: "Se guardó el recordatorio de caso detenido." },
+  "Não foi possível salvar o lembrete de caso parado.": {
+    es: "No se pudo guardar el recordatorio de caso detenido.",
+  },
   "em aberto": { es: "abiertos" },
   // ─── Agentes de IA: lista ───
   "Agents de IA": { es: "Agentes de IA" },
@@ -14110,6 +14123,23 @@ export const DICIONARIO: Traducoes = {
   "Continuar para parear": { es: "Continuar para emparejar" },
   "Histórico importado": { es: "Historial importado" },
   "Mídia histórica indisponível no provedor": { es: "Medio histórico no disponible en el proveedor" },
+  "Começar quando o card estiver em uma destas etapas": { es: "Empezar cuando la tarjeta esté en una de estas etapas" },
+  "A seleção é avaliada no próximo turno da conversa. Roteadores e palavras-gatilho têm precedência.": {
+    es: "La selección se evalúa en el siguiente turno de la conversación. Los enrutadores y las palabras clave tienen prioridad.",
+  },
+  "Não foi possível carregar as etapas. As escolhas salvas foram preservadas.": {
+    es: "No se pudieron cargar las etapas. Se conservaron las selecciones guardadas.",
+  },
+  "Não há etapas ativas disponíveis nos funis.": { es: "No hay etapas activas disponibles en los embudos." },
+  "Iniciar na etapa": { es: "Iniciar en la etapa" },
+  "Há etapas salvas que não estão mais disponíveis.": { es: "Hay etapas guardadas que ya no están disponibles." },
+  "Remover etapas indisponíveis": { es: "Quitar etapas no disponibles" },
+  "Etapa de entrada do Inbox": { es: "Etapa de entrada de la bandeja de entrada" },
+  "Ativar etapa de entrada do Inbox": { es: "Activar la etapa de entrada de la bandeja de entrada" },
+  "Escolha uma etapa": { es: "Elige una etapa" },
+  "Quando desligada ou se a etapa salva deixar de ser válida, novos leads entram na primeira etapa aberta do funil padrão.": {
+    es: "Si se desactiva o la etapa guardada deja de ser válida, los nuevos prospectos entran en la primera etapa abierta del embudo predeterminado.",
+  },
 };
 
 /**

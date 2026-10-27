@@ -44,13 +44,32 @@ export async function updatePipelineConfig(
 
   const { data: row, error: readErr } = await supabase
     .from("crm_pipelines")
-    .select("vocabulary, settings, organization_id")
+    .select("vocabulary, settings, organization_id, is_default, is_archived")
     .eq("id", pipelineId)
     .maybeSingle();
   if (readErr) return { ok: false, error: readErr.message };
   if (!row) return { ok: false, error: "not_found" };
   if (row.organization_id !== activeOrg.orgId) {
     return { ok: false, error: "forbidden_tenant" };
+  }
+  if (parsed.data.entrada_do_inbox !== undefined) {
+    if (row.is_default !== true || row.is_archived === true) {
+      return { ok: false, error: "entry_stage_requires_active_default_pipeline" };
+    }
+    if (parsed.data.entrada_do_inbox.ativa) {
+      const { data: stage, error: stageError } = await supabase
+        .from("crm_stages")
+        .select("id")
+        .eq("id", parsed.data.entrada_do_inbox.stage_id!)
+        .eq("organization_id", activeOrg.orgId)
+        .eq("pipeline_id", pipelineId)
+        .eq("is_archived", false)
+        .eq("is_won", false)
+        .eq("is_lost", false)
+        .maybeSingle();
+      if (stageError) return { ok: false, error: "entry_stage_validation_failed" };
+      if (!stage) return { ok: false, error: "invalid_entry_stage" };
+    }
   }
 
   const nextVocabulary = parsed.data.vocabulary
@@ -68,6 +87,9 @@ export async function updatePipelineConfig(
   if (parsed.data.reabertura !== undefined) nextSettings.reabertura = parsed.data.reabertura;
   if (parsed.data.reabertura_campos !== undefined) {
     nextSettings.reabertura_campos = parsed.data.reabertura_campos;
+  }
+  if (parsed.data.entrada_do_inbox !== undefined) {
+    nextSettings.entrada_do_inbox = parsed.data.entrada_do_inbox;
   }
 
   const { error } = await supabase
@@ -90,6 +112,7 @@ export async function updatePipelineConfig(
       won_reasons_count: parsed.data.won_reasons?.length ?? null,
       won_reason_required: parsed.data.won_reason_required ?? null,
       reabertura: parsed.data.reabertura ?? null,
+      entrada_do_inbox_ativa: parsed.data.entrada_do_inbox?.ativa ?? null,
     },
   });
 
