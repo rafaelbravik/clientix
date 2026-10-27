@@ -32,7 +32,7 @@ import type { LeituraDaResposta, MensagemDoContexto, PerguntaDoFluxo } from './f
 import type { EndFinish } from '@/lib/followup/graph-schema';
 import {
   carregarEstadoDeAtendimento,
-  escolherFluxoPeloGatilho,
+  escolherFluxoDoTurno,
   iniciarFluxoDeAtendimento,
   lerLoteParaORoteiro,
   processarInboundDoFluxo,
@@ -143,22 +143,22 @@ export async function prepararRoteiroDoTurno(
       contactId: t.contactId,
     });
     if (estado === null) {
-      const porGatilho =
+      const porPortaDoMotor =
         t.flowPointerDoRoteador === null
-          ? await escolherFluxoPeloGatilho(deps.pool, {
+          ? await escolherFluxoDoTurno(deps.pool, {
               organizationId: t.organizationId,
               contactId: t.contactId,
               texto,
             })
           : null;
-      const alvo = t.flowPointerDoRoteador ?? porGatilho?.id ?? null;
+      const alvo = t.flowPointerDoRoteador ?? porPortaDoMotor?.id ?? null;
       if (alvo !== null) {
         await iniciarFluxoDeAtendimento(deps.pool, {
           organizationId: t.organizationId,
           contactId: t.contactId,
           flowPointerId: alvo,
           conversationId: t.conversationId,
-          origem: t.flowPointerDoRoteador !== null ? 'roteador' : 'gatilho',
+          origem: t.flowPointerDoRoteador !== null ? 'roteador' : porPortaDoMotor!.origem,
         });
         estado = await carregarEstadoDeAtendimento(deps.pool, {
           organizationId: t.organizationId,

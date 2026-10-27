@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import type { FlowGraph, FlowNode } from "@/lib/followup/graph-schema";
+import { useEtapasDeGatilho, nomeDaEtapa } from "@/hooks/followup/useEtapasDeGatilho";
+import type { EtapaDeGatilho, EtapasDeGatilho } from "@/hooks/followup/useEtapasDeGatilho";
 import type { FollowupFlowSurface } from "@/lib/followup/api-schemas";
 import type { RFNode, RFNodeData } from "@/lib/followup/graph-mappers";
 import { Trash } from "@/lib/ui/icons";
@@ -65,6 +67,7 @@ export function NodeConfigPanel({
   const Icon = visual.icon;
   const [label, setLabel] = useState(node.data.label);
   const [labelError, setLabelError] = useState<string | null>(null);
+  const etapasDoRoteiro = useEtapasDeGatilho(type === "trigger" && surface === "atendimento");
 
   const commitLabel = (value: string) => {
     setLabel(value);
@@ -113,7 +116,11 @@ export function NodeConfigPanel({
           </div>
         )}
         {type === "trigger" && surface === "atendimento" && (
-          <ConfiguracoesDoRoteiro settings={settings} onSettingsChange={onSettingsChange} />
+          <ConfiguracoesDoRoteiro
+            settings={settings}
+            onSettingsChange={onSettingsChange}
+            etapasDeGatilho={etapasDoRoteiro}
+          />
         )}
         {type === "wait" && (
           <WaitForm config={node.data.config as ConfigOf<"wait">} onChange={(config) => onChange({ config })} />
@@ -250,9 +257,11 @@ function MarcadorDeSomenteInterno({
 function ConfiguracoesDoRoteiro({
   settings,
   onSettingsChange,
+  etapasDeGatilho,
 }: {
   settings?: FlowGraph["settings"];
   onSettingsChange?: (settings: FlowGraph["settings"]) => void;
+  etapasDeGatilho: EtapasDeGatilho;
 }) {
   const t = useT();
   const atual = { max_tentativas_pergunta: settings?.max_tentativas_pergunta ?? 3, ...settings };
@@ -261,6 +270,28 @@ function ConfiguracoesDoRoteiro({
   const inteiro = (valor: string, min: number, max: number): number | null => {
     const n = Number(valor);
     return Number.isInteger(n) && n >= min && n <= max ? n : null;
+  };
+  const etapasSelecionadas = settings?.etapas_do_funil ?? [];
+  const etapasDisponiveis = new Set(etapasDeGatilho.etapas.map((etapa) => etapa.stageId));
+  const etapasDesconhecidas = etapasSelecionadas.filter((stageId) => !etapasDisponiveis.has(stageId));
+  const mudarEtapa = (etapa: EtapaDeGatilho, marcada: boolean) => {
+    const ids = new Set(etapasSelecionadas);
+    if (marcada) ids.add(etapa.stageId);
+    else ids.delete(etapa.stageId);
+    const proximas = [...ids];
+    if (proximas.length > 0) gravar({ etapas_do_funil: proximas });
+    else {
+      const { etapas_do_funil: _anteriores, ...resto } = atual;
+      onSettingsChange?.(resto);
+    }
+  };
+  const limparEtapasIndisponiveis = () => {
+    const disponiveis = etapasSelecionadas.filter((stageId) => etapasDisponiveis.has(stageId));
+    if (disponiveis.length > 0) gravar({ etapas_do_funil: disponiveis });
+    else {
+      const { etapas_do_funil: _anteriores, ...resto } = atual;
+      onSettingsChange?.(resto);
+    }
   };
 
   return (
@@ -286,6 +317,41 @@ function ConfiguracoesDoRoteiro({
             onSettingsChange?.(lista.length > 0 ? { ...resto, gatilhos: lista } : resto);
           }}
         />
+      </div>
+      <div className="space-y-2" data-testid="roteiro-etapas-do-funil">
+        <Label>{t("Começar quando o card estiver em uma destas etapas")}</Label>
+        <p className="text-xs text-text-muted">
+          {t("A seleção é avaliada no próximo turno da conversa. Roteadores e palavras-gatilho têm precedência.")}
+        </p>
+        {etapasDeGatilho.carregando ? (
+          <p className="text-xs text-text-muted">{t("Carregando etapas…")}</p>
+        ) : etapasDeGatilho.falhou ? (
+          <p role="alert" className="text-xs text-error-fg">{t("Não foi possível carregar as etapas. As escolhas salvas foram preservadas.")}</p>
+        ) : etapasDeGatilho.etapas.length === 0 ? (
+          <p className="text-xs text-text-muted">{t("Não há etapas ativas disponíveis nos funis.")}</p>
+        ) : (
+          <div className="max-h-48 space-y-2 overflow-y-auto rounded-md border border-border p-2">
+            {etapasDeGatilho.etapas.map((etapa) => (
+              <label key={`${etapa.pipelineId}:${etapa.stageId}`} className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  aria-label={`${t("Iniciar na etapa")} ${nomeDaEtapa(etapa)}`}
+                  checked={etapasSelecionadas.includes(etapa.stageId)}
+                  onChange={(event) => mudarEtapa(etapa, event.target.checked)}
+                />
+                <span>{nomeDaEtapa(etapa)}</span>
+              </label>
+            ))}
+          </div>
+        )}
+        {etapasDesconhecidas.length > 0 && (
+          <div className="flex items-center justify-between gap-2 text-xs text-warning-fg">
+            <span>{t("Há etapas salvas que não estão mais disponíveis.")}</span>
+            <Button type="button" variant="ghost" size="sm" onClick={limparEtapasIndisponiveis}>
+              {t("Remover etapas indisponíveis")}
+            </Button>
+          </div>
+        )}
       </div>
       <div className="space-y-2">
         <Label htmlFor="roteiro-tentativas">{t("Máximo de tentativas por pergunta")}</Label>

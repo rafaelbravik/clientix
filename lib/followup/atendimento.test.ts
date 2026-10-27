@@ -4,6 +4,7 @@ import type pg from "pg";
 import type { FlowEdge, FlowGraph, FlowNode } from "./graph-schema";
 import {
   escolherFluxoPeloGatilho,
+  escolherFluxoPelaEtapa,
   finalizarFluxoDeAtendimento,
   iniciarFluxoDeAtendimento,
   podeComecarParaOContato,
@@ -108,6 +109,164 @@ describe("melhorFluxoPorGatilho (entrada pelo motor)", () => {
 
   it("mais gatilhos na mesma mensagem vencem", () => {
     expect(melhorFluxoPorGatilho(fluxos, "tenho interesse, quero comprar")?.id).toBe("q");
+  });
+});
+
+describe("escolherFluxoPelaEtapa (entrada no próximo turno)", () => {
+  const stageId = "11111111-1111-4111-8111-111111111111";
+  const leadRow = {
+    id: "lead-1",
+    organization_id: ORG,
+    pipeline_id: "pipeline-default",
+    status: "open",
+    last_activity_at: "2026-10-27T10:00:00.000Z",
+    created_at: "2026-10-27T09:00:00.000Z",
+    stage_id: stageId,
+    stage_changed_at: "2026-10-27T09:30:00.000Z",
+    is_default_pipeline: true,
+    stage_is_archived: false,
+    stage_is_won: false,
+    stage_is_lost: false,
+  };
+  const graph: FlowGraph = {
+    nodes: [trigger("t"), collect("c", "nome"), end("e")],
+    edges: [aresta("t", "c"), aresta("c", "e")],
+    settings: { max_tentativas_pergunta: 3, etapas_do_funil: [stageId] },
+  };
+  function bancoDaEtapa(rows: Array<Record<string, unknown>>, lead: Record<string, unknown> | null = leadRow) {
+    const chamadas: Array<{ sql: string; params: unknown[] }> = [];
+    const pool = {
+      query: async (sql: string, params: unknown[] = []) => {
+        chamadas.push({ sql, params });
+        if (/from crm_leads l[\s\S]*join crm_pipelines/.test(sql)) {
+          return { rows: lead ? [lead] : [], rowCount: lead ? 1 : 0 };
+        }
+        if (/select p\.id, p\.name as nome, v\.graph/.test(sql)) {
+          const entrada = lead?.stage_changed_at ?? lead?.created_at ?? "2026-10-27T09:00:00.000Z";
+          const entradaMs = entrada instanceof Date ? entrada.getTime() : Date.parse(entrada as string);
+          return {
+            rows: rows.map((row) => ({
+              ...row,
+              ultimo_nascimento: row.ultimo_nascimento ??
+                (row.entrada_ainda_disponivel === true ? null : new Date(entradaMs + 1_000)),
+            })),
+            rowCount: rows.length,
+          };
+        }
+        return { rows, rowCount: rows.length };
+      },
+    } as unknown as pg.Pool;
+    return { pool, chamadas };
+  }
+
+  it("seleciona roteiro ativo configurado para a etapa do lead resolvido", async () => {
+    const { pool, chamadas } = bancoDaEtapa([
+      { id: "ptr-1", nome: "Captação", graph, ja_concluiu: false, entrada_ainda_disponivel: true },
+    ]);
+    expect(await escolherFluxoPelaEtapa(pool, { organizationId: ORG, contactId: "ct-1" })).toEqual({
+      id: "ptr-1",
+      nome: "Captação",
+    });
+    expect(chamadas[0]?.params).toEqual([ORG, "ct-1"]);
+    expect(chamadas[1]?.params).toEqual([ORG, "ct-1"]);
+    expect(chamadas[1]?.sql).toContain("max(e.started_at)");
+    expect(chamadas[1]?.sql).toContain("p.surface = 'atendimento'");
+    expect(chamadas[1]?.sql).toContain("p.status = 'active'");
+    expect(chamadas[0]?.sql).toContain("l.status = 'open'");
+    expect(chamadas[0]?.sql).toContain("p.is_archived = false");
+  });
+
+  it("não começa quando esta entrada de etapa já foi consumida", async () => {
+    const { pool } = bancoDaEtapa([
+      { id: "ptr-1", nome: "Captação", graph, ja_concluiu: false, entrada_ainda_disponivel: false },
+    ]);
+    expect(await escolherFluxoPelaEtapa(pool, { organizationId: ORG, contactId: "ct-1" })).toBeNull();
+  });
+
+  it("etapa que não está na configuração não disputa o roteiro", async () => {
+    const outroGrafo = {
+      ...graph,
+      settings: { ...graph.settings, etapas_do_funil: ["22222222-2222-4222-8222-222222222222"] },
+    } as FlowGraph;
+    const { pool } = bancoDaEtapa([
+      { id: "ptr-1", nome: "Captação", graph: outroGrafo, ja_concluiu: false, entrada_ainda_disponivel: true },
+    ]);
+    expect(await escolherFluxoPelaEtapa(pool, { organizationId: ORG, contactId: "ct-1" })).toBeNull();
+  });
+
+  it("não escolhe etapa arquivada nem lead ambíguo", async () => {
+    const { pool: archived } = bancoDaEtapa(
+      [{ id: "ptr-1", nome: "Captação", graph, ja_concluiu: false, entrada_ainda_disponivel: true }],
+      { ...leadRow, stage_is_archived: true },
+    );
+    expect(await escolherFluxoPelaEtapa(archived, { organizationId: ORG, contactId: "ct-1" })).toBeNull();
+    const { pool: ambiguous } = bancoDaEtapa(
+      [{ id: "ptr-1", nome: "Captação", graph, ja_concluiu: false, entrada_ainda_disponivel: true }],
+      null,
+    );
+    expect(await escolherFluxoPelaEtapa(ambiguous, { organizationId: ORG, contactId: "ct-1" })).toBeNull();
+  });
+
+  it("empate de roteiros usa nome e id de forma determinística", async () => {
+    const { pool } = bancoDaEtapa([
+      { id: "ptr-z", nome: "Vendas", graph, ja_concluiu: false, entrada_ainda_disponivel: true },
+      { id: "ptr-a", nome: "Agenda", graph, ja_concluiu: false, entrada_ainda_disponivel: true },
+    ]);
+    expect(await escolherFluxoPelaEtapa(pool, { organizationId: ORG, contactId: "ct-1" })).toEqual({
+      id: "ptr-a",
+      nome: "Agenda",
+    });
+  });
+
+  it("um roteiro concluído com recomeço só disputa depois de uma nova entrada na etapa", async () => {
+    const reiniciavel = {
+      ...graph,
+      settings: { ...graph.settings, pode_recomecar: true },
+    } as FlowGraph;
+    const antesDaEntrada = bancoDaEtapa([
+      {
+        id: "ptr-1",
+        nome: "Captação",
+        graph: reiniciavel,
+        ja_concluiu: true,
+        entrada_ainda_disponivel: true,
+      },
+    ]);
+    expect(await escolherFluxoPelaEtapa(antesDaEntrada.pool, { organizationId: ORG, contactId: "ct-1" })).toEqual({
+      id: "ptr-1",
+      nome: "Captação",
+    });
+
+    const entradaConsumida = bancoDaEtapa([
+      {
+        id: "ptr-1",
+        nome: "Captação",
+        graph: reiniciavel,
+        ja_concluiu: true,
+        entrada_ainda_disponivel: false,
+      },
+    ]);
+    expect(await escolherFluxoPelaEtapa(entradaConsumida.pool, { organizationId: ORG, contactId: "ct-1" })).toBeNull();
+  });
+
+  it("compara Date do Postgres em milissegundos, mesmo quando entrada e enrollment caem no mesmo segundo", async () => {
+    const leadNoMesmoSegundo = {
+      ...leadRow,
+      stage_changed_at: new Date("2026-10-27T09:30:00.300Z"),
+    };
+    const { pool } = bancoDaEtapa(
+      [
+        {
+          id: "ptr-1",
+          nome: "Captação",
+          graph,
+          ja_concluiu: true,
+          ultimo_nascimento: new Date("2026-10-27T09:30:00.800Z"),
+        },
+      ],
+      leadNoMesmoSegundo,
+    );
+    expect(await escolherFluxoPelaEtapa(pool, { organizationId: ORG, contactId: "ct-1" })).toBeNull();
   });
 });
 

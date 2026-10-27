@@ -621,6 +621,12 @@ describe('graph-schema', () => {
       if (r.success) expect(r.data.settings?.max_tentativas_pergunta).toBe(3);
     });
 
+    it('aceita lista de etapas de entrada do roteiro e recusa identificador inválido', () => {
+      const stageId = '11111111-1111-4111-8111-111111111111';
+      expect(flowGraphSchema.safeParse(grafoMinimo({ etapas_do_funil: [stageId] })).success).toBe(true);
+      expect(flowGraphSchema.safeParse(grafoMinimo({ etapas_do_funil: ['stage-invalida'] })).success).toBe(false);
+    });
+
     it('recusa tentativas fora da faixa', () => {
       expect(flowGraphSchema.safeParse(grafoMinimo({ max_tentativas_pergunta: 0 })).success).toBe(false);
       expect(flowGraphSchema.safeParse(grafoMinimo({ max_tentativas_pergunta: 11 })).success).toBe(false);

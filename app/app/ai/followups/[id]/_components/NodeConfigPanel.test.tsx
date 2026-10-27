@@ -24,6 +24,29 @@ vi.mock("@/hooks/inbox/useAssignableMembers", () => ({
     data: [{ user_id: "99999999-0000-4000-8000-000000000009", role: "agent", full_name: "Ana Souza" }],
   }),
 }));
+vi.mock("@/hooks/followup/useEtapasDeGatilho", () => ({
+  useEtapasDeGatilho: () => ({
+    etapas: [
+      { stageId: "11111111-1111-4111-8111-111111111111", stageName: "Entrada", pipelineId: "p-1", pipelineName: "Vendas" },
+      { stageId: "22222222-2222-4222-8222-222222222222", stageName: "Entrada", pipelineId: "p-2", pipelineName: "Agenda" },
+    ],
+    carregando: false,
+    falhou: false,
+  }),
+  nomeDaEtapa: (etapa: { stageName: string; pipelineName: string }) => `${etapa.stageName} · ${etapa.pipelineName}`,
+  etapasPorFunil: (etapas: Array<{ stageId: string; stageName: string; pipelineId: string; pipelineName: string }>) => {
+    const funis: Array<{ id: string; nome: string; etapas: typeof etapas }> = [];
+    for (const etapa of etapas) {
+      let funil = funis.find((item) => item.id === etapa.pipelineId);
+      if (!funil) {
+        funil = { id: etapa.pipelineId, nome: etapa.pipelineName, etapas: [] };
+        funis.push(funil);
+      }
+      funil.etapas.push(etapa);
+    }
+    return funis;
+  },
+}));
 
 function noDe(type: (typeof NODE_TYPES)[number]): RFNode {
   const visual = NODE_VISUALS[type];
@@ -170,5 +193,28 @@ describe("NodeConfigPanel — o roteiro que recomeça", () => {
 
     const gravado = onSettingsChange.mock.calls.at(-1)?.[0] as Record<string, unknown>;
     expect(gravado).toEqual({ max_tentativas_pergunta: 4, gatilhos: ["agendar"] });
+  });
+});
+
+describe("NodeConfigPanel — começo por etapa do funil", () => {
+  it("mostra etapas com o funil para distinguir nomes iguais", () => {
+    montarCom("trigger", { surface: "atendimento" });
+    expect(screen.getByLabelText("Iniciar na etapa Entrada · Vendas")).toBeInTheDocument();
+    expect(screen.getByLabelText("Iniciar na etapa Entrada · Agenda")).toBeInTheDocument();
+  });
+
+  it("grava a seleção nas configurações do grafo e preserva as demais opções", async () => {
+    const onSettingsChange = vi.fn();
+    montarCom("trigger", {
+      surface: "atendimento",
+      settings: { max_tentativas_pergunta: 4, gatilhos: ["agendar"] },
+      onSettingsChange,
+    });
+    await userEvent.setup({ delay: null }).click(screen.getByLabelText("Iniciar na etapa Entrada · Vendas"));
+    expect(onSettingsChange).toHaveBeenLastCalledWith({
+      max_tentativas_pergunta: 4,
+      gatilhos: ["agendar"],
+      etapas_do_funil: ["11111111-1111-4111-8111-111111111111"],
+    });
   });
 });

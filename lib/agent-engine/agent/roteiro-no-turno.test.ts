@@ -30,6 +30,15 @@ const GRAFO: FlowGraph = {
   ],
   settings: { max_tentativas_pergunta: 3, gatilhos: ['financiar'] },
 };
+const ETAPA_DO_FUNIL = '11111111-1111-4111-8111-111111111111';
+const GRAFO_ETAPA: FlowGraph = {
+  ...GRAFO,
+  settings: { max_tentativas_pergunta: 3, etapas_do_funil: [ETAPA_DO_FUNIL] },
+};
+const GRAFO_GATILHO_E_ETAPA: FlowGraph = {
+  ...GRAFO,
+  settings: { max_tentativas_pergunta: 3, gatilhos: ['financiar'], etapas_do_funil: [ETAPA_DO_FUNIL] },
+};
 
 /** Primeira pergunta sim/não: a captura determinística leria "sim" como resposta. */
 const GRAFO_SIM_NAO: FlowGraph = {
@@ -54,6 +63,8 @@ function banco(
     tentativas?: Record<string, number>;
     /** O LOTE inteiro (rajada): vence `mensagem` quando presente. */
     lote?: Array<{ id: string; body: string | null; media_derived_text?: string | null }>;
+    leadAtivo?: boolean;
+    entradaDeEtapaDisponivel?: boolean;
   } = {},
 ) {
   const GRAFO_DO_BANCO = opts.grafo ?? GRAFO;
@@ -88,7 +99,27 @@ function banco(
         : { rows: [], rowCount: 0 };
     }
     if (/select p\.id, p\.name as nome, v\.graph/.test(sql)) {
-      return { rows: [{ id: 'ptr-1', nome: 'Cadastro', graph: GRAFO_DO_BANCO }], rowCount: 1 };
+      return {
+        rows: [{
+          id: 'ptr-1',
+          nome: 'Cadastro',
+          graph: GRAFO_DO_BANCO,
+          ja_concluiu: false,
+          ultimo_nascimento: opts.entradaDeEtapaDisponivel === false ? new Date('2026-10-27T09:31:00.000Z') : null,
+        }],
+        rowCount: 1,
+      };
+    }
+    if (/from crm_leads l[\s\S]*join crm_pipelines/.test(sql)) {
+      const rows = opts.leadAtivo
+        ? [{
+            id: 'lead-1', organization_id: 'org', pipeline_id: 'pipeline-1', status: 'open',
+            last_activity_at: '2026-10-27T10:00:00.000Z', created_at: '2026-10-27T09:00:00.000Z',
+            stage_id: ETAPA_DO_FUNIL, stage_changed_at: '2026-10-27T09:30:00.000Z',
+            is_default_pipeline: true, stage_is_archived: false, stage_is_won: false, stage_is_lost: false,
+          }]
+        : [];
+      return { rows, rowCount: rows.length };
     }
     if (/select p\.active_version_id, v\.graph/.test(sql)) {
       return { rows: [{ active_version_id: 'ver-1', graph: GRAFO_DO_BANCO }], rowCount: 1 };
@@ -198,6 +229,53 @@ describe('prepararRoteiroDoTurno', () => {
     );
     expect(r?.iniciadoNesteTurno).toBe(true);
     expect(b.sqls.some((s) => /select p\.id, p\.name as nome, v\.graph/.test(s))).toBe(false);
+    expect(b.sqls.some((s) => /select p\.id, p\.name as nome, v\.graph/.test(s))).toBe(false);
+  });
+
+  it('etapa configurada inicia no turno, sem exigir palavra-gatilho, e registra a origem', async () => {
+    const b = banco({
+      grafo: GRAFO_ETAPA,
+      mensagem: { body: 'oi' },
+      leadAtivo: true,
+      entradaDeEtapaDisponivel: true,
+    });
+    const r = await prepararRoteiroDoTurno(
+      { pool: b.pool, moduloLigado: async () => true, validar: semLeitura, log: log() as never },
+      { ...turno, texto: 'oi' },
+    );
+    expect(r?.iniciadoNesteTurno).toBe(true);
+    const iniciado = b.query.mock.calls.find(([sql]) => /event_type, payload/.test(String(sql)));
+    expect(JSON.parse(String((iniciado?.[1] as unknown[] | undefined)?.[4]))).toEqual({ origem: 'etapa' });
+    expect(b.sqls.filter((sql) => /select p\.id, p\.name as nome, v\.graph/.test(sql))).toHaveLength(1);
+  });
+
+  it('palavra-gatilho continua vencendo a seleção por etapa', async () => {
+    const b = banco({
+      grafo: GRAFO_GATILHO_E_ETAPA,
+      leadAtivo: true,
+      entradaDeEtapaDisponivel: true,
+    });
+    const r = await prepararRoteiroDoTurno(
+      { pool: b.pool, moduloLigado: async () => true, validar: semLeitura, log: log() as never },
+      turno,
+    );
+    expect(r?.iniciadoNesteTurno).toBe(true);
+    expect(b.sqls.some((sql) => /from crm_leads l[\s\S]*join crm_pipelines/.test(sql))).toBe(false);
+  });
+
+  it('entrada da etapa já consumida não inicia outro roteiro', async () => {
+    const b = banco({
+      grafo: GRAFO_ETAPA,
+      mensagem: { body: 'oi' },
+      leadAtivo: true,
+      entradaDeEtapaDisponivel: false,
+    });
+    const r = await prepararRoteiroDoTurno(
+      { pool: b.pool, moduloLigado: async () => true, validar: semLeitura, log: log() as never },
+      { ...turno, texto: 'oi' },
+    );
+    expect(r).toBeNull();
+    expect(b.sqls.some((sql) => /insert into followup_enrollments/.test(sql))).toBe(false);
   });
 
   it('o log do turno nunca leva o texto do cliente nem o valor lido', async () => {

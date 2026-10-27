@@ -23,6 +23,7 @@
  * arestas `always`, e REPORTA erro claro quando o grafo ramifica.
  */
 import type pg from "pg";
+import { resolveActiveLeadForContact, type LeadCandidate } from "@/lib/leads/active-lead";
 
 import {
   flowGraphSchema,
@@ -252,7 +253,7 @@ export type EventoDoRoteiro = (typeof EVENTOS_DO_ROTEIRO)[number];
  */
 export interface PayloadDoEvento {
   campo?: string;
-  origem?: "validador" | "captura" | "modelo" | "motor" | "gatilho" | "roteador" | "encadeamento";
+  origem?: "validador" | "captura" | "modelo" | "motor" | "gatilho" | "roteador" | "etapa" | "encadeamento";
   correcao?: boolean;
   esgotadas?: string[];
   proximo_fluxo?: string;
@@ -945,22 +946,90 @@ const jaConcluiuSql = (parametroDoContato: string) => `exists (
             and e.status = 'completed'
        ) as ja_concluiu`;
 
-/**
- * ENTRADA POR GATILHO (motor): entre os roteiros ativos, qual LIGA pela
- * mensagem do cliente (palavra-gatilho). Independe do modelo e do roteador.
- *
- * O roteiro que o contato já concluiu e não pode recomeçar sai da disputa AQUI,
- * e não só no `iniciarFluxoDeAtendimento`: se ele ficasse, ganharia a palavra e
- * não começaria — e outro roteiro com a mesma palavra nunca teria a vez.
- */
-export async function escolherFluxoPeloGatilho(
+interface LeadComEtapa extends Omit<LeadCandidate, "created_at" | "last_activity_at"> {
+  stage_id: string;
+  stage_changed_at: string | Date | null;
+  created_at: string | Date;
+  last_activity_at: string | Date | null;
+  is_default_pipeline: boolean;
+  stage_is_archived: boolean;
+  stage_is_won: boolean;
+  stage_is_lost: boolean;
+}
+
+/** Resolve a etapa do lead ativo sem escolher arbitrariamente entre negócios ambíguos. */
+async function etapaAtivaDoContato(
   db: BancoDoRoteiro,
-  args: { organizationId: string; contactId: string; texto: string | null },
-): Promise<{ id: string; nome: string } | null> {
-  if (!args.texto) return null;
-  const { rows } = await db.query<{ id: string; nome: string; graph: unknown; ja_concluiu: boolean }>(
+  organizationId: string,
+  contactId: string,
+): Promise<{ leadId: string; stageId: string; entrada: string | Date } | null> {
+  const { rows } = await db.query<LeadComEtapa>(
+    `select l.id, l.organization_id, l.pipeline_id, l.status, l.last_activity_at, l.created_at,
+            l.stage_id, l.stage_changed_at, p.is_default as is_default_pipeline,
+            s.is_archived as stage_is_archived, s.is_won as stage_is_won, s.is_lost as stage_is_lost
+       from crm_leads l
+       join crm_pipelines p on p.id = l.pipeline_id and p.organization_id = l.organization_id
+       join crm_stages s on s.id = l.stage_id and s.organization_id = l.organization_id
+                         and s.pipeline_id = l.pipeline_id
+      where l.organization_id = $1 and l.contact_id = $2 and l.status = 'open'
+        and p.is_archived = false`,
+    [organizationId, contactId],
+  );
+  if (rows.length === 0) return null;
+  const defaultPipelineId = rows.find((row) => row.is_default_pipeline)?.pipeline_id ?? null;
+  const resolution = resolveActiveLeadForContact(
+    rows.map((row) => ({
+      id: row.id,
+      organization_id: row.organization_id,
+      pipeline_id: row.pipeline_id,
+      status: row.status,
+      last_activity_at:
+        row.last_activity_at instanceof Date ? row.last_activity_at.toISOString() : row.last_activity_at,
+      created_at: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
+    })),
+    { defaultPipelineId },
+  );
+  if (!resolution.routed) return null;
+  const lead = rows.find((row) => row.id === resolution.leadId);
+  if (
+    !lead ||
+    lead.stage_is_archived ||
+    lead.stage_is_won ||
+    lead.stage_is_lost ||
+    !lead.stage_id
+  ) {
+    return null;
+  }
+  return { leadId: lead.id, stageId: lead.stage_id, entrada: lead.stage_changed_at ?? lead.created_at };
+}
+
+interface RoteiroAtivoDoContato {
+  id: string;
+  nome: string;
+  graph: FlowGraph;
+  jaConcluiu: boolean;
+  ultimoNascimento: string | Date | null;
+}
+
+/** Roteiros ativos e estado do contato em uma leitura compartilhada pelas portas do turno. */
+async function roteirosAtivosDeAtendimento(
+  db: BancoDoRoteiro,
+  args: { organizationId: string; contactId: string },
+): Promise<RoteiroAtivoDoContato[]> {
+  const { rows } = await db.query<{
+    id: string;
+    nome: string;
+    graph: unknown;
+    ja_concluiu: boolean;
+    ultimo_nascimento: string | Date | null;
+  }>(
     `select p.id, p.name as nome, v.graph,
-       ${jaConcluiuSql("$2")}
+       ${jaConcluiuSql("$2")},
+       (select max(e.started_at)
+          from followup_enrollments e
+         where e.organization_id = p.organization_id
+           and e.pointer_id = p.id
+           and e.contact_id = $2) as ultimo_nascimento
        from followup_flow_pointers p
        join followup_flow_versions v on v.id = p.active_version_id and v.organization_id = p.organization_id
       where p.organization_id = $1
@@ -968,16 +1037,92 @@ export async function escolherFluxoPeloGatilho(
         and p.status = 'active'`,
     [args.organizationId, args.contactId],
   );
-  const fluxos: FluxoComGatilhos[] = [];
+  const ativos: RoteiroAtivoDoContato[] = [];
   for (const row of rows) {
     const parsed = flowGraphSchema.safeParse(row.graph);
-    if (!parsed.success) continue;
-    if (!podeComecarParaOContato(parsed.data.settings, row.ja_concluiu === true)) continue;
-    const gatilhos = parsed.data.settings?.gatilhos ?? [];
-    if (gatilhos.length > 0) fluxos.push({ id: row.id, nome: row.nome, gatilhos });
+    if (!parsed.success || !podeComecarParaOContato(parsed.data.settings, row.ja_concluiu === true)) continue;
+    ativos.push({
+      id: row.id,
+      nome: row.nome,
+      graph: parsed.data,
+      jaConcluiu: row.ja_concluiu === true,
+      ultimoNascimento: row.ultimo_nascimento ?? null,
+    });
   }
-  const melhor = melhorFluxoPorGatilho(fluxos, args.texto);
-  return melhor === null ? null : { id: melhor.id, nome: melhor.nome };
+  return ativos;
+}
+
+function fluxoPorGatilho(
+  ativos: readonly RoteiroAtivoDoContato[],
+  texto: string,
+): RoteiroAtivoDoContato | null {
+  const melhor = melhorFluxoPorGatilho(
+    ativos.flatMap((ativo) => {
+      const gatilhos = ativo.graph.settings?.gatilhos ?? [];
+      return gatilhos.length > 0 ? [{ id: ativo.id, nome: ativo.nome, gatilhos }] : [];
+    }),
+    texto,
+  );
+  return melhor === null ? null : (ativos.find((ativo) => ativo.id === melhor.id) ?? null);
+}
+
+/** `timestamptz` chega do node-pg como Date; preserve a precisão de milissegundo. */
+function entradaJaGasta(ativo: RoteiroAtivoDoContato, entrada: string | Date): boolean {
+  const ms = (valor: string | Date) => (valor instanceof Date ? valor.getTime() : Date.parse(valor));
+  return ativo.ultimoNascimento !== null && ms(ativo.ultimoNascimento) > ms(entrada);
+}
+
+function fluxoPelaEtapa(
+  ativos: readonly RoteiroAtivoDoContato[],
+  etapa: string,
+  entrada: string | Date,
+): RoteiroAtivoDoContato | null {
+  return (
+    [...ativos]
+      .filter((ativo) => (ativo.graph.settings?.etapas_do_funil ?? []).includes(etapa))
+      .filter((ativo) => !entradaJaGasta(ativo, entrada))
+      .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR") || a.id.localeCompare(b.id))[0] ?? null
+  );
+}
+
+/** Palavra-gatilho e etapa disputam usando uma única leitura dos roteiros ativos. */
+export async function escolherFluxoDoTurno(
+  db: BancoDoRoteiro,
+  args: { organizationId: string; contactId: string; texto: string | null },
+): Promise<{ id: string; nome: string; origem: "gatilho" | "etapa" } | null> {
+  let ativos: RoteiroAtivoDoContato[] | null = null;
+  if (args.texto) {
+    ativos = await roteirosAtivosDeAtendimento(db, args);
+    const porGatilho = fluxoPorGatilho(ativos, args.texto);
+    if (porGatilho) return { id: porGatilho.id, nome: porGatilho.nome, origem: "gatilho" };
+  }
+
+  const lead = await etapaAtivaDoContato(db, args.organizationId, args.contactId);
+  if (!lead) return null;
+  ativos ??= await roteirosAtivosDeAtendimento(db, args);
+  const porEtapa = fluxoPelaEtapa(ativos, lead.stageId, lead.entrada);
+  return porEtapa ? { id: porEtapa.id, nome: porEtapa.nome, origem: "etapa" } : null;
+}
+
+/** Compatibilidade para consumidores que ainda chamam somente a porta textual. */
+export async function escolherFluxoPeloGatilho(
+  db: BancoDoRoteiro,
+  args: { organizationId: string; contactId: string; texto: string | null },
+): Promise<{ id: string; nome: string } | null> {
+  if (!args.texto) return null;
+  const escolhido = fluxoPorGatilho(await roteirosAtivosDeAtendimento(db, args), args.texto);
+  return escolhido ? { id: escolhido.id, nome: escolhido.nome } : null;
+}
+
+/** Compatibilidade para consumidores que avaliam somente a etapa do lead. */
+export async function escolherFluxoPelaEtapa(
+  db: BancoDoRoteiro,
+  args: { organizationId: string; contactId: string },
+): Promise<{ id: string; nome: string } | null> {
+  const lead = await etapaAtivaDoContato(db, args.organizationId, args.contactId);
+  if (!lead) return null;
+  const escolhido = fluxoPelaEtapa(await roteirosAtivosDeAtendimento(db, args), lead.stageId, lead.entrada);
+  return escolhido ? { id: escolhido.id, nome: escolhido.nome } : null;
 }
 
 /**
@@ -995,7 +1140,7 @@ export async function iniciarFluxoDeAtendimento(
     contactId: string;
     flowPointerId: string;
     conversationId?: string | null;
-    origem: "gatilho" | "roteador" | "encadeamento";
+    origem: "gatilho" | "roteador" | "etapa" | "encadeamento";
   },
 ): Promise<string | null> {
   const { rows } = await db.query<{
