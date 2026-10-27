@@ -153,6 +153,7 @@ acessibilidade).
 |---|---|
 | [`testing/user-journey-map.md`](testing/user-journey-map.md) | **Mapa de jornadas vivo** — casos, prioridade `[P0]`, achados. Atualizar sempre |
 | [`testing/HANDOFF-vps-qa.md`](testing/HANDOFF-vps-qa.md) | Receita do ambiente fresco estilo VPS |
+| [`testing/clientix-qa-policy.md`](testing/clientix-qa-policy.md) | Baseline validado, validação por delta e convenções do runtime QA local |
 | [`harness-audit.md`](harness-audit.md) | **Auditoria do harness** — 20 itens + nível de maturidade |
 | [`audits/2026-08-14-afirmacoes-de-estado.md`](audits/2026-08-14-afirmacoes-de-estado.md) | **393 afirmações de estado medidas contra a fonte**, cada uma com o comando que a responde. É o retrato datado que sustenta as correções de doutrina desta data — releia a data antes de citar qualquer número dele |
 | [`audits/2026-08-14-alinhamento-stable-v1.3.0.md`](audits/2026-08-14-alinhamento-stable-v1.3.0.md) | O que a tag `v1.3.0` — que é o kit que roda na VPS, e não a `main` — de fato contém |
