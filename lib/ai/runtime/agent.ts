@@ -498,6 +498,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       ],
     };
     const ctx: McpContext = {
+      ...(run.contact_id ? { contatoDoTurno: run.contact_id } : {}),
       organizationId: run.organization_id,
       role: "ai_operator",
       actor: auth.actor,

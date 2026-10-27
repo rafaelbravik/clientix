@@ -13,6 +13,8 @@ import type { Actor } from "@/lib/api/handlers/types";
 import type { Role } from "@/lib/auth/types";
 
 export interface McpContext {
+  /** Contato autenticado do turno interno; nunca vem de argumentos MCP externos. */
+  contatoDoTurno?: string;
   /** Somente o runtime in-process fornece o job original, nunca o cliente MCP. */
   meetingBooking?: MeetingBookingContext;
   /** Chave `Idempotency-Key` da requisição MCP externa, quando enviada. */

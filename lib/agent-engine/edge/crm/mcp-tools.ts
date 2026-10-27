@@ -85,6 +85,7 @@ export async function buildMcpTurnTools(
 
   const ephemeral = await mintEphemeralToken({
     organizationId: ids.organizationId,
+    ...(ids.contactId ? { contatoDoTurno: ids.contactId } : {}),
     runId: ids.jobId,
     readOnly: options?.readOnly,
     versionCreatedBy: agentConfig.versionCreatedBy ?? undefined,

@@ -99,7 +99,7 @@ export const TOOLS_ATENDIMENTO = declararTools([
     category: "read",
     rotulo: "Ler o histórico da conversa",
     explicacao:
-      "Lê as mensagens já trocadas com o cliente, para o agente responder sem pedir que ele repita o que já contou.",
+      "Lê as mensagens já trocadas com o cliente e os dados dos anexos; cópias privadas ficam disponíveis por um link temporário para quem tem acesso.",
     oQueToca: "Atendimento",
     risco: "seguro",
     pacotes: ["atender"],

@@ -126,7 +126,7 @@
       "col": 3,
       "type": "backend",
       "label": "Turno IA",
-      "sublabel": "contexto + RAG · 2 chamadas: resposta + fechamento · kinds: inbound_turn, followup_turn, case_reply_turn",
+      "sublabel": "contexto + RAG · keyword admite conversa nova uma vez · tools no idioma da conversa · kinds: inbound_turn, followup_turn, case_reply_turn",
       "tag": "runAgentTurn"
     },
     {
@@ -406,7 +406,7 @@
       "id": "turn-toolbreaker",
       "from": "turn",
       "to": "toolbreaker",
-      "label": "tools do CRM",
+      "label": "tools CRM/MCP · mídia com capability curta só fora do turno da IA",
       "variant": "dashed",
       "fromSide": "bottom",
       "toSide": "right",

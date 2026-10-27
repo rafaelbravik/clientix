@@ -23,10 +23,9 @@ import {
 } from "@/lib/channels";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { VALIDADE_DO_LINK_DE_MIDIA_S } from "@/lib/messaging/media/link-temporario";
 
 export const dynamic = "force-dynamic";
-
-const SIGNED_URL_TTL_S = 3600;
 
 interface RouteCtx {
   params: Promise<{ id: string }>;
@@ -72,7 +71,7 @@ export async function GET(_req: NextRequest, ctx: RouteCtx): Promise<Response> {
     const admin = createAdminClient();
     const { data: signed, error: signErr } = await admin.storage
       .from("whatsapp-media")
-      .createSignedUrl(msg.media_storage_path, SIGNED_URL_TTL_S);
+      .createSignedUrl(msg.media_storage_path, VALIDADE_DO_LINK_DE_MIDIA_S);
     if (!signErr && signed?.signedUrl) {
       const response = NextResponse.redirect(signed.signedUrl, 302);
       response.headers.set("X-Request-Id", requestId);

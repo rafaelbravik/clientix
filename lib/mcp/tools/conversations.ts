@@ -12,6 +12,7 @@ import {
   getConversationHandler,
 } from "@/app/api/v1/conversations/_handler";
 import { listMessagesHandler } from "@/app/api/v1/messages/_handler";
+import { resolverCapacidadeMcpDeMidia } from "@/lib/messaging/media/link-temporario";
 import { audit } from "@/lib/audit";
 import {
   criarRascunho,
@@ -185,12 +186,30 @@ const historyInputShape = {
 export const crmGetConversationHistory: McpToolDefinition<typeof historyInputShape> = {
   name: "crm_get_conversation_history",
   description:
-    "Carrega historico de mensagens de uma conversa. Use para dar contexto ao agente sem inflar o system prompt.",
+    "Carrega o histórico de mensagens de uma conversa e metadados da mídia. Links privados temporários só são devolvidos a chamadas MCP autorizadas fora do turno do agente.",
   inputSchema: historyInputShape,
   category: "read",
   requiresRole: "agent",
   requiresScope: "mcp:read",
   handler: async (input, ctx) => {
+    const conversation = await getConversationHandler(
+      ctx.supabase,
+      {
+        organization_id: ctx.organizationId,
+        actor: ctx.actor,
+        requestId: ctx.requestId,
+      },
+      input.conversation_id,
+    );
+    // No runtime de agente, conversa é escopada ao contato do turno antes de
+    // listar mensagens ou assinar mídia. Recusa indistinguível de não encontrada.
+    if (
+      (ctx.actor.type === "ai_agent" && !ctx.contatoDoTurno) ||
+      (ctx.contatoDoTurno && conversation.contact_id !== ctx.contatoDoTurno)
+    ) {
+      throw new Error("conversation_not_found");
+    }
+
     const result = await listMessagesHandler(
       ctx.supabase,
       {
@@ -201,16 +220,36 @@ export const crmGetConversationHistory: McpToolDefinition<typeof historyInputSha
       input.conversation_id,
       { limit: input.limit, cursor: input.cursor },
     );
+    const turnoDoAgente = ctx.actor.type === "ai_agent";
     return {
-      messages: result.messages.map((m) => ({
-        id: m.id,
-        direction: m.direction,
-        type: m.type,
-        body: m.body,
-        media_url: m.media_url,
-        sent_via: m.sent_via,
-        sent_at: m.sent_at,
-        status: m.status,
+      messages: await Promise.all(result.messages.map(async (m) => {
+        const media = await resolverCapacidadeMcpDeMidia(m, {
+          organizationId: ctx.organizationId,
+          conversationId: input.conversation_id,
+          turnoDoAgente,
+          assinar: async (storagePath, validadeSegundos) => {
+            const { data, error } = await ctx.supabase.storage
+              .from("whatsapp-media")
+              .createSignedUrl(storagePath, validadeSegundos);
+            return { signedUrl: data?.signedUrl ?? null, error };
+          },
+        });
+        return {
+          id: m.id,
+          direction: m.direction,
+          type: m.type,
+          body: m.body,
+          // O campo legado continua com URL utilizável para clientes MCP, mas
+          // agora aponta para a capability curta. Nunca devolver URL crua do
+          // provider; no turno do agente nenhum bearer link é propagado.
+          media_url: media.media_signed_url,
+          media_mime: m.media_mime,
+          media_size_bytes: m.media_size_bytes,
+          ...media,
+          sent_via: m.sent_via,
+          sent_at: m.sent_at,
+          status: m.status,
+        };
       })),
       cursor: result.cursor,
       has_more: result.has_more,
