@@ -145,6 +145,11 @@ import {
 } from './entrega-de-capacidade';
 import { composeSystemPrompt, loadOrgMemory, renderOrgMemory } from './org-memory';
 import { matchesHandoffKeyword, type PublishedAgentConfig } from './agent-config';
+import {
+  agenteJaRespondeuNoServico,
+  avaliarFiltroDeEntrada,
+  deveBloquearEntradaDoAgente,
+} from './palavra-chave-do-gatilho';
 import { garantirPerguntaDoRoteiro, perguntaDoRoteiroPodeSair, prepararRoteiroDoTurno } from './roteiro-no-turno';
 import { validarRespostaDoFluxo } from './flow-validate';
 import { moduloLigadoComMemo } from '@/lib/instalacao/modulos';
@@ -235,7 +240,7 @@ export const AGENT_TOOL_DEFS = {
     description:
       'Envia UMA mensagem de WhatsApp ao lead desta conversa. É o ÚNICO jeito de falar com o lead; texto fora desta tool nunca é enviado.',
     inputSchema: z.object({
-      body: z.string().min(1).describe('corpo da mensagem, em pt-br, pronto para envio'),
+      body: z.string().min(1).describe('corpo da mensagem no idioma da conversa, pronto para envio'),
       produto_codigo: z
         .string()
         .optional()
@@ -334,7 +339,7 @@ export const AGENT_TOOL_DEFS = {
       'invente o que não encontrar. Sem resultados = diga que vai confirmar, nunca chute.',
     inputSchema: z
       .object({
-        query: z.string().min(2).describe('a pergunta ou termos a buscar, em pt-br'),
+        query: z.string().min(2).describe('a pergunta ou termos a buscar no idioma da conversa'),
       })
       .passthrough(),
   },
@@ -417,9 +422,9 @@ export const AGENT_TOOL_DEFS = {
     // erro de ENSINO ao modelo, nunca exceção do SDK nem strip silencioso.
     inputSchema: z
       .object({
-        title: z.string().describe('título curto, ex.: "Liberar acesso ao painel"'),
-        summary: z.string().describe('o que o lead precisa, em pt-br'),
-        blocker: z.string().describe('por que você não consegue resolver sozinho'),
+        title: z.string().describe('título curto no idioma da conversa, ex.: "Liberar acesso ao painel"'),
+        summary: z.string().describe('o que o lead precisa, no idioma da conversa'),
+        blocker: z.string().describe('por que você não consegue resolver sozinho, no idioma da conversa'),
         // O assunto serve para quem TRIA a fila separar antes de ler. O detalhe
         // continua no título e no resumo — este campo não os substitui, e por
         // isso a lista é curta: muitas opções produzem classificação
@@ -1584,7 +1589,6 @@ export async function deteccoesDeterministicasDoAssistido(
       });
     }
   }
-
   /** Args do aviso, montados NO MOMENTO do uso — o canal nasce só se algo casar. */
   const avisoDaEscalacao = (): {
     ids: AvisoDeEscalacaoIds;
@@ -2033,6 +2037,65 @@ async function executarTurnoDoAgente(
         inbound: liveJob().kind === 'inbound_turn',
       }, { log: runLog, jev: deps.jev });
   const agentConfig = routed.config;
+  // A âncora é uma outbound deste agente no atendimento atual. active_ai_agent_id
+  // representa escolha do roteador (ou falta dela), não prova de resposta.
+  const filtroDeEntradaPermite = async (mensagens: readonly string[]): Promise<boolean> => {
+    if (
+      preview ||
+      liveJob().kind !== 'inbound_turn' ||
+      agentConfig === null ||
+      agentConfig.keywordRegex === null
+    ) {
+      return true;
+    }
+
+    const filtro = avaliarFiltroDeEntrada(agentConfig.keywordRegex, mensagens);
+    if (filtro === 'regex_invalida') {
+      runLog.warn('filtro de palavra-chave inválido — entrada liberada', {
+        agent_id: agentConfig.agentId,
+      });
+    }
+    const jaEngajada =
+      filtro === 'nao_corresponde'
+        ? await agenteJaRespondeuNoServico(pool, {
+            organizationId: tenantId,
+            conversationId: input.conversationId,
+            agentId: agentConfig.agentId,
+          })
+        : false;
+    if (deveBloquearEntradaDoAgente(filtro, jaEngajada)) {
+      runLog.info('turno não admitido pelo filtro de entrada do agente', {
+        agent_id: agentConfig.agentId,
+        conversation_id: input.conversationId,
+      });
+      return false;
+    }
+    return true;
+  };
+  const aplicarJanelaDeAtendimento = async (): Promise<void> => {
+    if (!preview && liveJob().kind === 'inbound_turn' && agentConfig?.janelaDeAtendimento != null) {
+      const esperaMs = msAteAJanelaAbrir(agentConfig.janelaDeAtendimento, clock());
+      if (esperaMs !== null) {
+        await rescheduleJob(pool, liveJob().id, ctx.workerId, {
+          acquiredAt: claimOfJob(liveJob())?.acquired_at,
+          delayMs: esperaMs,
+          reason:
+            'fora do horário de funcionamento do agente — turno adiado para a abertura da janela',
+        });
+        runLog.info(
+          'turno adiado — fora do horário de funcionamento configurado na versão publicada',
+          {
+            agent_id: agentConfig.agentId,
+            espera_ms: esperaMs,
+            janela: `${agentConfig.janelaDeAtendimento.start}-${agentConfig.janelaDeAtendimento.end}`,
+          },
+        );
+        throw new JobSettledError(
+          'fora do horário de funcionamento — job reagendado para a abertura da janela',
+        );
+      }
+    }
+  };
   if (
     !preview &&
     agentConfig?.operationMode === 'assisted' &&
@@ -2045,20 +2108,19 @@ async function executarTurnoDoAgente(
     // aprovação humana para ser registrado (LGPD). `true` = turno silenciado
     // (aviso já enviado, silêncio durável e crons cancelados): aí não há
     // rascunho o que rascunhar.
-    if (
-      await deteccoesDeterministicasDoAssistido(pool, deps, {
-        job,
-        tenantId,
-        conversationId: input.conversationId,
-        channelSessionId: input.channelSessionId,
-        leadId,
-        agent: agentConfig,
-        log: runLog,
-        ...(input.inboundMessageId !== undefined
-          ? { inboundMessageId: input.inboundMessageId }
-          : {}),
-      })
-    ) {
+    const silenciado = await deteccoesDeterministicasDoAssistido(pool, deps, {
+      job,
+      tenantId,
+      conversationId: input.conversationId,
+      channelSessionId: input.channelSessionId,
+      leadId,
+      agent: agentConfig,
+      log: runLog,
+      ...(input.inboundMessageId !== undefined
+        ? { inboundMessageId: input.inboundMessageId }
+        : {}),
+    });
+    if (silenciado) {
       return;
     }
     const { generateReplyDraft } = await import('./reply-drafts');
@@ -2101,38 +2163,6 @@ async function executarTurnoDoAgente(
       intent: routed.intentName,
     });
   }
-  // Horário de funcionamento da versão publicada (spec da tela: TriggerEditor).
-  // Vale SÓ para o turno inbound: a janela do lojista é sobre QUANDO ele atende
-  // quem chega, e adiar por ela um follow-up já prometido ao lead atrasaria uma
-  // promessa que não é dele. O que segura o follow-up é a janela anti-ban logo
-  // acima (`pacing/engine.ts`), que vale para os dois.
-  //
-  // Adia, não descarta: o job volta a 'pending' na abertura, SEM consumir
-  // attempts (`rescheduleJob`) — quem escreveu 22h é atendido às 8h. O throw é
-  // o contrato de `JobSettledError`: o run já dispôs do job, main.ts no-opa.
-  if (!preview && liveJob().kind === 'inbound_turn' && agentConfig?.janelaDeAtendimento != null) {
-    const esperaMs = msAteAJanelaAbrir(agentConfig.janelaDeAtendimento, clock());
-    if (esperaMs !== null) {
-      await rescheduleJob(pool, liveJob().id, ctx.workerId, {
-        acquiredAt: claimOfJob(liveJob())?.acquired_at,
-        delayMs: esperaMs,
-        reason:
-          'fora do horário de funcionamento do agente — turno adiado para a abertura da janela',
-      });
-      runLog.info(
-        'turno adiado — fora do horário de funcionamento configurado na versão publicada',
-        {
-          agent_id: agentConfig.agentId,
-          espera_ms: esperaMs,
-          janela: `${agentConfig.janelaDeAtendimento.start}-${agentConfig.janelaDeAtendimento.end}`,
-        },
-      );
-      throw new JobSettledError(
-        'fora do horário de funcionamento — job reagendado para a abertura da janela',
-      );
-    }
-  }
-
   // Fase 3: grava a decisão de roteamento e a aderência da conversa ao agente.
   // Fire-and-forget — falha de telemetria nunca derruba a resposta ao lead.
   if (!preview && routed.routerId !== null) {
@@ -2427,6 +2457,13 @@ async function executarTurnoDoAgente(
     });
     return; // bot silencia: a confirmação já saiu, e nada mais sai neste turno
   }
+
+  // Filtro depois de pedido explícito de humano e STOP; a âncora verifica uma
+  // resposta real do agente, não a seleção do roteador.
+  if (!(await filtroDeEntradaPermite(inboundsPendentes))) return;
+
+  // Horário da versão publicada vem depois de STOP/handoff e do filtro de entrada.
+  await aplicarJanelaDeAtendimento();
 
   // ROTEIRO DE ATENDIMENTO (módulo opcional `fluxos_atendimento`, #1130). Entra
   // AQUI, depois de tudo que silencia o turno — handoff humano, pausa, pedido de

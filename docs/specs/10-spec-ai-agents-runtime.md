@@ -683,22 +683,22 @@ async function dispatchAgents() {
 }
 ```
 
-### 5.3 Trigger matching helper
+### 5.3 Admissão por gatilho
 
-```ts
-function triggerMatches(config: TriggerConfig, msg: Message): boolean {
-  // Event type
-  if (!config.events.includes('message') && !config.events.includes('message.any')) return false
+O `keyword_regex` decide se o agente entra em uma conversa nova, avaliando o lote
+coalescido de mensagens inbound ainda sem resposta. Depois que o mesmo agente
+enviou uma resposta no atendimento atual, uma mensagem posterior sem correspondência
+não silencia a conversa. A seleção sticky do roteador, sozinha, não prova que o
+agente respondeu. Regex inválida e lote sem texto julgável liberam a avaliação do
+gatilho; STOP, pedido explícito de humano, handoff, elegibilidade, guardrails,
+budget e tenant continuam com suas próprias travas e precedência.
 
-  const f = config.filters
-  if (f.ignore_groups && msg.chat_id.endsWith('@g.us')) return false
-  if (f.ignore_self && msg.from_me) return false
-  if (f.keyword_regex && !new RegExp(f.keyword_regex, 'i').test(msg.body)) return false
-  if (f.business_hours && !inBusinessHours(f.business_hours, msg.received_at)) return false
+O filtro vale para a entrada do agente em modo automático. No modo assistido, o
+rascunho permanece disponível para revisão humana; as detecções de STOP e handoff
+continuam anteriores ao rascunho.
 
-  return true
-}
-```
+O horário comercial é aplicado depois da admissão. Follow-ups mantêm o contrato
+próprio de janela anti-ban e não passam pelo filtro de entrada.
 
 ---
 

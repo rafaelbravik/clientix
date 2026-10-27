@@ -11,6 +11,7 @@ const baseRow = {
   version_created_by: null, agent_created_by: null,
   active_kb_version_id: 'kb-1',
   config: { rag_top_k: 7, rag_similarity_threshold: 0.8 },
+  trigger_config: { filters: { keyword_regex: null } },
   followup: { enabled: true, flow_pointer_ids: ['flow-1'], callback_enabled: false },
 };
 
@@ -76,6 +77,33 @@ describe('loadPublishedAgentConfig — campos de RAG', () => {
     const [sql] = queryMock.mock.calls[0] as [string, unknown[]];
     expect(sql).toMatch(/a\.kind\s*<>\s*'rag_bot'\s+or\s+a\.is_active\s*=\s*true/i);
     expect(sql).toMatch(/order by\s*\(a\.paused_at is not null\) asc,\s*a\.priority desc/i);
+  });
+});
+
+describe('loadPublishedAgentConfig — filtro de entrada', () => {
+  it('carrega a regex publicada da mesma versão que fornece a janela de atendimento', async () => {
+    const cfg = await loadPublishedAgentConfig(
+      poolWith({
+        ...baseRow,
+        trigger_config: { filters: { keyword_regex: "\\bpreço\\b", business_hours: null } },
+      }),
+      'org1',
+      'cs1',
+    );
+
+    expect(cfg?.keywordRegex).toBe('\\bpreço\\b');
+  });
+
+  it('configuração antiga ou malformada fica sem filtro', async () => {
+    const semFiltro = await loadPublishedAgentConfig(poolWith({ ...baseRow, trigger_config: null }), 'org1', 'cs1');
+    const tipoErrado = await loadPublishedAgentConfig(
+      poolWith({ ...baseRow, trigger_config: { filters: { keyword_regex: 42 } } }),
+      'org1',
+      'cs1',
+    );
+
+    expect(semFiltro?.keywordRegex).toBeNull();
+    expect(tipoErrado?.keywordRegex).toBeNull();
   });
 });
 

@@ -50,3 +50,20 @@ describe("gatilho do agente: fuso do horário de funcionamento", () => {
     expect(emitido.filters.business_hours?.timezone).toBe("America/Sao_Paulo");
   });
 });
+
+describe("gatilho por palavra-chave", () => {
+  it("explica que o filtro admite conversas novas e não silencia conversas engajadas", () => {
+    render(
+      <TriggerEditor
+        value={SEM_HORARIO}
+        onChange={vi.fn()}
+        organizationTimezone="America/Sao_Paulo"
+      />,
+    );
+
+    expect(screen.getByLabelText(/só entra em conversas novas/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Depois que o agente responder, o filtro não silencia as mensagens seguintes/i),
+    ).toBeInTheDocument();
+  });
+});

@@ -141,7 +141,7 @@ export function TriggerEditor({ value, onChange, disabled, organizationTimezone 
       </div>
 
       <div className="space-y-1">
-        <Label htmlFor="keyword_regex">{t("Só responder quando a mensagem falar de algo específico (opcional)")}</Label>
+        <Label htmlFor="keyword_regex">{t("O agente só entra em conversas novas com estas palavras (opcional)")}</Label>
         <Input
           id="keyword_regex"
           value={value.filters.keyword_regex ?? ""}
@@ -154,7 +154,7 @@ export function TriggerEditor({ value, onChange, disabled, organizationTimezone 
         />
         <p className="text-xs text-muted-foreground">
           {t(
-            "Deixe em branco para o agente responder a tudo. Se preencher, ele só entra quando a mensagem contiver uma dessas palavras — separe por barra vertical (|). Aceita expressão regular, para quem já conhece.",
+            "Vazio: sem filtro. Preenchido: a conversa só é admitida se uma das mensagens iniciais ainda sem resposta corresponder. Depois que o agente responder, o filtro não silencia as mensagens seguintes. Separe por |; aceita expressão regular.",
           )}
         </p>
       </div>

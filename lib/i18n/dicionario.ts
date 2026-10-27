@@ -1842,6 +1842,12 @@ export const DICIONARIO: Traducoes = {
   "Palavras que chamam uma pessoa na hora": { es: "Palabras que llaman a una persona al instante" },
   Remover: { es: "Quitar" },
   "Sem palavras-chave.": { es: "Sin palabras clave." },
+  "O agente só entra em conversas novas com estas palavras (opcional)": {
+    es: "El agente solo entra en conversaciones nuevas que incluyan estas palabras (opcional)",
+  },
+  "Vazio: sem filtro. Preenchido: a conversa só é admitida se uma das mensagens iniciais ainda sem resposta corresponder. Depois que o agente responder, o filtro não silencia as mensagens seguintes. Separe por |; aceita expressão regular.": {
+    es: "Vacío: sin filtro. Con texto: se admite la conversación si coincide alguno de los mensajes iniciales aún sin respuesta. Después de que responda el agente, el filtro no silencia los mensajes siguientes. Separe con |; admite expresiones regulares.",
+  },
   "Digite uma expressão e aperte Enter": { es: "Escribe una expresión y presiona Enter" },
   Adicionar: { es: "Agregar" },
   // ─── Agentes de IA: funis do agente, fluxos de follow-up ───

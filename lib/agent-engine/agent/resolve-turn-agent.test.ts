@@ -35,6 +35,7 @@ function fakeConfig(agentId: string): PublishedAgentConfig {
     ragTopK: 5,
     ragSimilarityThreshold: 0.72,
     janelaDeAtendimento: null,
+    keywordRegex: null,
     versionCreatedBy: null,
     operatorEnabled: false,
   operatorModel: null,
