@@ -31,22 +31,29 @@ import { applyFilters, filtersFromParams, filtersToParams } from "@/lib/kanban/f
 import { categoriaDoMotivo } from "@/lib/leads/motivos-de-perda-do-funil";
 import { camposDoFunil } from "@/lib/leads/campos-do-funil";
 import { ROLE_RANK, type Role } from "@/lib/auth/types";
+import { ListaDoFunil } from "@/components/kanban/ListaDoFunil";
 
 export function PipelinePageClient({
   pipelineId,
   initialName,
+  initialSettings = null,
   role,
 }: {
   pipelineId: string;
   initialName: string;
+  initialSettings?: Record<string, unknown> | null;
   role: Role;
 }) {
   const t = useT();
-  const { data, isLoading, error, pulses, realtimeStatus, seguranca } = useBoard(pipelineId);
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const view = searchParams.get("visao") === "lista" ? "lista" : "quadro";
+  const { data, isLoading, error, pulses, realtimeStatus, seguranca } =
+    useBoard(view === "quadro" ? pipelineId : null);
   const filters = useMemo(() => filtersFromParams(searchParams), [searchParams]);
+  const settings = data?.pipeline.settings ?? initialSettings;
+  const fieldDefs = useMemo(() => camposDoFunil(settings), [settings]);
   const setFilters = useCallback(
     (next: LeadFilters) => {
       const qs = filtersToParams(next);
@@ -64,9 +71,8 @@ export function PipelinePageClient({
    * filtro e o relatório nunca dizerem coisas diferentes.
    */
   const categoriaDo = useMemo(() => {
-    const settings = data?.pipeline.settings;
     return (motivo: string) => categoriaDoMotivo(motivo, settings);
-  }, [data?.pipeline.settings]);
+  }, [settings]);
   const filteredLeads = data ? applyFilters(data.leads, filters, { categoriaDo }) : [];
   // NÃO é a conta do FilterBar: o seletor de filtro lista as três caixas
   // (`marcadoresDoCard`: negócio, contato e conversa), e esta lista, a da tag em
@@ -79,6 +85,18 @@ export function PipelinePageClient({
     () => [...new Set((data?.leads ?? []).flatMap((l) => l.tags))].sort(),
     [data?.leads],
   );
+
+  function setView(nextView: "quadro" | "lista") {
+    const params = new URLSearchParams(searchParams.toString());
+    if (nextView === "lista") {
+      params.set("visao", "lista");
+    } else {
+      params.delete("visao");
+      params.delete("pagina");
+    }
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }
 
   return (
     <div
@@ -118,29 +136,47 @@ export function PipelinePageClient({
         <h1 className="min-w-0 truncate text-2xl font-semibold tracking-tight">
           {data?.pipeline.name ?? initialName}
         </h1>
-        <Button onClick={() => setNewOpen(true)} disabled={!data} className="shrink-0">
-          <Plus size={16} className="mr-2" /> {t("Novo Lead")}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <div role="tablist" aria-label={t("Visualização do funil")} className="inline-flex rounded-md border border-border p-1">
+            <Button role="tab" aria-selected={view === "quadro"} variant={view === "quadro" ? "secondary" : "ghost"} size="sm" onClick={() => setView("quadro")}>
+              {t("Quadro")}
+            </Button>
+            <Button role="tab" aria-selected={view === "lista"} variant={view === "lista" ? "secondary" : "ghost"} size="sm" onClick={() => setView("lista")}>
+              {t("Lista")}
+            </Button>
+          </div>
+          {view === "quadro" && (
+            <Button onClick={() => setNewOpen(true)} disabled={!data} className="shrink-0">
+              <Plus size={16} className="mr-2" /> {t("Novo Lead")}
+            </Button>
+          )}
+        </div>
       </header>
-      {data && (
+      {view === "quadro" && data && (
         <NewLeadDialog
           open={newOpen}
           onOpenChange={setNewOpen}
           pipelineId={pipelineId}
           stages={data.stages}
-          fieldDefs={camposDoFunil(data.pipeline.settings ?? null)}
+          fieldDefs={fieldDefs}
         />
       )}
-      <FilterBar
-        filters={filters}
-        onChange={setFilters}
-        leads={data?.leads ?? []}
-        settings={data?.pipeline.settings}
-      />
+      {view === "quadro" ? (
+        <FilterBar
+          filters={filters}
+          onChange={setFilters}
+          leads={data?.leads ?? []}
+          settings={data?.pipeline.settings}
+        />
+      ) : (
+        <p className="text-xs text-text-muted">{t("Os filtros do Quadro não se aplicam à Lista.")}</p>
+      )}
       {error ? (
         <div className="rounded-md border border-destructive/30 bg-destructive/10 p-4 text-sm">
           {t("Não consegui carregar este funil:")} {formatError(error, t)}
         </div>
+      ) : view === "lista" ? (
+        <ListaDoFunil pipelineId={pipelineId} fieldDefs={fieldDefs} />
       ) : isLoading || !data ? (
         <div className="flex flex-1 animate-pulse items-center justify-center text-muted-foreground">
           {t("Carregando…")}
@@ -158,14 +194,16 @@ export function PipelinePageClient({
           podeRenomearEtapa={ROLE_RANK[role] >= ROLE_RANK.manager}
         />
       )}
-      <BulkActionBar
-        selectedIds={selectedIds}
-        stages={data?.stages ?? []}
-        pipelineId={pipelineId}
-        vocabulary={data?.pipeline.vocabulary ?? null}
-        tagsExistentes={tagsDoQuadro}
-        onClear={() => setSelectedIds([])}
-      />
+      {view === "quadro" && (
+        <BulkActionBar
+          selectedIds={selectedIds}
+          stages={data?.stages ?? []}
+          pipelineId={pipelineId}
+          vocabulary={data?.pipeline.vocabulary ?? null}
+          tagsExistentes={tagsDoQuadro}
+          onClear={() => setSelectedIds([])}
+        />
+      )}
     </div>
   );
 }

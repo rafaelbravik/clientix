@@ -222,11 +222,12 @@ export function makeDb(opts: DbOpts = {}): Registro {
     let patch: Record<string, unknown> | null = null;
     let nova: Record<string, unknown> | Record<string, unknown>[] | null = null;
     let colunas: string[] | null = null;
-    let ordem: string | null = null;
+    const ordens: Array<{ coluna: string; ascendente: boolean }> = [];
     let contar = false;
     let head = false;
     let apagar = false;
     let teto: number | null = null;
+    let intervalo: [number, number] | null = null;
 
     const casam = () =>
       (tables[table] ?? [])
@@ -250,8 +251,23 @@ export function makeDb(opts: DbOpts = {}): Registro {
      */
     const lidos = () => {
       let rows = [...casam()];
-      if (ordem) rows.sort((a, b) => Number(a[ordem!]) - Number(b[ordem!]));
+      if (ordens.length > 0) {
+        rows.sort((a, b) => {
+          for (const { coluna, ascendente } of ordens) {
+            const av = a[coluna];
+            const bv = b[coluna];
+            if (av === bv) continue;
+            const comparacao =
+              typeof av === "number" && typeof bv === "number"
+                ? av - bv
+                : String(av ?? "").localeCompare(String(bv ?? ""));
+            if (comparacao !== 0) return ascendente ? comparacao : -comparacao;
+          }
+          return 0;
+        });
+      }
       if (teto !== null) rows = rows.slice(0, teto);
+      if (intervalo !== null) rows = rows.slice(intervalo[0], intervalo[1] + 1);
       // `select("*")` (usado por `app/api/v1/leads/_handler.ts`) é o CURINGA do
       // PostgREST — a linha inteira, não uma coluna literal chamada "*". Sem
       // este ramo, o projetor abaixo tratava "*" como nome de coluna e devolvia
@@ -385,8 +401,12 @@ export function makeDb(opts: DbOpts = {}): Registro {
         teto = n;
         return b;
       },
-      order: (col: string) => {
-        ordem = col;
+      order: (col: string, options?: { ascending?: boolean }) => {
+        ordens.push({ coluna: col, ascendente: options?.ascending ?? true });
+        return b;
+      },
+      range: (from: number, to: number) => {
+        intervalo = [from, to];
         return b;
       },
       maybeSingle: async () => {
@@ -438,7 +458,7 @@ export function comAutoria(
   return { ...patch, last_change_actor_kind: quem, last_change_at: expect.any(String) };
 }
 
-export function authOk(role: "manager" | "admin" = "manager"): void {
+export function authOk(role: "viewer" | "agent" | "manager" | "admin" = "manager"): void {
   const user: AuthUser = {
     id: USER_ID,
     email: "a@example.com",

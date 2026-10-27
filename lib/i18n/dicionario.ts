@@ -14140,6 +14140,20 @@ export const DICIONARIO: Traducoes = {
   "Quando desligada ou se a etapa salva deixar de ser válida, novos leads entram na primeira etapa aberta do funil padrão.": {
     es: "Si se desactiva o la etapa guardada deja de ser válida, los nuevos prospectos entran en la primera etapa abierta del embudo predeterminado.",
   },
+  "Abrir dossiê do negócio": { es: "Abrir el expediente del negocio" },
+  "Carregando negócios…": { es: "Cargando negocios…" },
+  "Falha ao carregar a lista do funil.": { es: "No se pudo cargar la lista del embudo." },
+  "Lista de negócios": { es: "Lista de negocios" },
+  "Nenhum negócio neste funil.": { es: "No hay negocios en este embudo." },
+  "Os filtros do Quadro não se aplicam à Lista.": { es: "Los filtros del tablero no se aplican a la lista." },
+  "Quadro": { es: "Tablero" },
+  "Visualização do funil": { es: "Vista del embudo" },
+  "Ocultar negócios encerrados antigos": { es: "Ocultar negocios cerrados antiguos" },
+  "Ocultar após": { es: "Ocultar después de" },
+  "Dias até ocultar negócios encerrados": { es: "Días hasta ocultar negocios cerrados" },
+  "Aplica-se somente ao Quadro. A Lista continua mostrando o histórico permitido. Use de 1 a 3650 dias; ao desligar, todos os negócios encerrados voltam ao Quadro.": {
+    es: "Solo se aplica al tablero. La lista sigue mostrando el historial permitido. Usa de 1 a 3650 días; al desactivarlo, todos los negocios cerrados vuelven al tablero.",
+  },
 };
 
 /**

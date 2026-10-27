@@ -47,3 +47,8 @@ export interface BoardData {
   stages: Stage[];
   leads: Lead[];
 }
+
+/** Linha da Lista paginada, com o rótulo da etapa resolvido no servidor. */
+export interface PipelineLeadListRow extends Lead {
+  stage_name: string | null;
+}

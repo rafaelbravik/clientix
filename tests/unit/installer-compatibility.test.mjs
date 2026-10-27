@@ -77,8 +77,9 @@ describe("signed installer compatibility contract", () => {
     const leadAttachmentsMigration = schemaManifest.migrations.find((entry) => entry.sequence === 519);
     const knowledgeSourceAtomicMigration = schemaManifest.migrations.find((entry) => entry.sequence === 520);
     const caseWaitRemindersMigration = schemaManifest.migrations.find((entry) => entry.sequence === 522);
-    expect(schemaManifest.schema_target).toBe("0522");
-    expect(schemaManifest.baseline.incorporated_through_sequence).toBe(522);
+    const pipelineListMigration = schemaManifest.migrations.find((entry) => entry.sequence === 523);
+    expect(schemaManifest.schema_target).toBe("0523");
+    expect(schemaManifest.baseline.incorporated_through_sequence).toBe(523);
     expect(webchatMigration).toMatchObject({
       file: "20261010120000_0511_webchat_widget_bootstrap.sql",
       version: "20261010120000",
@@ -133,6 +134,12 @@ describe("signed installer compatibility contract", () => {
       file: "20261027100000_0522_case_wait_reminders.sql",
       version: "20261027100000",
       sequence: 522,
+    });
+    expect(pipelineListMigration).toMatchObject({
+      file: "20261027171000_0523_pipeline_list_page_index.sql",
+      version: "20261027171000",
+      sequence: 523,
+      slug: "pipeline_list_page_index",
     });
 
     const baseline510Checksum = "a".repeat(64);
@@ -215,6 +222,14 @@ describe("signed installer compatibility contract", () => {
         { version: caseWaitRemindersMigration.version, checksum: caseWaitRemindersMigration.checksum },
       ],
     }, schemaManifest)).toMatchObject({ valid: true, currentSchema: "0522" });
+    expect(deriveCurrentSchema({
+      ...trackedState,
+      applied: [...trackedState.applied, ...migrationsThrough519,
+        { version: knowledgeSourceAtomicMigration.version, checksum: knowledgeSourceAtomicMigration.checksum },
+        { version: caseWaitRemindersMigration.version, checksum: caseWaitRemindersMigration.checksum },
+        { version: pipelineListMigration.version, checksum: pipelineListMigration.checksum },
+      ],
+    }, schemaManifest)).toMatchObject({ valid: true, currentSchema: "0523" });
     expect(deriveCurrentSchema({ type: "FRESH_DATABASE" }, schemaManifest)).toMatchObject({ valid: true, currentSchema: null });
     expect(deriveCurrentSchema({ type: "EXISTING_UNTRACKED_INSTALLATION" }, schemaManifest).valid).toBe(false);
     expect(deriveCurrentSchema({ type: "TRACKED_INSTALLATION", applied: [] }, schemaManifest).valid).toBe(false);

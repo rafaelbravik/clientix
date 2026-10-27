@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "generated_at": "2026-10-26T17:21:19.144Z",
-  "schema_target": "0522",
+  "generated_at": "2026-10-27T21:53:03.000Z",
+  "schema_target": "0523",
   "baseline": {
     "file": "baseline.sql",
-    "checksum": "bd2ed8fdba90fc129ceffac616621020c3f27f4acaf0821dc86ab045df94ef0e",
-    "size_bytes": 2500767,
-    "incorporated_through_sequence": 522
+    "checksum": "054fd721cf540bc9c7c4e64e43a4fb1b57d53fe00dad3ca5f452d7ce2b60d15a",
+    "size_bytes": 2501302,
+    "incorporated_through_sequence": 523
   },
   "migrations": [
     {
@@ -3416,7 +3416,15 @@
       "slug": "case_wait_reminders",
       "checksum": "d5e078f97184a41a33f4b81c64aa570b98d6b98bfed6541da5a3a2f5e22e5bda",
       "transactional": true
+    },
+    {
+      "file": "20261027171000_0523_pipeline_list_page_index.sql",
+      "version": "20261027171000",
+      "sequence": 523,
+      "slug": "pipeline_list_page_index",
+      "checksum": "0047b201aa79b102c2cef66bd960c92b7b60f9e4bf520c54630088b15707d1e3",
+      "transactional": true
     }
   ],
-  "updated_at": "2026-10-27T16:32:55.594Z"
+  "updated_at": "2026-10-27T21:53:03.000Z"
 }

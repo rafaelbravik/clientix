@@ -21,10 +21,17 @@ export default async function PipelinePage({
   // um lugar e o cabeçalho de outro.
   const { data: pipeline } = await supabase
     .from("crm_pipelines")
-    .select("id, name, vocabulary")
+    .select("id, name, vocabulary, settings")
     .eq("organization_id", activeOrg.orgId)
     .eq("id", id)
     .maybeSingle();
   if (!pipeline) notFound();
-  return <PipelinePageClient pipelineId={id} initialName={pipeline.name} role={activeOrg.role} />;
+  return (
+    <PipelinePageClient
+      pipelineId={id}
+      initialName={pipeline.name}
+      initialSettings={(pipeline.settings as Record<string, unknown> | null) ?? null}
+      role={activeOrg.role}
+    />
+  );
 }
