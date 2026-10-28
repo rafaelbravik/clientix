@@ -146,6 +146,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       description: entrada.description ?? null,
       channel_session_id: entrada.channel_session_id,
       message_body: entrada.message_body ?? null,
+      split_messages: entrada.split_messages,
       base_legal: entrada.base_legal,
       lia_ref: entrada.lia_ref ?? null,
       audience_filter: entrada.audience_filter ?? FILTRO_VAZIO,

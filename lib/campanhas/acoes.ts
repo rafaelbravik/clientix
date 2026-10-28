@@ -19,6 +19,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ApiErrorCode } from "@/lib/api/errors";
 import { sendMessageHandler } from "@/app/api/v1/messages/_handler";
 import { beginServiceAtOrigin } from "@/lib/atendimento/origem";
+import { getRequestPool } from "@/lib/agent-engine/db/request-pool";
+import { recordSend } from "@/lib/agent-engine/pacing/store";
 
 import { baseLegalValida, motivoParaExcluir, recusouMarketing } from "./elegibilidade";
 import { ehStatusDaCampanha, podeTransitar } from "./maquina-de-estados";
@@ -26,6 +28,12 @@ import { prepararCampanha } from "./preparacao";
 import { nomeDoContato } from "@/lib/contacts/rotulo-do-contato";
 import { renderizar } from "./renderizador";
 import type { StatusDaCampanha } from "./tipos";
+import {
+  chaveDaBolha,
+  idDaMensagemDaBolha,
+  separarMensagemDeCampanha,
+  enviarBaloesEmSequencia,
+} from "./baloes";
 
 export interface CampanhaCarregada {
   id: string;
@@ -36,6 +44,7 @@ export interface CampanhaCarregada {
   email_subject?: string | null;
   channel_session_id: string;
   message_body: string | null;
+  split_messages?: boolean;
   base_legal: string;
   lia_ref: string | null;
   audience_filter: unknown;
@@ -54,7 +63,7 @@ export type Recusa = { ok: false; codigo: ApiErrorCode; mensagem: string; status
 export type Desfecho<T = unknown> = ({ ok: true } & T) | Recusa;
 
 const COLUNAS =
-  "id, organization_id, name, status, channel, email_subject, channel_session_id, message_body, base_legal, lia_ref, " +
+  "id, organization_id, name, status, channel, email_subject, channel_session_id, message_body, split_messages, base_legal, lia_ref, " +
   "audience_filter, audience_version, content_version, scheduled_at, description, " +
   "intervalo_segundos, janela_inicio_hora, janela_fim_hora, teto_diario, teto_horario";
 
@@ -347,6 +356,7 @@ export async function duplicarAcao(
       description: c.description,
       channel_session_id: c.channel_session_id,
       message_body: c.message_body,
+      split_messages: c.split_messages ?? false,
       base_legal: c.base_legal,
       lia_ref: c.lia_ref,
       audience_filter: c.audience_filter,
@@ -387,6 +397,7 @@ export async function testarAcao(
   contactId: string,
   agora: Date,
   fuso: string,
+  pacing: { throttleMs: number; jitterMaxMs: number; minIntervalMs: number },
 ): Promise<Desfecho<{ status: string }>> {
   const recusa = faltaParaEnviar(c);
   if (recusa) return recusa;
@@ -448,25 +459,46 @@ export async function testarAcao(
   }
 
   const boundary = await beginServiceAtOrigin(admin, c.organization_id, linha.id, c.channel_session_id);
-  const mensagem = await sendMessageHandler(
-    admin,
-    {
-      organization_id: c.organization_id,
-      serviceBoundary: boundary,
-      proactiveContext: { organizationId: c.organization_id, contactId: linha.id },
-      actor: { type: "webhook_source", id: `campaign-test:${c.id}` },
-      requestId: `campaign-test:${c.id}:${randomUUID()}`,
-    } as Parameters<typeof sendMessageHandler>[1],
-    {
-      conversation_id: boundary.conversation_id,
-      type: "text",
-      body: render.texto,
-      metadata: { source: "campaign_test", campaign_id: c.id },
-    } as Parameters<typeof sendMessageHandler>[2],
+  const baloes = separarMensagemDeCampanha(render.texto, c.split_messages ?? false, c.channel ?? "whatsapp");
+  const rodadaTesteId = randomUUID();
+  const pool = getRequestPool();
+  const sequencia = await enviarBaloesEmSequencia(
+    baloes,
+    async (body, index) => {
+      const resultado = (await sendMessageHandler(
+        admin,
+        {
+          organization_id: c.organization_id,
+          serviceBoundary: boundary,
+          proactiveContext: { organizationId: c.organization_id, contactId: linha.id },
+          actor: { type: "webhook_source", id: `campaign-test:${c.id}` },
+          requestId: `campaign-test:${c.id}:${rodadaTesteId}:${index + 1}`,
+          internalMessageId: idDaMensagemDaBolha(c.id, `test:${rodadaTesteId}`, index),
+        } as Parameters<typeof sendMessageHandler>[1],
+        {
+          conversation_id: boundary.conversation_id,
+          type: "text",
+          body,
+          metadata: {
+            source: "campaign_test",
+            campaign_id: c.id,
+            bubble_index: index + 1,
+            idempotency_key: chaveDaBolha(c.id, `test:${rodadaTesteId}`, index),
+          },
+        } as Parameters<typeof sendMessageHandler>[2],
+      )) as { status?: string };
+      await recordSend(pool, c.organization_id, c.channel_session_id, new Date());
+      return resultado;
+    },
+    async () => {
+      const pausa = Math.max(pacing.throttleMs, pacing.minIntervalMs) +
+        Math.floor(Math.random() * (pacing.jitterMaxMs + 1));
+      await new Promise<void>((resolve) => setTimeout(resolve, pausa));
+    },
   );
 
-  const status = (mensagem as { status?: string }).status ?? "desconhecido";
-  if (status === "failed") {
+  const status = (sequencia.ultimo as { status?: string } | undefined)?.status ?? "desconhecido";
+  if (!sequencia.completa || status === "failed") {
     return {
       ok: false,
       codigo: "campanha_canal_indisponivel",

@@ -32,6 +32,7 @@ export interface CampanhaDaLista {
 }
 
 export interface CampanhaDetalhada extends CampanhaDaLista {
+  split_messages?: boolean;
   /** Números EXTRAS do rodízio (migration 0377). O principal é channel_session_id. */
   channel_session_ids?: string[];
   /** Destino do card e quem atende (migration 0378). `null` = a regra do número. */

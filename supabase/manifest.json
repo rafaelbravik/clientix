@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "generated_at": "2026-10-28T02:33:41.015Z",
-  "schema_target": "0524",
+  "generated_at": "2026-10-28T17:21:00.346Z",
+  "schema_target": "0525",
   "baseline": {
     "file": "baseline.sql",
-    "checksum": "14bbad4083e4093b48e3f93903c4837867f98278a23ac93554579e2d360e3db2",
-    "size_bytes": 2501676,
-    "incorporated_through_sequence": 524
+    "checksum": "c4ba818aa6b995d7afd397a6941c0784466a36752c759957ed22036a5eaf7418",
+    "size_bytes": 2503204,
+    "incorporated_through_sequence": 525
   },
   "migrations": [
     {
@@ -3432,7 +3432,15 @@
       "slug": "message_template_inbox_bar",
       "checksum": "1dcacbf296f5d1cb44d09a3afe3743016824052514e09e71730e9eb19dc13dfe",
       "transactional": true
+    },
+    {
+      "file": "20261028152934_0525_campaign_split_messages.sql",
+      "version": "20261028152934",
+      "sequence": 525,
+      "slug": "campaign_split_messages",
+      "checksum": "bb472cb339d94e02576e836255245f2da5807a4dc2214c64a6a7559acab91ca8",
+      "transactional": true
     }
   ],
-  "updated_at": "2026-10-28T02:33:41.015Z"
+  "updated_at": "2026-10-28T17:21:00.346Z"
 }

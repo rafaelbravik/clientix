@@ -44,6 +44,8 @@ import { beginServiceAtOrigin } from "@/lib/atendimento/origem";
 import { logger } from "@/lib/logger";
 import { OrgNaoOperanteError, idsDeOrgsParadas } from "@/lib/organizacao/operante";
 import { checkFeatureQuota } from "@/lib/tenant/plan-limits";
+import { capabilitiesOf, DEFAULT_CHANNEL_PROVIDER } from "@/lib/channels/capabilities";
+import type { ChannelProvider } from "@/lib/channels/types";
 
 import { motivoParaExcluir, recusouMarketing } from "./elegibilidade";
 import { hashDoEndereco } from "./exclusoes";
@@ -52,6 +54,8 @@ import { escolherNumero, poolDaCampanha, type NumeroDisponivel } from "./rodizio
 import { podeMandarAgora, proximaTentativa, type RitmoDaCampanha } from "./ritmo";
 import { nomeDoContato } from "@/lib/contacts/rotulo-do-contato";
 import { TEXTO_DA_EXCLUSAO } from "./tipos";
+import { chaveDaBolha, idDaMensagemDaBolha, separarMensagemDeCampanha } from "./baloes";
+import type { PacingKnobs } from "@/lib/agent-engine/pacing/defaults";
 
 export interface ResultadoDaRodada {
   /** Mensagens que saíram de fato. */
@@ -91,11 +95,12 @@ interface CampanhaRow {
   janela_fim_hora: number | null;
   teto_diario: number | null;
   teto_horario: number | null;
+  split_messages?: boolean;
 }
 
 const COLUNAS_DA_CAMPANHA =
   "id, organization_id, channel, email_subject, channel_session_id, name, message_body, content_version, " +
-  "intervalo_segundos, janela_inicio_hora, janela_fim_hora, teto_diario, teto_horario";
+  "intervalo_segundos, janela_inicio_hora, janela_fim_hora, teto_diario, teto_horario, split_messages";
 
 export async function rodarUmaRodadaDeCampanha(
   admin: SupabaseClient,
@@ -193,9 +198,18 @@ async function promoverAgendadas(
 
 interface DestinatarioRow {
   id: string;
+  organization_id?: string;
   contact_id: string;
   recipient_address: string | null;
   rendered_body: string | null;
+  status?: string;
+  channel_session_id?: string | null;
+  message_id?: string | null;
+  split_bubble_count?: number | null;
+  next_bubble_index?: number | null;
+  sending_at?: string | null;
+  next_attempt_at?: string | null;
+  conversation_id?: string | null;
   channel?: "whatsapp" | "telegram" | "email" | null;
   contacts: {
     id: string;
@@ -234,18 +248,34 @@ async function rodarUmaCampanha(
     return { enviadas: 0, pulados: 0, concluidas: 0, detalhe: "bloqueado:plano_sem_campanhas" };
   }
 
-  const { data: fila } = await admin
-    .from("campaign_recipients")
-    .select(
-      "id, contact_id, recipient_address, rendered_body, channel, " +
-        "contacts(id, name, display_name, phone_number, email, social_identity, is_blocked, is_anonymized, consent)",
-    )
-    .eq("campaign_id", campanha.id)
-    .eq("status", "pending")
-    .or(`next_attempt_at.is.null,next_attempt_at.lte.${agora.toISOString()}`)
-    .order("created_at", { ascending: true })
-    .limit(1);
-  const alvo = (fila ?? [])[0] as DestinatarioRow | undefined;
+  let alvo: DestinatarioRow | undefined;
+  let continuacao = false;
+  if (campanha.split_messages && (campanha.channel ?? "whatsapp") === "whatsapp") {
+    const sequencia = await buscarContinuacaoDeBaloes(admin, campanha, agora);
+    if (sequencia.alvo) {
+      alvo = sequencia.alvo;
+      continuacao = true;
+    } else if (sequencia.ocupada) {
+      return { enviadas: 0, pulados: 0, concluidas: 0, detalhe: "baloes:aguardando_lease_ou_ack" };
+    }
+  }
+
+  if (!alvo) {
+    const { data: fila } = await admin
+      .from("campaign_recipients")
+      .select(
+        "organization_id, id, contact_id, recipient_address, rendered_body, channel, status, channel_session_id, " +
+          "message_id, split_bubble_count, next_bubble_index, sending_at, next_attempt_at, " +
+          "contacts(id, name, display_name, phone_number, email, social_identity, is_blocked, is_anonymized, consent)",
+      )
+      .eq("organization_id", campanha.organization_id)
+      .eq("campaign_id", campanha.id)
+      .eq("status", "pending")
+      .or(`next_attempt_at.is.null,next_attempt_at.lte.${agora.toISOString()}`)
+      .order("created_at", { ascending: true })
+      .limit(1);
+    alvo = (fila ?? [])[0] as DestinatarioRow | undefined;
+  }
 
   if (!alvo) {
     // Nada pendente AGORA não é o mesmo que nada pendente: pode haver gente
@@ -291,7 +321,7 @@ async function rodarUmaCampanha(
     canal: canalCampanha,
   }, canalCampanha);
   if (motivo) {
-    await admin
+    let consulta = admin
       .from("campaign_recipients")
       .update({
         status: motivo === "opt_out" ? "opted_out" : "skipped",
@@ -300,7 +330,9 @@ async function rodarUmaCampanha(
         opted_out_at: motivo === "opt_out" ? agora.toISOString() : null,
       })
       .eq("id", alvo.id)
-      .eq("status", "pending");
+      .eq("status", alvo.status ?? "pending");
+    if (alvo.status === "sending" && alvo.sending_at) consulta = consulta.eq("sending_at", alvo.sending_at);
+    await consulta;
     return { enviadas: 0, pulados: 1, concluidas: 0, detalhe: `pulado:${motivo}` };
   }
 
@@ -315,7 +347,7 @@ async function rodarUmaCampanha(
       .eq("recipient_address_hash", hashDoEndereco(enderecoAtual))
       .maybeSingle();
     if (suprimido) {
-      await admin
+      let consulta = admin
         .from("campaign_recipients")
         .update({
           status: "skipped",
@@ -323,7 +355,9 @@ async function rodarUmaCampanha(
           exclusion_reason: "suprimido",
         })
         .eq("id", alvo.id)
-        .eq("status", "pending");
+        .eq("status", alvo.status ?? "pending");
+      if (alvo.status === "sending" && alvo.sending_at) consulta = consulta.eq("sending_at", alvo.sending_at);
+      await consulta;
       return { enviadas: 0, pulados: 1, concluidas: 0, detalhe: "pulado:suprimido" };
     }
   }
@@ -342,7 +376,12 @@ async function rodarUmaCampanha(
     tetoDiario: campanha.teto_diario,
     tetoHorario: campanha.teto_horario,
   };
-  const numeros = await numerosDaCampanha(admin, campanha);
+  const dividirBaloes = campanha.split_messages === true && canalCampanha === "whatsapp";
+  const numeros = continuacao
+    ? alvo.channel_session_id
+      ? [alvo.channel_session_id]
+      : []
+    : await numerosDaCampanha(admin, campanha);
   // O fuso da janela da campanha é o do número PRINCIPAL: ela é uma decisão da
   // campanha, e precisa de um relógio só — três números em fusos diferentes
   // fariam a mesma campanha abrir e fechar a janela três vezes.
@@ -351,18 +390,23 @@ async function rodarUmaCampanha(
   // que a janela usa. Com `setUTCHours`, o "dia" virava 21h no horário de
   // Brasília — DENTRO da janela de envio —, e uma campanha que já tinha batido
   // o teto diário voltava a enviar com uma hora de janela pela frente.
-  const estado = await estadoDeEnvio(admin, campanha.id, agora, knobsDoPrincipal.knobs.timezone);
-  const doRitmo = podeMandarAgora(ritmo, estado, agora, knobsDoPrincipal.knobs.timezone);
+  const estado = await estadoDeEnvio(
+    admin,
+    campanha.id,
+    agora,
+    knobsDoPrincipal.knobs.timezone,
+    dividirBaloes ? { organizationId: campanha.organization_id, contarMensagensFisicas: true } : undefined,
+  );
+  // O intervalo da campanha rege o INÍCIO de um destinatário. Balões da mesma
+  // pessoa obedecem ao pacing do canal, sem aplicar novamente esse intervalo.
+  const ritmoDaVez = continuacao ? { ...ritmo, intervaloSegundos: null } : ritmo;
+  const doRitmo = podeMandarAgora(ritmoDaVez, estado, agora, knobsDoPrincipal.knobs.timezone);
   if (!doRitmo.pode) {
     // Espera não é falha: grava QUANDO tentar de novo para a fila não ser varrida
     // a cada tique por uma campanha que só volta amanhã.
     const proxima = proximaTentativa(doRitmo, agora);
     if (proxima) {
-      await admin
-        .from("campaign_recipients")
-        .update({ next_attempt_at: proxima.toISOString() })
-        .eq("id", alvo.id)
-        .eq("status", "pending");
+      await adiarDestinatario(admin, alvo, proxima);
     }
     return { enviadas: 0, pulados: 0, concluidas: 0, detalhe: `ritmo:${doRitmo.motivo}` };
   }
@@ -370,6 +414,19 @@ async function rodarUmaCampanha(
   // ─── O RODÍZIO: qual número fala com esta pessoa ───
   const disponiveis: NumeroDisponivel[] = [];
   const knobsPorNumero = new Map<string, Awaited<ReturnType<typeof loadChannelKnobs>>>();
+  const candidatosPorNumero = new Map<
+    string,
+    {
+      corpo: string;
+      baloes: string[];
+      limiteDiario: number | null;
+      intervaloMinimoMs: number;
+      numeroAtivadoEm: Date | null;
+    }
+  >();
+  let vetoDaCampanha: Extract<ReturnType<typeof podeMandarAgora>, { pode: false }> | null = null;
+  let esperaDePacingMs: number | null = null;
+  const congelado = alvo.rendered_body ?? campanha.message_body ?? "";
   for (const sessionId of numeros) {
     const k =
       sessionId === campanha.channel_session_id
@@ -379,45 +436,115 @@ async function rodarUmaCampanha(
 
     const { data: canal } = await admin
       .from("channel_sessions")
-      .select("daily_message_limit, status")
+      .select("daily_message_limit, status, provider")
       .eq("organization_id", campanha.organization_id)
       .eq("id", sessionId)
       .maybeSingle();
-    const linha = canal as { daily_message_limit: number | null; status: string } | null;
+    const linha = canal as { daily_message_limit: number | null; status: string; provider: string | null } | null;
     // Número/canal fora do ar não entra no rodízio: mandar por ele seria fabricar uma
     // mensagem presa em `sending` que o recovery depois marca como falha.
     if (!linha || (linha.status !== "WORKING" && linha.status !== "connected")) continue;
+
+    const corpo = continuacao
+      ? congelado
+      : renderizar(congelado, { nome: nomeDoContato(contato) }, { agora, fuso: k.knobs.timezone }).texto;
+    const baloes = dividirBaloes
+      ? separarMensagemDeCampanha(corpo, true, "whatsapp")
+      : [corpo];
+    const sequenciaDeBaloes = dividirBaloes && baloes.length > 1;
+    const indiceInicial = continuacao ? (alvo.next_bubble_index ?? 0) : 0;
+    const restantes = Math.max(1, baloes.length - indiceInicial);
+    const estadoDaCampanhaParaSequencia = {
+      ...estado,
+      enviadasHoje: estado.enviadasHoje + restantes - 1,
+      enviadasNaUltimaHora: estado.enviadasNaUltimaHora + restantes - 1,
+    };
+    const ritmoDaSequencia = continuacao ? { ...ritmo, intervaloSegundos: null } : ritmo;
+    const cabeNaCampanha = podeMandarAgora(
+      ritmoDaSequencia,
+      estadoDaCampanhaParaSequencia,
+      agora,
+      knobsDoPrincipal.knobs.timezone,
+    );
+    if (!cabeNaCampanha.pode) {
+      vetoDaCampanha = cabeNaCampanha;
+      continue;
+    }
 
     const estadoDoNumero = await loadPacingState(pool, campanha.organization_id, sessionId, {
       now: agora,
       timezone: k.knobs.timezone,
       numberActivatedAt: k.numberActivatedAt,
     });
+    const intervaloMinimoMs = capabilitiesOf(
+      (linha.provider ?? DEFAULT_CHANNEL_PROVIDER) as ChannelProvider,
+    ).minIntervalMs ?? 0;
     const decisao = decidePacing({
       now: agora,
       knobs: k.knobs,
-      state: estadoDoNumero,
+      state: { ...estadoDoNumero, sentToday: estadoDoNumero.sentToday + restantes - 1 },
       crmDailyLimit: linha.daily_message_limit ?? null,
+      minimumIntervalMs: intervaloMinimoMs,
+    });
+    if (sequenciaDeBaloes && decisao.allow && decisao.waitMs > 0) {
+      esperaDePacingMs = esperaDePacingMs === null ? decisao.waitMs : Math.min(esperaDePacingMs, decisao.waitMs);
+    }
+    candidatosPorNumero.set(sessionId, {
+      corpo,
+      baloes,
+      limiteDiario: linha.daily_message_limit,
+      intervaloMinimoMs,
+      numeroAtivadoEm: k.numberActivatedAt,
     });
     disponiveis.push({
       sessionId,
       folgaDoDia:
         linha.daily_message_limit === null
           ? null
-          : Math.max(0, linha.daily_message_limit - estadoDoNumero.sentToday),
-      podeAgora: decisao.allow,
+          : Math.max(0, linha.daily_message_limit - estadoDoNumero.sentToday - (restantes - 1)),
+      podeAgora: decisao.allow && (!sequenciaDeBaloes || decisao.waitMs === 0),
       ultimoEnvio: estadoDoNumero.lastSentAt,
     });
   }
 
   const escolha = escolherNumero(disponiveis, await numeroDoHistorico(admin, campanha, alvo.contact_id));
   if (!escolha) {
+    if (vetoDaCampanha) {
+      const proxima = proximaTentativa(vetoDaCampanha, agora);
+      if (proxima) await adiarDestinatario(admin, alvo, proxima);
+      return { enviadas: 0, pulados: 0, concluidas: 0, detalhe: `ritmo:${vetoDaCampanha.motivo}` };
+    }
+    if (esperaDePacingMs !== null) {
+      await adiarDestinatario(admin, alvo, new Date(agora.getTime() + esperaDePacingMs));
+      return { enviadas: 0, pulados: 0, concluidas: 0, detalhe: "canal:aguardando_pacing" };
+    }
     // Nenhum número pode agora. Não é falha do destinatário: é o ritmo dos
     // números. Volta para a fila e tenta no próximo tique.
     return { enviadas: 0, pulados: 0, concluidas: 0, detalhe: "canal:sem_numero_livre" };
   }
   const sessionEscolhida = escolha.sessionId;
   const knobs = knobsPorNumero.get(sessionEscolhida)!.knobs;
+
+  if (dividirBaloes && candidatosPorNumero.get(sessionEscolhida)!.baloes.length > 1) {
+    const candidato = candidatosPorNumero.get(sessionEscolhida)!;
+    return enviarSequenciaDeBaloes({
+      admin,
+      pool,
+      campanha,
+      alvo,
+      sessionId: sessionEscolhida,
+      corpo: candidato.corpo,
+      baloes: candidato.baloes,
+      indiceInicial: continuacao ? (alvo.next_bubble_index ?? 0) : 0,
+      continuacao,
+      knobs,
+      numeroAtivadoEm: candidato.numeroAtivadoEm,
+      limiteDiario: candidato.limiteDiario,
+      intervaloMinimoMs: candidato.intervaloMinimoMs,
+      requestReason: escolha.motivo,
+      agora,
+    });
+  }
 
   // ─── O envio ───
   // O id da mensagem nasce AQUI, e não do insert: com ele, o destinatário já
@@ -439,7 +566,6 @@ async function rodarUmaCampanha(
   // de ser a do instante em que a mensagem SAI, no fuso do canal. Montá-la na
   // preparação produziria "bom dia" numa mensagem enviada à tarde — foi o
   // defeito do primeiro piloto.
-  const congelado = alvo.rendered_body ?? campanha.message_body ?? "";
   const corpo = renderizar(
     congelado,
     { nome: nomeDoContato(contato) },
@@ -517,6 +643,592 @@ async function rodarUmaCampanha(
   }
 }
 
+const LEASE_BOLHA_MS = 5 * 60_000;
+const MAX_ESPERA_INLINE_BOLHA_MS = 10_000;
+
+/**
+ * Retoma uma sequência antes de escolher um destinatário novo. O índice salvo
+ * no banco e o status/lease são relidos por rodada; dois cron concorrentes não
+ * podem avançar a mesma sequência.
+ */
+async function buscarContinuacaoDeBaloes(
+  admin: SupabaseClient,
+  campanha: CampanhaRow,
+  agora: Date,
+): Promise<{ alvo?: DestinatarioRow; ocupada: boolean }> {
+  const { data, error } = await admin
+    .from("campaign_recipients")
+    .select(
+      "organization_id, id, contact_id, recipient_address, rendered_body, channel, status, channel_session_id, " +
+        "message_id, split_bubble_count, next_bubble_index, sending_at, next_attempt_at, conversation_id, " +
+        "contacts(id, name, display_name, phone_number, email, social_identity, is_blocked, is_anonymized, consent)",
+    )
+    .eq("organization_id", campanha.organization_id)
+    .eq("campaign_id", campanha.id)
+    .in("status", ["pending", "sending", "sent", "delivered", "read"])
+    .not("split_bubble_count", "is", null)
+    .or(
+      "and(split_bubble_count.eq.2,next_bubble_index.lt.2),and(split_bubble_count.eq.3,next_bubble_index.lt.3)",
+    )
+    .or(`next_attempt_at.is.null,next_attempt_at.lte.${agora.toISOString()}`)
+    .order("created_at", { ascending: true })
+    .limit(1);
+
+  if (error) {
+    logger.warn("[campanha] busca da sequência de balões falhou", {
+      campanhaId: campanha.id,
+      motivo: error.code ?? "query_failed",
+    });
+    return { ocupada: true };
+  }
+  const alvo = (data ?? [])[0] as DestinatarioRow | undefined;
+  if (!alvo) return { ocupada: false };
+
+  if (alvo.status === "sending") {
+    const lease = alvo.sending_at ? Date.parse(alvo.sending_at) : 0;
+    if (Number.isFinite(lease) && agora.getTime() - lease < LEASE_BOLHA_MS) {
+      return { ocupada: true };
+    }
+  }
+  return { alvo, ocupada: false };
+}
+
+async function reivindicarContinuacaoDeBaloes(
+  admin: SupabaseClient,
+  alvo: DestinatarioRow,
+  agora: Date,
+): Promise<{ reservado: boolean; erro?: string }> {
+  const status = alvo.status ?? "pending";
+  const indice = alvo.next_bubble_index ?? 0;
+  let consulta = admin
+    .from("campaign_recipients")
+    .update({
+      status: "sending",
+      sending_at: agora.toISOString(),
+      last_attempt_at: agora.toISOString(),
+      next_attempt_at: null,
+      // Desvincula o ack do balão anterior enquanto o próximo está em voo.
+      message_id: null,
+    })
+    .eq("organization_id", alvo.organization_id ?? "")
+    .eq("id", alvo.id)
+    .eq("status", status)
+    .eq("next_bubble_index", indice);
+  if (status === "sending") {
+    if (!alvo.sending_at) return { reservado: false };
+    consulta = consulta.eq("sending_at", alvo.sending_at);
+  } else if (status === "pending") {
+    consulta = consulta.or(`next_attempt_at.is.null,next_attempt_at.lte.${agora.toISOString()}`);
+  }
+
+  const { data, error } = await consulta.select("id");
+  if (error) {
+    logger.warn("[campanha] retomada da sequência falhou", {
+      destinatarioId: alvo.id,
+      motivo: error.code ?? "claim_failed",
+    });
+    return { reservado: false, erro: error.code ?? "claim_failed" };
+  }
+  return { reservado: (data ?? []).length > 0 };
+}
+
+async function adiarDestinatario(admin: SupabaseClient, alvo: DestinatarioRow, quando: Date): Promise<void> {
+  const status = alvo.status ?? "pending";
+  let consulta = admin
+    .from("campaign_recipients")
+    .update({ status: "pending", sending_at: null, next_attempt_at: quando.toISOString() })
+    .eq("organization_id", alvo.organization_id ?? "")
+    .eq("id", alvo.id)
+    .eq("status", status);
+  if (status === "sending" && alvo.sending_at) consulta = consulta.eq("sending_at", alvo.sending_at);
+  await consulta;
+}
+
+async function atualizarSequencia(
+  admin: SupabaseClient,
+  alvo: DestinatarioRow,
+  indiceAtual: number,
+  patch: Record<string, unknown>,
+): Promise<boolean> {
+  if (!alvo.sending_at) return false;
+  const { data, error } = await admin
+    .from("campaign_recipients")
+    .update(patch)
+    .eq("organization_id", alvo.organization_id ?? "")
+    .eq("id", alvo.id)
+    .eq("status", "sending")
+    .eq("next_bubble_index", indiceAtual)
+    .eq("sending_at", alvo.sending_at)
+    .select("id");
+  if (error) {
+    logger.warn("[campanha] checkpoint do balão falhou", {
+      destinatarioId: alvo.id,
+      motivo: error.code ?? "checkpoint_failed",
+    });
+  }
+  return !error && (data ?? []).length > 0;
+}
+
+/**
+ * Vincula o recipient à mensagem e fecha a corrida em que o ACK chega antes
+ * do vínculo. O trigger existente só encontra o recipient por message_id; se
+ * o canal confirmar antes do update, ele não verá a linha. A releitura feita
+ * depois do vínculo transforma o ACK antecipado no mesmo checkpoint que o
+ * trigger teria feito.
+ */
+async function reconciliarAckDaBolha(input: {
+  admin: SupabaseClient;
+  pool: ReturnType<typeof getRequestPool>;
+  campanha: CampanhaRow;
+  destinatarioId: string;
+  sessionId: string;
+  messageId: string;
+  indice: number;
+  quantidade: number;
+  enviadoEm: Date;
+}): Promise<boolean> {
+  const { admin, pool, campanha, destinatarioId, sessionId, messageId, indice, quantidade, enviadoEm } = input;
+  const { data, error } = await admin
+    .from("messages")
+    .select("id, status, sent_at, delivered_at, read_at")
+    .eq("organization_id", campanha.organization_id)
+    .eq("id", messageId)
+    .maybeSingle();
+  if (error || !data) return false;
+
+  const mensagem = data as {
+    id: string;
+    status: string;
+    sent_at: string | null;
+    delivered_at: string | null;
+    read_at: string | null;
+  };
+  if (["queued", "sending"].includes(mensagem.status)) return false;
+
+  if (["sent", "delivered", "read"].includes(mensagem.status)) {
+    // O ledger é registrado antes do avanço persistente. Se ele falhar, a
+    // sequência fica parada neste índice e uma rodada futura tenta novamente.
+    await recordSend(
+      pool,
+      campanha.organization_id,
+      sessionId,
+      mensagem.sent_at ? new Date(mensagem.sent_at) : enviadoEm,
+    );
+  }
+
+  const sucesso = ["sent", "delivered", "read"].includes(mensagem.status);
+  const final = indice === quantidade - 1;
+  const proximoEstado = sucesso
+    ? final
+      ? mensagem.status
+      : "pending"
+    : "failed";
+  const proximaTentativa = sucesso && !final ? new Date().toISOString() : null;
+  const { data: atualizada, error: updateError } = await admin
+    .from("campaign_recipients")
+    .update({
+      next_bubble_index: sucesso ? indice + 1 : indice,
+      status: proximoEstado,
+      sending_at: null,
+      next_attempt_at: proximaTentativa,
+      sent_at: final && sucesso ? (mensagem.sent_at ?? enviadoEm.toISOString()) : null,
+      delivered_at: final && sucesso ? mensagem.delivered_at : null,
+      read_at: final && sucesso ? mensagem.read_at : null,
+      message_id: final && sucesso ? messageId : sucesso ? null : messageId,
+      last_error_code: sucesso ? null : "send_failed",
+    })
+    .eq("organization_id", campanha.organization_id)
+    .eq("id", destinatarioId)
+    .eq("next_bubble_index", indice)
+    .in("status", ["queued", "sent", "delivered", "read", "sending", "failed"])
+    .select("id");
+  if (updateError) {
+    logger.warn("[campanha] reconciliação do ack da bolha falhou", {
+      campanhaId: campanha.id,
+      destinatarioId,
+      motivo: updateError.code ?? "ack_checkpoint_failed",
+    });
+    return false;
+  }
+  return (atualizada ?? []).length > 0 && sucesso;
+}
+
+async function interromperSeCampanhaParou(
+  admin: SupabaseClient,
+  campanha: CampanhaRow,
+  alvo: DestinatarioRow,
+  indice: number,
+  agora: Date,
+): Promise<boolean> {
+  const { data, error } = await admin
+    .from("campaigns")
+    .select("status")
+    .eq("id", campanha.id)
+    .eq("organization_id", campanha.organization_id)
+    .maybeSingle();
+  if (error) {
+    await atualizarSequencia(admin, alvo, indice, {
+      status: "pending",
+      sending_at: null,
+      next_attempt_at: new Date(agora.getTime() + 60_000).toISOString(),
+    });
+    return true;
+  }
+  if ((data as { status?: string } | null)?.status === "running") return false;
+  const statusCampanha = (data as { status?: string } | null)?.status;
+  await atualizarSequencia(admin, alvo, indice, {
+    status: statusCampanha === "cancelled" ? "cancelled" : "pending",
+    sending_at: null,
+    next_attempt_at: statusCampanha === "cancelled" ? null : new Date(agora.getTime() + 60_000).toISOString(),
+    cancelled_at: statusCampanha === "cancelled" ? agora.toISOString() : null,
+  });
+  return true;
+}
+
+async function verificarElegibilidadeAntesDoProximoBalao(
+  admin: SupabaseClient,
+  campanha: CampanhaRow,
+  alvo: DestinatarioRow,
+  indice: number,
+  agora: Date,
+): Promise<boolean> {
+  const { data, error } = await admin
+    .from("contacts")
+    .select("id, phone_number, email, social_identity, is_blocked, is_anonymized, consent")
+    .eq("organization_id", campanha.organization_id)
+    .eq("id", alvo.contact_id)
+    .maybeSingle();
+  if (error) {
+    await atualizarSequencia(admin, alvo, indice, {
+      status: "pending",
+      sending_at: null,
+      next_attempt_at: new Date(agora.getTime() + 60_000).toISOString(),
+    });
+    return false;
+  }
+  if (!data) {
+    await atualizarSequencia(admin, alvo, indice, {
+      status: "skipped",
+      sending_at: null,
+      exclusion_reason: "contato_inexistente",
+      eligibility_status: "excluded",
+    });
+    return false;
+  }
+  const contatoAtual = data as {
+    id: string;
+    phone_number: string | null;
+    email: string | null;
+    social_identity: string | null;
+    is_blocked: boolean;
+    is_anonymized: boolean;
+    consent: unknown;
+  };
+  const canal = campanha.channel ?? alvo.channel ?? "whatsapp";
+  const motivo = motivoParaExcluir({
+    contactId: contatoAtual.id,
+    telefone: contatoAtual.phone_number,
+    email: contatoAtual.email,
+    telegramChatId: contatoAtual.social_identity?.startsWith("telegram:")
+      ? contatoAtual.social_identity.replace(/^telegram:/, "")
+      : null,
+    bloqueado: contatoAtual.is_blocked,
+    anonimizado: contatoAtual.is_anonymized,
+    recusouMarketing: recusouMarketing(contatoAtual.consent),
+    canal,
+  }, canal);
+  const endereco = (contatoAtual.phone_number ?? alvo.recipient_address ?? "").trim();
+  let suprimido = false;
+  if (!motivo && endereco) {
+    const { data: suppressions, error: suppressionError } = await admin
+      .from("campaign_suppressions")
+      .select("id")
+      .eq("organization_id", campanha.organization_id)
+      .eq("recipient_address_hash", hashDoEndereco(endereco))
+      .maybeSingle();
+    if (suppressionError) {
+      await atualizarSequencia(admin, alvo, indice, {
+        status: "pending",
+        sending_at: null,
+        next_attempt_at: new Date(agora.getTime() + 60_000).toISOString(),
+      });
+      return false;
+    }
+    suprimido = !!suppressions;
+  }
+  if (!motivo && !suprimido) return true;
+  const optedOut = motivo === "opt_out";
+  await atualizarSequencia(admin, alvo, indice, {
+    status: optedOut ? "opted_out" : "skipped",
+    sending_at: null,
+    eligibility_status: "excluded",
+    exclusion_reason: motivo ?? "suprimido",
+    opted_out_at: optedOut ? agora.toISOString() : null,
+  });
+  return false;
+}
+
+async function enviarSequenciaDeBaloes(input: {
+  admin: SupabaseClient;
+  pool: ReturnType<typeof getRequestPool>;
+  campanha: CampanhaRow;
+  alvo: DestinatarioRow;
+  sessionId: string;
+  corpo: string;
+  baloes: string[];
+  indiceInicial: number;
+  continuacao: boolean;
+  knobs: PacingKnobs;
+  numeroAtivadoEm: Date | null;
+  intervaloMinimoMs: number;
+  limiteDiario: number | null;
+  requestReason: string;
+  agora: Date;
+}): Promise<{ enviadas: number; pulados: number; concluidas: number; detalhe: string }> {
+  const { admin, pool, campanha, alvo, baloes, sessionId } = input;
+  const inicioRelogio = Date.now();
+  const instante = () => new Date(input.agora.getTime() + (Date.now() - inicioRelogio));
+  const inicio = Math.min(input.indiceInicial, baloes.length - 1);
+  const leaseAt = instante();
+  const reserva = input.continuacao
+    ? await reivindicarContinuacaoDeBaloes(admin, alvo, leaseAt)
+    : await reservarDestinatario(admin, alvo.id, leaseAt, {
+        renderedBody: input.corpo,
+        channelSessionId: sessionId,
+        splitBubbleCount: baloes.length,
+        organizationId: campanha.organization_id,
+      });
+  if (!reserva.reservado) {
+    return {
+      enviadas: 0,
+      pulados: 0,
+      concluidas: 0,
+      detalhe: reserva.erro ? `erro_na_reserva:${reserva.erro.slice(0, 40)}` : "ja_reservado",
+    };
+  }
+  const claimed: DestinatarioRow = {
+    ...alvo,
+    organization_id: campanha.organization_id,
+    status: "sending",
+    sending_at: leaseAt.toISOString(),
+    channel_session_id: sessionId,
+    rendered_body: input.corpo,
+    split_bubble_count: baloes.length,
+    next_bubble_index: inicio,
+  };
+
+  try {
+    const boundary = await beginServiceAtOrigin(
+      admin,
+      campanha.organization_id,
+      alvo.contact_id,
+      sessionId,
+    );
+    const { error: boundaryError } = await admin
+      .from("campaign_recipients")
+      .update({ conversation_id: boundary.conversation_id, channel_session_id: sessionId })
+      .eq("organization_id", campanha.organization_id)
+      .eq("id", alvo.id)
+      .eq("status", "sending")
+      .eq("sending_at", claimed.sending_at!);
+    if (boundaryError) throw new Error("campaign_conversation_checkpoint_failed");
+
+    let enviadas = 0;
+    for (let indice = inicio; indice < baloes.length; indice += 1) {
+      const agora = instante();
+      if (indice > inicio) {
+        if (await interromperSeCampanhaParou(admin, campanha, claimed, indice, agora)) {
+          return { enviadas, pulados: 0, concluidas: 0, detalhe: "sequencia:campanha_interrompida" };
+        }
+        if (!(await verificarElegibilidadeAntesDoProximoBalao(admin, campanha, claimed, indice, agora))) {
+          return { enviadas, pulados: 1, concluidas: 0, detalhe: "sequencia:elegibilidade_revalidada" };
+        }
+        const state = await loadPacingState(pool, campanha.organization_id, sessionId, {
+          now: agora,
+          timezone: input.knobs.timezone,
+          numberActivatedAt: input.numeroAtivadoEm,
+        });
+        const pacing = decidePacing({
+          now: agora,
+          knobs: input.knobs,
+          state,
+          crmDailyLimit: input.limiteDiario,
+          minimumIntervalMs: input.intervaloMinimoMs,
+        });
+        if (!pacing.allow) {
+          await adiarDestinatario(admin, claimed, pacing.nextAllowedAt);
+          return { enviadas, pulados: 0, concluidas: 0, detalhe: `sequencia:ritmo:${pacing.code}` };
+        }
+        if (pacing.waitMs > MAX_ESPERA_INLINE_BOLHA_MS) {
+          await adiarDestinatario(admin, claimed, new Date(agora.getTime() + pacing.waitMs));
+          return { enviadas, pulados: 0, concluidas: 0, detalhe: "sequencia:retomada_por_pacing" };
+        }
+        if (pacing.waitMs > 0) await new Promise<void>((resolve) => setTimeout(resolve, pacing.waitMs));
+      }
+
+      const enviadoEm = instante();
+      const messageId = idDaMensagemDaBolha(campanha.id, alvo.id, indice);
+      const { data: existente, error: erroExistente } = await admin
+        .from("messages")
+        .select("id, status, sent_at, delivered_at, read_at, error_code, error_message")
+        .eq("organization_id", campanha.organization_id)
+        .eq("id", messageId)
+        .maybeSingle();
+      if (erroExistente) throw new Error("campaign_bubble_idempotency_read_failed");
+
+      let mensagem: { id?: string; status?: string; sent_at?: string | null; delivered_at?: string | null; read_at?: string | null };
+      if (existente) {
+        mensagem = existente as typeof mensagem;
+        if (["sent", "delivered", "read"].includes(mensagem.status ?? "")) {
+          // Replay do ledger é conservador: se o processo caiu entre o envio e
+          // o checkpoint, uma entrada duplicada só desacelera o número; nunca
+          // permite ultrapassar o pacing.
+          await recordSend(pool, campanha.organization_id, sessionId, enviadoEm);
+        } else if (mensagem.status === "queued") {
+          const linked = await atualizarSequencia(admin, claimed, indice, {
+            status: "queued",
+            message_id: messageId,
+            sending_at: null,
+            next_attempt_at: null,
+          });
+          if (!linked) {
+            return { enviadas, pulados: 0, concluidas: 0, detalhe: "sequencia:claim_perdido" };
+          }
+          const ack = await reconciliarAckDaBolha({
+            admin,
+            pool,
+            campanha,
+            destinatarioId: alvo.id,
+            sessionId,
+            messageId,
+            indice,
+            quantidade: baloes.length,
+            enviadoEm,
+          });
+          return { enviadas, pulados: 0, concluidas: 0, detalhe: ack ? "sequencia:ack_antecipado" : "sequencia:aguardando_ack" };
+        } else if (mensagem.status === "sending") {
+          await adiarDestinatario(admin, claimed, new Date(enviadoEm.getTime() + LEASE_BOLHA_MS));
+          return { enviadas, pulados: 0, concluidas: 0, detalhe: "sequencia:mensagem_em_recuperacao" };
+        } else {
+          await atualizarSequencia(admin, claimed, indice, {
+            status: "failed",
+            message_id: messageId,
+            sending_at: null,
+            last_error_code: "send_failed",
+          });
+          return { enviadas, pulados: 0, concluidas: 0, detalhe: "sequencia:mensagem_ja_falhou" };
+        }
+      } else {
+        const enviada = await sendMessageHandler(
+          admin,
+          {
+            organization_id: campanha.organization_id,
+            serviceBoundary: boundary,
+            proactiveContext: { organizationId: campanha.organization_id, contactId: alvo.contact_id },
+            actor: { type: "webhook_source", id: `campaign:${campanha.id}` },
+            requestId: `campaign:${campanha.id}:${alvo.id}:bubble:${indice + 1}`,
+            internalMessageId: messageId,
+          } as Parameters<typeof sendMessageHandler>[1],
+          {
+            conversation_id: boundary.conversation_id,
+            type: "text",
+            body: baloes[indice],
+            metadata: {
+              source: "campaign",
+              campaign_id: campanha.id,
+              campaign_recipient_id: alvo.id,
+              campaign_content_version: campanha.content_version,
+              bubble_index: indice + 1,
+              bubble_count: baloes.length,
+              idempotency_key: chaveDaBolha(campanha.id, alvo.id, indice),
+            },
+          } as Parameters<typeof sendMessageHandler>[2],
+        ) as { id?: string; status?: string; sent_at?: string | null; delivered_at?: string | null; read_at?: string | null };
+        mensagem = enviada;
+        if (mensagem.status === "failed") {
+          await atualizarSequencia(admin, claimed, indice, {
+            status: "failed",
+            message_id: mensagem.id ?? messageId,
+            sending_at: null,
+            sent_at: null,
+            last_error_code: "send_failed",
+          });
+          return { enviadas, pulados: 0, concluidas: 0, detalhe: `sequencia:falha_balao_${indice + 1}` };
+        }
+        if (mensagem.status === "queued") {
+          const linked = await atualizarSequencia(admin, claimed, indice, {
+            status: "queued",
+            message_id: mensagem.id ?? messageId,
+            sending_at: null,
+            next_attempt_at: null,
+          });
+          if (!linked) {
+            return { enviadas, pulados: 0, concluidas: 0, detalhe: "sequencia:claim_perdido" };
+          }
+          const ack = await reconciliarAckDaBolha({
+            admin,
+            pool,
+            campanha,
+            destinatarioId: alvo.id,
+            sessionId,
+            messageId: mensagem.id ?? messageId,
+            indice,
+            quantidade: baloes.length,
+            enviadoEm,
+          });
+          return { enviadas, pulados: 0, concluidas: 0, detalhe: ack ? "sequencia:ack_antecipado" : "sequencia:aguardando_ack" };
+        }
+        if (!["sent", "delivered", "read"].includes(mensagem.status ?? "")) {
+          await atualizarSequencia(admin, claimed, indice, {
+            status: "failed",
+            message_id: mensagem.id ?? messageId,
+            sending_at: null,
+            last_error_code: "send_state_unknown",
+          });
+          return { enviadas, pulados: 0, concluidas: 0, detalhe: "sequencia:estado_desconhecido" };
+        }
+        await recordSend(pool, campanha.organization_id, sessionId, enviadoEm);
+      }
+
+      const final = indice === baloes.length - 1;
+      const statusFinal = mensagem.status === "read" ? "read" : mensagem.status === "delivered" ? "delivered" : "sent";
+      const renewedLeaseAt = final ? null : instante().toISOString();
+      const checkpointOk = await atualizarSequencia(admin, claimed, indice, {
+        next_bubble_index: indice + 1,
+        status: final ? statusFinal : "sending",
+        sending_at: renewedLeaseAt,
+        next_attempt_at: null,
+        sent_at: final ? (mensagem.sent_at ?? enviadoEm.toISOString()) : null,
+        delivered_at: final ? (mensagem.delivered_at ?? null) : null,
+        read_at: final ? (mensagem.read_at ?? null) : null,
+        message_id: final ? (mensagem.id ?? messageId) : null,
+        last_error_code: null,
+        last_error_detail: null,
+      });
+      if (!checkpointOk) {
+        return { enviadas, pulados: 0, concluidas: 0, detalhe: "sequencia:checkpoint_concorrente" };
+      }
+      if (renewedLeaseAt) {
+        claimed.sending_at = renewedLeaseAt;
+        claimed.next_bubble_index = indice + 1;
+      }
+      enviadas += 1;
+      if (final) {
+        return { enviadas, pulados: 0, concluidas: 0, detalhe: `baloes:${enviadas}:${input.requestReason}` };
+      }
+    }
+    return { enviadas, pulados: 0, concluidas: 0, detalhe: `baloes:${enviadas}:${input.requestReason}` };
+  } catch (err) {
+    logger.warn("[campanha] sequência de balões falhou", { campanhaId: campanha.id, destinatarioId: alvo.id });
+    return {
+      enviadas: 0,
+      pulados: 0,
+      concluidas: 0,
+      detalhe: await registrarExcecaoDoEnvio(admin, alvo.id, err, campanha.organization_id),
+    };
+  }
+}
+
 /**
  * O que a exceção do envio faz com o destinatário já reservado (`sending`).
  * Exportada para o teste: o caminho inteiro da rodada precisa de ritmo, canal
@@ -531,17 +1243,20 @@ export async function registrarExcecaoDoEnvio(
   admin: SupabaseClient,
   destinatarioId: string,
   err: unknown,
+  organizationId?: string,
 ): Promise<string> {
   if (err instanceof OrgNaoOperanteError) {
-    await admin
+    let consulta = admin
       .from("campaign_recipients")
       .update({ status: "pending", sending_at: null })
       .eq("id", destinatarioId)
       .eq("status", "sending");
+    if (organizationId) consulta = consulta.eq("organization_id", organizationId);
+    await consulta;
     return "org_nao_operante";
   }
   const motivoErro = err instanceof Error ? err.message : String(err);
-  await admin
+  let consulta = admin
     .from("campaign_recipients")
     .update({
       status: "failed",
@@ -550,6 +1265,8 @@ export async function registrarExcecaoDoEnvio(
     })
     .eq("id", destinatarioId)
     .eq("status", "sending");
+  if (organizationId) consulta = consulta.eq("organization_id", organizationId);
+  await consulta;
   return "falhou";
 }
 
@@ -570,18 +1287,36 @@ export async function reservarDestinatario(
   admin: SupabaseClient,
   destinatarioId: string,
   agora: Date,
+  sequencia?: {
+    renderedBody: string;
+    channelSessionId: string;
+    splitBubbleCount: number;
+    organizationId: string;
+  },
 ): Promise<{ reservado: boolean; erro?: string }> {
-  const { data, error } = await admin
+  let consulta = admin
     .from("campaign_recipients")
     .update({
       status: "sending",
       sending_at: agora.toISOString(),
       last_attempt_at: agora.toISOString(),
       attempt_count: 1,
+      ...(sequencia
+        ? {
+            rendered_body: sequencia.renderedBody,
+            channel_session_id: sequencia.channelSessionId,
+            split_bubble_count: sequencia.splitBubbleCount,
+            next_bubble_index: 0,
+          }
+        : {}),
     })
     .eq("id", destinatarioId)
-    .eq("status", "pending")
-    .select("id");
+    .eq("status", "pending");
+  if (sequencia) {
+    consulta = consulta.eq("organization_id", sequencia.organizationId);
+    consulta = consulta.or(`next_attempt_at.is.null,next_attempt_at.lte.${agora.toISOString()}`);
+  }
+  const { data, error } = await consulta.select("id");
   if (error) {
     logger.warn("[campanha] reserva do destinatário falhou", {
       destinatario: destinatarioId,
@@ -646,10 +1381,60 @@ export async function estadoDeEnvio(
   campanhaId: string,
   agora: Date,
   fuso: string,
+  opcoes?: { organizationId: string; contarMensagensFisicas: true },
 ): Promise<{ ultimoEnvio: Date | null; enviadasHoje: number; enviadasNaUltimaHora: number }> {
   // O dia do teto diário é o dia DO CLIENTE, como o resto do ritmo. Ver a nota
   // no chamador: `setUTCHours` fazia o dia virar 21h em `America/Sao_Paulo`.
   const inicioDoDia = dayStartInTz(agora, fuso);
+  if (opcoes?.contarMensagensFisicas) {
+    const umaHoraAtras = new Date(agora.getTime() - 3_600_000).toISOString();
+    const { count: hoje, error: hojeError } = await admin
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", opcoes.organizationId)
+      .eq("direction", "outbound")
+      .in("status", ["sent", "delivered", "read"])
+      .contains("metadata", { campaign_id: campanhaId })
+      .not("sent_at", "is", null)
+      .gte("sent_at", inicioDoDia.toISOString());
+    const { count: hora, error: horaError } = await admin
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", opcoes.organizationId)
+      .eq("direction", "outbound")
+      .in("status", ["sent", "delivered", "read"])
+      .contains("metadata", { campaign_id: campanhaId })
+      .not("sent_at", "is", null)
+      .gte("sent_at", umaHoraAtras);
+    const { data: ultima, error: ultimaError } = await admin
+      .from("messages")
+      .select("sent_at")
+      .eq("organization_id", opcoes.organizationId)
+      .eq("direction", "outbound")
+      .in("status", ["sent", "delivered", "read"])
+      .contains("metadata", { campaign_id: campanhaId })
+      .not("sent_at", "is", null)
+      .order("sent_at", { ascending: false })
+      .limit(1);
+    if (hojeError || horaError || ultimaError) {
+      logger.warn("[campanha] leitura de contagem física falhou; bloqueando por segurança", {
+        campanhaId,
+        motivo: hojeError?.code ?? horaError?.code ?? ultimaError?.code ?? "query_failed",
+      });
+      return {
+        ultimoEnvio: null,
+        enviadasHoje: Number.MAX_SAFE_INTEGER,
+        enviadasNaUltimaHora: Number.MAX_SAFE_INTEGER,
+      };
+    }
+    const sentAt = (ultima ?? [])[0] as { sent_at: string } | undefined;
+    return {
+      ultimoEnvio: sentAt ? new Date(sentAt.sent_at) : null,
+      enviadasHoje: hoje ?? 0,
+      enviadasNaUltimaHora: hora ?? 0,
+    };
+  }
+
   const { data } = await admin
     .from("campaign_recipients")
     .select("sent_at")

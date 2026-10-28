@@ -49,6 +49,8 @@ export function EditarCampanha({ id }: { id: string }) {
   const [semInteracao, setSemInteracao] = useState("");
   const [limite, setLimite] = useState("100");
   const [texto, setTexto] = useState("");
+  const [dividirMensagem, setDividirMensagem] = useState(false);
+  const [tipoCanal, setTipoCanal] = useState<"whatsapp" | "telegram" | "email">("whatsapp");
   const [funil, setFunil] = useState("");
   const [etapa, setEtapa] = useState("");
   const [agente, setAgente] = useState("");
@@ -73,6 +75,8 @@ export function EditarCampanha({ id }: { id: string }) {
     setSemInteracao(f.sem_interacao_ha_dias == null ? "" : String(f.sem_interacao_ha_dias));
     setLimite(f.limite == null ? "100" : String(f.limite));
     setTexto(c.message_body ?? "");
+    setDividirMensagem(c.split_messages ?? false);
+    setTipoCanal(c.channel ?? "whatsapp");
     setFunil(c.pipeline_id ?? "");
     setEtapa(c.stage_id ?? "");
     setAgente(c.agent_id ?? "");
@@ -332,6 +336,22 @@ export function EditarCampanha({ id }: { id: string }) {
           onChange={(e) => setTexto(e.target.value)}
           aria-label={t("Texto da mensagem")}
         />
+        {tipoCanal === "whatsapp" && (
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={dividirMensagem}
+              onChange={(event) => setDividirMensagem(event.target.checked)}
+              className="mt-0.5 size-4 shrink-0"
+            />
+            <span>
+              <span className="font-medium">{t("Dividir a mensagem em balões, um por parágrafo")}</span>
+              <span className="block text-muted-foreground">
+                {t("Parágrafos separados por uma linha em branco. No máximo três mensagens por contato.")}
+              </span>
+            </span>
+          </label>
+        )}
         <ul className="space-y-1 text-sm text-muted-foreground">
           {VARIAVEIS_DA_CAMPANHA.map((v) => (
             <li key={v}>
@@ -359,6 +379,7 @@ export function EditarCampanha({ id }: { id: string }) {
               name: nome.trim(),
               channel_session_id: canal,
               message_body: texto.trim(),
+              split_messages: tipoCanal === "whatsapp" && dividirMensagem,
               base_legal: baseLegal,
               lia_ref: liaRef.trim() || null,
               audience_filter: filtro,

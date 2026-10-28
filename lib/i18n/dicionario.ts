@@ -13069,6 +13069,7 @@ export const DICIONARIO: Traducoes = {
   },
   "Contando…": { es: "Contando…" },
   "Contato do teste": { es: "Contacto de la prueba" },
+  "Dividir a mensagem em balões, um por parágrafo": { es: "Dividir el mensaje en burbujas, una por párrafo" },
   "contatos na lista": { es: "contactos en la lista" },
   "criada": { es: "creada" },
   "Em branco, vale o ritmo do número (Conexões › Proteção de envio). O que você puser aqui só pode deixar mais devagar.": {
@@ -13118,6 +13119,9 @@ export const DICIONARIO: Traducoes = {
   },
   "Nome da campanha": { es: "Nombre de la campaña" },
   "Nova campanha": { es: "Nueva campaña" },
+  "Parágrafos separados por uma linha em branco. No máximo três mensagens por contato.": {
+    es: "Párrafos separados por una línea en blanco. Máximo tres mensajes por contacto.",
+  },
   "Sem telefone no cadastro": { es: "Sin teléfono en el registro" },
   "Telefone fora do formato de envio": { es: "Teléfono con formato no válido para envío" },
   "Pediu para não receber mensagens": { es: "Pidió no recibir mensajes" },

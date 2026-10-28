@@ -40,6 +40,8 @@ import { requireSupportWrite } from "@/lib/impersonate/support";
 import { requireValidInstallationLicense } from "@/lib/licensing";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkFeatureQuota } from "@/lib/tenant/plan-limits";
+import { capabilitiesOf, DEFAULT_CHANNEL_PROVIDER } from "@/lib/channels/capabilities";
+import type { ChannelProvider } from "@/lib/channels/types";
 
 export const dynamic = "force-dynamic";
 
@@ -155,7 +157,20 @@ export async function POST(
       // O fuso é o do NÚMERO (channel_knobs), que é o mesmo que a janela de
       // envio usa — a saudação do teste tem de ser a que o destinatário veria.
       const knobs = await knobsDoCanal(admin, authz.org.orgId, campanha.channel_session_id);
-      desfecho = await testarAcao(admin, campanha, parsed.data.contact_id, agora, knobs.timezone);
+      const { data: canal } = await admin
+        .from("channel_sessions")
+        .select("provider")
+        .eq("organization_id", authz.org.orgId)
+        .eq("id", campanha.channel_session_id)
+        .maybeSingle();
+      const capabilities = capabilitiesOf(
+        ((canal as { provider?: string } | null)?.provider ?? DEFAULT_CHANNEL_PROVIDER) as ChannelProvider,
+      );
+      desfecho = await testarAcao(admin, campanha, parsed.data.contact_id, agora, knobs.timezone, {
+        throttleMs: knobs.throttleMs,
+        jitterMaxMs: knobs.jitterMaxMs,
+        minIntervalMs: capabilities.minIntervalMs ?? 0,
+      });
       acaoAuditada = "campaign.test_sent";
       break;
     }

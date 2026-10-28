@@ -52,6 +52,7 @@ export function NovaCampanha() {
   const [semInteracao, setSemInteracao] = useState("");
   const [limite, setLimite] = useState("100");
   const [texto, setTexto] = useState("");
+  const [dividirMensagem, setDividirMensagem] = useState(false);
   const [intervalo, setIntervalo] = useState("");
   const [janelaInicio, setJanelaInicio] = useState("");
   const [janelaFim, setJanelaFim] = useState("");
@@ -114,6 +115,7 @@ export function NovaCampanha() {
       email_subject: tipoCanal === "email" ? assuntoEmail.trim() : null,
       channel_session_id: canal,
       message_body: texto.trim(),
+      split_messages: tipoCanal === "whatsapp" && dividirMensagem,
       base_legal: baseLegal,
       lia_ref: liaRef.trim() || null,
       audience_filter: filtro,
@@ -528,6 +530,22 @@ export function NovaCampanha() {
           placeholder={t("Escreva como você falaria com uma pessoa só.")}
           aria-label={t("Texto da mensagem")}
         />
+        {tipoCanal === "whatsapp" && (
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={dividirMensagem}
+              onChange={(event) => setDividirMensagem(event.target.checked)}
+              className="mt-0.5 size-4 shrink-0"
+            />
+            <span>
+              <span className="font-medium">{t("Dividir a mensagem em balões, um por parágrafo")}</span>
+              <span className="block text-muted-foreground">
+                {t("Parágrafos separados por uma linha em branco. No máximo três mensagens por contato.")}
+              </span>
+            </span>
+          </label>
+        )}
         <div className="space-y-1 text-sm text-muted-foreground">
           <p>{t("Você pode usar:")}</p>
           <ul className="space-y-1">

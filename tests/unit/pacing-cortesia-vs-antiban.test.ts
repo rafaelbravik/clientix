@@ -52,4 +52,21 @@ describe('cortesia não é anti-ban', () => {
     const d = decidePacing(input({ now: COMERCIAL, sentToday: 999 }));
     expect(d.allow).toBe(false); // nenhum chamador existente muda de resultado
   });
+
+  it("respeita o piso mínimo do provider entre duas mensagens físicas", () => {
+    const d = decidePacing({
+      now: COMERCIAL,
+      knobs: { ...PACING_DEFAULTS, throttleMs: 1_200, jitterMaxMs: 0 },
+      state: {
+        lastSentAt: new Date(COMERCIAL.getTime() - 2_000),
+        sentToday: 0,
+        numberActivatedAt: null,
+      },
+      crmDailyLimit: null,
+      minimumIntervalMs: 6_000,
+      rng: () => 0,
+    });
+
+    expect(d).toEqual({ allow: true, waitMs: 4_000 });
+  });
 });

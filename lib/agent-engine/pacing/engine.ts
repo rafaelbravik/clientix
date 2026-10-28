@@ -41,6 +41,8 @@ export interface PacingInput {
    * Omitir = `true`: nenhum chamador existente muda de comportamento.
    */
   banRisk?: boolean;
+  /** Piso adicional imposto pelo provider para cada envio físico; nunca reduz `throttleMs`. */
+  minimumIntervalMs?: number;
   /**
    * Esta decisão é para a RESPOSTA do agente (o cliente escreveu e espera
    * resposta) ou para o DISPARO (envio em massa / retomada de conversa parada)?
@@ -119,7 +121,7 @@ export function decidePacing(input: PacingInput): PacingDecision {
 
   let waitMs = 0;
   if (state.lastSentAt) {
-    const requiredGapMs = knobs.throttleMs + jitterOf(rng, knobs);
+    const requiredGapMs = Math.max(knobs.throttleMs, input.minimumIntervalMs ?? 0) + jitterOf(rng, knobs);
     waitMs = Math.max(0, requiredGapMs - (now.getTime() - state.lastSentAt.getTime()));
   }
   return { allow: true, waitMs };

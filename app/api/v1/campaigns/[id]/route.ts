@@ -16,7 +16,7 @@ import { requireRole } from "@/lib/auth/require-role";
 import { carregarCampanha } from "@/lib/campanhas/acoes";
 import { ehEditavel, ehTerminal } from "@/lib/campanhas/maquina-de-estados";
 import { gravarPool, lerPoolExtra } from "@/lib/campanhas/pool-de-numeros";
-import { editarCampanhaSchema } from "@/lib/campanhas/schemas";
+import { editarCampanhaSchema, splitDeCampanhaCompativel } from "@/lib/campanhas/schemas";
 import { traduzir } from "@/lib/i18n/dicionario";
 import { requireSupportWrite } from "@/lib/impersonate/support";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -29,7 +29,7 @@ const COLUNAS =
   "audience_filter, audience_version, content_version, snapshot_total, snapshot_eligible, " +
   "snapshot_excluded, scheduled_at, prepared_at, started_at, paused_at, completed_at, " +
   "cancelled_at, failure_code, intervalo_segundos, janela_inicio_hora, janela_fim_hora, " +
-  "teto_diario, teto_horario, pipeline_id, stage_id, agent_id, created_at, created_by";
+  "teto_diario, teto_horario, pipeline_id, stage_id, agent_id, split_messages, created_at, created_by";
 
 export async function GET(
   _req: NextRequest,
@@ -87,6 +87,16 @@ export async function PATCH(
     return fail(carregada.codigo, t(carregada.mensagem), carregada.status, { requestId });
   }
   const campanha = carregada.campanha;
+  const canalFinal = entrada.channel ?? campanha.channel ?? "whatsapp";
+  const splitFinal = entrada.split_messages ?? campanha.split_messages ?? false;
+  if (!splitDeCampanhaCompativel(canalFinal, splitFinal)) {
+    return fail(
+      "validation_failed",
+      t("A divisão em balões só está disponível para campanhas de WhatsApp."),
+      422,
+      { requestId, details: { split_messages: [t("A divisão em balões só está disponível para campanhas de WhatsApp.")] } },
+    );
+  }
 
   // ═══ Duas classes de campo, duas permissões ═══
   //
@@ -146,6 +156,7 @@ export async function PATCH(
     "channel",
     "email_subject",
     "message_body",
+    "split_messages",
     "audience_filter",
     "intervalo_segundos",
     "janela_inicio_hora",
