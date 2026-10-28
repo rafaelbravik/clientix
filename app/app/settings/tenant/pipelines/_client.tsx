@@ -570,7 +570,7 @@ function PipelineEditor({
                 setFields(next);
               }}
             />
-            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-2 sm:col-span-2 xl:col-span-2 xl:grid-cols-[minmax(0,14rem)_auto]">
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2 sm:col-span-2 sm:grid-cols-[minmax(0,1fr)_auto] xl:col-span-2 xl:grid-cols-[minmax(0,14rem)_auto]">
               <Select
                 value={f.type}
                 onValueChange={(type) => {
@@ -599,6 +599,7 @@ function PipelineEditor({
                 variant="ghost"
                 size="sm"
                 aria-label={`${t("Remover campo")} ${f.label || i + 1}`}
+                className="justify-self-end"
                 onClick={() => setFields(fields.filter((_, j) => j !== i))}
               >
                 <Trash size={14} aria-hidden />

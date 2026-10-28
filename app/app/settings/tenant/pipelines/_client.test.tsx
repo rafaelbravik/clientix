@@ -110,8 +110,13 @@ describe("um campo multiselect já gravado", () => {
     expect(linha?.className).not.toContain("md:grid-cols-[1fr_1fr_8rem_auto]");
 
     const seletorRow = seletor.closest("div.grid");
+    expect(seletorRow?.className).toContain("grid-cols-[minmax(0,1fr)]");
     expect(seletorRow?.className).toContain("sm:col-span-2");
+    expect(seletorRow?.className).toContain("sm:grid-cols-[minmax(0,1fr)_auto]");
     expect(seletorRow?.className).toContain("xl:grid-cols-[minmax(0,14rem)_auto]");
+
+    const remover = screen.getByRole("button", { name: /Remover campo/i });
+    expect(remover.className).toContain("justify-self-end");
   });
 
   it("salva o identificador do schema, não o rótulo traduzido", async () => {
