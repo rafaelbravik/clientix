@@ -57,7 +57,7 @@ export function ConversationTagsEditor({ conversationId, orgId, tags }: Props) {
                 onClick={() => remove(tag)}
                 disabled={mutation.isPending}
                 aria-label={`${t("Remover tag")} ${tag}`}
-                className="rounded-sm hover:text-destructive"
+                className="-m-2 inline-flex size-11 items-center justify-center rounded-sm hover:text-destructive lg:m-0 lg:size-auto"
               >
                 <X size={10} weight="bold" aria-hidden />
               </button>
@@ -81,13 +81,13 @@ export function ConversationTagsEditor({ conversationId, orgId, tags }: Props) {
           placeholder={t("Nova tag…")}
           maxLength={40}
           disabled={mutation.isPending || tags.length >= 20}
-          className="h-7 text-xs"
+          className="h-11 text-xs lg:h-7"
           aria-label={t("Adicionar tag à conversa")}
         />
         <Button
           size="sm"
           variant="outline"
-          className="h-7 px-2"
+          className="h-11 min-w-11 px-2 lg:h-7 lg:min-w-0"
           onClick={() => add(draft)}
           disabled={mutation.isPending || !draft.trim() || tags.length >= 20}
           aria-label={t("Adicionar tag")}
@@ -104,7 +104,7 @@ export function ConversationTagsEditor({ conversationId, orgId, tags }: Props) {
               type="button"
               onClick={() => add(tag)}
               disabled={mutation.isPending || tags.length >= 20}
-              className="inline-flex items-center gap-1 rounded-full border border-dashed border-border px-2 py-0.5 text-[10px] text-muted-foreground hover:border-solid hover:text-foreground disabled:opacity-50"
+              className="inline-flex min-h-11 items-center gap-1 rounded-full border border-dashed border-border px-3 py-2 text-xs text-muted-foreground hover:border-solid hover:text-foreground disabled:opacity-50 lg:min-h-0 lg:px-2 lg:py-0.5 lg:text-[10px]"
             >
               <PontoDaEtiqueta tag={tag} />
               + {tag}

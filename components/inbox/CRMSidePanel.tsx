@@ -202,7 +202,7 @@ function MarcarProximoPasso({ demandaId, onPronto }: { demandaId: string; onPron
       <Button
         size="sm"
         variant="outline"
-        className="mt-1.5 h-7 text-xs"
+        className="mt-1.5 h-11 text-xs lg:h-7"
         data-testid="marcar-proximo-passo"
         onClick={() => setAberto(true)}
       >
@@ -225,12 +225,12 @@ function MarcarProximoPasso({ demandaId, onPronto }: { demandaId: string; onPron
         placeholder={t("O que acontece a seguir?")}
         aria-label={t("Próximo passo desta demanda")}
         data-testid="campo-proximo-passo"
-        className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-hidden focus:ring-1 focus:ring-ring"
+        className="h-11 w-full rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-hidden focus:ring-1 focus:ring-ring lg:h-7"
       />
       <div className="flex gap-1.5">
         <Button
           size="sm"
-          className="h-7 text-xs"
+          className="h-11 text-xs lg:h-7"
           disabled={salvando || texto.trim().length < 3}
           data-testid="salvar-proximo-passo"
           onClick={() => void salvar()}
@@ -240,7 +240,7 @@ function MarcarProximoPasso({ demandaId, onPronto }: { demandaId: string; onPron
         <Button
           size="sm"
           variant="ghost"
-          className="h-7 text-xs"
+          className="h-11 text-xs lg:h-7"
           onClick={() => setAberto(false)}
         >
           {t("Cancelar")}
@@ -446,7 +446,7 @@ function EtapaDoNegocio({ lead, onMovido }: { lead: LeadRow; onMovido: () => voi
         {t("Etapa do funil")}
       </label>
       <Select value={lead.stage_id} onValueChange={(v) => void escolher(v)} disabled={mover.isPending}>
-        <SelectTrigger id={`etapa-${lead.id}`} className="h-8 w-full text-xs" data-testid="inbox-etapa-select">
+        <SelectTrigger id={`etapa-${lead.id}`} className="h-11 w-full text-xs lg:h-8" data-testid="inbox-etapa-select">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -503,7 +503,7 @@ function CamposDoFunil({
       />
       <Button
         size="sm"
-        className="h-7 w-full text-xs"
+        className="h-11 w-full text-xs lg:h-7"
         disabled={edit.isPending}
         onClick={() => void salvar()}
       >
@@ -686,7 +686,7 @@ export function CRMSidePanel({ conversation }: Props) {
             <Button
               size="sm"
               variant="outline"
-              className="h-7 px-2 text-xs"
+              className="h-11 px-3 text-xs lg:h-7 lg:px-2"
               disabled={readonly || !contactId}
               aria-pressed={tagEditorOpen}
               onClick={() => setTagEditorOpen((v) => !v)}
@@ -696,7 +696,7 @@ export function CRMSidePanel({ conversation }: Props) {
             <Button
               size="sm"
               variant="outline"
-              className="h-7 px-2 text-xs"
+              className="h-11 px-3 text-xs lg:h-7 lg:px-2"
               disabled={readonly || !contactId || (leadDialogOpen && defaultPipeline.isLoading)}
               onClick={() => setLeadDialogOpen(true)}
             >
@@ -704,7 +704,7 @@ export function CRMSidePanel({ conversation }: Props) {
               {leadDialogOpen && defaultPipeline.isLoading ? t("Carregando…") : t("Novo Lead")}
             </Button>
             {contactId && (
-              <Button asChild size="sm" variant="ghost" className="h-7 px-2 text-xs">
+              <Button asChild size="sm" variant="ghost" className="h-11 px-3 text-xs lg:h-7 lg:px-2">
                 <Link href={`/app/contacts/${contactId}`}>
                   {t("Ver contato")}
                   <ArrowRight size={12} className="ml-1" weight="regular" aria-hidden />

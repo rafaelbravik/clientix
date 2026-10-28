@@ -315,7 +315,7 @@ export function PainelDeTags({ tags, idioma }: { tags: LinhaDeVocabulario[]; idi
               <Label htmlFor="destino-da-juncao">{t("Etiqueta de destino")}</Label>
               <select
                 id="destino-da-juncao"
-                className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                className="h-11 rounded-md border border-input bg-background px-2 text-sm lg:h-9"
                 value={destino}
                 onChange={(evento) => setDestino(evento.target.value)}
               >
@@ -343,7 +343,7 @@ export function PainelDeTags({ tags, idioma }: { tags: LinhaDeVocabulario[]; idi
                     aria-label={t(NOME_DO_TOM[tom] ?? tom)}
                     title={tom}
                     className={cn(
-                      "size-7 rounded-full border-2 transition-transform",
+                      "size-11 rounded-full border-2 transition-transform lg:size-7",
                       cor === tom
                         ? "border-foreground ring-2 ring-ring ring-offset-1 ring-offset-background"
                         : "border-transparent hover:scale-110",
@@ -355,6 +355,7 @@ export function PainelDeTags({ tags, idioma }: { tags: LinhaDeVocabulario[]; idi
                   type="button"
                   size="sm"
                   variant={cor === null ? "default" : "outline"}
+                  className="h-11 lg:h-9"
                   aria-pressed={cor === null}
                   onClick={() => setCor(null)}
                 >
@@ -384,12 +385,13 @@ export function PainelDeTags({ tags, idioma }: { tags: LinhaDeVocabulario[]; idi
           <div className="flex gap-2">
             <Button
               onClick={enviar}
+              className="h-11 lg:h-9"
               disabled={ocupado || (acao !== "excluir" && acao !== "definir_cor" && destino.trim().length === 0)}
               variant={acao === "excluir" ? "destructive" : "default"}
             >
               {ocupado ? t("Aplicando...") : t("Confirmar")}
             </Button>
-            <Button variant="ghost" onClick={() => setAlvo(null)} disabled={ocupado}>
+            <Button className="h-11 lg:h-9" variant="ghost" onClick={() => setAlvo(null)} disabled={ocupado}>
               {t("Cancelar")}
             </Button>
           </div>
