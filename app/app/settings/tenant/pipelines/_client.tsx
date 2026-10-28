@@ -59,6 +59,20 @@ export interface PipelineRow {
  */
 export const TIPOS_DE_CAMPO = customFieldSchema.shape.type.options;
 
+const ROTULOS_DOS_TIPOS_DE_CAMPO: Record<CustomFieldDef["type"], string> = {
+  text: "Texto",
+  textarea: "Texto longo",
+  number: "Número",
+  date: "Data",
+  select: "Lista de seleção",
+  multiselect: "Lista de várias escolhas",
+  boolean: "Sim/não",
+  email: "E-mail",
+  phone: "Telefone",
+  url: "Endereço da web",
+  file: "Arquivo",
+};
+
 /** Tipos cujo valor sai de uma lista fechada — são os que mostram o campo de opções. */
 export function tipoTemOpcoes(tipo: CustomFieldDef["type"]): boolean {
   return tipo === "select" || tipo === "multiselect";
@@ -532,7 +546,10 @@ function PipelineEditor({
           {t("Aparecem no dossiê do negócio. No follow-up, você escolhe em qual campo gravar a resposta.")}
         </p>
         {fields.map((f, i) => (
-          <div key={`${f.key}-${i}`} className="grid gap-2 rounded-md border border-border p-2 md:grid-cols-[1fr_1fr_8rem_auto]">
+          <div
+            key={`${f.key}-${i}`}
+            className="grid gap-2 rounded-md border border-border p-2 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_14rem_auto]"
+          >
             <Input
               aria-label={`${t("Chave do campo")} ${i + 1}`}
               placeholder={t("chave (endereco)")}
@@ -562,13 +579,16 @@ function PipelineEditor({
                 setFields(next);
               }}
             >
-              <SelectTrigger aria-label={`${t("Tipo do campo")} ${i + 1}`}>
+              <SelectTrigger
+                aria-label={`${t("Tipo do campo")} ${i + 1}`}
+                title={t(ROTULOS_DOS_TIPOS_DE_CAMPO[f.type])}
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {TIPOS_DE_CAMPO.map((tipo) => (
                   <SelectItem key={tipo} value={tipo}>
-                    {tipo}
+                    {t(ROTULOS_DOS_TIPOS_DE_CAMPO[tipo])}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -584,7 +604,7 @@ function PipelineEditor({
             </Button>
             {tipoTemOpcoes(f.type) && (
               <Input
-                className="md:col-span-3"
+                className="sm:col-span-2 xl:col-span-3"
                 aria-label={`${t("Opções do campo")} ${i + 1}`}
                 placeholder={t("Opções, separadas por vírgula")}
                 value={(f.options ?? []).map((o) => o.label).join(", ")}
@@ -612,7 +632,7 @@ function PipelineEditor({
               />
             )}
             {f.type === "file" && (
-              <label className="flex items-center gap-2 text-xs md:col-span-4">
+              <label className="flex items-center gap-2 text-xs sm:col-span-2 xl:col-span-4">
                 <input
                   type="checkbox"
                   aria-label={`${t("Permitir vários arquivos")} — ${f.label || i + 1}`}
@@ -632,7 +652,7 @@ function PipelineEditor({
                 marcas são as que `campoExigidoNoDestino` lê — etapas de
                 entrada, `ao_ganhar` e `ao_perder` — e nada mais, para a tela
                 não prometer gatilho que o servidor não pergunta. */}
-            <div className="space-y-1 md:col-span-4">
+            <div className="space-y-1 sm:col-span-2 xl:col-span-4">
               <p className="text-xs font-medium">{t("Exigir o preenchimento:")}</p>
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
                 {etapas.map((e) => (

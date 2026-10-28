@@ -9385,6 +9385,11 @@ export const DICIONARIO: Traducoes = {
   "Remover campo": { es: "Quitar campo" },
   "Rótulo do campo": { es: "Etiqueta del campo" },
   "Tipo do campo": { es: "Tipo del campo" },
+  "Endereço da web": { es: "Dirección web" },
+  "Lista de seleção": { es: "Lista de selección" },
+  "Lista de várias escolhas": { es: "Lista de varias opciones" },
+  "Sim/não": { es: "Sí/no" },
+  "Texto longo": { es: "Texto largo" },
   "chave (endereco)": { es: "clave (direccion)" },
   "e a conversa associada, se houver. Esta ação não pode ser desfeita.": {
     es: "y la conversación asociada, si la hay. Esta acción no se puede deshacer.",

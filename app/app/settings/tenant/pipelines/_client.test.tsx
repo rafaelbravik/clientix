@@ -97,13 +97,27 @@ describe("tipos de campo que a tela do funil oferece", () => {
 });
 
 describe("um campo multiselect já gravado", () => {
-  it("abre com o tipo à mostra, e não com o seletor em branco", () => {
+  it("abre com rótulo legível e completo, sem trocar o valor técnico", () => {
     render(<PipelinesClient pipelines={[FUNIL]} podeEditarConfig />);
 
     const seletor = screen.getByLabelText(/Tipo do campo 1/i);
-    // O texto do gatilho do Radix é o rótulo do item casado. Vazio = nenhum
-    // `SelectItem` bateu com o `value`, que é exatamente o defeito.
-    expect(seletor.textContent?.trim()).toBe("multiselect");
+    expect(seletor.textContent?.trim()).toBe("Lista de várias escolhas");
+    expect(seletor).toHaveAttribute("title", "Lista de várias escolhas");
+
+    const linha = seletor.closest("div.grid");
+    expect(linha?.className).toContain("sm:grid-cols-2");
+    expect(linha?.className).toContain("xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_14rem_auto]");
+    expect(linha?.className).not.toContain("md:grid-cols-[1fr_1fr_8rem_auto]");
+  });
+
+  it("salva o identificador do schema, não o rótulo traduzido", async () => {
+    vi.mocked(updatePipelineConfig).mockClear();
+    render(<PipelinesClient pipelines={[FUNIL]} podeEditarConfig />);
+    fireEvent.click(screen.getByRole("button", { name: /Salvar vocabulário e campos/i }));
+
+    await vi.waitFor(() => expect(updatePipelineConfig).toHaveBeenCalledTimes(1));
+    const patch = vi.mocked(updatePipelineConfig).mock.calls[0]?.[1];
+    expect(patch?.fields?.[0]?.type).toBe("multiselect");
   });
 
   it("deixa editar as opções — sem isso o campo fica só de leitura", () => {
