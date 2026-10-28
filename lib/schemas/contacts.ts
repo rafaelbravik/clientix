@@ -160,6 +160,9 @@ export const contactListQuerySchema = z.object({
    */
   modo: z.enum(MODOS_DE_ETIQUETA).optional(),
   source: z.string().optional(),
+  /** `is_blocked` é o pedido explícito de não ser incomodado; consentimento,
+   * supressão de campanha e anonimização continuam sendo conceitos separados. */
+  blocked: z.enum(["yes", "no"]).optional(),
   cursor: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
   order_by: z.enum(CONTACT_ORDER_BY).default("last_activity_at"),

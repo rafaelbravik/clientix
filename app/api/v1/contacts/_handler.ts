@@ -230,6 +230,7 @@ export async function listContactsHandler(
     query = query.contains("tags", q.tag);
   }
   if (q.source) query = query.eq("source", q.source);
+  if (q.blocked !== undefined) query = query.eq("is_blocked", q.blocked === "yes");
 
   if (q.cursor) {
     const c = decodeCursor(q.cursor);

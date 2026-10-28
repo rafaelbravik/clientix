@@ -10,16 +10,20 @@ const ORG = "11111111-1111-4111-8111-111111111111";
 interface Captura {
   orders: Array<{ col: string; asc: boolean }>;
   orFilters: string[];
+  eqFilters: Array<{ col: string; val: unknown }>;
   isFilters: Array<{ col: string }>;
   ltGt: Array<{ col: string; op: string; val: string }>;
 }
 
 function supabaseEspiao() {
-  const cap: Captura = { orders: [], orFilters: [], isFilters: [], ltGt: [] };
+  const cap: Captura = { orders: [], orFilters: [], eqFilters: [], isFilters: [], ltGt: [] };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const chain: any = {
     select: () => chain,
-    eq: () => chain,
+    eq: (col: string, val: unknown) => {
+      cap.eqFilters.push({ col, val });
+      return chain;
+    },
     order: (col: string, opts?: { ascending?: boolean }) => {
       cap.orders.push({ col, asc: opts?.ascending ?? true });
       return chain;
@@ -52,6 +56,29 @@ function encodeCursor(sort: string | null, id: string): string {
 }
 
 describe("lista de contatos — ordenação e cursor", () => {
+  it.each([
+    ["yes", true],
+    ["no", false],
+  ] as const)("blocked=%s filtra pelo campo is_blocked canônico", async (blocked, expected) => {
+    const { client, cap } = supabaseEspiao();
+    await listContactsHandler(
+      client,
+      { organization_id: ORG, actor: { type: "user", id: "u-1" }, requestId: "req" },
+      { blocked, limit: 25 },
+    );
+    expect(cap.eqFilters).toContainEqual({ col: "is_blocked", val: expected });
+  });
+
+  it("sem blocked mantém a listagem sem filtro de bloqueio", async () => {
+    const { client, cap } = supabaseEspiao();
+    await listContactsHandler(
+      client,
+      { organization_id: ORG, actor: { type: "user", id: "u-1" }, requestId: "req" },
+      { limit: 25 },
+    );
+    expect(cap.eqFilters.some((f) => f.col === "is_blocked")).toBe(false);
+  });
+
   it("ordena pela coluna pedida + id como desempate", async () => {
     const { client, cap } = supabaseEspiao();
     await listContactsHandler(

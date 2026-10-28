@@ -141,6 +141,12 @@ describe("contactListQuerySchema", () => {
     expect(r.order_by).toBe("display_name");
     expect(r.order_dir).toBe("asc");
   });
+  it("aceita blocked=yes|no, omite o filtro por padrão e recusa aliases booleanos", () => {
+    expect(contactListQuerySchema.parse({}).blocked).toBeUndefined();
+    expect(contactListQuerySchema.parse({ blocked: "yes" }).blocked).toBe("yes");
+    expect(contactListQuerySchema.parse({ blocked: "no" }).blocked).toBe("no");
+    expect(contactListQuerySchema.safeParse({ blocked: "true" }).success).toBe(false);
+  });
 });
 
 describe("lgpdAnonymizeSchema", () => {

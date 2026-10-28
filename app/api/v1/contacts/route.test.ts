@@ -86,6 +86,24 @@ describe("GET /api/v1/contacts — sessão de navegador", () => {
     });
   });
 
+  it.each(["yes", "no"] as const)("sessão encaminha blocked=%s ao handler", async (blocked) => {
+    sessaoOk();
+    const { GET } = await import("./route");
+    const res = await GET(req(`http://localhost/api/v1/contacts?blocked=${blocked}`));
+
+    expect(res.status).toBe(200);
+    expect(vi.mocked(listContactsHandler).mock.calls[0]?.[2]).toMatchObject({ blocked });
+  });
+
+  it("valor de blocked fora de yes|no é recusado com 422 antes do handler", async () => {
+    sessaoOk();
+    const { GET } = await import("./route");
+    const res = await GET(req("http://localhost/api/v1/contacts?blocked=true"));
+
+    expect(res.status).toBe(422);
+    expect(listContactsHandler).not.toHaveBeenCalled();
+  });
+
   it("sem sessão e sem Bearer → 401, repassa a resposta de requireRole", async () => {
     vi.mocked(requireRole).mockResolvedValue({
       ok: false,
@@ -122,6 +140,18 @@ describe("GET /api/v1/contacts — Bearer (integrações externas)", () => {
       organization_id: ORG_ID,
       actor: { type: "ai_agent", api_token_id: "tok-1" },
     });
+  });
+
+  it.each(["yes", "no"] as const)("Bearer encaminha blocked=%s ao handler da organização do token", async (blocked) => {
+    tokenOk({ organizationId: ORG_ID });
+    const { GET } = await import("./route");
+    const res = await GET(
+      req(`http://localhost/api/v1/contacts?blocked=${blocked}`, { authorization: "Bearer dsk_abc_def" }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(vi.mocked(listContactsHandler).mock.calls[0]?.[1]).toMatchObject({ organization_id: ORG_ID });
+    expect(vi.mocked(listContactsHandler).mock.calls[0]?.[2]).toMatchObject({ blocked });
   });
 
   it("Bearer inválido/revogado → 401, nenhuma chamada ao handler", async () => {
