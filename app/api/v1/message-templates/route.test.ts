@@ -171,7 +171,18 @@ describe("POST /api/v1/message-templates — idempotência", () => {
 
     expect(resposta.status).toBe(201);
     expect(db.templates).toHaveLength(1);
+    expect(db.templates[0]?.mostrar_na_barra).toBe(true);
     expect(db.recibos).toHaveLength(0);
+  });
+
+  it("persiste quando a resposta rápida é ocultada somente da barra", async () => {
+    const db = banco();
+
+    const resposta = await POST(req({ ...CORPO, mostrar_na_barra: false }));
+
+    expect(resposta.status).toBe(201);
+    expect(db.templates[0]?.mostrar_na_barra).toBe(false);
+    expect((await resposta.json()).data.mostrar_na_barra).toBe(false);
   });
 
   it("(4) chave que não é UUID: 400 antes de qualquer efeito, e sem recibo", async () => {

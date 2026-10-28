@@ -48817,3 +48817,9 @@ create index if not exists idx_crm_leads_org_pipeline_position_id
   on public.crm_leads (organization_id, pipeline_id, position_in_stage, id);
 comment on index public.idx_crm_leads_org_pipeline_position_id is
   'Página da aba Lista do funil (#3172): (organization_id, pipeline_id) por igualdade e (position_in_stage, id) na ordem da consulta. `id` é o desempate que torna a paginação determinística quando dois negócios têm a mesma position_in_stage.';
+
+-- ---- 0524 — visibilidade das respostas rápidas na barra do Inbox ----
+alter table public.message_templates
+  add column if not exists mostrar_na_barra boolean not null default true;
+comment on column public.message_templates.mostrar_na_barra is
+  'Exibe o template na barra de respostas rápidas do Inbox. O menu / continua incluindo todos os templates permitidos.';

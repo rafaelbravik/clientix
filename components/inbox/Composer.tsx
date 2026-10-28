@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { AttachMenu } from "@/components/inbox/composer/AttachMenu";
 import { AttachmentPreviewDialog } from "@/components/inbox/composer/AttachmentPreviewDialog";
 import { ContactPickerDialog } from "@/components/inbox/composer/ContactPickerDialog";
+import { QuickRepliesBar } from "@/components/inbox/composer/QuickRepliesBar";
 import { AudioRecorder } from "@/components/inbox/composer/AudioRecorder";
 import { ReplyReviewPanel } from "@/components/inbox/composer/ReplyReviewPanel";
 import { EmojiButton } from "@/components/inbox/composer/EmojiButton";
@@ -61,6 +62,7 @@ function avisoDeRascunhoIndisponivel(motivo: MotivoDeRecusa, t: (texto: string) 
 
 interface Props {
   conversationId: string;
+  userId?: string | null;
   initialDraft?: string;
   initialMode?: "reply" | "note";
   onDraftChange?: (text: string, mode: "reply" | "note") => void;
@@ -104,6 +106,7 @@ interface Props {
 export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
   {
     conversationId,
+    userId = null,
     initialDraft = "",
     initialMode = "reply",
     active = true,
@@ -308,6 +311,14 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
       >
         {mode === "reply" && (
           <ReplyReviewPanel conversationId={conversationId} disabled={isDisabled} />
+        )}
+        {mode === "reply" && (
+          <QuickRepliesBar
+            userId={userId}
+            templates={templates.data ?? []}
+            disabled={respostaBarrada}
+            onPick={applyTemplate}
+          />
         )}
         <TemplateMenu
           open={menuOpen}

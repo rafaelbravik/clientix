@@ -17,6 +17,7 @@ import { NODE_VISUALS } from "./nodes/nodeVisuals";
 vi.mock("@/hooks/auth/AuthProvider", () => ({
   usePermission: () => false,
 }));
+vi.mock("@/hooks/inbox/useMessageTemplates", () => ({ useMessageTemplates: () => ({ data: [] }) }));
 // A lista de atribuição vem de uma rota; aqui o formulário só precisa de um
 // nome para mostrar — e jsdom não tem servidor.
 vi.mock("@/hooks/inbox/useAssignableMembers", () => ({

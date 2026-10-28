@@ -18,11 +18,17 @@ describe("TemplateMenu", () => {
   const templates = [
     { id: "1", title: "Saudação", body: "Oi {{primeiro_nome}}", shortcut: "oi" },
     { id: "2", title: "Fechamento", body: "Fechado!", shortcut: "fech" },
+    { id: "3", title: "Resposta fora da barra", body: "Continua disponível", shortcut: null, mostrar_na_barra: false },
   ];
   it("filtra por título/shortcut e devolve o escolhido", () => {
     const onPick = vi.fn();
     render(<TemplateMenu open query="fech" templates={templates as never} onPick={onPick} onClose={() => {}} />);
     fireEvent.click(screen.getByText("Fechamento"));
     expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ id: "2" }));
+  });
+
+  it("mantém no menu / as respostas ocultas da barra do composer", () => {
+    render(<TemplateMenu open query="" templates={templates as never} onPick={() => {}} onClose={() => {}} />);
+    expect(screen.getByText("Resposta fora da barra")).toBeInTheDocument();
   });
 });

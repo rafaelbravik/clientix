@@ -17,6 +17,7 @@ vi.mock("@/hooks/inbox/useUploadMedia", () => ({
 vi.mock("@/hooks/inbox/useSendMessage", () => ({
   useSendMessage: () => ({ mutate: sendMock, isPending: false }),
 }));
+vi.mock("@/hooks/inbox/useMessageTemplates", () => ({ useMessageTemplates: () => ({ data: [] }) }));
 
 import { Composer } from "@/components/inbox/Composer";
 

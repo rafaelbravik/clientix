@@ -36,6 +36,7 @@ interface CreateInput {
   body: string;
   shortcut?: string;
   shared?: boolean;
+  mostrar_na_barra: boolean;
 }
 
 interface UpdateInput {
@@ -43,6 +44,7 @@ interface UpdateInput {
   title: string;
   body: string;
   shortcut: string | null;
+  mostrar_na_barra: boolean;
 }
 
 export function TemplateFormDialog({ open, onOpenChange, canShare, template }: Props) {
@@ -52,6 +54,7 @@ export function TemplateFormDialog({ open, onOpenChange, canShare, template }: P
   const [body, setBody] = React.useState("");
   const [shortcut, setShortcut] = React.useState("");
   const [shared, setShared] = React.useState(false);
+  const [mostrarNaBarra, setMostrarNaBarra] = React.useState(true);
 
   const qc = useQueryClient();
   const create = useMutation({
@@ -74,6 +77,7 @@ export function TemplateFormDialog({ open, onOpenChange, canShare, template }: P
     setBody(template?.body ?? "");
     setShortcut(template?.shortcut ?? "");
     setShared(template ? template.owner_user_id === null : false);
+    setMostrarNaBarra(template?.mostrar_na_barra !== false);
   }, [open, template]);
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -85,6 +89,7 @@ export function TemplateFormDialog({ open, onOpenChange, canShare, template }: P
           title,
           body,
           shortcut: shortcut.trim() || null,
+          mostrar_na_barra: mostrarNaBarra,
         });
         toast.success(t("Template atualizado."));
       } else {
@@ -93,6 +98,7 @@ export function TemplateFormDialog({ open, onOpenChange, canShare, template }: P
           body,
           shortcut: shortcut.trim() || undefined,
           shared: canShare ? shared : false,
+          mostrar_na_barra: mostrarNaBarra,
         });
         toast.success(t("Template criado."));
       }
@@ -149,6 +155,20 @@ export function TemplateFormDialog({ open, onOpenChange, canShare, template }: P
               placeholder="oi"
               maxLength={40}
             />
+          </div>
+          <div className="flex items-start gap-2">
+            <Switch
+              id="tpl-mostrar-na-barra"
+              checked={mostrarNaBarra}
+              onCheckedChange={setMostrarNaBarra}
+              disabled={pending}
+            />
+            <div className="space-y-1">
+              <Label htmlFor="tpl-mostrar-na-barra">{t("Mostrar na barra do Inbox")}</Label>
+              <p className="text-xs text-muted-foreground">
+                {t("Mesmo oculto, continua disponível ao digitar /.")}
+              </p>
+            </div>
           </div>
           {canShare && (
             <div className="flex items-center gap-2">

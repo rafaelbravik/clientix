@@ -31,6 +31,7 @@ vi.mock("@/hooks/inbox/useSendMessage", () => ({
 vi.mock("@/hooks/inbox/useCreateNote", () => ({
   useCreateNote: () => ({ mutate: createNoteMock, isPending: false }),
 }));
+vi.mock("@/hooks/inbox/useMessageTemplates", () => ({ useMessageTemplates: () => ({ data: [] }) }));
 
 import { Composer } from "@/components/inbox/Composer";
 import { imagemDoClipboard } from "@/lib/inbox/clipboard-image";

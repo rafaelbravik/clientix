@@ -78,8 +78,9 @@ describe("signed installer compatibility contract", () => {
     const knowledgeSourceAtomicMigration = schemaManifest.migrations.find((entry) => entry.sequence === 520);
     const caseWaitRemindersMigration = schemaManifest.migrations.find((entry) => entry.sequence === 522);
     const pipelineListMigration = schemaManifest.migrations.find((entry) => entry.sequence === 523);
-    expect(schemaManifest.schema_target).toBe("0523");
-    expect(schemaManifest.baseline.incorporated_through_sequence).toBe(523);
+    const quickRepliesBarMigration = schemaManifest.migrations.find((entry) => entry.sequence === 524);
+    expect(schemaManifest.schema_target).toBe("0524");
+    expect(schemaManifest.baseline.incorporated_through_sequence).toBe(524);
     expect(webchatMigration).toMatchObject({
       file: "20261010120000_0511_webchat_widget_bootstrap.sql",
       version: "20261010120000",
@@ -140,6 +141,12 @@ describe("signed installer compatibility contract", () => {
       version: "20261027171000",
       sequence: 523,
       slug: "pipeline_list_page_index",
+    });
+    expect(quickRepliesBarMigration).toMatchObject({
+      file: "20261027210000_0524_message_template_inbox_bar.sql",
+      version: "20261027210000",
+      sequence: 524,
+      slug: "message_template_inbox_bar",
     });
 
     const baseline510Checksum = "a".repeat(64);
@@ -230,6 +237,15 @@ describe("signed installer compatibility contract", () => {
         { version: pipelineListMigration.version, checksum: pipelineListMigration.checksum },
       ],
     }, schemaManifest)).toMatchObject({ valid: true, currentSchema: "0523" });
+    expect(deriveCurrentSchema({
+      ...trackedState,
+      applied: [...trackedState.applied, ...migrationsThrough519,
+        { version: knowledgeSourceAtomicMigration.version, checksum: knowledgeSourceAtomicMigration.checksum },
+        { version: caseWaitRemindersMigration.version, checksum: caseWaitRemindersMigration.checksum },
+        { version: pipelineListMigration.version, checksum: pipelineListMigration.checksum },
+        { version: quickRepliesBarMigration.version, checksum: quickRepliesBarMigration.checksum },
+      ],
+    }, schemaManifest)).toMatchObject({ valid: true, currentSchema: "0524" });
     expect(deriveCurrentSchema({ type: "FRESH_DATABASE" }, schemaManifest)).toMatchObject({ valid: true, currentSchema: null });
     expect(deriveCurrentSchema({ type: "EXISTING_UNTRACKED_INSTALLATION" }, schemaManifest).valid).toBe(false);
     expect(deriveCurrentSchema({ type: "TRACKED_INSTALLATION", applied: [] }, schemaManifest).valid).toBe(false);
