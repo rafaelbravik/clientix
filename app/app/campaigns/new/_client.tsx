@@ -86,10 +86,8 @@ export function NovaCampanha() {
       funis: funilDoPublico ? [funilDoPublico] : [],
       etapas: etapaDoPublico ? [etapaDoPublico] : [],
       limite: Number(limite) || 100,
-      origem: origemPublico,
-      csv_leads: origemPublico === "csv" ? csvContacts : undefined,
     }),
-    [comAlgumaTag, semTags, semInteracao, funilDoPublico, etapaDoPublico, limite, origemPublico, csvContacts],
+    [comAlgumaTag, semTags, semInteracao, funilDoPublico, etapaDoPublico, limite],
   );
 
   const temCriterio =
