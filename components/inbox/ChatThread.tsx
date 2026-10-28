@@ -12,6 +12,7 @@ import { MessageBubble } from "./MessageBubble";
 import { NoteCard } from "./NoteCard";
 import { PassagemCard } from "./PassagemCard";
 import { useMessagesRealtime } from "@/hooks/inbox/useMessagesRealtime";
+import { useThreadAutoScroll } from "@/hooks/inbox/useThreadAutoScroll";
 import { useConversationNotes } from "@/hooks/inbox/useConversationNotes";
 import { usePassagensDaConversa } from "@/hooks/inbox/usePassagensDaConversa";
 import { useClaimConversation } from "@/hooks/inbox/useClaimConversation";
@@ -97,15 +98,7 @@ export function ChatThread({
   const claim = useClaimConversation();
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
-  const paginasVistas = useRef(0);
-  /**
-   * Esta conversa já ancorou no fim ALGUMA vez, com conteúdo na tela?
-   *
-   * Enquanto for `false`, a abertura ainda não terminou — e a guarda de
-   * distância (que existe para não arrancar quem está lendo o histórico) não
-   * pode valer, porque ninguém rolou nada ainda. Ver o efeito abaixo.
-   */
-  const jaAncorou = useRef(false);
+  const contentRef = useRef<HTMLDivElement | null>(null);
   const activeOrg = useActiveOrg();
   const currentUser = useUser();
   const deleteNote = useDeleteNote(conversationId ?? "");
@@ -176,70 +169,29 @@ export function ChatThread({
   );
 
   const paginas = q.data?.pages.length ?? 0;
-
-  // Conversa nova: a contagem de páginas recomeça, senão a primeira carga da
-  // próxima conversa seria confundida com um "carregar mais antigas".
-  useEffect(() => {
-    paginasVistas.current = 0;
-    jaAncorou.current = false;
-  }, [conversationId]);
-
-  // Rola ao fim na primeira carga e quando chega mensagem/nota nova — mas NÃO
-  // quando o crescimento veio do "Carregar mais antigas".
-  //
-  // A thread pagina para o PASSADO: cada `fetchNextPage` traz mensagens mais
-  // antigas, que entram ACIMA das que já estão na tela. Rolar ao fim aqui
-  // devolveria o usuário ao rodapé no instante em que ele pediu para subir —
-  // o clique parece não ter efeito, embora tenha carregado (medido: thread vai
-  // de msg#15..#64 para msg#1..#64 e a viewport volta a 7px do fim).
-  //
-  // A segunda guarda cobre o outro caso: se o usuário rolou para ler o
-  // histórico, mensagem nova não deve arrancá-lo de onde estava.
-  useEffect(() => {
-    const carregouAntigas = paginasVistas.current !== 0 && paginas > paginasVistas.current;
-    paginasVistas.current = paginas;
-    if (carregouAntigas) return;
-
-    /**
-     * A guarda de distância NÃO vale ENQUANTO A ABERTURA NÃO TERMINOU.
-     *
-     * A versão anterior chamava isso de "primeira carga" e media pelo contador
-     * de PÁGINAS da consulta de mensagens — e isso é um proxy, não a coisa. O
-     * fio não é só mensagens: ele intercala notas e **cartões de passagem**, que
-     * chegam de consultas próprias e podem resolver DEPOIS da primeira pintura.
-     *
-     * Medido em 2026-09-18, na prova em tela do cartão "Por que a IA passou para
-     * você", numa conversa SEM mensagens (que é o normal logo depois de uma
-     * passagem): a primeira pintura vem vazia e já consome a "primeira carga";
-     * quando o cartão chega, o efeito roda de novo, a guarda passa a valer, e o
-     * scroller está no topo com o conteúdo recém-nascido embaixo — distância
-     * bem maior que 120px. A guarda concluía "o usuário está lendo o histórico"
-     * de um usuário que não tinha rolado nada, e devolvia sem rolar.
-     *
-     * O efeito visível é o pior possível para esta tela: quem assume vê o
-     * cabeçalho do cartão e o motivo, e o convite **"Assumir e responder" fica
-     * abaixo da dobra do fio** — o gesto existe, está montado, é clicável por
-     * programa e ninguém o vê. Medido por ferramenta: botão em y=1008 numa
-     * janela de 720px.
-     *
-     * `jaAncorou` pergunta o que a guarda precisa saber de verdade — "esta
-     * conversa já chegou ao fim alguma vez, com conteúdo na tela?" —, em vez de
-     * inferir isso da paginação de UMA das três fontes do fio.
-     */
-    const primeiraAncoragem = !jaAncorou.current;
-    if (jaAncorou.current) {
-      const sc = scrollerRef.current;
-      if (sc && sc.scrollHeight - sc.scrollTop - sc.clientHeight > 120) return;
-    }
-    // Fio ainda vazio não ancora nada: marcar aqui faria a guarda valer a partir
-    // da pintura em branco, que é exatamente o defeito acima.
-    if (items.length > 0) jaAncorou.current = true;
-
-    bottomRef.current?.scrollIntoView({
-      behavior: primeiraAncoragem ? "auto" : "smooth",
-      block: "end",
-    });
-  }, [items.length, conversationId, paginas]);
+  const latestItem = items.at(-1) ?? null;
+  const autoScroll = useThreadAutoScroll({
+    conversationId,
+    latestItem: latestItem
+      ? {
+          key: `${latestItem.kind}:${latestItem.data.id}`,
+          kind: latestItem.kind,
+          ...(latestItem.kind === "message"
+            ? {
+                direction: latestItem.data.direction,
+                sentByUserId: latestItem.data.sent_by_user_id,
+                optimistic: latestItem.data.metadata?._optimistic === true,
+              }
+            : {}),
+        }
+      : null,
+    pageCount: paginas,
+    currentUserId: currentUser.id,
+    searching: !!termo,
+    scrollerRef,
+    contentRef,
+    bottomRef,
+  });
 
   /**
    * O ESTADO DO CANAL DESTE THREAD, PUBLICADO SEMPRE — inclusive quando não há
@@ -324,19 +276,37 @@ export function ChatThread({
   }
 
   return (
-    <div {...sinalDoCanal} className="flex h-full min-w-0 flex-col">
+    <div {...sinalDoCanal} className="relative flex h-full min-w-0 flex-col">
       {termo && (
         <div className="px-4 py-1 text-xs text-muted-foreground" role="status">
           {t("Resultados nas mensagens carregadas")}: {resultados.size}
         </div>
       )}
-      <div ref={scrollerRef} className="min-w-0 flex-1 overflow-y-auto py-2">
+      <div
+        ref={scrollerRef}
+        role="region"
+        aria-label={t("Conversa")}
+        tabIndex={0}
+        onScroll={autoScroll.onScroll}
+        onWheel={autoScroll.onManualScrollIntent}
+        onTouchMove={autoScroll.onManualScrollIntent}
+        onPointerDown={(event) => {
+          if (event.target === event.currentTarget) autoScroll.onManualScrollIntent();
+        }}
+        onKeyDown={(event) => {
+          if (["ArrowUp", "PageUp", "Home"].includes(event.key)) autoScroll.onManualScrollIntent();
+        }}
+        className="min-w-0 flex-1 overflow-y-auto py-2"
+      >
         {q.hasNextPage && (
           <div className="flex justify-center py-2">
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => q.fetchNextPage()}
+              onClick={() => {
+                autoScroll.rememberOlderPageAnchor();
+                void q.fetchNextPage();
+              }}
               disabled={q.isFetchingNextPage}
             >
               {q.isFetchingNextPage ? t("Carregando…") : t("Carregar mais antigas")}
@@ -344,6 +314,7 @@ export function ChatThread({
           </div>
         )}
 
+        <div ref={contentRef}>
         {groups.map((g) => (
           <div key={g.key} className="space-y-1">
             <div className="sticky top-0 z-10 flex justify-center py-1">
@@ -416,7 +387,20 @@ export function ChatThread({
         ))}
 
         <div ref={bottomRef} />
+        </div>
       </div>
+      {autoScroll.hasNewMessages && (
+        <div className="pointer-events-none absolute bottom-20 left-1/2 z-20 -translate-x-1/2">
+          <Button
+            type="button"
+            size="sm"
+            className="pointer-events-auto shadow-md"
+            onClick={autoScroll.scrollToEnd}
+          >
+            {t("Novas mensagens")} · {t("Ir para o fim")}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
