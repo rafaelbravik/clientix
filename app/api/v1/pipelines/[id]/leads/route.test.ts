@@ -95,6 +95,35 @@ describe("GET /api/v1/pipelines/[id]/leads", () => {
     expect(ultimaBody.meta).toEqual({ page: 3, per_page: 2, total: 5, has_more: false });
   });
 
+  it("responde página vazia quando PostgREST recusa um intervalo além do total", async () => {
+    authOk("viewer");
+    makeDb({
+      leads: [lead("id-1", 1), lead("id-2", 2), lead("outro-tenant", 3, { organization_id: OUTRA_ORG })],
+      leadsRangeError: { code: "PGRST103", message: "Requested range not satisfiable" },
+    });
+    const { GET } = await import("./route");
+    const res = await GET(req("?page=4&per_page=1"), ctx);
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.data).toEqual([]);
+    expect(body.meta).toEqual({ page: 4, per_page: 1, total: 2, has_more: false });
+  });
+
+  it("não mascara PGRST103 se o intervalo ainda cai dentro do total", async () => {
+    authOk("viewer");
+    makeDb({
+      leads: [lead("id-1", 1), lead("id-2", 2)],
+      leadsRangeError: { code: "PGRST103", message: "Requested range not satisfiable" },
+    });
+    const { GET } = await import("./route");
+    const res = await GET(req("?page=1&per_page=1"), ctx);
+    const body = await res.json();
+
+    expect(res.status).toBe(500);
+    expect(body.error.code).toBe("internal_error");
+  });
+
   it("usa padrão 50, limita per_page em 200 e calcula última página sem has_more", async () => {
     authOk("viewer");
     makeDb({ leads: [lead("id-1", 1), lead("id-2", 2)] });

@@ -121,6 +121,8 @@ export interface DbOpts {
   contacts?: Array<Record<string, unknown>>;
   /** Erro do banco na n-ésima escrita (1-based), como o PostgREST devolveria. */
   writeError?: (n: number, table: string) => { code: string; message: string } | null;
+  /** Erro de intervalo de leitura, para exercitar erros PostgREST de paginação. */
+  leadsRangeError?: { code: string; message: string };
 }
 
 type Linha = Record<string, unknown>;
@@ -332,6 +334,9 @@ export function makeDb(opts: DbOpts = {}): Registro {
           (tables[table] ??= []).push(...linhas);
         });
         return r.error ? r : { ...r, data: linhas };
+      }
+      if (table === "crm_leads" && intervalo !== null && opts.leadsRangeError) {
+        return { data: null, error: opts.leadsRangeError, count: null };
       }
       // `head: true` NÃO traz linhas; `count` sozinho traz linhas E contagem —
       // é assim que o PostgREST responde, e a diferença não é acadêmica: o dublê

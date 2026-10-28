@@ -80,6 +80,29 @@ export async function GET(req: NextRequest, ctx: RouteCtx): Promise<Response> {
       .order("id", { ascending: true })
       .range(offset, offset + perPage - 1);
 
+    // PostgREST pode devolver PGRST103 quando o início do intervalo está além
+    // da última linha. Confirma o total com os mesmos filtros de tenant/funil;
+    // só converte em página vazia quando ela realmente começa após o total.
+    // Outros intervalos inválidos continuam sendo erro, sem mascarar falhas.
+    if (leadsError?.code === "PGRST103") {
+      const { count: total, error: countError } = await supabase
+        .from("crm_leads")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", authz.org.orgId)
+        .eq("pipeline_id", pipelineId)
+        .neq("status", "archived");
+
+      if (countError || total === null) {
+        return fail("internal_error", t("Não foi possível carregar a lista do funil."), 500, { requestId });
+      }
+      if (offset >= total) {
+        return ok([], {
+          requestId,
+          meta: { page: parsed.data.page, per_page: perPage, total, has_more: false },
+        });
+      }
+    }
+
     if (leadsError || count === null) {
       return fail("internal_error", t("Não foi possível carregar a lista do funil."), 500, { requestId });
     }
