@@ -524,7 +524,10 @@ export function InboxLayout({ initialSelectedId = null, rascunho = null }: Inbox
                     {t("Ficha")}
                   </Button>
                 </SheetTrigger>
-                <SheetContent side="right" className="w-[min(22rem,90vw)] overflow-y-auto p-0">
+                <SheetContent
+                  side="right"
+                  className="w-[min(22rem,90vw)] overflow-y-auto p-0 [&>button:first-child]:top-2 [&>button:first-child]:right-2 [&>button:first-child]:grid [&>button:first-child]:size-11 [&>button:first-child]:place-items-center"
+                >
                   <SheetTitle className="sr-only">{t("Ficha do contato")}</SheetTitle>
                   <CRMSidePanel conversation={selectedConversation} />
                 </SheetContent>
