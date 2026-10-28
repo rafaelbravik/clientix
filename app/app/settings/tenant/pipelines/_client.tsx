@@ -570,38 +570,40 @@ function PipelineEditor({
                 setFields(next);
               }}
             />
-            <Select
-              value={f.type}
-              onValueChange={(type) => {
-                const next = [...fields];
-                const tipo = type as CustomFieldDef["type"];
-                next[i] = { ...f, type: tipo, multiple: tipo === "file" ? (f.multiple ?? false) : undefined };
-                setFields(next);
-              }}
-            >
-              <SelectTrigger
-                aria-label={`${t("Tipo do campo")} ${i + 1}`}
-                title={t(ROTULOS_DOS_TIPOS_DE_CAMPO[f.type])}
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-2 sm:col-span-2 xl:col-span-2 xl:grid-cols-[minmax(0,14rem)_auto]">
+              <Select
+                value={f.type}
+                onValueChange={(type) => {
+                  const next = [...fields];
+                  const tipo = type as CustomFieldDef["type"];
+                  next[i] = { ...f, type: tipo, multiple: tipo === "file" ? (f.multiple ?? false) : undefined };
+                  setFields(next);
+                }}
               >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {TIPOS_DE_CAMPO.map((tipo) => (
-                  <SelectItem key={tipo} value={tipo}>
-                    {t(ROTULOS_DOS_TIPOS_DE_CAMPO[tipo])}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              aria-label={`${t("Remover campo")} ${f.label || i + 1}`}
-              onClick={() => setFields(fields.filter((_, j) => j !== i))}
-            >
-              <Trash size={14} aria-hidden />
-            </Button>
+                <SelectTrigger
+                  aria-label={`${t("Tipo do campo")} ${i + 1}`}
+                  title={t(ROTULOS_DOS_TIPOS_DE_CAMPO[f.type])}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TIPOS_DE_CAMPO.map((tipo) => (
+                    <SelectItem key={tipo} value={tipo}>
+                      {t(ROTULOS_DOS_TIPOS_DE_CAMPO[tipo])}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                aria-label={`${t("Remover campo")} ${f.label || i + 1}`}
+                onClick={() => setFields(fields.filter((_, j) => j !== i))}
+              >
+                <Trash size={14} aria-hidden />
+              </Button>
+            </div>
             {tipoTemOpcoes(f.type) && (
               <Input
                 className="sm:col-span-2 xl:col-span-3"

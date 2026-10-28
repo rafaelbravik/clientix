@@ -104,10 +104,14 @@ describe("um campo multiselect já gravado", () => {
     expect(seletor.textContent?.trim()).toBe("Lista de várias escolhas");
     expect(seletor).toHaveAttribute("title", "Lista de várias escolhas");
 
-    const linha = seletor.closest("div.grid");
+    const linha = seletor.closest("div.rounded-md");
     expect(linha?.className).toContain("sm:grid-cols-2");
     expect(linha?.className).toContain("xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_14rem_auto]");
     expect(linha?.className).not.toContain("md:grid-cols-[1fr_1fr_8rem_auto]");
+
+    const seletorRow = seletor.closest("div.grid");
+    expect(seletorRow?.className).toContain("sm:col-span-2");
+    expect(seletorRow?.className).toContain("xl:grid-cols-[minmax(0,14rem)_auto]");
   });
 
   it("salva o identificador do schema, não o rótulo traduzido", async () => {
