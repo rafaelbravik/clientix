@@ -45,6 +45,7 @@ type Readiness = "ready" | "not_ready" | "unknown" | "not_configured";
 type MotivoDeFalha =
   | FalhaDeAlcance
   | "credencial_recusada"
+  | "permissao_recusada"
   | "resposta_inesperada"
   | "nao_configurado"
   | "configuracao_invalida";
@@ -124,7 +125,11 @@ async function checkSupabase(): Promise<Check> {
     // de levar a sonda a uma tela de login que possa devolver HTML 200.
     const key = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     const res = await withTimeout(
-      fetch(`${url}/rest/v1/organizations?select=id&limit=1`, {
+      // `organizations` é tenant-aware e sua policy chama helpers cuja execução
+      // é negada a `anon`. A sonda não precisa ler tenants: usa a tabela singleton
+      // da instância, sem policy de leitura, para validar o PostgREST sem cruzar
+      // a fronteira de RLS do produto.
+      fetch(`${url}/rest/v1/system_version?select=id&limit=1`, {
         headers: {
           apikey: key,
           Authorization: `Bearer ${key}`,
@@ -156,16 +161,16 @@ async function checkSupabase(): Promise<Check> {
     if (res.status === 401 || res.status === 403) {
       const body = await corpoJson(res);
       const erroPostgrest = objeto(body) && typeof body.code === "string" && /^PGRST\d{3}$/.test(body.code);
+      const erroPermissaoBanco = objeto(body) && body.code === "42501";
       return check("down", Date.now() - t0, {
         reachability: "reachable",
-        identity: erroPostgrest ? "verified" : "unknown",
-        // 401 explicita credencial inválida. 403 prova que houve resposta e
-        // que a operação foi recusada, mas não separa chave válida sem acesso
-        // do proxy ou de uma regra de autorização.
-        credentials: res.status === 401 ? "rejected" : "unknown",
+        identity: erroPostgrest || erroPermissaoBanco ? "verified" : "unknown",
+        // SQLSTATE 42501 prova que o JWT chegou ao Postgres e foi recusado pela
+        // permissão/RLS da consulta. Isso não é uma credencial inválida.
+        credentials: erroPermissaoBanco ? "accepted" : res.status === 401 ? "rejected" : "unknown",
         readiness: "not_ready",
         error: `http_${res.status}`,
-        reason: "credencial_recusada",
+        reason: erroPermissaoBanco ? "permissao_recusada" : "credencial_recusada",
         target: alvoDe(url),
       });
     }
@@ -188,7 +193,7 @@ async function checkSupabase(): Promise<Check> {
     const respostaPostgrest =
       rangePostgrestValido &&
       Array.isArray(body) &&
-      body.every((item) => objeto(item) && typeof item.id === "string");
+      body.every((item) => objeto(item) && Number.isSafeInteger(item.id));
     if (!respostaPostgrest) {
       return check("down", Date.now() - t0, {
         reachability: "reachable",

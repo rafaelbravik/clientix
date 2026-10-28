@@ -64,11 +64,14 @@ describe("GET /api/v1/health — identidade e readiness sem redirects", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("200 JSON PostgREST esperado declara alcance, identidade, credencial e readiness", async () => {
-    prepararFetch(postgrestJson([{ id: "org-1" }]));
+    const chamadas = prepararFetch(postgrestJson([{ id: 1 }]));
     const { GET } = await import("@/app/api/v1/health/route");
     const data = await ler(await GET(pedido()));
 
     expect(data.status).toBe("healthy");
+    expect(chamadas.find((chamada) => chamada.url.startsWith(URL_DB))?.url).toContain(
+      "/rest/v1/system_version?select=id&limit=1",
+    );
     expect(data.checks.supabase).toMatchObject({
       status: "ok",
       reachability: "reachable",
@@ -181,6 +184,21 @@ describe("GET /api/v1/health — identidade e readiness sem redirects", () => {
       credentials: "rejected",
       readiness: "not_ready",
       reason: "credencial_recusada",
+    });
+  });
+
+  it("SQLSTATE 42501 prova serviço e credencial alcançados, mas classifica a recusa como permissão", async () => {
+    prepararFetch(json({ code: "42501", message: "permission denied" }, 401));
+    const { GET } = await import("@/app/api/v1/health/route");
+    const data = await ler(await GET(pedido()));
+
+    expect(data.checks.supabase).toMatchObject({
+      status: "down",
+      reachability: "reachable",
+      identity: "verified",
+      credentials: "accepted",
+      readiness: "not_ready",
+      reason: "permissao_recusada",
     });
   });
 

@@ -97,4 +97,52 @@ describe("GET /api/v1/health — o endereço interno não sai para quem não tem
     // acima ficaria verde do mesmo jeito.
     expect(corpo).toContain(HOST_VAZADO);
   });
+
+  it("sonda uma relação singleton sem atravessar a RLS de organizations", async () => {
+    let fetchedUrl = "";
+    const fetchMock = vi.fn(async (input: string) => {
+      fetchedUrl = input;
+      return new Response('[{"id":1}]', {
+        status: 200,
+        headers: { "content-type": "application/json", "content-range": "0-0/1" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { GET } = await import("./route");
+    const { data } = await (await GET(pedido())).json();
+
+    expect(fetchedUrl).toContain("/rest/v1/system_version?select=id&limit=1");
+    expect(data.checks.supabase).toMatchObject({
+      status: "ok",
+      reachability: "reachable",
+      identity: "verified",
+      credentials: "accepted",
+      readiness: "ready",
+    });
+  });
+
+  it("classifica SQLSTATE 42501 como permissão/RLS, não como credencial inválida", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response('{"code":"42501","message":"permission denied"}', {
+          status: 401,
+          headers: { "content-type": "application/json" },
+        }),
+      ),
+    );
+
+    const { GET } = await import("./route");
+    const { data } = await (await GET(pedido())).json();
+
+    expect(data.checks.supabase).toMatchObject({
+      status: "down",
+      reachability: "reachable",
+      identity: "verified",
+      credentials: "accepted",
+      readiness: "not_ready",
+      reason: "permissao_recusada",
+    });
+  });
 });
