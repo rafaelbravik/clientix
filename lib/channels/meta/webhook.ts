@@ -175,11 +175,22 @@ export interface OutboundEchoEvent {
   } | null;
 }
 
+/** Contato sincronizado pelo app WhatsApp Business em uma sessão coexistente. */
+export interface AppContactSyncEvent {
+  kind: "app_contact_sync";
+  wabaId: string;
+  phoneNumberId: string;
+  phoneNumber: string;
+  displayName: string | null;
+  action: "add" | "remove";
+}
+
 export type MetaWebhookEvent =
   | TemplateStatusEvent
   | MessageStatusEvent
   | InboundMessageEvent
-  | OutboundEchoEvent;
+  | OutboundEchoEvent
+  | AppContactSyncEvent;
 
 /**
  * O formato do fio mora em `./envelope.ts`, onde é um schema Zod — e o tipo
@@ -232,6 +243,40 @@ export function parseMetaWebhook(envelope: MetaWebhookEnvelope): MetaWebhookEven
           event: str(v.event) ?? "UNKNOWN",
           reason: normalizeRejectedReason(v.reason),
         });
+        continue;
+      }
+
+      // A agenda do app WhatsApp Business vem separada dos eventos de mensagem.
+      // Só contatos com telefone têm identidade suficiente para o CRM. Remoção
+      // e tipos/ações desconhecidos são representados de forma conservadora;
+      // nenhum payload parcial pode disparar criação por nome.
+      if (change.field === "smb_app_state_sync" && Array.isArray(v.state_sync)) {
+        const meta = (v.metadata ?? {}) as Record<string, unknown>;
+        const phoneNumberId = str(meta.phone_number_id);
+        if (!phoneNumberId) continue;
+
+        for (const candidate of v.state_sync) {
+          if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) continue;
+          const raw = candidate as Record<string, unknown>;
+          if (raw.type !== "contact") continue;
+          const contactValue = raw.contact;
+          if (!contactValue || typeof contactValue !== "object" || Array.isArray(contactValue)) continue;
+          const contact = contactValue as Record<string, unknown>;
+          const phoneNumber = str(contact?.phone_number)?.trim() ?? null;
+          if (!phoneNumber) continue;
+
+          const action = raw.action == null ? "add" : str(raw.action);
+          if (action !== "add" && action !== "remove") continue;
+
+          out.push({
+            kind: "app_contact_sync",
+            wabaId,
+            phoneNumberId,
+            phoneNumber,
+            displayName: str(contact?.full_name) ?? str(contact?.first_name),
+            action,
+          });
+        }
         continue;
       }
 

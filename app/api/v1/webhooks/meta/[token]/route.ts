@@ -34,7 +34,7 @@ import { appDaMeta } from "@/lib/channels/meta/app";
 import { lerEnvelopeMeta } from "@/lib/channels/meta/envelope";
 import { parseMetaWebhook, verificationChallenge, verifyMetaSignature } from "@/lib/channels/meta/webhook";
 import { statusUpdate } from "@/lib/channels/meta/status-update";
-import { ingestMetaEcho, ingestMetaInbound } from "@/lib/channels/meta/ingest";
+import { ingestMetaAppContactSync, ingestMetaEcho, ingestMetaInbound } from "@/lib/channels/meta/ingest";
 import { metaSessionByWebhookToken } from "@/lib/channels/meta/session";
 import { logger } from "@/lib/logger";
 import {
@@ -168,6 +168,32 @@ export async function POST(req: NextRequest, ctx: RouteCtx): Promise<NextRespons
           reason: r.status === "failed" ? r.reason : undefined,
           external_id: e.externalId,
           phone_number_id: e.phoneNumberId,
+        });
+      }
+      continue;
+    }
+
+    if (e.kind === "app_contact_sync") {
+      // O token do path já resolveu org/WABA; o número precisa pertencer à
+      // mesma sessão antes que qualquer identidade seja consultada ou gravada.
+      if (!session.phoneNumberId || e.phoneNumberId !== session.phoneNumberId) {
+        desfechos.push("app_contact:other_number");
+        continue;
+      }
+      const r = await ingestMetaAppContactSync(admin, e, {
+        organizationId: session.organizationId,
+        channelSessionId: session.id,
+        phoneNumberId: session.phoneNumberId,
+      });
+      desfechos.push(`app_contact:${r.status}`);
+      if (r.status === "failed") {
+        logger.error("[meta.ingest] app contact sync temporariamente indisponível", {
+          request_id: requestId,
+          category: r.reason,
+        });
+        return fail("service_unavailable", "contact_sync_temporarily_unavailable", 503, {
+          requestId,
+          headers: { "Retry-After": "5" },
         });
       }
       continue;

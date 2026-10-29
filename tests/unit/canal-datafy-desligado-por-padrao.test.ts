@@ -8,6 +8,7 @@ vi.mock("@/lib/channels/graph-parceiro/session", () => ({
 }));
 vi.mock("@/lib/channels/meta/ingest", () => ({
   ingestMetaInbound: vi.fn(async () => ({ status: "ingested" })),
+  ingestMetaAppContactSync: vi.fn(async () => ({ status: "synced" })),
 }));
 
 import { CHANNEL_PROVIDER_DATAFY } from "@/lib/channels/capabilities";
@@ -17,7 +18,7 @@ import {
   handleInboundWebhook,
   verifyInboundWebhookSignature,
 } from "@/lib/channels/inbound";
-import { ingestMetaInbound } from "@/lib/channels/meta/ingest";
+import { ingestMetaAppContactSync, ingestMetaInbound } from "@/lib/channels/meta/ingest";
 
 /**
  * O CANAL DATAFY NASCE DESLIGADO (decisão do dono, doc 54, opção b).
@@ -61,6 +62,26 @@ function envelope(phoneNumberId: string, wabaId = "WABA"): string {
   });
 }
 
+function envelopeContato(phoneNumberId: string, wabaId = "WABA"): string {
+  return JSON.stringify({
+    object: "whatsapp_business_account",
+    entry: [
+      {
+        id: wabaId,
+        changes: [
+          {
+            field: "smb_app_state_sync",
+            value: {
+              metadata: { phone_number_id: phoneNumberId },
+              state_sync: [{ type: "contact", action: "add", contact: { phone_number: "+5511999998888", full_name: "Contato QA" } }],
+            },
+          },
+        ],
+      },
+    ],
+  });
+}
+
 function assinado(corpo: string, segredo = SEGREDO): Headers {
   const sig = createHmac("sha256", segredo).update(`${TS}.${corpo}`).digest("hex");
   return new Headers({ "x-datafy-signature-256": `sha256=${sig}`, "x-datafy-timestamp": TS });
@@ -92,6 +113,7 @@ describe("a entrada do canal", () => {
     const r = await handleInboundWebhook({} as never, { session: sessao, rawBody: corpo, headers: assinado(corpo), secret: SEGREDO });
     expect(r.ok).toBe(false);
     expect(ingestMetaInbound).not.toHaveBeenCalled();
+    expect(ingestMetaAppContactSync).not.toHaveBeenCalled();
   });
 
   it("ligado mas SEM o segredo do painel: recusa tudo (fail-closed)", async () => {
@@ -106,6 +128,7 @@ describe("a entrada do canal", () => {
     });
     expect(r).toMatchObject({ ok: false, code: "unauthorized" });
     expect(ingestMetaInbound).not.toHaveBeenCalled();
+    expect(ingestMetaAppContactSync).not.toHaveBeenCalled();
   });
 
   it("ligado e assinado: ingere na sessão do TOKEN, com a organização dela", async () => {
@@ -128,6 +151,45 @@ describe("a entrada do canal", () => {
       expect(r.ok).toBe(true);
     }
     expect(ingestMetaInbound).not.toHaveBeenCalled();
+  });
+
+  it("contato da agenda usa tenant/sessão do token e nunca cruza número ou WABA", async () => {
+    process.env.DATAFY_ENABLED = "true";
+    const corpo = envelopeContato("PN");
+    const r = await handleInboundWebhook({} as never, { session: sessao, rawBody: corpo, headers: assinado(corpo), secret: SEGREDO });
+    expect(r).toMatchObject({ ok: true, body: { outcomes: ["app_contact:synced"] } });
+    expect(ingestMetaAppContactSync).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({ kind: "app_contact_sync", phoneNumberId: "PN" }),
+      { organizationId: "org-1", channelSessionId: "sess-1", phoneNumberId: "PN" },
+    );
+
+    vi.mocked(ingestMetaAppContactSync).mockClear();
+    for (const corpoOutro of [envelopeContato("OTHER"), envelopeContato("PN", "OTHER_WABA")]) {
+      const ignored = await handleInboundWebhook({} as never, {
+        session: sessao,
+        rawBody: corpoOutro,
+        headers: assinado(corpoOutro),
+        secret: SEGREDO,
+      });
+      expect(ignored.ok).toBe(true);
+    }
+    expect(ingestMetaAppContactSync).not.toHaveBeenCalled();
+  });
+
+  it("falha da sincronização de contato não é confirmada como sucesso para o parceiro", async () => {
+    process.env.DATAFY_ENABLED = "true";
+    vi.mocked(ingestMetaAppContactSync).mockResolvedValueOnce({
+      status: "failed",
+      reason: "suppression_check_unavailable",
+    });
+    const corpo = envelopeContato("PN");
+    const r = await handleInboundWebhook({} as never, { session: sessao, rawBody: corpo, headers: assinado(corpo), secret: SEGREDO });
+    expect(r).toEqual({
+      ok: false,
+      code: "retryable_failure",
+      message: "contact_sync_temporarily_unavailable",
+    });
   });
 });
 

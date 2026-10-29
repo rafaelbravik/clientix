@@ -375,17 +375,21 @@ export async function POST(
           return ok(r.body, { requestId });
         }
 
-        const status = r.code === "unauthorized" ? 401 : 400;
+        const status = r.code === "unauthorized" ? 401 : r.code === "retryable_failure" ? 503 : 400;
         await fecharArquivoDoWebhook(admin, arquivo, {
           status: "error",
           validSignature: r.code === "unauthorized" ? false : null,
           erro: r.message,
         });
         return fail(
-          r.code === "unauthorized" ? "unauthorized" : "invalid_request",
+          r.code === "unauthorized"
+            ? "unauthorized"
+            : r.code === "retryable_failure"
+              ? "service_unavailable"
+              : "invalid_request",
           r.message,
           status,
-          { requestId },
+          { requestId, ...(r.code === "retryable_failure" ? { headers: { "Retry-After": "5" } } : {}) },
         );
       } catch (err) {
         const detalhe = err instanceof Error ? err.message : "ingest_failed";

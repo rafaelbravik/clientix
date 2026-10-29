@@ -40,7 +40,7 @@ import { encontrarContatoPorTelefone } from "../contato-por-telefone";
 import { marcarConversaComMensagem } from "../marcar-conversa";
 import { canonicalPhoneBR, phoneLookupVariants } from "../phone-variants";
 import type { ChannelTenantScope } from "../types";
-import type { InboundMessageEvent, OutboundEchoEvent } from "./webhook";
+import type { AppContactSyncEvent, InboundMessageEvent, OutboundEchoEvent } from "./webhook";
 
 type Admin = SupabaseClient;
 
@@ -64,6 +64,11 @@ export type IngestOutcome =
    */
   | { status: "ignored"; reason: string }
   | { status: "failed"; reason: string };
+
+export type AppContactSyncOutcome =
+  | { status: "synced" }
+  | { status: "ignored"; reason: string }
+  | { status: "failed"; reason: "suppression_check_unavailable" | "contact_upsert_failed" };
 
 /**
  * Sessão dona do número que RECEBEU, **dentro da organização do token**.
@@ -130,6 +135,89 @@ async function findContactByVariants(
   waId: string,
 ): Promise<{ id: string; phone_number: string } | null> {
   return encontrarContatoPorTelefone(admin as never, orgId, waId);
+}
+
+/**
+ * Sync de identidade vindo da agenda do app WhatsApp Business. Ele não passa
+ * pelo ingest de mensagens: não cria conversa, mensagem, lead nem evento de
+ * automação. A org e a sessão são resolvidas pelo token do webhook chamador.
+ */
+export async function ingestMetaAppContactSync(
+  admin: Admin,
+  event: AppContactSyncEvent,
+  dono: ChannelTenantScope & { channelSessionId: string; phoneNumberId: string | null },
+): Promise<AppContactSyncOutcome> {
+  if (event.action !== "add") return { status: "ignored", reason: "contact_removed" };
+  if (!dono.channelSessionId || !dono.phoneNumberId || event.phoneNumberId !== dono.phoneNumberId) {
+    return { status: "ignored", reason: "session_mismatch" };
+  }
+
+  const rawPhone = event.phoneNumber.trim();
+  if (!/^\+?[\d\s().-]+$/.test(rawPhone)) {
+    return { status: "ignored", reason: "invalid_contact_identity" };
+  }
+  const variants = phoneLookupVariants(rawPhone);
+  const digits = rawPhone.replace(/\D/g, "");
+  if (digits.length < 8 || digits.length > 15 || variants.length === 0) {
+    return { status: "ignored", reason: "invalid_contact_identity" };
+  }
+
+  const phone = canonicalPhoneBR(rawPhone);
+  const identities = phoneLookupVariants(phone).map((variant) => `phone:${variant}`);
+  if (identities.length === 0) return { status: "ignored", reason: "invalid_contact_identity" };
+
+  // O preflight usa a mesma fonte canônica da Wave 7. O trigger 0541 no
+  // fn_upsert_wa_contact é a segunda barreira atômica caso a redação concorra
+  // com esta leitura. Qualquer estado diferente de `allowed` bloqueia escrita.
+  let suppression: unknown;
+  try {
+    const result = await admin.rpc("fn_whatsapp_history_check_suppression" as never, {
+      p_org: dono.organizationId,
+      p_identities: identities,
+    } as never);
+    if (result.error || typeof result.data !== "string") {
+      return { status: "failed", reason: "suppression_check_unavailable" };
+    }
+    suppression = result.data;
+  } catch {
+    return { status: "failed", reason: "suppression_check_unavailable" };
+  }
+  if (suppression === "identity_suppressed") {
+    return { status: "ignored", reason: "subject_suppressed" };
+  }
+  if (suppression !== "allowed") {
+    return { status: "failed", reason: "suppression_check_unavailable" };
+  }
+
+  const displayName =
+    event.displayName?.replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 120) || null;
+  try {
+    const { data: contactId, error: upsertError } = await admin.rpc(
+      "fn_upsert_wa_contact" as never,
+      {
+        p_org: dono.organizationId,
+        p_kind: "phone",
+        p_phone: phone,
+        p_lid: null,
+        // Este RPC ainda chama o campo `waha_chat_id`; null evita atribuir uma
+        // identidade WAHA a uma sincronização do app oficial.
+        p_chat_id: null,
+        p_notify: displayName,
+      } as never,
+    );
+    if (upsertError) {
+      if (isDeletedSubjectSuppressionError(upsertError)) {
+        return { status: "ignored", reason: "subject_suppressed" };
+      }
+      return { status: "failed", reason: "contact_upsert_failed" };
+    }
+    if (typeof contactId !== "string" || !contactId) {
+      return { status: "failed", reason: "contact_upsert_failed" };
+    }
+    return { status: "synced" };
+  } catch {
+    return { status: "failed", reason: "contact_upsert_failed" };
+  }
 }
 
 /** Prévia curta para a lista de conversas. Mídia vira rótulo, nunca URL. */

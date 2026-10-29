@@ -164,10 +164,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           // link de `/admin/google` na Agenda. Para o admin de um tenant qualquer
           // o link seria um 404; a tela diz a ele quem procurar.
           configurarEm: authz.user.is_platform_admin && !authz.user.support ? "/admin/meta" : null,
-          // `smb_message_echoes`: o que a empresa manda pelo app WhatsApp Business
-          // num número em coexistência. Sem coexistência a Meta não o envia, então
-          // assinar é inofensivo para quem não usa.
-          fields: ["messages", "message_template_status_update", "smb_message_echoes"],
+          // Os dois campos `smb_*` são os eventos de coexistência do app:
+          // mensagens enviadas no celular e contatos sincronizados da agenda.
+          fields: ["messages", "message_template_status_update", "smb_message_echoes", "smb_app_state_sync"],
         }
       : null,
     /**

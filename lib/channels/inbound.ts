@@ -44,7 +44,7 @@ import {
 } from "./graph-parceiro/webhook";
 import { sincronizarSaudeDaConexao } from "./health";
 import { lerEnvelopeMeta } from "./meta/envelope";
-import { ingestMetaEcho, ingestMetaInbound } from "./meta/ingest";
+import { ingestMetaAppContactSync, ingestMetaEcho, ingestMetaInbound } from "./meta/ingest";
 import { parseMetaWebhook } from "./meta/webhook";
 import { samePhone } from "./phone-variants";
 import {
@@ -137,7 +137,7 @@ export type InboundWebhookOutcome =
        * Quem investiga procura em lugares diferentes, e o segundo significa que
        * o fio mudou — a única causa possível num payload que passou pelo HMAC.
        */
-      code: "unauthorized" | "provider_mismatch" | "invalid_json" | "contrato_violado";
+      code: "unauthorized" | "provider_mismatch" | "invalid_json" | "contrato_violado" | "retryable_failure";
       message: string;
     };
 
@@ -657,6 +657,26 @@ async function datafyInbound(
         channelSessionId: input.session.id,
       });
       desfechos.push(`eco:${r.status}`);
+      continue;
+    }
+    if (e.kind === "app_contact_sync") {
+      if (e.phoneNumberId !== refs.phoneNumberId) {
+        desfechos.push("outro_numero");
+        continue;
+      }
+      const r = await ingestMetaAppContactSync(admin, e, {
+        organizationId: orgId,
+        channelSessionId: input.session.id,
+        phoneNumberId: refs.phoneNumberId,
+      });
+      desfechos.push(`app_contact:${r.status}`);
+      if (r.status === "failed") {
+        return {
+          ok: false,
+          code: "retryable_failure",
+          message: "contact_sync_temporarily_unavailable",
+        };
+      }
       continue;
     }
     if (e.kind === "message_status") {

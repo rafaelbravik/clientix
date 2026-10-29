@@ -140,6 +140,14 @@ describe("GET /api/v1/channels/official — o token de verificação", () => {
     expect(webhook.verifyToken).toBeNull();
     expect(webhook.verifyTokenOrigem).toBeNull();
   });
+
+  it("inclui o evento de sincronização da agenda do app na configuração do webhook", async () => {
+    const webhook = await webhookDaTela();
+
+    expect(webhook.fields).toEqual(
+      expect.arrayContaining(["smb_message_echoes", "smb_app_state_sync"]),
+    );
+  });
 });
 
 describe("GET /api/v1/channels/official — a porta para a tela da instalação", () => {

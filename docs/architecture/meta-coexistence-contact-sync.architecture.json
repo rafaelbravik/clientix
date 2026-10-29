@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Sincronização de contatos da coexistência Meta",
+    "subtitle": "Webhook assinado, supressão LGPD antes da identidade e upsert isolado por tenant",
+    "quality_profile": "standard"
+  },
+  "lanes": [
+    { "id": "meta", "label": "Meta" },
+    { "id": "app", "label": "Webhook Clientix" },
+    { "id": "domain", "label": "Domínio" },
+    { "id": "db", "label": "Persistência" }
+  ],
+  "mainPath": ["evento", "assinatura", "parser", "supressao", "upsert", "contato"],
+  "nodes": [
+    { "id": "evento", "lane": "meta", "col": 1, "type": "external", "label": "smb_app_state_sync / app_contact_sync" },
+    { "id": "assinatura", "lane": "app", "col": 2, "type": "route", "label": "POST /api/v1/webhooks/meta/[token] — HMAC + sessão" },
+    { "id": "parser", "lane": "domain", "col": 3, "type": "lib", "label": "parseMetaWebhook — somente contato com telefone e ação conhecida" },
+    { "id": "supressao", "lane": "db", "col": 4, "type": "database", "label": "fn_whatsapp_history_check_suppression(org, identities)" },
+    { "id": "upsert", "lane": "domain", "col": 5, "type": "lib", "label": "ingestMetaAppContactSync — sem conversa/mensagem/automação" },
+    { "id": "contato", "lane": "db", "col": 6, "type": "database", "label": "fn_upsert_wa_contact + trigger de tombstone 0541" }
+  ],
+  "edges": [
+    { "id": "e1", "from": "evento", "to": "assinatura", "label": "entrega assinada" },
+    { "id": "e2", "from": "assinatura", "to": "parser", "label": "tenant vem do token da sessão" },
+    { "id": "e3", "from": "parser", "to": "supressao", "label": "identidade phone:+E164 e variantes" },
+    { "id": "e4", "from": "supressao", "to": "upsert", "label": "somente resultado allowed" },
+    { "id": "e5", "from": "upsert", "to": "contato", "label": "upsert atômico e restrito por org" },
+    { "id": "e6", "from": "contato", "to": "upsert", "label": "trigger 0541 bloqueia corrida com anonimização" }
+  ]
+}
