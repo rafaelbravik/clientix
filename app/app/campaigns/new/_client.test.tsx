@@ -16,10 +16,8 @@ vi.mock("@/hooks/channels/useChannelSessions", () => ({
     data: [
       {
         id: "11111111-1111-4111-8111-111111111111",
-        provider: "waha",
         display_name: "QA — canal sintético",
         phone_number: null,
-        waha_session_name: "qa-synthetic",
       },
     ],
   }),
