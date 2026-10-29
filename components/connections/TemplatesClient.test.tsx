@@ -10,6 +10,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const mutateAsync = vi.fn();
 const salvos: { valores: Record<string, string> } = { valores: {} };
@@ -20,6 +21,7 @@ vi.mock("@/hooks/channels/useTemplates", () => ({
     data: {
       data: {
         waba: "123",
+        conexoes: [{ id: "sessao-meta", wabaId: "123", label: "número de teste" }],
         templates: [
           {
             name: "aviso_debriefing_adv",
@@ -31,9 +33,13 @@ vi.mock("@/hooks/channels/useTemplates", () => ({
             parameterFormat: "POSITIONAL",
             contractHash: "h",
             syncedAt: "2026-09-23T00:00:00Z",
+            components: [{ type: "HEADER", format: "IMAGE" }],
             slots: [{ key: "1", expects: "image", onde: "cabeçalho", valueKey: "header:1" }],
             previews: [],
             savedValues: salvos.valores,
+            daConexao: true,
+            wabaId: "123",
+            managementSessionId: "sessao-meta",
           },
         ],
       },
@@ -47,6 +53,15 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import { TemplatesClient } from "./TemplatesClient";
 
+function renderTemplates() {
+  const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <TemplatesClient />
+    </QueryClientProvider>,
+  );
+}
+
 describe("TemplatesClient — link da mídia salvo no modelo", () => {
   beforeEach(() => {
     mutateAsync.mockReset().mockResolvedValue({ data: { savedValues: {} } });
@@ -54,7 +69,7 @@ describe("TemplatesClient — link da mídia salvo no modelo", () => {
   });
 
   it("salva o link na chave do endereço, sem enviar nada", async () => {
-    render(<TemplatesClient />);
+    renderTemplates();
     const campo = screen.getByTestId("template-link-midia");
     const botao = screen.getByTestId("btn-salvar-link");
     expect(botao).toBeDisabled();
@@ -72,7 +87,7 @@ describe("TemplatesClient — link da mídia salvo no modelo", () => {
 
   it("vem com o link salvo, e campo vazio remove o link", async () => {
     salvos.valores = { "header:1": "https://exemplo.com/antigo.jpg" };
-    render(<TemplatesClient />);
+    renderTemplates();
     const campo = screen.getByTestId("template-link-midia");
     expect(campo).toHaveValue("https://exemplo.com/antigo.jpg");
 
@@ -89,7 +104,7 @@ describe("TemplatesClient — link da mídia salvo no modelo", () => {
   });
 
   it("link que não é https: avisa no campo e não deixa salvar", async () => {
-    render(<TemplatesClient />);
+    renderTemplates();
     await userEvent.type(screen.getByTestId("template-link-midia"), "http://exemplo.com/a.jpg");
     expect(screen.getByTestId("btn-salvar-link")).toBeDisabled();
     expect(screen.getByText(/comece com https/)).toBeInTheDocument();
@@ -97,9 +112,13 @@ describe("TemplatesClient — link da mídia salvo no modelo", () => {
 
   it("link trocado por outra porta: o campo acompanha em vez de guardar o velho", () => {
     salvos.valores = { "header:1": "https://exemplo.com/x1.jpg" };
-    const { rerender } = render(<TemplatesClient />);
+    const { rerender } = renderTemplates();
     salvos.valores = { "header:1": "https://exemplo.com/x2.jpg" };
-    rerender(<TemplatesClient />);
+    rerender(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { mutations: { retry: false } } })}>
+        <TemplatesClient />
+      </QueryClientProvider>,
+    );
     expect(screen.getByTestId("template-link-midia")).toHaveValue("https://exemplo.com/x2.jpg");
     expect(screen.getByTestId("btn-salvar-link")).toBeDisabled();
   });

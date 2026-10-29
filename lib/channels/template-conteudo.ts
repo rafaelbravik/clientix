@@ -43,6 +43,20 @@ export const IDIOMAS_DA_DEFINICAO: { codigo: string; rotulo: string }[] = [
   { codigo: "en_GB", rotulo: "Inglês (Reino Unido)" },
 ];
 
+/**
+ * Escolhe o idioma inicial do formulário a partir do locale da organização.
+ * A Graph API usa underscore nos códigos regionais; locales sem variante
+ * disponível caem no idioma-base quando ele existe, e depois em pt_BR.
+ */
+export function idiomaInicialDaDefinicao(locale: string | null | undefined): string {
+  if (!locale) return "pt_BR";
+  const normalizado = locale.replaceAll("-", "_");
+  const idiomas = new Set(IDIOMAS_DA_DEFINICAO.map((idioma) => idioma.codigo));
+  if (idiomas.has(normalizado)) return normalizado;
+  const base = normalizado.split("_")[0]?.toLowerCase();
+  return base && idiomas.has(base) ? base : "pt_BR";
+}
+
 /** Limites da plataforma. Passar deles é recusa, e o contador evita descobrir tarde. */
 export const LIMITE_CORPO = 1024;
 export const LIMITE_RODAPE = 60;

@@ -1,7 +1,8 @@
 import { requireSupportWrite } from "@/lib/impersonate/support";
 /**
- * GET  /api/v1/channels/templates — o espelho local + o CONTRATO derivado de cada um.
- * POST /api/v1/channels/templates — força um sync com a Graph API.
+ * GET   /api/v1/channels/templates — o espelho local + o CONTRATO derivado de cada um.
+ * POST  /api/v1/channels/templates — sincroniza com a Graph API; e CRIA, EDITA ou APAGA
+ *                                    uma definição pelo CRM (#3635).
  * PATCH /api/v1/channels/templates — salva (ou esquece) o link da mídia de um modelo.
  *
  * O contrato vai derivado no payload, e não guardado no banco, de propósito: guardar
@@ -10,19 +11,51 @@ import { requireSupportWrite } from "@/lib/impersonate/support";
  *
  * Nenhum campo aqui é "quantidade de parâmetros". O número é consequência dos slots;
  * se algum dia aparecer um campo editável com esse nome, o desenho vazou.
+ *
+ * ─── Criar/editar/apagar: o modelo pertence à CONTA (#3635) ─────────────────
+ *
+ * Até aqui quem usa o canal oficial DIRETO saía do CRM, criava no Gerenciador do
+ * WhatsApp, esperava a aprovação e voltava para "Sincronizar" — enquanto o canal
+ * de parceiro já fazia tudo pela tela. As três ações entram nesta rota pelo
+ * mesmo motivo que o sync já está nela: terminam no espelho, e separá-las
+ * obrigaria a tela a saber que criar também sincroniza.
+ *
+ * A plataforma é chamada pelo MESMO cliente do parceiro
+ * (`lib/channels/templates-graph.ts`), parametrizado por host/token; o que muda
+ * aqui é a credencial, que é a da SESSÃO oficial (`resolveMetaCreds`) e a WABA
+ * dela (`metaWabaDoNumero`). Aprovação e sincronização não mudaram.
  */
 import { randomUUID } from "node:crypto";
 import type { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 
 import { fail, ok } from "@/lib/api/wrappers";
+import { audit } from "@/lib/audit";
 import { requireRole } from "@/lib/auth/require-role";
+import {
+  acaoApagarSchema,
+  acaoEditarSchema,
+  executarGestao,
+  linhasDoModeloNaConexao,
+  type EscopoDaGestao,
+} from "@/lib/channels/gestao-de-modelos";
 import { resolveMetaCreds } from "@/lib/channels/meta/credentials";
-import { metaSessionForOrg } from "@/lib/channels/meta/session";
+import { metaSessionForOrg, metaSessaoDaOrgPorId, metaSessoesDaOrg } from "@/lib/channels/meta/session";
+import { metaCloudTemplateOps } from "@/lib/channels/meta/templates";
 import { normalizeRejectedReason } from "@/lib/channels/meta/webhook";
 import { deriveTemplateContract, describeAddress } from "@/lib/channels/meta/template-contract";
 import { slotKey } from "@/lib/channels/meta/build-components";
 import { syncTemplates } from "@/lib/channels/meta/template-sync";
+import {
+  componentesDeTemplateMetaSchema,
+  handlesExistentesDeTemplate,
+  midiaDeTemplatePermitida,
+} from "@/lib/channels/meta/template-input";
 import { mesclarValoresSalvos } from "@/lib/channels/meta/valores-salvos";
+import { erroDePermissaoDeGestao } from "@/lib/channels/templates-graph";
+import { env } from "@/lib/env";
+import { traduzir } from "@/lib/i18n/dicionario";
+import type { Idioma } from "@/lib/i18n/idiomas";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -68,6 +101,22 @@ export interface TemplateView {
    * `template_values`. O painel da janela fechada pré-preenche com eles.
    */
   savedValues: Record<string, string>;
+  /** Conta Meta dona desta linha do espelho. Não é uma credencial. */
+  wabaId: string;
+  /**
+   * O modelo é DA CONTA OFICIAL desta conexão — o único que esta tela pode
+   * editar ou apagar. O espelho é da organização inteira: o modelo do parceiro
+   * aparece na lista, mas editar/apagar aqui miraria a WABA oficial pelo nome.
+   */
+  daConexao: boolean;
+  /** Sessão de mesma WABA para a gestão, resolvida pelo servidor. */
+  managementSessionId: string | null;
+}
+
+interface TemplateConnectionView {
+  id: string;
+  wabaId: string;
+  label: string;
 }
 
 /** Textos com placeholder, achatados (inclui os de dentro de card de carrossel). */
@@ -93,26 +142,49 @@ function textPreviews(components: unknown): Array<{ onde: string; text: string }
 }
 
 type OrgGate =
-  | { autorizado: true; orgId: string }
+  /** `userId` só é usado no audit das ações de escrita (#3635). */
+  | { autorizado: true; orgId: string; userId: string; idioma: Idioma }
   | { autorizado: false; resposta: NextResponse };
 
-async function orgOrFail(requestId: string): Promise<OrgGate> {
-  const authz = await requireRole("admin", { requestId, resource: "channels_templates" });
+/**
+ * Quem pode ──────────────────────────────────────────────────────────────────
+ *
+ * Ler (`agent`): esta lista é a que alimenta o seletor da janela fechada no
+ * inbox, e quem atende é quem precisa dela — a rota do canal intermediado já
+ * funciona assim (`partner/templates`: "Ler (agent): é a lista que o seletor do
+ * inbox usa"). Aqui ela pedia `admin` em TODOS os métodos, e o `agent` levava
+ * `403 forbidden_role`: o `useQuery` do painel ficava sem `data`, a lista
+ * filtrada por `APPROVED` virava `[]` e o seletor aparecia VAZIO — a #2328.
+ *
+ * Escrever (`admin`): sincronizar modelos e gravar link de mídia mexem na
+ * configuração do canal da empresa (e por isso seguem bloqueados em sessão de
+ * suporte). Mesmo recorte do canal intermediado.
+ */
+async function orgOrFail(requestId: string, papel: "agent" | "admin"): Promise<OrgGate> {
+  const authz = await requireRole(papel, { requestId, resource: "channels_templates" });
   if (!authz.ok) return { autorizado: false, resposta: authz.response };
-  return { autorizado: true, orgId: authz.org.orgId };
+  return { autorizado: true, orgId: authz.org.orgId, userId: authz.user.id, idioma: authz.user.idioma };
 }
 
 export async function GET(): Promise<NextResponse> {
   const requestId = randomUUID();
-  const r = await orgOrFail(requestId);
+  const r = await orgOrFail(requestId, "admin");
   if (!r.autorizado) return r.resposta;
 
   const sessao = await metaSessionForOrg(r.orgId);
+  const sessoes = await metaSessoesDaOrg(r.orgId);
+  const conexoes: TemplateConnectionView[] = sessoes
+    .filter((s) => !!s.wabaId && !!s.phoneNumberId)
+    .map((s) => ({
+      id: s.id,
+      wabaId: s.wabaId!,
+      label: s.phoneNumber ?? s.displayName ?? s.wabaId!,
+    }));
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("meta_templates")
     .select(
-      "name, language, status, category, rejected_reason, quality_score, parameter_format, contract_hash, components, synced_at, saved_values",
+      "name, language, status, category, rejected_reason, quality_score, parameter_format, contract_hash, components, synced_at, saved_values, channel_session_id, waba_id",
     )
     .eq("organization_id", r.orgId)
     .order("status")
@@ -161,6 +233,14 @@ export async function GET(): Promise<NextResponse> {
         const r = mesclarValoresSalvos(contrato, (row.saved_values ?? {}) as Record<string, unknown>, {});
         return r.ok ? r.valores : {};
       })(),
+      // A mesma régua de `linhasDoModeloNaConexao`: linha oficial = sem conexão
+      // e com a WABA desta sessão.
+      wabaId: row.waba_id,
+      daConexao: row.channel_session_id === null && conexoes.some((c) => c.wabaId === row.waba_id),
+      managementSessionId:
+        row.channel_session_id === null
+          ? (conexoes.find((c) => c.wabaId === row.waba_id)?.id ?? null)
+          : null,
     };
   });
 
@@ -169,41 +249,222 @@ export async function GET(): Promise<NextResponse> {
     // nunca conectou, ou conectou e excluiu —, e a tela precisa distingui-lo de
     // "conectado, porém sem template".
     waba: sessao?.wabaId ?? null,
+    conexoes,
     templates,
   });
 }
 
-export async function POST(_req: NextRequest): Promise<NextResponse> {
+/**
+ * O corpo do POST. Sem `acao` é SINCRONIZAR — é o contrato que a tela já usava
+ * (`{}`) desde antes desta fatia, e mudá-lo quebraria o botão "Sincronizar" de
+ * toda instalação. `components` viaja cru até a plataforma: ela é quem valida o
+ * formato e devolve o motivo; aqui só se garante a forma e o vocabulário fechado
+ * da categoria.
+ */
+const corpoSchema = z.discriminatedUnion("acao", [
+  z.object({ acao: z.literal("sincronizar"), channel_session_id: z.string().uuid().optional() }).strict(),
+  z.object({
+    acao: z.literal("criar"),
+    channel_session_id: z.string().uuid().optional(),
+    name: z.string().trim().min(1).max(512),
+    language: z.string().trim().min(2).max(15),
+    category: z.enum(["AUTHENTICATION", "MARKETING", "UTILITY"]).default("UTILITY"),
+    components: componentesDeTemplateMetaSchema,
+  }).strict(),
+  acaoEditarSchema.extend({
+    components: componentesDeTemplateMetaSchema,
+    channel_session_id: z.string().uuid().optional(),
+  }).strict(),
+  acaoApagarSchema.extend({ channel_session_id: z.string().uuid().optional() }).strict(),
+]);
+
+export async function POST(req: NextRequest): Promise<NextResponse> {
   const supportDenied = await requireSupportWrite();
   if (supportDenied) return supportDenied;
 
   const requestId = randomUUID();
-  const r = await orgOrFail(requestId);
+  const r = await orgOrFail(requestId, "admin");
   if (!r.autorizado) return r.resposta;
+  const t = (texto: string) => traduzir(texto, r.idioma);
 
-  const sessao = await metaSessionForOrg(r.orgId);
-  if (!sessao?.wabaId) {
-    return fail("invalid_request", "no_meta_channel", 400, { requestId });
+  // O corpo é validado ANTES de falar com a plataforma: um `acao` inventado não
+  // pode virar "sincronizar por omissão" nem tocar a conta.
+  let cru: unknown;
+  if (req.body === null) {
+    cru = {};
+  } else {
+    try {
+      cru = await req.json();
+    } catch {
+      return fail("validation_failed", t("Faltam nome, idioma ou conteúdo."), 422, { requestId });
+    }
+  }
+  const parsed = corpoSchema.safeParse(
+    // Sem corpo é SINCRONIZAR: era o contrato da rota antes da #3635 (o POST
+    // nem lia o corpo), e integração que chama sem corpo não pode virar 422.
+    typeof cru === "object" && cru !== null && !Array.isArray(cru)
+      ? { acao: "sincronizar", ...cru }
+      : cru,
+  );
+  if (!parsed.success) {
+    return fail("validation_failed", t("Faltam nome, idioma ou conteúdo."), 422, { requestId });
+  }
+  const corpo = parsed.data;
+
+  // Para CRUD, a tela envia apenas o ID de uma sessão. Ele é resolvido dentro do
+  // tenant autenticado; WABA e token nunca são aceitos do corpo. O POST {} antigo
+  // continua sincronizando a sessão padrão, como antes desta wave.
+  const sessoesAtivas = await metaSessoesDaOrg(r.orgId);
+  const sessao =
+    corpo.channel_session_id
+      ? await metaSessaoDaOrgPorId(r.orgId, corpo.channel_session_id)
+      : corpo.acao === "sincronizar"
+        ? await metaSessionForOrg(r.orgId)
+        : sessoesAtivas.length === 1
+          ? sessoesAtivas[0]!
+          : null;
+  if (!sessao) {
+    return fail(
+      corpo.acao === "sincronizar" ? "invalid_request" : "not_found",
+      corpo.acao === "sincronizar" ? "no_meta_channel" : t("Conexão oficial não encontrada."),
+      corpo.acao === "sincronizar" ? 400 : sessoesAtivas.length > 1 ? 422 : 404,
+      { requestId },
+    );
+  }
+  if (!sessao.wabaId) {
+    return corpo.acao === "sincronizar"
+      ? fail("invalid_request", "no_meta_channel", 400, { requestId })
+      : fail("failed_precondition", t("Esta conexão oficial não tem uma WABA gravada."), 409, {
+          requestId,
+        });
+  }
+  if (corpo.acao !== "sincronizar" && !sessao.phoneNumberId) {
+    return fail("failed_precondition", t("A conexão oficial não tem número gravado."), 409, {
+      requestId,
+    });
   }
 
-  // A credencial vem da SESSÃO que o operador conectou na tela, com o ambiente só
-  // como RESERVA — a mesma porta que `send`, `checkHealth` e `fetchInboundMedia` já
-  // usam. Antes disto este 400 olhava só `META_SYSTEM_USER_TOKEN`: numa instalação que
-  // conectou o número pela TELA, "Sincronizar modelos" respondia
-  // `400 missing_meta_token` a quem tinha credencial salva e visível na própria tela,
-  // e o 2º número oficial da instalação nunca sincronizava um modelo.
-  //
-  // A ORDEM dos desfechos NÃO muda: sem canal oficial a resposta continua
-  // `no_meta_channel`; com canal e sem credencial nenhuma (nem na sessão, nem no
-  // ambiente) continua `missing_meta_token` 400 — o que muda é só de ONDE a
-  // credencial sai quando existe.
+  if (corpo.acao === "criar" || corpo.acao === "editar") {
+    let handlesExistentes: string[] = [];
+    if (corpo.acao === "editar") {
+      const { data: existente, error } = await createAdminClient()
+        .from("meta_templates")
+        .select("components")
+        .eq("organization_id", r.orgId)
+        .eq("waba_id", sessao.wabaId)
+        .is("channel_session_id", null)
+        .eq("name", corpo.name)
+        .eq("language", corpo.language)
+        .maybeSingle();
+      if (error) return fail("internal_error", "Não foi possível validar a mídia do modelo.", 500, { requestId });
+      handlesExistentes = handlesExistentesDeTemplate(existente?.components);
+    }
+    if (
+      !midiaDeTemplatePermitida({
+        components: corpo.components,
+        organizationId: r.orgId,
+        supabaseUrl: env.NEXT_PUBLIC_SUPABASE_URL,
+        acao: corpo.acao,
+        handlesExistentes,
+      })
+    ) {
+      return fail(
+        "validation_failed",
+        t("A imagem do cabeçalho deve vir do armazenamento privado desta organização."),
+        422,
+        { requestId },
+      );
+    }
+  }
+
   const creds = await resolveMetaCreds(createAdminClient(), {
     organizationId: r.orgId,
     phoneNumberId: sessao.phoneNumberId ?? "",
   });
-  if (!creds) return fail("invalid_request", "missing_meta_token", 400, { requestId });
+  if (!creds) {
+    return corpo.acao === "sincronizar"
+      ? fail("invalid_request", "missing_meta_token", 400, { requestId })
+      : fail("failed_precondition", t("Esta conexão oficial não tem token para gerenciar modelos. Reconecte o número."), 409, { requestId });
+  }
+  if (
+    corpo.acao !== "sincronizar" &&
+    creds.source === "env" &&
+    (sessoesAtivas.length !== 1 || creds.phoneNumberId !== sessao.phoneNumberId)
+  ) {
+    return fail(
+      "failed_precondition",
+      t("Esta instalação precisa de credencial salva na conexão para gerenciar modelos com vários números."),
+      409,
+      { requestId },
+    );
+  }
 
   try {
+    if (corpo.acao === "editar" || corpo.acao === "apagar") {
+      const escopo: EscopoDaGestao = {
+        orgId: r.orgId,
+        sessionId: sessao.id,
+        sessionRef: sessao.phoneNumberId ?? "",
+        wabaOficial: sessao.wabaId,
+      };
+      // A plataforma acha o modelo pelo NOME dentro da WABA oficial. Um homônimo
+      // de outra conexão (o parceiro) listado no espelho não pode virar edição —
+      // ou apagamento, que é irreversível — na conta oficial.
+      if ((await linhasDoModeloNaConexao(createAdminClient(), escopo, corpo)).length === 0) {
+        return fail("not_found", t("Este modelo não é da conta oficial desta conexão."), 404, { requestId });
+      }
+      const { channel_session_id: _sessionId, ...alvoGestao } = corpo;
+      const gestao = await executarGestao(metaCloudTemplateOps, createAdminClient(), escopo, alvoGestao);
+      if (!gestao.ok) {
+        // Apagar um modelo em uso faria o passo do follow-up pular e o agente
+        // errar o envio, em silêncio. A tela mostra ONDE e pede a confirmação.
+        return fail("template_in_use", t("Este modelo está em uso. Confirme para apagar assim mesmo."), 409, {
+          requestId,
+          details: {
+            usos: gestao.usos.map((u) => `${u.tipo === "fluxo" ? t("Follow-up") : t("Agente")} «${u.nome}»`),
+          },
+        });
+      }
+      await audit({
+        action: gestao.acao === "editar" ? "template.updated" : "template.deleted",
+        actorUserId: r.userId,
+        organizationId: r.orgId,
+        resourceType: "channel_session",
+        resourceId: sessao.id,
+        requestId,
+        metadata: { name: corpo.name, language: corpo.language },
+      });
+    }
+
+    if (corpo.acao === "criar") {
+      // A plataforma valida o formato do nome e devolve o motivo com código. Não
+      // duplicamos a regra: regra copiada envelhece separado da fonte.
+      await metaCloudTemplateOps.create({
+        organizationId: r.orgId,
+        sessionRef: sessao.phoneNumberId ?? "",
+        draft: {
+          name: corpo.name,
+          language: corpo.language,
+          category: corpo.category,
+          components: corpo.components,
+        },
+      });
+      await audit({
+        action: "template.created",
+        actorUserId: r.userId,
+        organizationId: r.orgId,
+        resourceType: "channel_session",
+        resourceId: sessao.id,
+        requestId,
+        metadata: { name: corpo.name, language: corpo.language },
+      });
+    }
+
+    // Sincroniza sempre — inclusive depois de criar: a definição nasce em
+    // revisão, e o operador precisa VER que ela existe e está pendente. Sem
+    // isso ele criaria a mesma de novo, achando que não salvou. Depois de
+    // editar, é isso que traz o estado de volta para PENDING; depois de apagar,
+    // a linha já saiu do espelho (a plataforma não a devolve).
     const counts = await syncTemplates({
       organizationId: r.orgId,
       wabaId: sessao.wabaId,
@@ -212,9 +473,43 @@ export async function POST(_req: NextRequest): Promise<NextResponse> {
     });
     return ok(counts);
   } catch (err) {
+    const msg = (err instanceof Error ? err.message : "sync_failed")
+      .replaceAll(creds.token, "[redigido]")
+      .replace(/Bearer\s+[^\s"'<>]+/gi, "Bearer [redigido]");
+    // Permissão de gestão de modelo (`whatsapp_business_management`) é problema
+    // ACIONÁVEL e não pode sair como "não deu": a conta precisa do escopo, e
+    // quem lê isso tem de saber a quem pedir.
+    if (erroDePermissaoDeGestao(err)) {
+      return fail(
+        "forbidden",
+        t(
+          "A conta do WhatsApp não permite gerenciar modelos por esta conexão. Falta a permissão whatsapp_business_management no app da Meta.",
+        ),
+        403,
+        { requestId },
+      );
+    }
+    // Conexão sem conta/token não é falha da plataforma, é PRECONDIÇÃO da nossa
+    // configuração: 409 com o motivo, e não 502 pedindo para tentar de novo.
+    if (msg.startsWith("meta_modelo_sem_waba")) {
+      return fail(
+        "failed_precondition",
+        t("Esta conexão oficial não tem conta do WhatsApp (WABA) gravada. Reconecte o número."),
+        409,
+        { requestId },
+      );
+    }
+    if (msg.startsWith("meta_modelo_sem_credencial")) {
+      return fail(
+        "failed_precondition",
+        t("Esta conexão oficial não tem token para gerenciar modelos. Reconecte o número."),
+        409,
+        { requestId },
+      );
+    }
     // A falha da Graph API vira mensagem legível na tela, não 500 mudo — o
     // operador precisa saber se é token vencido, WABA errada ou rede.
-    return fail("internal_error", err instanceof Error ? err.message : "sync_failed", 502, {
+    return fail("internal_error", msg, 502, {
       requestId,
     });
   }
@@ -237,7 +532,7 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
   if (supportDenied) return supportDenied;
 
   const requestId = randomUUID();
-  const r = await orgOrFail(requestId);
+  const r = await orgOrFail(requestId, "admin");
   if (!r.autorizado) return r.resposta;
 
   const body = (await req.json().catch(() => null)) as {

@@ -32,13 +32,30 @@ export interface TemplateView {
   /** DERIVADOS do template pela API — nunca digitados, nunca contados à mão. */
   slots: TemplateSlotView[];
   previews: TemplatePreview[];
+  /**
+   * A definição crua, como a plataforma a devolveu. É o que o formulário de
+   * edição carrega (#3635): sem ela, editar exigiria redigitar o texto todo.
+   */
+  components: unknown[];
   /** Links de mídia salvos no modelo — o painel da janela fechada pré-preenche com eles. */
   savedValues: Record<string, string>;
+  /** Da conta oficial desta conexão: só estes têm Editar/Apagar (o espelho é da organização). */
+  daConexao: boolean;
+  /** WABA dona da definição; a UI usa apenas para associá-la a uma sessão. */
+  wabaId: string;
+  managementSessionId: string | null;
+}
+
+export interface TemplateConnectionView {
+  id: string;
+  wabaId: string;
+  label: string;
 }
 
 export interface TemplatesPayload {
   /** `null` = canal oficial não conectado. Distinto de "conectado e sem template". */
   waba: string | null;
+  conexoes: TemplateConnectionView[];
   templates: TemplateView[];
 }
 
@@ -60,7 +77,11 @@ export function useTemplates() {
 export function useSyncTemplates() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async () => apiClient.post<{ data: SyncCounts }>("/api/v1/channels/templates", {}),
+    mutationFn: async (channelSessionId?: string) =>
+      apiClient.post<{ data: SyncCounts }>(
+        "/api/v1/channels/templates",
+        channelSessionId ? { acao: "sincronizar", channel_session_id: channelSessionId } : {},
+      ),
     onError: showApiError,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["channel-templates"] });

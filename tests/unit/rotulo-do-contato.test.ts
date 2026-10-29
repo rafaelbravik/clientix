@@ -184,6 +184,16 @@ describe("a sétima cópia não nasce", () => {
       motivo: "nome do NÚMERO no canal oficial da Meta, não de contato",
     },
     {
+      arquivo: "lib/channels/meta/session.ts",
+      trecho: "displayName: row.display_name ?? null,",
+      motivo: "rótulo da conexão Meta lido de channel_sessions, não de contato",
+    },
+    {
+      arquivo: "lib/channels/meta/session.ts",
+      trecho: "displayName: data.display_name ?? null,",
+      motivo: "rótulo da conexão Meta resolvida por sessão, não de contato",
+    },
+    {
       arquivo: "app/api/v1/contacts/_handler.ts",
       trecho: "display_name: input.display_name ?? null,",
       motivo: "grava a coluna que veio no corpo; não decide o nome exibido",

@@ -36,6 +36,8 @@ export interface MetaWebhookSession {
 export interface MetaSessaoDaOrg extends MetaWebhookSession {
   /** `channel_sessions.meta_phone_number_id` — `null` em base anterior à 0144. */
   phoneNumberId: string | null;
+  displayName?: string | null;
+  phoneNumber?: string | null;
 }
 
 /**
@@ -118,4 +120,84 @@ export async function metaSessionForOrg(
     wabaId: data.meta_waba_id ?? null,
     phoneNumberId: data.meta_phone_number_id ?? null,
   };
+}
+
+/** Sessões Meta ativas da organização para operações explicitamente direcionadas. */
+export async function metaSessoesDaOrg(organizationId: string): Promise<MetaSessaoDaOrg[]> {
+  const admin = createAdminClient();
+  const base = () =>
+    admin
+      .from("channel_sessions")
+      .select("id, organization_id, meta_waba_id, meta_phone_number_id, display_name, phone_number")
+      .eq("organization_id", organizationId)
+      .eq("provider", CHANNEL_PROVIDER_META)
+      .order("created_at", { ascending: true });
+  const { data, error } = await queryTolerantToMissingArchived(
+    () => base().is(ARCHIVED_AT, null),
+    () => base(),
+  );
+  if (error) throw new Error(`meta_sessions_lookup_failed: ${error.code ?? "sem_codigo"}`);
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    organizationId: row.organization_id,
+    wabaId: row.meta_waba_id ?? null,
+    phoneNumberId: row.meta_phone_number_id ?? null,
+    displayName: row.display_name ?? null,
+    phoneNumber: row.phone_number ?? null,
+  }));
+}
+
+/** Resolve uma sessão Meta específica sem confiar no tenant fornecido pelo cliente. */
+export async function metaSessaoDaOrgPorId(
+  organizationId: string,
+  sessionId: string,
+): Promise<MetaSessaoDaOrg | null> {
+  if (!organizationId || !sessionId) return null;
+  const admin = createAdminClient();
+  const base = () =>
+    admin
+      .from("channel_sessions")
+      .select("id, organization_id, meta_waba_id, meta_phone_number_id, display_name, phone_number")
+      .eq("organization_id", organizationId)
+      .eq("id", sessionId)
+      .eq("provider", CHANNEL_PROVIDER_META);
+  const { data, error } = await queryTolerantToMissingArchived(
+    () => base().is(ARCHIVED_AT, null).maybeSingle(),
+    () => base().maybeSingle(),
+  );
+  if (error) throw new Error(`meta_session_lookup_failed: ${error.code ?? "sem_codigo"}`);
+  if (!data) return null;
+  return {
+    id: data.id,
+    organizationId: data.organization_id,
+    wabaId: data.meta_waba_id ?? null,
+    phoneNumberId: data.meta_phone_number_id ?? null,
+    displayName: data.display_name ?? null,
+    phoneNumber: data.phone_number ?? null,
+  };
+}
+
+/** A WABA da mesma sessão que fornece a credencial para a operação. */
+export async function metaWabaDoNumero(
+  organizationId: string,
+  phoneNumberId: string,
+): Promise<string | null> {
+  if (!organizationId || !phoneNumberId) return null;
+  const admin = createAdminClient();
+  const base = () =>
+    admin
+      .from("channel_sessions")
+      .select("meta_waba_id")
+      .eq("organization_id", organizationId)
+      .eq("provider", CHANNEL_PROVIDER_META)
+      .eq("meta_phone_number_id", phoneNumberId);
+  const { data, error } = await queryTolerantToMissingArchived(
+    () => base().is(ARCHIVED_AT, null).maybeSingle(),
+    () => base().maybeSingle(),
+  );
+  if (error) {
+    throw new Error(`meta_waba_lookup_failed: ${error.code ?? "sem_codigo"}`);
+  }
+  const waba = data?.meta_waba_id;
+  return typeof waba === "string" && waba.length > 0 ? waba : null;
 }
