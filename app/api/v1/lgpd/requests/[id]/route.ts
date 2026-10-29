@@ -14,6 +14,7 @@ import { ok, fail } from "@/lib/api/wrappers";
 import { requireRole } from "@/lib/auth/require-role";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { traduzir } from "@/lib/i18n/dicionario";
+import { receiptStatusFromResult } from "@/lib/lgpd/operational-receipt";
 
 export const dynamic = "force-dynamic";
 
@@ -93,7 +94,12 @@ export async function GET(
   }
 
   return ok(
-    { request, audit_trail, signed_pdf_url },
+    {
+      request,
+      audit_trail,
+      signed_pdf_url,
+      receipt_status: receiptStatusFromResult(request.result),
+    },
     { requestId },
   );
 }

@@ -41,6 +41,7 @@ ser fonte sem ninguém decidir isso.
 | `suspensao-de-organizacao.architecture.json` | suspensão que suspende (PR 1 da cobrança do revendedor): 17 peças, 24 arestas; a régua única de "opera", a escrita do estado só por duas funções definer (e o gatilho que fecha o PostgREST), o hub `/account-suspended` e o laço de retorno pela Central até a Fila; as **não-ligações declaradas** (entrada de mensagens, landings, escrita pela RLS) estão no card do próprio mapa |
 | `webchat-widget.architecture.json` | widget público, bootstrap anônimo, conversa limitada, entrada no Inbox e resposta local ao visitante |
 | `whatsapp-history-import.architecture.json` | importação retomável por lease, identidade da conversa, tombstones LGPD e cerca persistente contra efeitos de entrada ao vivo |
+| `lgpd-operational-receipt.architecture.json` | recibo operacional após cascade concluída, download autenticado pelo proxy privado e reutilização dos tombstones HMAC para impedir recriação do titular |
 | `control-plane-customer-boundary.architecture.json` | build self-host sem rotas/licença global; trust root local, suporte por instalação e pool vendor separado |
 
 > **Esta tabela já apodreceu uma vez:** ela listava 8 mapas quando o disco tinha 9 — faltava

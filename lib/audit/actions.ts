@@ -163,6 +163,7 @@ export const AUDIT_ACTIONS = [
   "lgpd.redact_no_local_footprint",
   "lgpd.redact_completed",
   "lgpd.redact_failed",
+  "lgpd.receipt_issued",
   "lgpd.tenant_redacted",
   "lgpd.consent_changed",
   "lgpd.manually_approved",

@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Recibo operacional e supressão LGPD",
+    "subtitle": "evidência privada após conclusão e tombstone HMAC contra recriação",
+    "quality_profile": "standard"
+  },
+  "lanes": [
+    { "id": "request", "label": "Pedido LGPD" },
+    { "id": "worker", "label": "Worker" },
+    { "id": "storage", "label": "Storage privado" },
+    { "id": "api", "label": "API e sessão" },
+    { "id": "identity", "label": "Identidade e ingressos" },
+    { "id": "database", "label": "Banco" },
+    { "id": "audit", "label": "Auditoria" }
+  ],
+  "mainPath": [
+    "request",
+    "redaction",
+    "completed",
+    "receipt",
+    "private-object",
+    "receipt-metadata",
+    "download-route",
+    "authenticated-user"
+  ],
+  "nodes": [
+    { "id": "request", "lane": "request", "col": 1, "type": "database", "label": "lgpd_requests", "sublabel": "organização, escopo e pedido; payload sensível permanece fora do audit" },
+    { "id": "redaction", "lane": "worker", "col": 2, "type": "backend", "label": "lgpd-redact-worker", "sublabel": "cascade de anonimização" },
+    { "id": "completed", "lane": "request", "col": 3, "type": "database", "label": "status=completed", "sublabel": "só então tenta emitir o recibo" },
+    { "id": "receipt", "lane": "worker", "col": 4, "type": "backend", "label": "Recibo operacional", "sublabel": "PDF local determinístico; HMAC opcional separado ou hash de integridade" },
+    { "id": "private-object", "lane": "storage", "col": 5, "type": "security", "label": "lgpd-exports privado", "sublabel": "path derivado por tenant e pedido; sem URL pública" },
+    { "id": "receipt-metadata", "lane": "database", "col": 6, "type": "database", "label": "result.receipt", "sublabel": "ready / error / missing; falha não reverte completed" },
+    { "id": "download-route", "lane": "api", "col": 7, "type": "security", "label": "GET receipt autenticado", "sublabel": "tenant e permissão validados em cada download; proxy sem signed URL" },
+    { "id": "authenticated-user", "lane": "api", "col": 8, "type": "frontend", "label": "Operador autorizado", "sublabel": "link disponível somente quando ready" },
+    { "id": "audit-log", "lane": "audit", "col": 6, "type": "database", "label": "lgpd.receipt_issued", "sublabel": "digest, algoritmo, request id e resultado; sem PII ou URL" },
+    { "id": "identity-tombstone", "lane": "database", "col": 3, "type": "security", "label": "Tombstone HMAC da migration 0518", "sublabel": "mesma chave/tabela; isolado por organização" },
+    { "id": "identity-guard", "lane": "identity", "col": 4, "type": "security", "label": "Trigger de identidade", "sublabel": "serializa check e anonimização; erro ou chave indisponível falha fechado" },
+    { "id": "wa-upsert", "lane": "identity", "col": 5, "type": "backend", "label": "fn_upsert_wa_contact", "sublabel": "não seleciona contatos anonimizados" },
+    { "id": "provider-ingress", "lane": "identity", "col": 6, "type": "external", "label": "Meta e WAHA", "sublabel": "recusa tombstone como evento ignorado, sem retry de mensagem" },
+    { "id": "other-ingress", "lane": "identity", "col": 7, "type": "backend", "label": "Imports e APIs de contato", "sublabel": "inserções passam pelo mesmo trigger tenant-scoped" }
+  ],
+  "edges": [
+    { "from": "request", "to": "redaction", "label": "pedido autorizado" },
+    { "from": "redaction", "to": "completed", "label": "cascade concluída" },
+    { "from": "completed", "to": "receipt", "label": "best effort após commit" },
+    { "from": "receipt", "to": "private-object", "label": "upload determinístico e privado" },
+    { "from": "receipt", "to": "receipt-metadata", "label": "resultado ready ou erro sanitizado" },
+    { "from": "receipt", "to": "audit-log", "label": "metadados sem dados do titular" },
+    { "from": "private-object", "to": "download-route", "label": "download interno autenticado" },
+    { "from": "receipt-metadata", "to": "download-route", "label": "somente status ready" },
+    { "from": "download-route", "to": "authenticated-user", "label": "sessão e tenant validados novamente" },
+    { "from": "redaction", "to": "identity-tombstone", "label": "HMAC das identidades antes de limpar a ficha" },
+    { "from": "identity-tombstone", "to": "identity-guard", "label": "mesmo digest e storage canônico" },
+    { "from": "provider-ingress", "to": "wa-upsert", "label": "resolução atômica de contato" },
+    { "from": "other-ingress", "to": "identity-guard", "label": "insert/update protegido no banco" },
+    { "from": "wa-upsert", "to": "identity-guard", "label": "lock tenant-scoped e validação na escrita" },
+    { "from": "identity-guard", "to": "identity-tombstone", "label": "bloqueia mesma identidade só nessa organização" },
+    { "from": "identity-guard", "to": "provider-ingress", "label": "titular suprimido vira evento ignorado" }
+  ],
+  "cards": [
+    {
+      "title": "Evidência operacional",
+      "body": "O documento registra ações executadas pelo sistema, sem alegar certificação jurídica. PII do titular é minimizada e mascarada; CPF cifrado nunca é descriptografado para o PDF. A falha do PDF é registrada no resultado sem desfazer a anonimização."
+    },
+    {
+      "title": "Acesso temporário",
+      "body": "A API deriva o path do tenant e do request já autorizado e faz proxy do objeto privado em cada requisição. Não entrega path interno nem URL bearer; cache fica desabilitado."
+    },
+    {
+      "title": "Sem recriação",
+      "body": "Ingressos de contato consultam os mesmos tombstones HMAC gravados pela 0518. O bloqueio geral de importação histórica por identidade legada irrecuperável continua exclusivo daquele fluxo; número igual em outro tenant não é afetado."
+    }
+  ]
+}

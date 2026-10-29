@@ -24,6 +24,7 @@ export interface LgpdRequestDetailResponse {
     };
     audit_trail: AuditTrailEntry[];
     signed_pdf_url: string | null;
+    receipt_status: "ready" | "missing" | "error";
   };
 }
 

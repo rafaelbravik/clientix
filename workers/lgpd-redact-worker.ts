@@ -28,11 +28,16 @@ import type { EventRow, HandlerResult } from "@/lib/event-log/dispatcher";
 import { audit } from "@/lib/audit";
 import { logger } from "@/lib/logger";
 import { findContactByExternalId, findLgpdRequest } from "@/lib/lgpd/repository";
+import {
+  issueOperationalReceipt,
+  receiptStatusFromResult,
+} from "@/lib/lgpd/operational-receipt";
 import { cascadeRedactContact } from "@/lib/lgpd/redact-cascade";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const MAX_ATTEMPTS = 3;
 const TENANT_BATCH_SIZE = 100;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function sha256(s: string): string {
   return createHash("sha256").update(s).digest("hex");
@@ -77,6 +82,12 @@ async function tryNuvemshopCallback(
 
 export async function processLgpdRedact(event: EventRow): Promise<HandlerResult> {
   const orgId = event.organization_id;
+  const approvedBy = event.payload?.["manually_approved"] === true
+    ? event.payload["approved_by"]
+    : null;
+  const executionActorUserId = typeof approvedBy === "string" && UUID_PATTERN.test(approvedBy)
+    ? approvedBy
+    : null;
   const requestId =
     (event.payload?.["request_id"] as string | undefined) ?? event.entity_id ?? null;
   const scopeFromEvent = (event.payload?.["scope"] as string | undefined) ?? "contact";
@@ -110,22 +121,6 @@ export async function processLgpdRedact(event: EventRow): Promise<HandlerResult>
     };
   }
 
-  if (req.status === "completed") {
-    return {
-      consumer_key: "lgpd-redact-worker.v1",
-      status: "skipped",
-      detail: "already_completed",
-    };
-  }
-
-  if (req.status === "failed") {
-    return {
-      consumer_key: "lgpd-redact-worker.v1",
-      status: "skipped",
-      detail: "already_failed",
-    };
-  }
-
   const wrongType = !(
     req.request_type === "redact" || req.request_type === "store_redact"
   );
@@ -134,6 +129,36 @@ export async function processLgpdRedact(event: EventRow): Promise<HandlerResult>
       consumer_key: "lgpd-redact-worker.v1",
       status: "skipped",
       detail: "wrong_request_type",
+    };
+  }
+
+  if (req.status === "completed") {
+    if (receiptStatusFromResult(req.result) === "ready") {
+      return {
+        consumer_key: "lgpd-redact-worker.v1",
+        status: "skipped",
+        detail: "already_completed",
+      };
+    }
+
+    // Retry somente a evidência operacional. A cascata já foi concluída e não
+    // pode ser reexecutada por uma falha de render/storage do recibo.
+    const receipt = await issueOperationalReceipt({
+      organizationId: orgId,
+      request: { ...req, execution_actor_user_id: executionActorUserId },
+    });
+    return {
+      consumer_key: "lgpd-redact-worker.v1",
+      status: receipt.status === "ready" ? "ok" : "error",
+      detail: receipt.status === "ready" ? "receipt_issued" : "receipt_unavailable",
+    };
+  }
+
+  if (req.status === "failed") {
+    return {
+      consumer_key: "lgpd-redact-worker.v1",
+      status: "skipped",
+      detail: "already_failed",
     };
   }
 
@@ -184,7 +209,7 @@ export async function processLgpdRedact(event: EventRow): Promise<HandlerResult>
 
       if (!contactId) {
         // L-03: no local footprint — request stays as record but nothing to anonymise.
-        await admin
+        const { error: completionError } = await admin
           .from("lgpd_requests")
           .update({
             status: "pending_review",
@@ -193,6 +218,7 @@ export async function processLgpdRedact(event: EventRow): Promise<HandlerResult>
           })
           .eq("organization_id", orgId)
           .eq("id", requestId);
+        if (completionError) throw new Error("no_local_footprint_write_failed");
 
         await audit({
           action: "lgpd.redact_no_local_footprint",
@@ -217,17 +243,25 @@ export async function processLgpdRedact(event: EventRow): Promise<HandlerResult>
       });
 
       if (cascade.alreadyAnonymized) {
-        await admin
+        const completedAt = new Date().toISOString();
+        const result = { already_anonymized: true, contact_id: contactId };
+        const { error: completionError } = await admin
           .from("lgpd_requests")
           .update({
             status: "completed",
-            completed_at: new Date().toISOString(),
-            result: { already_anonymized: true, contact_id: contactId },
+            completed_at: completedAt,
+            result,
             error_message: null,
             cascaded_to: {},
           })
           .eq("organization_id", orgId)
           .eq("id", requestId);
+        if (completionError) throw new Error("already_anonymized_completion_write_failed");
+
+        await issueOperationalReceipt({
+          organizationId: orgId,
+          request: { ...req, status: "completed", completed_at: completedAt, result, execution_actor_user_id: executionActorUserId },
+        });
 
         await audit({
           action: "lgpd.redact_skipped_already_anonymized",
@@ -247,23 +281,33 @@ export async function processLgpdRedact(event: EventRow): Promise<HandlerResult>
 
       // Best-effort callback to upstream platform.
       const callback = await tryNuvemshopCallback(orgId, req.request_payload ?? {});
+      const completedAt = new Date().toISOString();
+      const result = {
+        contact_id: contactId,
+        cascaded_to: cascade.counts,
+        media_queued: cascade.mediaPaths.length,
+        callback_status: callback.status,
+      };
 
-      await admin
+      const { error: completionError } = await admin
         .from("lgpd_requests")
         .update({
           status: "completed",
-          completed_at: new Date().toISOString(),
-          result: {
-            contact_id: contactId,
-            cascaded_to: cascade.counts,
-            media_queued: cascade.mediaPaths.length,
-            callback_status: callback.status,
-          },
+          completed_at: completedAt,
+          result,
           cascaded_to: cascade.counts,
           error_message: null,
         })
         .eq("organization_id", orgId)
         .eq("id", requestId);
+      if (completionError) throw new Error("redact_completion_write_failed");
+
+      // A falha do PDF/storage é registrada em result.receipt e nunca volta a
+      // status=processing/failed nem desfaz a cascata concluída.
+      await issueOperationalReceipt({
+        organizationId: orgId,
+        request: { ...req, status: "completed", completed_at: completedAt, result, execution_actor_user_id: executionActorUserId },
+      });
 
       // Domain event — applied (consumed by SLA monitor / dashboards).
       await admin.rpc("emit_event" as never, {
@@ -310,7 +354,7 @@ export async function processLgpdRedact(event: EventRow): Promise<HandlerResult>
     // ---------------------------------------------------------------------
     if (scope === "tenant") {
       const progress = readTenantProgress(req.request_payload);
-      const aggregate = { contacts: 0, conversations: 0, messages: 0 };
+      const aggregate = { contacts: 0, conversations: 0, messages: 0, media_queued: 0 };
 
       // Loop until empty batch — each iteration checkpoints progress.
       // Uses keyset-style ordering by id with offset (small batches, full table
@@ -342,6 +386,7 @@ export async function processLgpdRedact(event: EventRow): Promise<HandlerResult>
               aggregate.contacts += cascade.counts["contacts"] ?? 0;
               aggregate.conversations += cascade.counts["conversations"] ?? 0;
               aggregate.messages += cascade.counts["messages"] ?? 0;
+              aggregate.media_queued += cascade.mediaPaths.length;
             }
             progress.processed++;
           } catch (err) {
@@ -390,25 +435,36 @@ export async function processLgpdRedact(event: EventRow): Promise<HandlerResult>
 
       const failedCount = progress.failed_contacts.length;
       const finalStatus = failedCount > 0 ? "pending_review" : "completed";
+      const completedAt = new Date().toISOString();
+      const result = {
+        scope: "tenant",
+        processed: progress.processed,
+        failed_contacts_count: failedCount,
+        aggregate_counts: aggregate,
+        media_queued: aggregate.media_queued,
+        callback_status: callback.status,
+        organization_status: "redacted",
+      };
 
-      await admin
+      const { error: completionError } = await admin
         .from("lgpd_requests")
         .update({
           status: finalStatus,
-          completed_at: new Date().toISOString(),
-          result: {
-            scope: "tenant",
-            processed: progress.processed,
-            failed_contacts_count: failedCount,
-            aggregate_counts: aggregate,
-            callback_status: callback.status,
-            organization_status: "redacted",
-          },
+          completed_at: completedAt,
+          result,
           cascaded_to: aggregate,
           error_message: failedCount > 0 ? "partial_failure" : null,
         })
         .eq("organization_id", orgId)
         .eq("id", requestId);
+      if (completionError) throw new Error("tenant_completion_write_failed");
+
+      if (finalStatus === "completed") {
+        await issueOperationalReceipt({
+          organizationId: orgId,
+          request: { ...req, status: "completed", completed_at: completedAt, result, execution_actor_user_id: executionActorUserId },
+        });
+      }
 
       await admin.rpc("emit_event" as never, {
         p_event_type: "lgpd.redact_applied",

@@ -530,6 +530,10 @@ const schema = z
 
     // LGPD export (S-08.04)
     LGPD_SIGNING_KEY: z.string().optional().default(""),
+    // Chave própria para autenticar o código de integridade dos recibos LGPD.
+    // Ausente ou menor que 32 bytes: o recibo declara SHA-256 como integridade,
+    // nunca como assinatura/autenticidade.
+    LGPD_RECEIPT_HMAC_KEY: z.string().optional().default(""),
     LGPD_EXPORT_EXPIRES_HOURS: z.string().optional().default("72"),
     LGPD_DPO_EMAIL: z.string().optional().default(""),
 

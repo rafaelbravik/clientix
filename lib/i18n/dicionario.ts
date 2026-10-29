@@ -7923,6 +7923,16 @@ export const DICIONARIO: Traducoes = {
   "Os pedidos de LGPD dos seus clientes continuam com prazo durante a suspensão.": {
     es: "Las solicitudes LGPD de tus clientes siguen con plazo durante la suspensión.",
   },
+  "Recibo operacional de anonimização disponível.": {
+    es: "El recibo operativo de anonimización está disponible.",
+  },
+  "Baixar recibo": { es: "Descargar recibo" },
+  "A anonimização foi concluída, mas não foi possível gerar o recibo operacional.": {
+    es: "La anonimización se completó, pero no fue posible generar el recibo operativo.",
+  },
+  "A anonimização foi concluída; o recibo operacional ainda não está disponível.": {
+    es: "La anonimización se completó; el recibo operativo aún no está disponible.",
+  },
 
   "Como esta instalação do": { es: "Cómo esta instalación de" },
   "trata dados pessoais.": { es: "trata los datos personales." },

@@ -73,7 +73,8 @@ export function LgpdRequestDetail({ id, hrefDaLista = "/app/lgpd/requests" }: Pr
     );
   }
 
-  const { request, audit_trail, signed_pdf_url } = data.data;
+  const { request, audit_trail, signed_pdf_url, receipt_status } = data.data;
+  const isRedaction = request.request_type === "redact" || request.request_type === "store_redact";
 
   const shortId = request.id.slice(0, 8);
   const typeLabel = t(TYPE_LABELS[request.request_type] ?? request.request_type);
@@ -128,6 +129,27 @@ export function LgpdRequestDetail({ id, hrefDaLista = "/app/lgpd/requests" }: Pr
             </a>
           </Button>
         </div>
+      )}
+
+      {request.status === "completed" && isRedaction && receipt_status === "ready" && (
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-md border bg-muted/30 px-4 py-3 text-sm">
+          <span>{t("Recibo operacional de anonimização disponível.")}</span>
+          <Button size="sm" variant="outline" asChild className="shrink-0">
+            <a href={`/api/v1/lgpd/requests/${encodeURIComponent(request.id)}/receipt`}>
+              {t("Baixar recibo")}
+            </a>
+          </Button>
+        </div>
+      )}
+      {request.status === "completed" && isRedaction && receipt_status === "error" && (
+        <p role="status" className="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          {t("A anonimização foi concluída, mas não foi possível gerar o recibo operacional.")}
+        </p>
+      )}
+      {request.status === "completed" && isRedaction && receipt_status === "missing" && (
+        <p role="status" className="rounded-md border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+          {t("A anonimização foi concluída; o recibo operacional ainda não está disponível.")}
+        </p>
       )}
 
       {/* Action row */}
