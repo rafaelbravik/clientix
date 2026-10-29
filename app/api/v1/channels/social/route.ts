@@ -19,6 +19,7 @@ import {
   configureSocialIntegration,
   socialChannels,
   connectSocialInbox,
+  resyncSocialWebhook,
 } from "@/lib/channels/social/store";
 
 export const dynamic = "force-dynamic";
@@ -39,6 +40,7 @@ const inputSchema = z.discriminatedUnion("action", [
     })
     .strict(),
   z.object({ action: z.literal("inbox"), account_id: z.string().regex(/^[a-f0-9]{24}$/) }).strict(),
+  z.object({ action: z.literal("resync"), account_id: z.string().regex(/^[a-f0-9]{24}$/) }).strict(),
   z
     .object({ action: z.literal("health"), account_id: z.string().regex(/^[a-f0-9]{24}$/) })
     .strict(),
@@ -129,6 +131,9 @@ export async function POST(req: Request) {
       result = { configured: true };
     } else if (body.action === "inbox") {
       result = await connectSocialInbox(db, auth.org.orgId, body.account_id, publicBase());
+    } else if (body.action === "resync") {
+      const resync = await resyncSocialWebhook(db, auth.org.orgId, body.account_id, publicBase());
+      result = { channel_id: resync.channel_id, resynced: resync.resynced };
     } else {
       const config = await readSocialIntegration(db, auth.org.orgId);
       if (!config) throw new SocialError("Configure a integração primeiro.", 422);
@@ -171,12 +176,18 @@ export async function POST(req: Request) {
       result = { auth_url: url.toString() };
     }
     void audit({
-      action: "channel.social_configured",
+      action:
+        body.action === "resync"
+          ? "channel.social_webhook_ressincronizado"
+          : "channel.social_configured",
       organizationId: auth.org.orgId,
       actorUserId: auth.user.id,
       resourceType: "social_connections",
       requestId,
-      metadata: { operation: body.action },
+      metadata: {
+        operation: body.action,
+        ...(body.action === "resync" && result && typeof result === "object" ? result : {}),
+      },
     });
     return ok(result, { requestId, headers });
   } catch (error) {

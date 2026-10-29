@@ -67,6 +67,15 @@ export function RedesSociaisClient() {
               ? "Conexão verificada"
               : "A conexão precisa de atenção",
         }));
+      } else if (body.action === "resync") {
+        toast.success(
+          t(
+            result.data.resynced === true
+              ? "Webhook atualizado com o endereço atual."
+              : "O webhook já está no endereço atual.",
+          ),
+        );
+        await load();
       } else {
         setKey("");
         setEditing(false);
@@ -74,7 +83,13 @@ export function RedesSociaisClient() {
         await load();
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Não foi possível concluir a conexão.");
+      setError(
+        body.action === "resync"
+          ? "Não foi possível ressincronizar o webhook."
+          : e instanceof Error
+            ? e.message
+            : "Não foi possível concluir a conexão.",
+      );
     } finally {
       setBusy(null);
     }
@@ -247,6 +262,17 @@ export function RedesSociaisClient() {
                   {account.channel && (
                     <Button asChild variant="outline">
                       <Link href="/app/inbox">{t("Abrir atendimento")}</Link>
+                    </Button>
+                  )}
+                  {account.inbox_supported && account.channel?.status === "WORKING" && (
+                    <Button
+                      variant="outline"
+                      disabled={!!busy}
+                      onClick={() =>
+                        void perform(account.id, { action: "resync", account_id: account.id })
+                      }
+                    >
+                      {busy === account.id ? t("Ressincronizando…") : t("Ressincronizar webhook")}
                     </Button>
                   )}
                 </div>

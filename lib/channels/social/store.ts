@@ -82,6 +82,116 @@ export async function socialChannels(db: SupabaseClient, org: string) {
     metadata: row.metadata as Record<string, unknown>,
   }));
 }
+
+/** Rewrites only the existing Zernio webhook callback to this installation's current origin. */
+export async function resyncSocialWebhook(
+  db: SupabaseClient,
+  org: string,
+  accountId: string,
+  publicBase: string,
+): Promise<{ channel_id: string; resynced: boolean }> {
+  const integration = await readSocialIntegration(db, org);
+  if (!integration) throw new SocialError("Configure a integração primeiro.", 422);
+
+  const { data: channel, error: channelError } = await db
+    .from("channel_sessions")
+    .select("id, provider, zernio_account_id, status, metadata, webhook_path_token, archived_at")
+    .eq("organization_id", org)
+    .eq("provider", SOCIAL_PROVIDER)
+    .eq("zernio_account_id", accountId)
+    .is("archived_at", null)
+    .maybeSingle();
+  if (channelError)
+    throw new SocialError("Não foi possível ler o canal para ressincronizar o webhook.", 500);
+  if (!channel) throw new SocialError("Nenhum canal social para ressincronizar.", 404);
+  if (channel.status !== "WORKING")
+    throw new SocialError("O canal precisa estar ativo para ressincronizar o webhook.", 409);
+
+  const metadata =
+    channel.metadata && typeof channel.metadata === "object" && !Array.isArray(channel.metadata)
+      ? (channel.metadata as Record<string, unknown>)
+      : {};
+  const webhookId = metadata.social_webhook_id;
+  const platform = metadata.social_platform;
+  if (typeof webhookId !== "string" || !webhookId || typeof platform !== "string")
+    throw new SocialError("Não foi possível recuperar a assinatura da conexão.", 422);
+  if (!inboxSupported(platform))
+    throw new SocialError("O atendimento desta rede não está disponível no CRM.", 422);
+
+  const token = channel.webhook_path_token;
+  if (typeof token !== "string" || !/^[a-f0-9]{48}$/.test(token))
+    throw new SocialError("Não foi possível recuperar a assinatura da conexão.", 422);
+
+  let base: URL;
+  try {
+    base = new URL(publicBase);
+  } catch {
+    throw new SocialError("Configure o endereço público da instalação.", 422);
+  }
+  if (
+    base.protocol !== "https:" ||
+    base.hostname === "placeholder.invalid" ||
+    base.username ||
+    base.password ||
+    base.pathname !== "/" ||
+    base.search ||
+    base.hash
+  )
+    throw new SocialError("Configure o endereço público da instalação.", 422);
+
+  const callbackPath = `/api/v1/webhooks/channel/${token}`;
+  const callbackUrl = `${base.origin}${callbackPath}`;
+  const list = z
+    .object({
+      webhooks: z.array(z.object({ _id: z.string(), url: z.string(), isActive: z.boolean() })),
+    })
+    .parse(await socialRequest(integration.key, "webhooks/settings"));
+  const pathMatches = (url: string) => {
+    try {
+      const parsed = new URL(url);
+      return (
+        parsed.pathname === callbackPath &&
+        !parsed.search &&
+        !parsed.hash &&
+        !parsed.username &&
+        !parsed.password
+      );
+    } catch {
+      return false;
+    }
+  };
+  const matchingPath = list.webhooks.filter((webhook) => pathMatches(webhook.url));
+  const webhook = matchingPath.find((candidate) => candidate._id === webhookId);
+  if (matchingPath.length !== 1 || !webhook)
+    throw new SocialError("Não há uma assinatura única deste canal para ressincronizar.", 422);
+
+  if (webhook.url === callbackUrl) {
+    if (!webhook.isActive)
+      throw new SocialError(
+        "O webhook foi desativado pelo provedor. Verifique o motivo antes de tentar novamente.",
+        409,
+      );
+    return { channel_id: channel.id as string, resynced: false };
+  }
+
+  await socialRequest(
+    integration.key,
+    "webhooks/settings",
+    { webhookId: webhook._id, url: callbackUrl, isActive: true },
+    "PUT",
+  );
+  const confirmed = z
+    .object({
+      webhooks: z.array(z.object({ _id: z.string(), url: z.string(), isActive: z.boolean() })),
+    })
+    .parse(await socialRequest(integration.key, "webhooks/settings"))
+    .webhooks.find((candidate) => candidate._id === webhook._id);
+  if (!confirmed || confirmed.url !== callbackUrl || !confirmed.isActive)
+    throw new SocialError("O provedor não confirmou o novo endereço do webhook.", 502);
+
+  return { channel_id: channel.id as string, resynced: true };
+}
+
 export async function connectSocialInbox(
   db: SupabaseClient,
   org: string,

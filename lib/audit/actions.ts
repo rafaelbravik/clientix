@@ -243,6 +243,7 @@ export const AUDIT_ACTIONS = [
   "prospecting.approach_sent",
   "channel.pairing_code_requested",
   "channel.social_configured",
+  "channel.social_webhook_ressincronizado",
   "channel.ai_access_updated",
   "channel.reconnected",
   "channel.history_import_previewed",

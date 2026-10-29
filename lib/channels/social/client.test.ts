@@ -26,4 +26,19 @@ describe("social provider boundary", () => {
       expect.objectContaining({ redirect: "error", cache: "no-store" }),
     );
   });
+
+  it("supports the provider's in-place PUT method without following redirects", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response("{}", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await socialRequest("test-key", "webhooks/settings", { webhookId: "wh-1", url: "https://crm.test/hook" }, "PUT");
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/v1/webhooks/settings"),
+      expect.objectContaining({
+        method: "PUT",
+        redirect: "error",
+        cache: "no-store",
+        body: JSON.stringify({ webhookId: "wh-1", url: "https://crm.test/hook" }),
+      }),
+    );
+  });
 });

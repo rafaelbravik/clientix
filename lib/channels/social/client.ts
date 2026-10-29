@@ -9,9 +9,14 @@ export class SocialError extends Error {
   }
 }
 /** Fixed provider origin. Credentials never follow a redirect to another host. */
-export async function socialRequest(key: string, path: string, body?: unknown): Promise<unknown> {
+export async function socialRequest(
+  key: string,
+  path: string,
+  body?: unknown,
+  method: "GET" | "POST" | "PUT" | "DELETE" = body === undefined ? "GET" : "POST",
+): Promise<unknown> {
   const response = await fetch(`${zernioBaseUrl()}/v1/${path}`, {
-    method: body === undefined ? "GET" : "POST",
+    method,
     redirect: "error",
     cache: "no-store",
     signal: AbortSignal.timeout(15_000),

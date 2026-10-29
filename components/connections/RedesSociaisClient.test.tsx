@@ -66,3 +66,42 @@ it("shows errors rather than a false empty or connected state", async () => {
   mount();
   expect((await screen.findByRole("alert")).textContent).toContain("Credencial recusada");
 });
+
+it("offers explicit webhook resync only for a working supported social channel", async () => {
+  h.get.mockResolvedValue({
+    data: {
+      configured: true,
+      label: "Partner",
+      networks: [{ id: "instagram", label: "Instagram" }],
+      accounts: [
+        {
+          id: "active-account",
+          platform: "instagram",
+          username: "brand",
+          active: true,
+          inbox_supported: true,
+          channel: { id: "channel-1", status: "WORKING" },
+        },
+        {
+          id: "failed-channel",
+          platform: "instagram",
+          username: "other",
+          active: true,
+          inbox_supported: true,
+          channel: { id: "channel-2", status: "FAILED" },
+        },
+      ],
+    },
+  });
+  h.post.mockResolvedValue({ data: { channel_id: "channel-1", resynced: false } });
+  mount();
+  const button = await screen.findByRole("button", { name: "Ressincronizar webhook" });
+  expect(screen.getAllByRole("button", { name: "Ressincronizar webhook" })).toHaveLength(1);
+  fireEvent.click(button);
+  await vi.waitFor(() =>
+    expect(h.post).toHaveBeenCalledWith("/api/v1/channels/social", {
+      action: "resync",
+      account_id: "active-account",
+    }),
+  );
+});
