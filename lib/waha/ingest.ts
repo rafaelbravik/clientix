@@ -15,6 +15,7 @@ import { lancarFalhaDeIngestao } from "@/lib/waha/falha-transitoria";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { audit } from "@/lib/audit";
+import { isDeletedSubjectSuppressionError } from "@/lib/lgpd/suppression";
 import { sincronizarSaudeDaConexao } from "@/lib/channels/health";
 import { marcarConversaComMensagem } from "@/lib/channels/marcar-conversa";
 import { aplicarEfeitosPosEntrada } from "@/lib/channels/pos-entrada";
@@ -651,6 +652,7 @@ async function upsertContact(
     p_notify: notifyName,
   } as never);
   if (error) {
+    if (isDeletedSubjectSuppressionError(error)) return null;
     lancarFalhaDeIngestao("fn_upsert_wa_contact", error);
   }
   return (data as string) ?? null;

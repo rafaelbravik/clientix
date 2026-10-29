@@ -26,6 +26,7 @@ import { dispatchWahaEvent, type WahaEnvelope } from "@/lib/waha/ingest";
 type Falha = { code: string; message: string } | null;
 
 function banco(opts: { contato?: Falha; conversa?: Falha; insert?: Falha }) {
+  const chamadasRpc: string[] = [];
   const consulta = () => {
     const q = {
       eq: () => q,
@@ -38,6 +39,7 @@ function banco(opts: { contato?: Falha; conversa?: Falha; insert?: Falha }) {
     return q;
   };
   return {
+    chamadasRpc,
     from: () => ({
       select: () => consulta(),
       update: () => consulta(),
@@ -49,6 +51,7 @@ function banco(opts: { contato?: Falha; conversa?: Falha; insert?: Falha }) {
       }),
     }),
     rpc: async (fn: string) => {
+      chamadasRpc.push(fn);
       if (fn === "fn_upsert_wa_contact") {
         return opts.contato ? { data: null, error: opts.contato } : { data: "contato-1", error: null };
       }
@@ -143,6 +146,14 @@ describe("a ingestão lança em vez de engolir", () => {
     await expect(
       despacha(banco({ insert: { code: "23505", message: "duplicate key" } }), recebida),
     ).resolves.toBeUndefined();
+  });
+
+  it("titular suprimido é ignorado sem retry e não avança para conversa", async () => {
+    const admin = banco({
+      contato: { code: "42501", message: "lgpd_subject_suppressed" },
+    });
+    await expect(despacha(admin, recebida)).resolves.toBeUndefined();
+    expect(admin.chamadasRpc).toEqual(["fn_upsert_wa_contact"]);
   });
 
   it("controle: banco saudável não lança", async () => {

@@ -512,6 +512,7 @@ To re-apply on a fresh Supabase project, replay the migrations in version order 
 | `20261027171000` | `0523_pipeline_list_page_index` | Índice `(organization_id, pipeline_id, position_in_stage, id)` para a Lista paginada do funil: os dois primeiros campos são filtros de igualdade e os seguintes sustentam a ordem estável da consulta; a lista não precisa ordenar o funil inteiro antes de aplicar o limite. |
 | `20261027210000` | `0524_message_template_inbox_bar` | Adiciona `message_templates.mostrar_na_barra`, com default `true`; controla apenas a barra do composer e preserva todos os atalhos no menu `/`. |
 | `20261028152934` | `0525_campaign_split_messages` | Adiciona `campaigns.split_messages`, default `false`; campanhas WhatsApp de texto podem dividir parágrafos em até três mensagens sequenciais. Checkpoint `split_bubble_count`/`next_bubble_index` por destinatário permite retomar após timeout/restart sem reenviar prefixos; quotas e pacing seguem por mensagem física. |
+| `20261028180000` | `0541_lgpd_identity_suppression` | Reutiliza a chave HMAC e a tabela de tombstones da importação histórica para impedir recriação de titulares por telefone, LID/chat, `social_identity` e e-mail normalizado após a cascata LGPD. Captura/limpa identidades também em lápides legadas e, se o HMAC falhar, mantém a anonimização e sinaliza o bloqueio canônico de ingestão. A guarda tenant-scoped rejeita identidades repostas e `fn_upsert_wa_contact` não seleciona lápides. A policy restritiva força recibos LGPD pelo proxy autenticado, sem afetar exports. |
 
 
 

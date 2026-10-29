@@ -24,6 +24,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { audit } from "@/lib/audit";
+import { isDeletedSubjectSuppressionError } from "@/lib/lgpd/suppression";
 import { pausarIaPorAtendimentoManual } from "@/lib/escalacao/atendimento-manual";
 import { estamparAtribuicaoDoContato } from "@/lib/leads/atribuicao-de-anuncio";
 import {
@@ -212,6 +213,9 @@ export async function ingestMetaInbound(
     } as never,
   );
   if (erroContato || !contactId) {
+    if (isDeletedSubjectSuppressionError(erroContato)) {
+      return { status: "ignored", reason: "titular_apagado_a_pedido" };
+    }
     return { status: "failed", reason: `contato: ${erroContato?.message ?? "sem id"}` };
   }
 
@@ -394,6 +398,9 @@ export async function ingestMetaEcho(
     } as never,
   );
   if (erroContato || !contactId) {
+    if (isDeletedSubjectSuppressionError(erroContato)) {
+      return { status: "ignored", reason: "titular_apagado_a_pedido" };
+    }
     return { status: "failed", reason: `contato: ${erroContato?.message ?? "sem id"}` };
   }
 

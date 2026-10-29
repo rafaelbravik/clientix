@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "generated_at": "2026-10-28T17:21:00.346Z",
-  "schema_target": "0525",
+  "generated_at": "2026-10-28T23:28:32.322Z",
+  "schema_target": "0541",
   "baseline": {
     "file": "baseline.sql",
-    "checksum": "c4ba818aa6b995d7afd397a6941c0784466a36752c759957ed22036a5eaf7418",
-    "size_bytes": 2503204,
-    "incorporated_through_sequence": 525
+    "checksum": "1d98bda34ffe6e9e7d7276f2b82359f477a9f1bbf1e0d2b38f90069ceae17bf0",
+    "size_bytes": 2521387,
+    "incorporated_through_sequence": 541
   },
   "migrations": [
     {
@@ -3440,7 +3440,15 @@
       "slug": "campaign_split_messages",
       "checksum": "bb472cb339d94e02576e836255245f2da5807a4dc2214c64a6a7559acab91ca8",
       "transactional": true
+    },
+    {
+      "file": "20261028180000_0541_lgpd_identity_suppression.sql",
+      "version": "20261028180000",
+      "sequence": 541,
+      "slug": "lgpd_identity_suppression",
+      "checksum": "e91f92e907ebd386d3996b9e6faa89ad620bcfb788044edd6dd2de0e28bcaa98",
+      "transactional": true
     }
   ],
-  "updated_at": "2026-10-28T17:21:00.346Z"
+  "updated_at": "2026-10-29T01:09:07.752Z"
 }

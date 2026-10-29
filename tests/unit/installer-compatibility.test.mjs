@@ -80,8 +80,9 @@ describe("signed installer compatibility contract", () => {
     const pipelineListMigration = schemaManifest.migrations.find((entry) => entry.sequence === 523);
     const quickRepliesBarMigration = schemaManifest.migrations.find((entry) => entry.sequence === 524);
     const campaignSplitMessagesMigration = schemaManifest.migrations.find((entry) => entry.sequence === 525);
-    expect(schemaManifest.schema_target).toBe("0525");
-    expect(schemaManifest.baseline.incorporated_through_sequence).toBe(525);
+    const lgpdIdentitySuppressionMigration = schemaManifest.migrations.find((entry) => entry.sequence === 541);
+    expect(schemaManifest.schema_target).toBe("0541");
+    expect(schemaManifest.baseline.incorporated_through_sequence).toBe(541);
     expect(webchatMigration).toMatchObject({
       file: "20261010120000_0511_webchat_widget_bootstrap.sql",
       version: "20261010120000",
@@ -154,6 +155,12 @@ describe("signed installer compatibility contract", () => {
       version: "20261028152934",
       sequence: 525,
       slug: "campaign_split_messages",
+    });
+    expect(lgpdIdentitySuppressionMigration).toMatchObject({
+      file: "20261028180000_0541_lgpd_identity_suppression.sql",
+      version: "20261028180000",
+      sequence: 541,
+      slug: "lgpd_identity_suppression",
     });
 
     const baseline510Checksum = "a".repeat(64);
@@ -263,6 +270,17 @@ describe("signed installer compatibility contract", () => {
         { version: campaignSplitMessagesMigration.version, checksum: campaignSplitMessagesMigration.checksum },
       ],
     }, schemaManifest)).toMatchObject({ valid: true, currentSchema: "0525" });
+    expect(deriveCurrentSchema({
+      ...trackedState,
+      applied: [...trackedState.applied, ...migrationsThrough519,
+        { version: knowledgeSourceAtomicMigration.version, checksum: knowledgeSourceAtomicMigration.checksum },
+        { version: caseWaitRemindersMigration.version, checksum: caseWaitRemindersMigration.checksum },
+        { version: pipelineListMigration.version, checksum: pipelineListMigration.checksum },
+        { version: quickRepliesBarMigration.version, checksum: quickRepliesBarMigration.checksum },
+        { version: campaignSplitMessagesMigration.version, checksum: campaignSplitMessagesMigration.checksum },
+        { version: lgpdIdentitySuppressionMigration.version, checksum: lgpdIdentitySuppressionMigration.checksum },
+      ],
+    }, schemaManifest)).toMatchObject({ valid: true, currentSchema: "0541" });
     expect(deriveCurrentSchema({ type: "FRESH_DATABASE" }, schemaManifest)).toMatchObject({ valid: true, currentSchema: null });
     expect(deriveCurrentSchema({ type: "EXISTING_UNTRACKED_INSTALLATION" }, schemaManifest).valid).toBe(false);
     expect(deriveCurrentSchema({ type: "TRACKED_INSTALLATION", applied: [] }, schemaManifest).valid).toBe(false);
