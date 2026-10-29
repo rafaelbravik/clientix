@@ -81,9 +81,13 @@ export const PUBLIC_PATHS: RegExp[] = [
   // mora DENTRO da rota (`app/api/v1/contacts/route.ts`), igual aos casos de
   // `/api/v1/system/agent` e `/api/v1/cron/` acima — "público" aqui quer dizer
   // "o proxy não decide", não "sem autenticação". Ancorado com `$`: só o
-  // `GET` da listagem, não `/api/v1/contacts/[id]` nem `/import`, que ainda
-  // não têm suporte a Bearer.
+  // `GET` da listagem, não `/api/v1/contacts/[id]` nem `/import`; o avatar é a
+  // única exceção por id e tem uma entrada UUID própria logo abaixo.
   /^\/api\/v1\/contacts$/,
+  // GET do avatar privado também aceita Bearer `contacts:read`; a rota mantém
+  // a autorização e o filtro explícito de tenant. UUID + path ancorado evitam
+  // tornar públicos outros endpoints de contato por acidente.
+  /^\/api\/v1\/contacts\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/avatar$/i,
   // ENVIO SERVER-TO-SERVER. Mesma dualidade de `/api/v1/contacts` acima, com
   // `mcp:write` em vez de `mcp:read`: sessão de navegador OU Bearer `dsk_…`,
   // resolvidos por `lib/api/auth-dual.ts` DENTRO de cada rota, com a org saindo

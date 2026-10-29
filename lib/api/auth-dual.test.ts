@@ -45,6 +45,14 @@ const OPCOES = {
   scope: "mcp:write",
 };
 
+const OPCOES_AVATAR = {
+  requestId: "req-avatar",
+  resource: "contacts",
+  role: "viewer" as const,
+  scope: "contacts:read",
+  rejectMalformedAuthorizationHeader: true,
+};
+
 function req(headers?: HeadersInit) {
   return new NextRequest("http://localhost/api/v1/messages", { method: "POST", headers });
 }
@@ -116,6 +124,51 @@ describe("resolveAuthDual", () => {
     expect(r.ok).toBe(false);
     if (r.ok) return;
     expect(r.response.status).toBe(401);
+    expect(requireRole).not.toHaveBeenCalled();
+  });
+
+  it("aceita token com contacts:read para uma leitura de contatos", async () => {
+    vi.mocked(validateBearerToken).mockResolvedValue({
+      organizationId: ORG_DO_TOKEN,
+      scopes: ["contacts:read"],
+      role: "agent",
+      actor: { type: "api_token", id: "tok-contacts" },
+    } as never);
+
+    const r = await resolveAuthDual(req({ authorization: "Bearer dsk_contacts" }), OPCOES_AVATAR);
+
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.organizationId).toBe(ORG_DO_TOKEN);
+    expect(r.via).toBe("token");
+  });
+
+  it("recusa token de contatos sem contacts:read", async () => {
+    vi.mocked(validateBearerToken).mockResolvedValue({
+      organizationId: ORG_DO_TOKEN,
+      scopes: ["mcp:read"],
+      role: "agent",
+      actor: { type: "api_token", id: "tok-contacts" },
+    } as never);
+
+    const r = await resolveAuthDual(req({ authorization: "Bearer dsk_contacts" }), OPCOES_AVATAR);
+
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.response.status).toBe(403);
+    expect(requireRole).not.toHaveBeenCalled();
+  });
+
+  it("rejeita Authorization malformado sem cair numa sessão válida", async () => {
+    sessaoOk();
+    vi.mocked(validateBearerToken).mockRejectedValue(
+      new McpAuthError(-32001, 401, "Missing or malformed Authorization header."),
+    );
+
+    const r = await resolveAuthDual(req({ authorization: "Basic opaque" }), OPCOES_AVATAR);
+
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.response.status).toBe(401);
+    expect(validateBearerToken).toHaveBeenCalledWith("Basic opaque");
     expect(requireRole).not.toHaveBeenCalled();
   });
 

@@ -83,6 +83,12 @@ export interface AuthDualOptions {
    * passa pela rota, porque as duas chamam o mesmo handler.
    */
   tokenRole?: Role;
+  /**
+   * Trata qualquer Authorization presente que não seja um Bearer reconhecido
+   * como tentativa inválida, em vez de cair na sessão do navegador. Útil em
+   * rotas onde um header explícito não pode trocar silenciosamente de modo.
+   */
+  rejectMalformedAuthorizationHeader?: boolean;
 }
 
 /**
@@ -91,11 +97,18 @@ export interface AuthDualOptions {
  */
 export async function resolveAuthDual(
   req: NextRequest,
-  { requestId, resource, role, scope, tokenRole }: AuthDualOptions,
+  {
+    requestId,
+    resource,
+    role,
+    scope,
+    tokenRole,
+    rejectMalformedAuthorizationHeader = false,
+  }: AuthDualOptions,
 ): Promise<AuthDual> {
   const authHeader = req.headers.get("authorization");
 
-  if (extractBearer(authHeader)) {
+  if (extractBearer(authHeader) || (rejectMalformedAuthorizationHeader && authHeader !== null)) {
     let auth;
     try {
       auth = await validateBearerToken(authHeader);

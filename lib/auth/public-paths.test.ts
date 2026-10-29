@@ -60,6 +60,13 @@ describe("isPublicPath", () => {
     expect(isPublicPath("/api/v1/leads/11111111-1111-4111-8111-111111111111")).toBe(true);
   });
 
+  it("libera somente GET do avatar de contato com Bearer (forma de UUID)", () => {
+    expect(isPublicPath("/api/v1/contacts/11111111-1111-4111-8111-111111111111/avatar")).toBe(true);
+    expect(isPublicPath("/api/v1/contacts/not-a-uuid/avatar")).toBe(false);
+    expect(isPublicPath("/api/v1/contacts/11111111-1111-4111-8111-111111111111/avatar/extra")).toBe(false);
+    expect(isPublicPath("/api/v1/contacts/11111111-1111-4111-8111-111111111111")).toBe(false);
+  });
+
   it("mas NÃO os irmãos literais de /api/v1/leads/, que não têm Bearer", () => {
     expect(isPublicPath("/api/v1/leads/bulk")).toBe(false);
     expect(isPublicPath("/api/v1/leads/at-risk")).toBe(false);

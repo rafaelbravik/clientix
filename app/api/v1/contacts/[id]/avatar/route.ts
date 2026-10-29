@@ -2,8 +2,8 @@
  * GET /api/v1/contacts/{id}/avatar — serve a foto de perfil do contato.
  *
  * O bucket `whatsapp-media` é PRIVADO, então a tela não pode apontar direto
- * para o objeto. Esta rota resolve o contato dentro da organização ativa,
- * assina uma URL curta e redireciona.
+ * para o objeto. Esta rota resolve o contato dentro da organização autenticada
+ * por sessão ou token, assina uma URL curta e redireciona.
  *
  * Por que redirecionar em vez de devolver o binário: assim o browser baixa a
  * imagem direto do Storage e ela entra no cache dele — o app não vira proxy de
@@ -15,7 +15,10 @@
  */
 import { randomUUID } from "node:crypto";
 import type { NextRequest } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { z } from "zod";
 
+import { resolveAuthDual } from "@/lib/api/auth-dual";
 import { fail } from "@/lib/api/wrappers";
 import { loadAuthUser } from "@/lib/auth/server";
 import { orgAtivaDaApi } from "@/lib/auth/require-role";
@@ -52,22 +55,49 @@ export async function GET(
   const requestId = randomUUID();
   const { id } = await ctx.params;
 
-  const authUser = await loadAuthUser();
-  const ativa = await orgAtivaDaApi(authUser, requestId);
-  if (!ativa.ok) return ativa.response;
-  const activeOrg = ativa.org;
-  if (!activeOrg) {
-    return fail("no_active_org", "No active organization.", 403, { requestId });
+  let organizationId: string;
+  let admin: SupabaseClient;
+
+  if (_req.headers.get("authorization") !== null) {
+    // Bearer passa pelo autenticador canônico. A org vem da linha do token;
+    // scope e role são validados no próprio helper. Header Authorization
+    // explícito e malformado não pode cair silenciosamente na sessão.
+    const authz = await resolveAuthDual(_req, {
+      requestId,
+      resource: "contacts",
+      role: "viewer",
+      scope: "contacts:read",
+      rejectMalformedAuthorizationHeader: true,
+    });
+    if (!authz.ok) return authz.response;
+    organizationId = authz.organizationId;
+    admin = authz.supabase;
+  } else {
+    // Preserve exatamente o caminho de sessão existente, inclusive seu gate de
+    // organização ativa, sem acrescentar uma política de role/MFA a esta leitura.
+    const authUser = await loadAuthUser();
+    const ativa = await orgAtivaDaApi(authUser, requestId);
+    if (!ativa.ok) return ativa.response;
+    const activeOrg = ativa.org;
+    if (!activeOrg) {
+      return fail("no_active_org", "No active organization.", 403, { requestId });
+    }
+    organizationId = activeOrg.orgId;
+    admin = createAdminClient();
   }
 
-  const admin = createAdminClient();
+  const idValidado = z.uuid().safeParse(id);
+  if (!idValidado.success) {
+    return fail("validation_failed", "Contact ID must be a UUID.", 422, { requestId });
+  }
+
   // Service role bypassa RLS: o filtro por organization_id é obrigatório e vem
-  // da sessão, nunca do path (doutrina do CLAUDE.md).
+  // da sessão ou da linha do token, nunca do path/query/body.
   const { data: contato } = await admin
     .from("contacts")
     .select("avatar_storage_path, is_anonymized")
-    .eq("id", id)
-    .eq("organization_id", activeOrg.orgId)
+    .eq("id", idValidado.data)
+    .eq("organization_id", organizationId)
     .maybeSingle();
 
   const row = contato as { avatar_storage_path?: string | null; is_anonymized?: boolean } | null;
