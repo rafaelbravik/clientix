@@ -15,7 +15,14 @@ vi.mock("@/hooks/inbox/useUploadMedia", () => ({
   useUploadMedia: () => ({ mutateAsync: uploadMock, isPending: false }),
 }));
 vi.mock("@/hooks/inbox/useSendMessage", () => ({
-  useSendMessage: () => ({ mutate: sendMock, isPending: false }),
+  useSendMessage: () => ({
+    mutate: sendMock,
+    mutateAsync: async (args: unknown) => {
+      sendMock(args, {});
+      return {};
+    },
+    isPending: false,
+  }),
 }));
 vi.mock("@/hooks/inbox/useMessageTemplates", () => ({ useMessageTemplates: () => ({ data: [] }) }));
 

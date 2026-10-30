@@ -2004,6 +2004,21 @@ conversa aberta com as mensagens das rodadas, cada uma entregue sem recarregar.
 | Mobile 390×844 | Lista de conversas com contagens de etiquetas e início da conversa com rótulos IA | `evidence/wave-8l/mobile-390x844.png` | PASS |
 | Mobile 390×844 (captura completa) | Nome longo e rótulos de mensagens IA, humana, automação e sistema no fluxo completo | `evidence/wave-8l/mobile-390x844-full.png` | PASS |
 
+### Evidências visuais da Wave 8M — anexos por arrastar e soltar
+
+| Viewport | Finalidade da captura | Evidência | Resultado |
+|---|---|---|---|
+| Desktop 1440×900 | Composer normal antes de selecionar anexos | `evidence/wave-8m/desktop-1440x900-normal.png` | PASS |
+| Desktop 1440×900 | Realce e instrução de drop sobre o Composer | `evidence/wave-8m/desktop-1440x900-dragover.png` | PASS |
+| Desktop 1440×900 | Preview de múltiplos arquivos antes do envio | `evidence/wave-8m/desktop-1440x900-multiple-preview.png` | PASS |
+| Tablet 768×1024 | Composer normal no layout tablet | `evidence/wave-8m/tablet-768x1024-normal.png` | PASS |
+| Tablet 768×1024 | Realce de drop sem quebra do layout tablet | `evidence/wave-8m/tablet-768x1024-dragover.png` | PASS |
+| Tablet 768×1024 | Preview ordenado de vários arquivos | `evidence/wave-8m/tablet-768x1024-multiple-preview.png` | PASS |
+| Mobile 390×844 | Composer normal no layout mobile | `evidence/wave-8m/mobile-390x844-normal.png` | PASS |
+| Mobile 390×844 | Instrução de drop dentro do Composer sem overflow | `evidence/wave-8m/mobile-390x844-dragover.png` | PASS |
+| Mobile 390×844 | Preview de múltiplos arquivos e nome longo | `evidence/wave-8m/mobile-390x844-multiple-preview.png` | PASS |
+| Mobile 390×844 | Preview de anexo no modo de nota interna | `evidence/wave-8m/mobile-390x844-internal-note-preview.png` | PASS |
+
 ## O gate de CHANGELOG que falta — desenho combinado (2026-08-25)
 
 **Nada no repo cobra que mudança de comportamento tenha entrada no CHANGELOG.** Esquecer é de

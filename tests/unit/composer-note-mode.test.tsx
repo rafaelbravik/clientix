@@ -28,10 +28,24 @@ const UPLOAD_DE_NOTA = {
 };
 
 vi.mock("@/hooks/inbox/useSendMessage", () => ({
-  useSendMessage: () => ({ mutate: sendMock, isPending: false }),
+  useSendMessage: () => ({
+    mutate: sendMock,
+    mutateAsync: async (args: unknown) => {
+      sendMock(args, {});
+      return {};
+    },
+    isPending: false,
+  }),
 }));
 vi.mock("@/hooks/inbox/useCreateNote", () => ({
-  useCreateNote: () => ({ mutate: createNoteMock, isPending: false }),
+  useCreateNote: () => ({
+    mutate: createNoteMock,
+    mutateAsync: async (args: unknown) => {
+      createNoteMock(args, {});
+      return {};
+    },
+    isPending: false,
+  }),
 }));
 vi.mock("@/hooks/inbox/useUploadMedia", () => ({
   useUploadMedia: () => ({ mutateAsync: uploadMock, isPending: false }),

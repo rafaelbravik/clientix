@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   type ClipboardEvent,
+  type DragEvent,
   type KeyboardEvent,
 } from "react";
 import { PaperPlaneTilt } from "@/lib/ui/icons";
@@ -128,7 +129,8 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
   // O aviso some no primeiro ENVIO: depois do clique o rascunho foi usado, e
   // deixar a faixa prometendo texto que já saiu seria mentira de tela.
   const [rascunhoUsado, setRascunhoUsado] = useState(false);
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [pendingCaption, setPendingCaption] = useState("");
   /**
    * O modo em que o arquivo foi ESCOLHIDO, congelado na escolha — e não o modo
    * em que o diálogo está aberto agora.
@@ -143,6 +145,10 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
   const [contactPickerOpen, setContactPickerOpen] = useState(false);
   const [menuDismissed, setMenuDismissed] = useState(false);
   const [mode, setMode] = useState<"reply" | "note">(initialMode);
+  const [draggingFiles, setDraggingFiles] = useState(false);
+  const [sendingAttachments, setSendingAttachments] = useState(false);
+  const dragDepth = useRef(0);
+  const sendingAttachmentsRef = useRef(false);
   useEffect(() => {
     onDraftChange?.(text, mode);
   }, [text, mode, onDraftChange]);
@@ -165,11 +171,53 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
   // nota interna nunca chega ao cliente, e é onde o atendente registra por que
   // a conversa esfriou — barrá-la tira exatamente o que ainda dá para fazer.
   const respostaBarrada = isDisabled || (mode === "reply" && !!janelaFechada);
+  const aceitaArquivos =
+    !respostaBarrada && pendingFiles.length === 0 && !sendingAttachments && !sendingAttachmentsRef.current;
 
-  /** Escolhe o arquivo e MARCA o modo da escolha (ver `pendingEm`). */
-  function escolherArquivo(file: File) {
-    setPendingFile(file);
+  /** Escolhe a fila e MARCA o modo da escolha (ver `pendingEm`). */
+  function escolherArquivos(files: File[]) {
+    if (!aceitaArquivos || files.length === 0) return;
+    setPendingFiles(files);
+    setPendingCaption("");
     setPendingEm(mode);
+  }
+
+  function transferindoArquivo(e: DragEvent<HTMLElement>): boolean {
+    return Array.from(e.dataTransfer.types ?? []).includes("Files");
+  }
+
+  function onDragOver(e: DragEvent<HTMLElement>) {
+    if (!transferindoArquivo(e)) return;
+    // Mesmo bloqueado, impede que o browser navegue para o arquivo solto.
+    e.preventDefault();
+    e.dataTransfer.dropEffect = aceitaArquivos ? "copy" : "none";
+  }
+
+  function onDragEnter(e: DragEvent<HTMLElement>) {
+    if (!transferindoArquivo(e) || !aceitaArquivos) return;
+    dragDepth.current += 1;
+    setDraggingFiles(true);
+  }
+
+  function onDragLeave() {
+    if (dragDepth.current === 0) return;
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setDraggingFiles(false);
+  }
+
+  function limparEstadoDeDrag() {
+    dragDepth.current = 0;
+    setDraggingFiles(false);
+  }
+
+  function onDrop(e: DragEvent<HTMLElement>) {
+    if (!transferindoArquivo(e)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const files = Array.from(e.dataTransfer.files ?? []);
+    limparEstadoDeDrag();
+    if (!aceitaArquivos) return;
+    escolherArquivos(files);
   }
 
   function autoresize() {
@@ -267,18 +315,18 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
    *
    * O MODO saiu da guarda (#1863, F3): "Nota interna" passou a aceitar anexo,
    * e a imagem colada ali vira exatamente o mesmo preview de sempre — com o
-   * modo congelado na escolha (`escolherArquivo`), para ela não escapar para o
+   * modo congelado na escolha (`escolherArquivos`), para ela não escapar para o
    * cliente se o operador trocar de aba no meio. `respostaBarrada` já cobre os
    * dois modos: em nota ele é só `isDisabled` (a janela fechada barra a
    * RESPOSTA, e só ela — a nota continua sendo o lugar onde se registra por que
    * a conversa esfriou).
    */
   function onPaste(e: ClipboardEvent<HTMLTextAreaElement>) {
-    if (respostaBarrada || pendingFile) return;
+    if (respostaBarrada || pendingFiles.length > 0) return;
     const imagem = imagemDoClipboard(e.clipboardData, new Date());
     if (!imagem) return; // colagem de texto segue o caminho normal do browser
     e.preventDefault();
-    escolherArquivo(imagem);
+    escolherArquivos([imagem]);
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
@@ -295,7 +343,14 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
 
   if (blockedReason) {
     return (
-      <div className="border-t border-border bg-muted/40 px-4 py-3 text-center text-xs text-muted-foreground">
+      <div
+        data-testid="composer"
+        onDragEnter={onDragEnter}
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+        className="relative border-t border-border bg-muted/40 px-4 py-3 text-center text-xs text-muted-foreground"
+      >
         {blockedReason}
       </div>
     );
@@ -308,7 +363,21 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
           "relative border-t border-border bg-background px-3 py-2",
           mode === "note" && "border-warning/40 bg-warning-bg",
         )}
+        data-testid="composer"
+        onDragEnter={onDragEnter}
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
       >
+        {draggingFiles && aceitaArquivos && (
+          <div
+            data-testid="composer-drop-overlay"
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-2 z-20 flex items-center justify-center rounded-md border-2 border-dashed border-primary bg-primary/10 px-3 text-center text-sm font-medium text-primary"
+          >
+            {t("Solte o arquivo para anexar")}
+          </div>
+        )}
         {mode === "reply" && (
           <ReplyReviewPanel conversationId={conversationId} disabled={isDisabled} />
         )}
@@ -414,8 +483,8 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
               continua o de sempre: em modo nota `respostaBarrada` é só
               `isDisabled`, e a janela fechada barra a resposta, não a nota. */}
           <AttachMenu
-            disabled={respostaBarrada}
-            onPick={escolherArquivo}
+            disabled={respostaBarrada || pendingFiles.length > 0 || sendingAttachments}
+            onPick={escolherArquivos}
             onPickContact={mode === "reply" ? () => setContactPickerOpen(true) : undefined}
           />
           <EmojiButton
@@ -492,11 +561,16 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
         </div>
       </div>
       <AttachmentPreviewDialog
-        file={pendingFile}
-        sending={upload.isPending || send.isPending || createNote.isPending}
-        onCancel={() => setPendingFile(null)}
+        files={pendingFiles}
+        caption={pendingCaption}
+        onCaptionChange={setPendingCaption}
+        sending={sendingAttachments || upload.isPending || send.isPending || createNote.isPending}
+        onCancel={() => {
+          setPendingFiles([]);
+          setPendingCaption("");
+        }}
         onSend={async (caption) => {
-          if (!pendingFile) return;
+          if (pendingFiles.length === 0 || sendingAttachmentsRef.current) return;
           // A BIFURCAÇÃO (#1863, F3) — e ela é decidida pelo modo CONGELADO NA
           // ESCOLHA (`pendingEm`), não pelo modo de agora.
           //
@@ -507,41 +581,52 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
           //            como `anexo`. Não existe passo de envio: a nota não é
           //            mensagem, não tem `type`, não tem destino no WhatsApp.
           //
-          // O `try/catch` continua cobrindo SÓ o upload (falha de gravação da
-          // nota é tratada pelo onError do próprio hook, e o diálogo fica aberto
-          // nos dois casos).
+          // Upload e registro/envio continuam usando as mutações existentes. A
+          // fila avança só depois de cada item concluir, para um erro preservar
+          // o item atual e os seguintes para retry.
           const destino: DestinoDoUpload = pendingEm === "note" ? "nota" : "mensagem";
+          const filesToSend = pendingFiles;
+          sendingAttachmentsRef.current = true;
+          setSendingAttachments(true);
           try {
-            const uploaded = await upload.mutateAsync({ conversationId, file: pendingFile, destino });
-            if (destino === "nota") {
-              createNote.mutate(
-                {
-                  conversation_id: conversationId,
-                  body: caption,
-                  anexo: {
-                    storage_path: uploaded.storage_path,
+            for (let index = 0; index < filesToSend.length; index += 1) {
+              const file = filesToSend[index]!;
+              try {
+                const uploaded = await upload.mutateAsync({ conversationId, file, destino });
+                const legenda = index === 0 ? caption : "";
+                if (destino === "nota") {
+                  await createNote.mutateAsync({
+                    conversation_id: conversationId,
+                    body: legenda,
+                    anexo: {
+                      storage_path: uploaded.storage_path,
+                      media_mime: uploaded.media_mime,
+                      media_size_bytes: uploaded.media_size_bytes,
+                    },
+                  });
+                } else {
+                  await send.mutateAsync({
+                    conversation_id: conversationId,
+                    type: uploaded.kind,
+                    body: legenda || undefined,
+                    media_storage_path: uploaded.storage_path,
                     media_mime: uploaded.media_mime,
                     media_size_bytes: uploaded.media_size_bytes,
-                  },
-                },
-                { onSuccess: () => setPendingFile(null) },
-              );
-              return;
+                  });
+                }
+              } catch {
+                // O hook já apresenta o erro; a fila continua disponível para retry.
+                setPendingFiles(filesToSend.slice(index));
+                return;
+              }
+              setPendingFiles(filesToSend.slice(index + 1));
+              if (index === 0) setPendingCaption("");
             }
-            send.mutate(
-              {
-                conversation_id: conversationId,
-                type: uploaded.kind,
-                body: caption || undefined,
-                media_storage_path: uploaded.storage_path,
-                media_mime: uploaded.media_mime,
-                media_size_bytes: uploaded.media_size_bytes,
-              },
-              { onSuccess: () => setPendingFile(null) },
-            );
-          } catch {
-            // toast já disparado pelo onError de useUploadMedia; dialog fica aberto p/ retry
-            return;
+            setPendingFiles([]);
+            setPendingCaption("");
+          } finally {
+            sendingAttachmentsRef.current = false;
+            setSendingAttachments(false);
           }
         }}
       />
