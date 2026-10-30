@@ -1,7 +1,18 @@
+import { createRequire } from "node:module";
 import { isIP } from "node:net";
 import nodemailer, { type Transporter } from "nodemailer";
 import { env } from "@/lib/env";
 import { getSmtpConfig, type SmtpConfig } from "@/lib/email/config";
+
+interface NodemailerAddress {
+  address?: string;
+  group?: NodemailerAddress[] | null;
+}
+
+const require = createRequire(import.meta.url);
+const parseAddressList = require("nodemailer/lib/addressparser") as (
+  input: string,
+) => NodemailerAddress[];
 
 interface SendArgs {
   to: string | string[];
@@ -26,6 +37,45 @@ export type SmtpCheck =
 
 let transporter: Transporter | null = null;
 let transporterKey = "";
+
+function containsOnlyUsableAddresses(addresses: NodemailerAddress[]): boolean {
+  return addresses.every((entry) => {
+    if (entry.group !== undefined && entry.group !== null) {
+      return containsOnlyUsableAddresses(entry.group);
+    }
+    return typeof entry.address === "string" && entry.address.trim().length > 0;
+  });
+}
+
+/**
+ * CR/LF em recipient fields pode ser reinterpretado pelo addressparser como
+ * sintaxe de grupo, fazendo um endereço injetado entrar no envelope SMTP.
+ * Também recusamos listas não vazias que não resultem em nenhum mailbox
+ * utilizável. Strings vazias continuam seguindo o comportamento do Nodemailer.
+ */
+function recipientInputIsSafe(value: string | string[] | undefined): boolean {
+  if (value === undefined) return true;
+  const entries = Array.isArray(value) ? value : [value];
+
+  for (const entry of entries) {
+    if (/[\r\n\u0000]/u.test(entry)) return false;
+    if (!entry.trim()) continue;
+
+    try {
+      const parsed = parseAddressList(entry);
+      if (!parsed.length || !containsOnlyUsableAddresses(parsed)) return false;
+      const hasMailbox = (addresses: NodemailerAddress[]): boolean =>
+        addresses.some((address) =>
+          address.group ? hasMailbox(address.group) : Boolean(address.address?.trim()),
+        );
+      if (!hasMailbox(parsed)) return false;
+    } catch {
+      return false;
+    }
+  }
+
+  return true;
+}
 
 export function isSmtpConfigured(config: SmtpConfig): boolean {
   return Boolean(config.host && config.fromEmail);
@@ -71,6 +121,10 @@ function classify(error: unknown): EmailDeliveryError {
 }
 
 export async function sendEmail(args: SendArgs): Promise<SendResult> {
+  if (!recipientInputIsSafe(args.to) || !recipientInputIsSafe(args.replyTo)) {
+    return { ok: false, error: "send_failed", details: "Invalid recipient address." };
+  }
+
   const config = await getSmtpConfig();
   const from = formatFromAddress(config, args.fromName);
   if (!isSmtpConfigured(config) || !from) return { ok: false, error: "not_configured" };
