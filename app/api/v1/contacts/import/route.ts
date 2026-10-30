@@ -25,6 +25,7 @@ import { ok, fail } from "@/lib/api/wrappers";
 import { requireRole } from "@/lib/auth/require-role";
 import { audit } from "@/lib/audit";
 import { encryptCpfSql, hashCpf } from "@/lib/contacts/cpf";
+import { abrirConversaDoContatoNovo } from "@/lib/contacts/conversa-ao-criar";
 import { traduzir } from "@/lib/i18n/dicionario";
 import {
   CSV_MAX_BYTES,
@@ -277,6 +278,14 @@ export async function POST(req: NextRequest): Promise<Response> {
     imported += 1;
     if (phone) existentes.add(`tel:${phone}`);
     if (email) existentes.add(`email:${email.toLowerCase()}`);
+
+    await abrirConversaDoContatoNovo(supabase, {
+      porta: "importacao_csv",
+      organizationId: orgId,
+      contactId: (criado as { id: string }).id,
+      phoneNumber: phone ?? null,
+      requestId,
+    });
 
     // Mesmo evento do create unitário — quem consome `contact.created`
     // (workers, métricas) trata importado e manual igual.

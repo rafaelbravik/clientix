@@ -93,7 +93,7 @@ function banco(opcoes: {
     return consulta;
   });
   vi.mocked(createClient).mockResolvedValue({ from, rpc } as never);
-  return { tentativas, prechecks, rpc };
+  return { tentativas, prechecks, rpc, from };
 }
 
 async function importar(linhas: string[]): Promise<Resumo> {
@@ -313,6 +313,23 @@ describe("POST /api/v1/contacts/import — identificadores em fichas mescladas",
       expect(db.rpc).not.toHaveBeenCalled();
     },
   );
+});
+
+describe("POST /api/v1/contacts/import — não abre conversa para importação", () => {
+  it("500 contatos com telefone não leem sessões nem chamam a RPC de conversa", async () => {
+    const db = banco();
+    const linhas = Array.from(
+      { length: 500 },
+      (_, index) => `Contato ${index + 1},+551198888${String(index).padStart(4, "0")},`,
+    );
+
+    const resumo = await importar(linhas);
+
+    expect(resumo.imported).toBe(500);
+    expect(db.from.mock.calls.map(([tabela]) => tabela)).not.toContain("channel_sessions");
+    expect(db.rpc.mock.calls.filter(([nome]) => nome === "fn_service_begin")).toHaveLength(0);
+    expect(db.rpc.mock.calls.filter(([nome]) => nome === "emit_event")).toHaveLength(500);
+  });
 });
 
 describe("POST /api/v1/contacts/import — a planilha segue o PAÍS da organização (issue #1033)", () => {

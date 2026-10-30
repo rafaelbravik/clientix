@@ -15,14 +15,16 @@ import { NextRequest } from "next/server";
 
 import { fail } from "@/lib/api/wrappers";
 import { requireRole } from "@/lib/auth/require-role";
+import { requireSupportWrite } from "@/lib/impersonate/support";
 import type { AuthUser } from "@/lib/auth/types";
 import { isPublicPath } from "@/lib/auth/public-paths";
 import { McpAuthError, extractBearer } from "@/lib/mcp/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { listContactsHandler } from "./_handler";
+import { createContactHandler, listContactsHandler } from "./_handler";
 
 vi.mock("@/lib/auth/require-role", () => ({ requireRole: vi.fn() }));
+vi.mock("@/lib/impersonate/support", () => ({ requireSupportWrite: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
 vi.mock("./_handler", () => ({
@@ -68,8 +70,51 @@ function sessaoOk(): void {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(requireSupportWrite).mockResolvedValue(null);
   vi.mocked(createClient).mockResolvedValue(FAKE_SESSION_CLIENT);
   vi.mocked(createAdminClient).mockReturnValue(FAKE_ADMIN_CLIENT);
+});
+
+describe("POST /api/v1/contacts — porta manual de criação", () => {
+  it("encaminha porta=manual ao seam canônico", async () => {
+    const user: AuthUser = {
+      id: USER_ID,
+      email: "a@example.com",
+      full_name: "Operador",
+      avatar_url: null,
+      is_platform_admin: false,
+      idioma: "pt-BR" as const,
+      organizations: [{ organization_id: ORG_ID, organization_name: "Org", role: "agent" }],
+    };
+    vi.mocked(requireRole).mockResolvedValue({
+      ok: true,
+      user,
+      org: { orgId: ORG_ID, name: "Org", role: "agent" },
+    });
+    vi.mocked(createContactHandler).mockResolvedValue({ action: "created", contact: {} as never });
+    const supabase = {
+      from: vi.fn(() => ({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockResolvedValue({ data: { country: "BR" }, error: null }),
+      })),
+    };
+    vi.mocked(createClient).mockResolvedValue(supabase as never);
+    const { POST } = await import("./route");
+    const response = await POST(new NextRequest("http://localhost/api/v1/contacts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "Ana", phone_number: "+5511999998888" }),
+    }));
+
+    expect(response.status).toBe(201);
+    expect(createContactHandler).toHaveBeenCalledWith(
+      supabase,
+      expect.objectContaining({ organization_id: ORG_ID }),
+      expect.objectContaining({ name: "Ana", phone_number: "+5511999998888" }),
+      { porta: "manual" },
+    );
+  });
 });
 
 describe("GET /api/v1/contacts — sessão de navegador", () => {

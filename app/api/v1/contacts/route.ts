@@ -198,6 +198,7 @@ export async function POST(req: NextRequest): Promise<Response> {
         idioma: user.idioma,
       },
       input as ContactCreate,
+      { porta: "manual" },
     );
     return ok(result, { status: 201, requestId });
   } catch (err) {

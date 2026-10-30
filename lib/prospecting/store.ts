@@ -545,7 +545,7 @@ export async function activateCampaign(
           source: "prospecting",
           source_metadata: { campaign_id: id, place_id: p.data.key, maps_url: p.data.maps_url },
           consent: { legitimate_interest: { ref: config.legal_basis_ref } },
-        });
+        }, { porta: "prospeccao" });
         contactId = String(contact.contact.id);
         await db.query(
           "update prospecting_candidates set contact_id=$3 where organization_id=$1 and id=$2",

@@ -13,34 +13,66 @@ import { beginServiceAtOrigin } from "@/lib/atendimento/origem";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { ARCHIVED_AT, queryTolerantToMissingArchived } from "@/lib/channels/archived";
-import { PROVIDERS_DE_MENSAGEM } from "@/lib/channels/capabilities";
+import {
+  PROVIDERS_DE_MENSAGEM,
+  PROVIDERS_DE_TELEFONE,
+  type ProviderDeMensagem,
+} from "@/lib/channels/capabilities";
 
+
+export interface PreferenciaDeSessao {
+  preferirTelefone?: boolean;
+  /** Usado pela abertura best-effort de contato para distinguir erro de ausência. */
+  propagarErro?: boolean;
+}
 
 /** Sessão viva da org: WORKING primeiro; senão qualquer uma não arquivada. */
 export async function sessaoProntaParaEnvio(
   supabase: SupabaseClient,
   organizationId: string,
+  preferencia: PreferenciaDeSessao = {},
 ): Promise<string | null> {
-  const listar = (soWorking: boolean, ignorarArquivadas: boolean) => {
+  const listar = (
+    providers: readonly ProviderDeMensagem[],
+    soWorking: boolean,
+    ignorarArquivadas: boolean,
+  ) => {
     let q = supabase
       .from("channel_sessions")
       .select("id")
       .eq("organization_id", organizationId);
     // Voz não manda texto: escolher a linha de chamada aqui faria a automação
     // "enviar" por um canal sem transporte de mensagem (spec 18).
-    q = q.in("provider", [...PROVIDERS_DE_MENSAGEM]);
+    q = q.in("provider", [...providers]);
     if (soWorking) q = q.eq("status", "WORKING");
     if (ignorarArquivadas) q = q.is(ARCHIVED_AT, null);
     return q.order("created_at", { ascending: true }).limit(1);
   };
-  const tentar = async (soWorking: boolean) => {
-    const { data } = await queryTolerantToMissingArchived(
-      () => listar(soWorking, true),
-      () => listar(soWorking, false),
+  const tentar = async (providers: readonly ProviderDeMensagem[], soWorking: boolean) => {
+    const resultado = await queryTolerantToMissingArchived(
+      () => listar(providers, soWorking, true),
+      () => listar(providers, soWorking, false),
     );
-    return (data as Array<{ id: string }> | null)?.[0]?.id ?? null;
+    if (preferencia.propagarErro && resultado.error) {
+      const mensagem =
+        typeof resultado.error.message === "string" && resultado.error.message.trim()
+          ? resultado.error.message
+          : "channel_session_lookup_failed";
+      throw new Error(mensagem);
+    }
+    return (resultado.data as Array<{ id: string }> | null)?.[0]?.id ?? null;
   };
-  return (await tentar(true)) ?? (await tentar(false));
+
+  const faixas: ReadonlyArray<readonly ProviderDeMensagem[]> = preferencia.preferirTelefone
+    ? [PROVIDERS_DE_TELEFONE, PROVIDERS_DE_MENSAGEM]
+    : [PROVIDERS_DE_MENSAGEM];
+  for (const providers of faixas) {
+    for (const soWorking of [true, false]) {
+      const id = await tentar(providers, soWorking);
+      if (id) return id;
+    }
+  }
+  return null;
 }
 
 export async function ensureConversation(

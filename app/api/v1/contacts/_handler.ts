@@ -19,8 +19,8 @@ import { roleAtLeast } from "@/lib/auth/types";
 import { canonicalPhoneBR, phoneLookupVariants } from "@/lib/channels/phone-variants";
 import { encontrarContatoPorTelefone } from "@/lib/channels/contato-por-telefone";
 import { hashCpf, encryptCpfSql } from "@/lib/contacts/cpf";
+import { abrirConversaDoContatoNovo, type PortaDaCriacao } from "@/lib/contacts/conversa-ao-criar";
 import type { Contact } from "@/lib/types/contacts";
-import { ensureConversation, sessaoProntaParaEnvio } from "@/lib/automation/start-conversation";
 import type {
   ContactCreate,
   ContactPatch,
@@ -433,10 +433,16 @@ export interface CreateContactResult {
   action: "created";
 }
 
+export interface CreateContactOptions {
+  /** `prospeccao` mantém a abertura explícita na sessão configurada pela campanha. */
+  porta?: PortaDaCriacao;
+}
+
 export async function createContactHandler(
   supabase: SB,
   ctx: HandlerCtx,
   input: ContactCreate,
+  options: CreateContactOptions = {},
 ): Promise<CreateContactResult> {
   const a = actorAuditPayload(ctx.actor);
   const insertRow: Record<string, unknown> = {
@@ -495,16 +501,13 @@ export async function createContactHandler(
   }
 
   const contact = created as Contact;
-  if (contact.phone_number) {
-    try {
-      const sessionId = await sessaoProntaParaEnvio(supabase, ctx.organization_id);
-      if (sessionId) {
-        await ensureConversation(supabase, ctx.organization_id, contact.id, sessionId);
-      }
-    } catch {
-      // conversa no create é best-effort; o contato já existe
-    }
-  }
+  await abrirConversaDoContatoNovo(supabase, {
+    porta: options.porta ?? "manual",
+    organizationId: ctx.organization_id,
+    contactId: contact.id,
+    phoneNumber: contact.phone_number,
+    requestId: ctx.requestId,
+  });
 
   await supabase
     .rpc("emit_event", {

@@ -246,6 +246,14 @@ export const PROVIDERS_DE_MENSAGEM = [
   "webchat",
 ] as const satisfies readonly ProviderDeMensagem[];
 
+/** Providers de mensagem que podem endereçar uma pessoa pelo telefone do contato. */
+export const PROVIDERS_DE_TELEFONE = [
+  "waha",
+  "meta_cloud",
+  "zernio",
+  "datafy",
+] as const satisfies readonly Exclude<(typeof PROVIDERS_DE_MENSAGEM)[number], "zernio_social">[];
+
 /**
  * `true` quando a linha de `channel_sessions` é um canal de mensagem.
  *
