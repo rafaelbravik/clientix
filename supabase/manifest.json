@@ -4,8 +4,8 @@
   "schema_target": "0541",
   "baseline": {
     "file": "baseline.sql",
-    "checksum": "1d98bda34ffe6e9e7d7276f2b82359f477a9f1bbf1e0d2b38f90069ceae17bf0",
-    "size_bytes": 2521387,
+    "checksum": "bd6fb623d9515212ff465713e114d8db4bd660def9381b28e3af70933de1c2df",
+    "size_bytes": 2521384,
     "incorporated_through_sequence": 541
   },
   "migrations": [
