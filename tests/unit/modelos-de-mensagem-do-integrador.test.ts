@@ -397,6 +397,87 @@ describe("preencher modelo com as variáveis do integrador", () => {
 
     expect(erro.message).toContain("não usa nenhuma variável");
   });
+
+  it("resposta rápida usa o rótulo do campo de lista sem sequestrar o alias nome", async () => {
+    const db = comModelo("Oi {{nome}}, sua viagem para {{destino}} está chegando", CONTATO);
+    const tables = db.tabelas as unknown as Record<string, Record<string, unknown>[]>;
+    tables.crm_leads = [
+      {
+        id: "lead-1",
+        organization_id: ORG_ID,
+        title: "Viagem",
+        value_cents: null,
+        currency: null,
+        contact_id: "c1",
+        pipeline_id: "pipeline-1",
+        custom_fields: { nome: "valor-interno", destino: "paris-franca" },
+      },
+    ];
+    tables.crm_pipelines = [
+      {
+        id: "pipeline-1",
+        organization_id: ORG_ID,
+        settings: {
+          fields: [
+            {
+              key: "nome",
+              label: "Nome interno",
+              type: "select",
+              options: [{ value: "valor-interno", label: "Nome sequestrado" }],
+            },
+            {
+              key: "destino",
+              label: "Destino",
+              type: "select",
+              options: [{ value: "paris-franca", label: "Paris (França)" }],
+            },
+          ],
+        },
+      },
+    ];
+
+    const result = await preencherModeloDeMensagem(deps(db), { templateId: "t1", leadId: "lead-1" });
+
+    expect(result.texto).toBe("Oi Joana, sua viagem para Paris (França) está chegando");
+    expect(result.lacunas).toEqual([]);
+  });
+
+  it("não usa definições de pipeline de outro tenant", async () => {
+    const db = comModelo("Destino {{destino}}", CONTATO);
+    const tables = db.tabelas as unknown as Record<string, Record<string, unknown>[]>;
+    tables.crm_leads = [
+      {
+        id: "lead-1",
+        organization_id: ORG_ID,
+        title: "Viagem",
+        value_cents: null,
+        currency: null,
+        contact_id: "c1",
+        pipeline_id: "pipeline-shared-id",
+        custom_fields: { destino: "paris-franca" },
+      },
+    ];
+    tables.crm_pipelines = [
+      {
+        id: "pipeline-shared-id",
+        organization_id: OUTRA_ORG,
+        settings: {
+          fields: [
+            {
+              key: "destino",
+              label: "Destino",
+              type: "select",
+              options: [{ value: "paris-franca", label: "Rótulo de outro tenant" }],
+            },
+          ],
+        },
+      },
+    ];
+
+    const result = await preencherModeloDeMensagem(deps(db), { templateId: "t1", leadId: "lead-1" });
+
+    expect(result.texto).toBe("Destino paris-franca");
+  });
 });
 
 // ---------------------------------------------------------------------------

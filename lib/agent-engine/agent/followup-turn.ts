@@ -64,6 +64,7 @@ import {
   type PropostaDeEsperaBruta,
 } from './followup-flow-classify';
 import { consultarJevNoFollowup } from '@/lib/ai/decisao/followup';
+import { renderizarCamposPersonalizadosNoFollowup } from '@/lib/automation/followup-template';
 
 const DAY_MS = 86_400_000;
 const HOUR_MS = 3_600_000;
@@ -939,6 +940,14 @@ async function sendFixedOutbound(
     throw new Error(`envio fixo do follow-up falhou em get_lead_context (${context.error.code})`);
   }
   const optedOutThisTurn = context.context.contact.is_blocked;
+  const bodyForSend = modelo === undefined
+    ? await renderizarCamposPersonalizadosNoFollowup(pool, {
+        organizationId: tenantId,
+        contactId: leadId,
+        template: body,
+        context: { contact: context.context.contact },
+      })
+    : body;
 
   const channel = (deps.channel ?? ((p: pg.Pool) => new WahaChannelAdapter(p, deps.crmCfg)))(pool);
 
@@ -958,7 +967,7 @@ async function sendFixedOutbound(
     leadId,
     jobId: job.id,
     channelSessionId,
-    body,
+    body: bodyForSend,
     optedOutThisTurn,
     crmDailyLimit: null,
     now: clock(),

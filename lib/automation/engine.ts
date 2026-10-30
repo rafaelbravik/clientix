@@ -17,6 +17,7 @@ import type { ServiceBoundary } from "@/lib/atendimento/fronteira";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { EventRow, HandlerResult } from "@/lib/event-log/dispatcher";
 import { evaluateConditions, type RuleCondition } from "@/lib/automation/conditions";
+import { anexarDefinicoesDeLista } from "@/lib/automation/campos-do-render";
 import { getAction } from "@/lib/automation/actions";
 import type { ActionResultDetail } from "@/lib/automation/types";
 import { audit } from "@/lib/audit";
@@ -50,6 +51,27 @@ export async function buildContext(admin: SupabaseClient, row: EventRow): Promis
       .maybeSingle();
     if (lead) {
       context.lead = lead;
+      const campos = lead.custom_fields;
+      if (
+        typeof lead.pipeline_id === "string" &&
+        campos !== null &&
+        typeof campos === "object" &&
+        Object.keys(campos).length > 0
+      ) {
+        try {
+          const { data: pipeline, error: pipelineError } = await admin
+            .from("crm_pipelines")
+            .select("settings")
+            .eq("id", lead.pipeline_id)
+            .eq("organization_id", org)
+            .maybeSingle();
+          if (!pipelineError && pipeline) {
+            anexarDefinicoesDeLista(context, pipeline.settings as Record<string, unknown> | null);
+          }
+        } catch {
+          // Falha auxiliar preserva o value canônico; não interrompe a automação.
+        }
+      }
       if (lead.contact_id) {
         const { data: contact } = await admin
           .from("contacts")

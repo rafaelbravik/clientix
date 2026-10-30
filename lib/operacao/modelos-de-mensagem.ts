@@ -31,11 +31,9 @@
  * resposta que faz quem chamou consertar o pedido.
  */
 import { ApiError } from "@/lib/api/types";
-import { marcacaoDoCrm, renderTemplate } from "@/lib/automation/template";
+import { anexarDefinicoesDeLista } from "@/lib/automation/campos-do-render";
+import { MARCACAO, marcacaoDoCrm, renderTemplate } from "@/lib/automation/template";
 import type { DepsDaOperacao } from "@/lib/operacao/entradas-automaticas";
-
-/** A varredura de marcação, a MESMA do render (`lib/automation/template.ts`). */
-const MARCACAO = /\{\{\s*([\w.]+)\s*\}\}/g;
 
 /** Teto do nome de uma variável do integrador. Curto de propósito: é identificador. */
 export const CHAVE_DE_VALOR_MAX = 40;
@@ -178,7 +176,7 @@ export async function preencherModeloDeMensagem(
   const corpo = (modelo as unknown as { body: string }).body;
   // Depois do contexto de propósito: a recusa compara `valores` com o CORPO do
   // modelo, e o corpo só existe depois da leitura.
-  Object.assign(contexto, valoresDoIntegrador(deps, corpo, input.valores));
+  Object.assign(contexto, valoresDoIntegrador(deps, corpo, input.valores, contexto));
 
   return {
     id: (modelo as unknown as { id: string }).id,
@@ -206,6 +204,7 @@ function valoresDoIntegrador(
   deps: DepsDaOperacao,
   corpo: string,
   valores: Record<string, string> | undefined,
+  contexto: Record<string, unknown>,
 ): Record<string, string> {
   const chaves = Object.keys(valores ?? {});
   if (chaves.length === 0) return {};
@@ -231,7 +230,7 @@ function valoresDoIntegrador(
       );
       continue;
     }
-    if (marcacaoDoCrm(chave)) {
+    if (marcacaoDoCrm(chave, contexto)) {
       problemas.push(
         `"${chave}" sai do contato ou do negócio — mande contact_id (ou lead_id) em vez de preenchê-la`,
       );
@@ -277,12 +276,34 @@ async function montarContexto(
   if (input.leadId) {
     const { data: lead } = await deps.supabase
       .from("crm_leads")
-      .select("id, title, value_cents, currency, contact_id")
+      .select("id, title, value_cents, currency, contact_id, pipeline_id, custom_fields")
       .eq("id", input.leadId)
       .eq("organization_id", deps.organizationId)
       .maybeSingle();
     if (lead) {
       contexto.lead = lead;
+      const pipelineId = (lead as unknown as { pipeline_id: string | null }).pipeline_id;
+      const customFields = (lead as unknown as { custom_fields: unknown }).custom_fields;
+      if (
+        typeof pipelineId === "string" &&
+        customFields !== null &&
+        typeof customFields === "object" &&
+        Object.keys(customFields).length > 0
+      ) {
+        try {
+          const { data: pipeline, error } = await deps.supabase
+            .from("crm_pipelines")
+            .select("settings")
+            .eq("id", pipelineId)
+            .eq("organization_id", deps.organizationId)
+            .maybeSingle();
+          if (!error && pipeline) {
+            anexarDefinicoesDeLista(contexto, pipeline.settings as Record<string, unknown> | null);
+          }
+        } catch {
+          // A leitura é auxiliar: em falha, o renderer conserva o valor do lead.
+        }
+      }
       contactId = contactId ?? ((lead as unknown as { contact_id: string | null }).contact_id ?? null);
     }
   }
@@ -302,17 +323,17 @@ async function montarContexto(
 
 /** As marcações do corpo, sem repetição e na ordem em que aparecem. */
 function variaveisDoCorpo(corpo: string): string[] {
-  return [...new Set([...corpo.matchAll(MARCACAO)].map((m) => m[1]!))];
+  return [...new Set([...corpo.matchAll(new RegExp(MARCACAO.source, "g"))].map((m) => m[1]!))];
 }
 
 /** As marcações do modelo que o contexto não resolveu — mesma varredura do render. */
 function lacunasDe(template: string, contexto: Record<string, unknown>): string[] {
   const vazias = new Set<string>();
-  for (const m of template.matchAll(MARCACAO)) {
+  for (const m of template.matchAll(new RegExp(MARCACAO.source, "g"))) {
     const marcacao = m[1]!;
     // Comparar o render de UMA marcação isolada é o que garante a mesma régua
     // do texto final: alias, caminho aninhado e ausência passam pelo mesmo código.
-    if (renderTemplate(`{{${marcacao}}}`, contexto) === "") vazias.add(marcacao);
+    if (renderTemplate(m[0], contexto) === "") vazias.add(marcacao);
   }
   return [...vazias];
 }
