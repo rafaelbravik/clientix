@@ -123,6 +123,12 @@ export function MessageBubble({
   const podeOcultar = !isOutbound && !apagada && Boolean(ocultaNoCrm ? onRestaurar : onOcultar);
   const temMenu = Boolean(onResponder || (podeEditar && onEditar) || podeApagar || podeOcultar);
   const aiGenerated = isAiGeneratedMessage(message.metadata);
+  const isAiOutbound = isOutbound && message.sent_via === "ai";
+  const aiActorName = (() => {
+    if (!isAiOutbound) return null;
+    const value = message.metadata?.ai_actor_name;
+    return typeof value === "string" && value.trim() ? value.trim() : null;
+  })();
   const citations = extractCitations(message.metadata);
   const showCitationButton =
     isOutbound && aiGenerated && (debugCitations ?? false);
@@ -328,11 +334,16 @@ export function MessageBubble({
           </p>
         )}
         {senderLabel && (
-          <div className="mb-0.5 flex items-center gap-1 text-[11px] font-semibold opacity-80">
-            {senderLabel === "IA" ? (
-              <Robot size={10} weight="duotone" aria-hidden />
-            ) : null}
-            {senderLabel && t(senderLabel)}
+          <div className="mb-0.5 flex min-w-0 flex-wrap items-center gap-1 text-[11px] font-semibold opacity-80">
+            {isAiOutbound ? <Robot size={10} weight="duotone" aria-hidden /> : null}
+            {isAiOutbound ? (
+              <>
+                <span>{t("IA")}</span>
+                {aiActorName ? <span className="max-w-full wrap-anywhere">· {aiActorName}</span> : null}
+              </>
+            ) : (
+              t(senderLabel)
+            )}
           </div>
         )}
         {historica && (

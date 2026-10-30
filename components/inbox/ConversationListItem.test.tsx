@@ -34,3 +34,31 @@ describe("ConversationListItem — etiqueta de grupo", () => {
     expect(screen.queryByText("Grupo")).toBeNull();
   });
 });
+
+describe("ConversationListItem — etiquetas escondidas", () => {
+  function montarComTags(tags: string[]) {
+    const conversation = {
+      ...conversaDeExemplo.conversation,
+      contacts: {
+        ...conversaDeExemplo.conversation.contacts!,
+        tags,
+      },
+    };
+    return render(<ConversationListItem conversation={conversation} {...conversaDeExemplo.props} />);
+  }
+
+  it("duas etiquetas visíveis não criam +N", () => {
+    montarComTags(["retorno", "boleto"]);
+    expect(screen.queryByText(/^\+\d+$/)).toBeNull();
+  });
+
+  it("+1 revela somente a etiqueta escondida", () => {
+    montarComTags(["retorno", "boleto", "urgente"]);
+    expect(screen.getByText("+1")).toHaveAttribute("title", "urgente");
+  });
+
+  it("+N revela as etiquetas restantes na ordem existente", () => {
+    montarComTags(["retorno", "boleto", "venda", "pos-venda"]);
+    expect(screen.getByText("+2")).toHaveAttribute("title", "venda, pos-venda");
+  });
+});

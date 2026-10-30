@@ -137,6 +137,7 @@ export function ConversationListItem({
   const phoneFallback = c?.phone_number ? phoneForDisplay(c.phone_number) : "??";
   const tags = c?.tags ?? [];
   const visibleTags = tags.slice(0, 2);
+  const hiddenTags = tags.slice(visibleTags.length);
   const overflow = tags.length - visibleTags.length;
   const preview = conversation.last_message_preview?.trim() || t("Sem mensagens");
   const truncated = preview.length > 60 ? `${preview.slice(0, 60)}…` : preview;
@@ -319,7 +320,7 @@ export function ConversationListItem({
               <ChipDeEtiqueta key={t} tag={t} className="h-4 px-1.5 text-[10px]" />
             ))}
             {overflow > 0 && (
-              <span className="text-[10px] text-text-muted">+{overflow}</span>
+              <span className="text-[10px] text-text-muted" title={hiddenTags.join(", ")}>+{overflow}</span>
             )}
             {mostrarAtendente && comando.quem === "humano" && (
               <OwnerBadge ownerKind="user" ownerName={comando.nome ?? t("Atendente")} compacto />

@@ -50,6 +50,8 @@ const CONV = "22222222-2222-4222-8222-222222222222";
 const CONTACT = "33333333-3333-4333-8333-333333333333";
 const SESSION = "44444444-4444-4444-8444-444444444444";
 const USER = "55555555-5555-4555-8555-555555555555";
+const AGENT = "66666666-6666-4666-8666-666666666666";
+const OTHER_ORG = "77777777-7777-4777-8777-777777777777";
 
 /** O que o WAHA devolve no envio: o id BARE, sem o chat. */
 const BARE = "3EB0ABCDEF0123456789";
@@ -79,7 +81,7 @@ function wahaRespondendo() {
  * `channel_sessions.metadata` vazio = canal aberto: o gate de pré-go-live não
  * bloqueia quando o ator não é pessoa, que é o caso dos dois primeiros testes.
  */
-function duble() {
+function duble(aiAgents?: Array<Record<string, unknown>>) {
   return criarDubleDoHandler({
     conversation: {
       id: CONV,
@@ -97,6 +99,7 @@ function duble() {
         metadata: {},
       },
     },
+    aiAgents,
   });
 }
 
@@ -136,18 +139,40 @@ describe("o carimbo de origem da linha enviada", () => {
     expect(linha?.sent_by_user_id).toBe(USER);
   });
 
-  it("CONTROLE: o agente de IA continua 'ai' — a categoria nova não engoliu a dele", async () => {
+  it("agente de IA grava nome tenant-scoped e vence metadata enviada pelo cliente", async () => {
     // Sem este caso, carimbar TUDO que não é pessoa 'automation' ficaria verde —
     // e a IA deixaria de ter rótulo próprio, que é o defeito na direção oposta.
     wahaRespondendo();
-    const { supabase, capturas } = duble();
+    const { supabase, capturas } = duble([{ id: AGENT, organization_id: ORG, name: "Bia da Locação" }]);
 
     await sendMessageHandler(
       supabase,
-      ctxComAtor({ type: "ai_agent", id: "agente-1", role: "agent" }),
+      ctxComAtor({ type: "ai_agent", id: "run-1", agent_id: AGENT, role: "agent" }),
+      { ...input, metadata: { ai_actor_name: "Forjado", trace_id: "trace-1" } },
+    );
+
+    const linha = capturas.inserts.messages?.at(-1);
+    expect(linha?.sent_via).toBe("ai");
+    expect(linha?.metadata).toMatchObject({ ai_actor_name: "Bia da Locação", trace_id: "trace-1" });
+    expect(capturas.filtros.ai_agents).toEqual([
+      { coluna: "organization_id", valor: ORG },
+      { coluna: "id", valor: AGENT },
+    ]);
+    expect(capturas.selects.ai_agents).toEqual(["name"]);
+  });
+
+  it("agente pertencente a outro tenant não empresta nome", async () => {
+    wahaRespondendo();
+    const { supabase, capturas } = duble([{ id: AGENT, organization_id: OTHER_ORG, name: "Agente externo" }]);
+
+    await sendMessageHandler(
+      supabase,
+      ctxComAtor({ type: "ai_agent", id: "run-1", agent_id: AGENT, role: "agent" }),
       input,
     );
 
-    expect(capturas.inserts.messages?.at(-1)?.sent_via).toBe("ai");
+    const linha = capturas.inserts.messages?.at(-1);
+    expect(linha?.metadata).toMatchObject({ ai_actor_name: null });
+    expect(capturas.filtros.ai_agents).toContainEqual({ coluna: "organization_id", valor: ORG });
   });
 });

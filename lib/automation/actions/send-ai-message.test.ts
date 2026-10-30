@@ -218,6 +218,10 @@ describe("send_ai_message — quem PODE receber continua recebendo", () => {
     expect(r.status).toBe("success");
     expect(gerarAbordagemDeFormulario).toHaveBeenCalledTimes(1);
     expect(sendMessageHandler).toHaveBeenCalledTimes(1);
+    expect(sendMessageHandler.mock.calls[0]?.[1]).toMatchObject({
+      actor: { type: "webhook_source", id: "regra-1", textoEscritoPelaIA: true, agent_id: "agente-1" },
+    });
+    expect(sendMessageHandler.mock.calls[0]?.[2]).toMatchObject({ body: "Oi! Em que bairro você procura?" });
   });
 
   it("canal aberto ao público não é barrado", async () => {

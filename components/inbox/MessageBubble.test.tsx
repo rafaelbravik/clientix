@@ -226,8 +226,51 @@ describe("MessageBubble — rótulo de origem", () => {
   });
 
   it("IA continua mostrando 'IA' (comportamento preservado)", () => {
-    render(<MessageBubble message={msg({ sent_via: "ai" })} />);
+    const { container } = render(<MessageBubble message={msg({ sent_via: "ai" })} />);
     expect(screen.getByText("IA")).toBeInTheDocument();
+    expect(screen.getByText("IA").parentElement?.querySelector("svg")).not.toBeNull();
+    expect(container.textContent).not.toContain("undefined");
+  });
+
+  it("mostra IA e nome confiável do agente, com o nome sem espaços externos", () => {
+    const { container } = render(
+      <MessageBubble message={msg({ sent_via: "ai", metadata: { ai_actor_name: "  Bia da Locação  " } })} />,
+    );
+    expect(screen.getByText("IA")).toBeInTheDocument();
+    expect(screen.getByText("· Bia da Locação")).toBeInTheDocument();
+    expect(screen.getByText("IA").parentElement?.querySelector("svg")).not.toBeNull();
+    expect(container.textContent).not.toContain("Forjado");
+  });
+
+  it.each(["", "   ", null, undefined, 42, [], {}])(
+    "usa somente IA para ai_actor_name inválido (%s)",
+    (aiActorName) => {
+      render(
+        <MessageBubble
+          message={msg({
+            sent_via: "ai",
+            metadata: {
+              ai_actor_name: aiActorName,
+              agent_name: "Alias Forjado",
+              ai_agent_name: "Outro Alias",
+            },
+          })}
+        />,
+      );
+      expect(screen.getByText("IA")).toBeInTheDocument();
+      expect(screen.queryByText(/Alias Forjado|Outro Alias/)).toBeNull();
+      expect(screen.getByText("IA").parentElement?.querySelector("svg")).not.toBeNull();
+    },
+  );
+
+  it("não mostra autoria IA em mensagem recebida mesmo com metadata de nome", () => {
+    render(
+      <MessageBubble
+        message={msg({ direction: "inbound", sent_via: "ai", metadata: { ai_actor_name: "Bia" } })}
+      />,
+    );
+    expect(screen.queryByText("IA")).not.toBeInTheDocument();
+    expect(screen.queryByText("· Bia")).not.toBeInTheDocument();
   });
 
   it("mensagem recebida (inbound) não leva rótulo de origem", () => {

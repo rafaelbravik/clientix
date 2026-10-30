@@ -40,6 +40,7 @@ import { conferirDefinicao } from "@/lib/channels/conferir-definicao";
 import { estadoDaJanela } from "@/lib/channels/janela";
 import { isMediaPathOwnedBy } from "@/lib/messaging/media/upload-validation";
 import { assertUrlDeMidiaSegura } from "@/lib/messaging/media/url-de-midia-externa";
+import { metadataComNomeDoAgente, nomeDoAgenteEmissor } from "@/lib/messaging/identidade-do-agente";
 import {
   buildVcard,
   normalizePhoneForDisplay,
@@ -704,6 +705,13 @@ export async function sendMessageHandler(
     );
   }
 
+  const sentVia = origemDaMensagem(ctx.actor);
+  // A leitura é tenant-scoped e best-effort: se o agente não puder ser
+  // identificado, a mensagem continua saindo e o Inbox mostra apenas "IA".
+  const aiActorName = sentVia === "ai"
+    ? await nomeDoAgenteEmissor(supabase, ctx.organization_id, ctx.actor)
+    : null;
+
   const insertRow = {
     ...(ctx.internalMessageId ? { id: ctx.internalMessageId } : {}),
     organization_id: c.organization_id,
@@ -721,14 +729,14 @@ export async function sendMessageHandler(
     media_mime: input.media_mime ?? null,
     media_storage_path: input.media_storage_path ?? null,
     media_size_bytes: input.media_size_bytes ?? null,
-    sent_via: origemDaMensagem(ctx.actor),
+    sent_via: sentVia,
     sent_by_user_id: ctx.actor.type === "user" ? ctx.actor.id : null,
     // A PESSOA, não o token (#1613). Só chega aqui pelo ctx validado na rota
     // — ver a recusa acima —, e fica na coluna para consulta e auditoria.
     sent_on_behalf_of_user_id: ctx.onBehalfOf?.userId ?? null,
     sent_at: now,
     metadata: {
-      ...(input.metadata ?? {}),
+      ...metadataComNomeDoAgente(input.metadata, sentVia === "ai", aiActorName),
       ...(ctx.actor.type === "ai_agent" ? { ai_actor_id: ctx.actor.id } : {}),
       // Os dois nomes viajam GRAVADOS porque o balão não faz join: "Fulano ·
       // via {token}" é desenhado da própria linha. Vêm DEPOIS de

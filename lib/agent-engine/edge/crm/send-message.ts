@@ -167,7 +167,12 @@ export async function sendTurnMessage(
         cfg.supabase,
         {
           organization_id: input.tenantId,
-          actor: { type: 'ai_agent', id: cfg.agentActorId ?? AGENT_ACTOR_ID, role: 'manager' },
+          actor: {
+            type: 'ai_agent',
+            id: cfg.agentActorId ?? AGENT_ACTOR_ID,
+            ...(cfg.agentActorId ? { agent_id: cfg.agentActorId } : {}),
+            role: 'manager',
+          },
           requestId: idempotencyKey,
           serviceBoundary: parseServiceBoundary(sourceJobs[0]?.payload.service_boundary),
           proactiveContext,

@@ -156,7 +156,12 @@ async function execute(ctx: ActionCtx, config: Record<string, unknown>): Promise
         serviceBoundary: boundary,
         proactiveContext: { organizationId: ctx.organizationId, contactId: contact.id },
         // Disparada por regra, ESCRITA pela IA: o carimbo segue a autoria (#652).
-        actor: { type: "webhook_source", id: ctx.ruleId, textoEscritoPelaIA: true },
+        actor: {
+          type: "webhook_source",
+          id: ctx.ruleId,
+          textoEscritoPelaIA: true,
+          agent_id: agentId,
+        },
         requestId: `rule:${ctx.ruleId}`,
       },
       { conversation_id: conversationId, type: "text", body: texto } as Parameters<

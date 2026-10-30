@@ -48,6 +48,8 @@ export interface OpcoesDoDubleDoHandler {
   indiceUnicoMensagem?: boolean;
   /** Linha de `organizations` lida pelo aviso ao lead, pela guarda de agenda e pelo assert de org operante. Padrão: `{ settings: {}, status: "active" }`. */
   organizacao?: LinhaDoDuble;
+  /** Agentes disponíveis para resolver o nome do emissor no Inbox. */
+  aiAgents?: LinhaDoDuble[];
   /** Linhas de `calendar_appointments` lidas pela guarda de agenda. Padrão: `[]`. */
   agenda?: LinhaDoDuble[];
 }
@@ -144,6 +146,7 @@ export function criarDubleDoHandler(
       meta_templates: [],
       channel_sessions: [],
       organizations: [],
+      ai_agents: [],
       calendar_appointments: [],
     },
     inserts: { messages: [] },
@@ -153,6 +156,7 @@ export function criarDubleDoHandler(
       meta_templates: [],
       channel_sessions: [],
       organizations: [],
+      ai_agents: [],
     },
     rpcs: [],
   };
@@ -276,6 +280,29 @@ export function criarDubleDoHandler(
           },
           maybeSingle: async () => ({ data: opcoes.organizacao ?? padrao, error: null }),
           single: async () => ({ data: opcoes.organizacao ?? padrao, error: null }),
+        };
+        return cadeia;
+      }
+
+      if (tabela === "ai_agents") {
+        const filtros: FiltroDoDuble[] = [];
+        const cadeia = {
+          select: (colunas = "") => {
+            capturas.selects.ai_agents!.push(colunas);
+            return cadeia;
+          },
+          eq: (coluna: string, valor: unknown) => {
+            filtros.push({ coluna, valor });
+            capturas.filtros.ai_agents!.push({ coluna, valor });
+            return cadeia;
+          },
+          maybeSingle: async () => ({
+            data:
+              (opcoes.aiAgents ?? []).find((agente) =>
+                filtros.every((filtro) => agente[filtro.coluna] === filtro.valor),
+              ) ?? null,
+            error: null,
+          }),
         };
         return cadeia;
       }
