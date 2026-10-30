@@ -44,6 +44,7 @@ type Readiness = "ready" | "not_ready" | "unknown" | "not_configured";
 /** Por que o check não passou. `credencial_recusada` é o 401/403 — chegamos lá, e fomos barrados. */
 type MotivoDeFalha =
   | FalhaDeAlcance
+  | "projeto_indisponivel"
   | "credencial_recusada"
   | "permissao_recusada"
   | "resposta_inesperada"
@@ -113,6 +114,31 @@ function motivoDoStatusHttp(status: number): MotivoDeFalha {
   return status === 401 || status === 403 ? "credencial_recusada" : "resposta_inesperada";
 }
 
+function indisponibilidadeDoProjeto(status: number, texto: string): boolean {
+  if (status === 522) return true;
+  if (status < 500 || status >= 600) return false;
+
+  let body: unknown;
+  try {
+    body = JSON.parse(texto) as unknown;
+  } catch {
+    body = null;
+  }
+
+  if (objeto(body) && typeof body.code === "string" && /^PGRST\d{3}$/.test(body.code)) {
+    return body.code === "PGRST002";
+  }
+
+  const mensagem = objeto(body) && typeof body.message === "string" ? body.message : texto;
+  return /could not query the database for the schema cache|schema cache (?:is )?unavailable|failed to (?:build|load|query) (?:the )?schema cache/i.test(
+    mensagem,
+  );
+}
+
+function detalheIndisponibilidadeDoProjeto(): string {
+  return "projeto_indisponivel: o PostgREST não conseguiu consultar o cache do schema. Verifique o estado do projeto Supabase no painel de operação.";
+}
+
 async function checkSupabase(): Promise<Check> {
   const t0 = Date.now();
   // A sonda pergunta ao MESMO endereço que o app usa para falar com o banco, e
@@ -159,7 +185,14 @@ async function checkSupabase(): Promise<Check> {
       }),
     );
     if (res.status === 401 || res.status === 403) {
-      const body = await corpoJson(res);
+      // O status já prova que o serviço respondeu. Se o corpo falhar, isso não
+      // deve apagar a evidência HTTP nem converter a recusa em falha de alcance.
+      let body: unknown | null = null;
+      try {
+        body = await corpoJson(res);
+      } catch {
+        body = null;
+      }
       const erroPostgrest = objeto(body) && typeof body.code === "string" && /^PGRST\d{3}$/.test(body.code);
       const erroPermissaoBanco = objeto(body) && body.code === "42501";
       return check("down", Date.now() - t0, {
@@ -174,6 +207,39 @@ async function checkSupabase(): Promise<Check> {
         target: alvoDe(url),
       });
     }
+    if (res.status === 522) {
+      return check("down", Date.now() - t0, {
+        reachability: "reachable",
+        error: detalheIndisponibilidadeDoProjeto(),
+        reason: "projeto_indisponivel",
+        target: alvoDe(url),
+      });
+    }
+
+    if (res.status >= 500 && res.status < 600) {
+      // O status HTTP foi observado. Uma falha ao ler o corpo não pode
+      // reclassificá-lo como timeout de conexão; mantém-se o diagnóstico HTTP.
+      let texto: string;
+      try {
+        texto = await withTimeout(res.text());
+      } catch {
+        return check("down", Date.now() - t0, {
+          reachability: "reachable",
+          error: `http_${res.status}`,
+          reason: "resposta_inesperada",
+          target: alvoDe(url),
+        });
+      }
+
+      const indisponivel = indisponibilidadeDoProjeto(res.status, texto);
+      return check("down", Date.now() - t0, {
+        reachability: "reachable",
+        error: indisponivel ? detalheIndisponibilidadeDoProjeto() : `http_${res.status}`,
+        reason: indisponivel ? "projeto_indisponivel" : "resposta_inesperada",
+        target: alvoDe(url),
+      });
+    }
+
     if (res.status !== 200) {
       return check("down", Date.now() - t0, {
         reachability: "reachable",
@@ -183,7 +249,19 @@ async function checkSupabase(): Promise<Check> {
       });
     }
 
-    const body = await corpoJson(res);
+    let body: unknown | null;
+    try {
+      body = await corpoJson(res);
+    } catch (e) {
+      const causa = classificarFalhaDeAlcance(e);
+      return check("down", Date.now() - t0, {
+        reachability: "reachable",
+        identity: "unknown",
+        error: e instanceof Error ? e.message : String(e),
+        reason: causa === "indeterminada" ? "resposta_inesperada" : causa,
+        target: alvoDe(url),
+      });
+    }
     const contentRange = res.headers.get("content-range")?.trim() ?? "";
     // PostgREST inclui Content-Range em respostas de recursos, inclusive quando
     // RLS ou uma tabela recém-instalada não deixa linhas visíveis (`*/0`). A
