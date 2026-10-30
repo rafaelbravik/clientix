@@ -58,9 +58,15 @@ export function PipelinePageClient({
   const setFilters = useCallback(
     (next: LeadFilters) => {
       const qs = filtersToParams(next);
+      if (view === "lista") {
+        const params = new URLSearchParams(qs);
+        params.set("visao", "lista");
+        router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+        return;
+      }
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     },
-    [router, pathname],
+    [router, pathname, view],
   );
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [newOpen, setNewOpen] = useState(false);
@@ -170,22 +176,18 @@ export function PipelinePageClient({
           fieldDefs={fieldDefs}
         />
       )}
-      {view === "quadro" ? (
-        <FilterBar
-          filters={filters}
-          onChange={setFilters}
-          leads={data?.leads ?? []}
-          settings={data?.pipeline.settings}
-        />
-      ) : (
-        <p className="text-xs text-text-muted">{t("Os filtros do Quadro não se aplicam à Lista.")}</p>
-      )}
+      <FilterBar
+        filters={filters}
+        onChange={setFilters}
+        leads={data?.leads ?? []}
+        settings={settings ?? undefined}
+      />
       {error ? (
         <div className="rounded-md border border-destructive/30 bg-destructive/10 p-4 text-sm">
           {t("Não consegui carregar este funil:")} {formatError(error, t)}
         </div>
       ) : view === "lista" ? (
-        <ListaDoFunil pipelineId={pipelineId} fieldDefs={fieldDefs} />
+        <ListaDoFunil pipelineId={pipelineId} fieldDefs={fieldDefs} filters={filters} />
       ) : isLoading || !data ? (
         <div className="flex flex-1 animate-pulse items-center justify-center text-muted-foreground">
           {t("Carregando…")}

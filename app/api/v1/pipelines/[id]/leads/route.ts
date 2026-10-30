@@ -5,6 +5,7 @@ import { z } from "zod";
 import { fail, ok } from "@/lib/api/wrappers";
 import { requireRole } from "@/lib/auth/require-role";
 import { traduzir } from "@/lib/i18n/dicionario";
+import { donoDoFiltro, lerFiltrosDaLista } from "@/lib/kanban/filtros-da-lista";
 import type { PipelineLeadListRow } from "@/lib/kanban/types";
 import { createClient } from "@/lib/supabase/server";
 import type { Lead } from "@/lib/types/leads";
@@ -49,6 +50,16 @@ export async function GET(req: NextRequest, ctx: RouteCtx): Promise<Response> {
     return fail("unprocessable_entity", t("Parâmetros de paginação inválidos."), 422, { requestId });
   }
 
+  const filtrosLidos = lerFiltrosDaLista(req.nextUrl.searchParams);
+  if (!filtrosLidos.ok) {
+    return fail("unprocessable_entity", t("Parâmetros de filtro inválidos."), 422, {
+      requestId,
+      details: { [filtrosLidos.campo]: [t("valor desconhecido")] },
+    });
+  }
+  const filtros = filtrosLidos.filtros;
+  const dono = filtros.owner ? donoDoFiltro(filtros.owner) : null;
+
   const perPage = Math.min(parsed.data.per_page ?? PER_PAGE_DEFAULT, PER_PAGE_MAX);
   const offset = (parsed.data.page - 1) * perPage;
   if (!Number.isSafeInteger(offset)) {
@@ -70,12 +81,19 @@ export async function GET(req: NextRequest, ctx: RouteCtx): Promise<Response> {
     // A mesma resposta para inexistente e cross-tenant evita enumeração.
     if (!pipeline) return fail("resource_not_found", t("Pipeline não encontrado."), 404, { requestId });
 
-    const { data: leadsData, error: leadsError, count } = await supabase
+    let leadsQuery = supabase
       .from("crm_leads")
       .select("*", { count: "exact" })
       .eq("organization_id", authz.org.orgId)
       .eq("pipeline_id", pipelineId)
-      .neq("status", "archived")
+      .neq("status", "archived");
+    if (filtros.status) leadsQuery = leadsQuery.eq("status", filtros.status);
+    if (dono === "ninguem") {
+      leadsQuery = leadsQuery.is("owner_user_id", null).is("owner_agent_id", null);
+    } else if (dono) {
+      leadsQuery = leadsQuery.eq(dono.coluna, dono.id);
+    }
+    const { data: leadsData, error: leadsError, count } = await leadsQuery
       .order("position_in_stage", { ascending: true })
       .order("id", { ascending: true })
       .range(offset, offset + perPage - 1);
@@ -85,12 +103,19 @@ export async function GET(req: NextRequest, ctx: RouteCtx): Promise<Response> {
     // só converte em página vazia quando ela realmente começa após o total.
     // Outros intervalos inválidos continuam sendo erro, sem mascarar falhas.
     if (leadsError?.code === "PGRST103") {
-      const { count: total, error: countError } = await supabase
+      let countQuery = supabase
         .from("crm_leads")
         .select("id", { count: "exact", head: true })
         .eq("organization_id", authz.org.orgId)
         .eq("pipeline_id", pipelineId)
         .neq("status", "archived");
+      if (filtros.status) countQuery = countQuery.eq("status", filtros.status);
+      if (dono === "ninguem") {
+        countQuery = countQuery.is("owner_user_id", null).is("owner_agent_id", null);
+      } else if (dono) {
+        countQuery = countQuery.eq(dono.coluna, dono.id);
+      }
+      const { count: total, error: countError } = await countQuery;
 
       if (countError || total === null) {
         return fail("internal_error", t("Não foi possível carregar a lista do funil."), 500, { requestId });

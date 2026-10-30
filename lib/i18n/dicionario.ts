@@ -14187,7 +14187,11 @@ export const DICIONARIO: Traducoes = {
   "Falha ao carregar a lista do funil.": { es: "No se pudo cargar la lista del embudo." },
   "Lista de negócios": { es: "Lista de negocios" },
   "Nenhum negócio neste funil.": { es: "No hay negocios en este embudo." },
-  "Os filtros do Quadro não se aplicam à Lista.": { es: "Los filtros del tablero no se aplican a la lista." },
+  "Nenhum negócio com este filtro.": { es: "No hay negocios con este filtro." },
+  "Na Lista, estes filtros ainda não se aplicam:": {
+    es: "En la lista, estos filtros todavía no se aplican:",
+  },
+  "No Quadro, eles continuam funcionando.": { es: "En el tablero, siguen funcionando." },
   "Quadro": { es: "Tablero" },
   "Visualização do funil": { es: "Vista del embudo" },
   "Ocultar negócios encerrados antigos": { es: "Ocultar negocios cerrados antiguos" },

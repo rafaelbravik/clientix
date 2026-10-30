@@ -6,6 +6,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useT } from "@/hooks/i18n/useT";
 import { useTagDeIdioma } from "@/hooks/i18n/useLocaleDeData";
 import { useLeadsPaginados } from "@/hooks/kanban/useLeadsPaginados";
+import {
+  filtrosDaLista,
+  filtrosForaDaLista,
+  type FiltroForaDaLista,
+} from "@/lib/kanban/filtros-da-lista";
+import type { LeadFilters } from "@/lib/kanban/filters";
 import type { PipelineLeadListRow } from "@/lib/kanban/types";
 import { formatValorDoNegocio, MOEDA_PADRAO } from "@/lib/money";
 import type { CustomFieldDef } from "@/components/contacts/CustomFieldsEditor";
@@ -17,9 +23,11 @@ const PER_PAGE = 50;
 export function ListaDoFunil({
   pipelineId,
   fieldDefs,
+  filters,
 }: {
   pipelineId: string;
   fieldDefs: CustomFieldDef[];
+  filters: LeadFilters;
 }) {
   const t = useT();
   const tagDoIdioma = useTagDeIdioma();
@@ -29,8 +37,22 @@ export function ListaDoFunil({
     const value = Number(searchParams.get("pagina") ?? "1");
     return Number.isInteger(value) && value > 0 ? Math.min(value, 1_000_000) : 1;
   }, [searchParams]);
-  const { data, leads, pageInfo, isLoading, isError } = useLeadsPaginados(pipelineId, page, PER_PAGE);
+  const { data, leads, pageInfo, isLoading, isError } = useLeadsPaginados(
+    pipelineId,
+    page,
+    PER_PAGE,
+    filters,
+  );
   const [selectedLead, setSelectedLead] = useState<PipelineLeadListRow | null>(null);
+  const filtrosIgnorados = filtrosForaDaLista(filters);
+  const filtrosAplicados = filtrosDaLista(filters);
+  const labelsForaDaLista: Record<FiltroForaDaLista, string> = {
+    busca: "Busca",
+    etiqueta: "Tag",
+    atrasados: "Apenas atrasados",
+    motivo: "Motivo",
+    categoria: "Categoria",
+  };
 
   const maxPage = Math.max(1, Math.ceil((pageInfo?.total ?? 0) / PER_PAGE));
   function setPage(nextPage: number) {
@@ -44,6 +66,13 @@ export function ListaDoFunil({
   return (
     <section className="flex min-h-0 flex-1 flex-col gap-3" aria-label={t("Lista de negócios")}
       data-testid="pipeline-list-view">
+      {filtrosIgnorados.length > 0 && (
+        <p role="status" className="rounded-md border border-border bg-surface-muted p-3 text-sm text-text-muted">
+          {t("Na Lista, estes filtros ainda não se aplicam:")} {filtrosIgnorados
+            .map((filtro) => t(labelsForaDaLista[filtro]))
+            .join(", ")}. {t("No Quadro, eles continuam funcionando.")}
+        </p>
+      )}
       {isError ? (
         <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 p-4 text-sm">
           {t("Falha ao carregar a lista do funil.")}
@@ -90,15 +119,15 @@ export function ListaDoFunil({
                     </td>
                   </tr>
                 ))}
-                {leads.length === 0 && (
-                  <tr>
-                    <td colSpan={4} className="px-4 py-12 text-center text-text-muted">
-                      {t("Nenhum negócio neste funil.")}
-                    </td>
-                  </tr>
-                )}
               </tbody>
             </table>
+            {leads.length === 0 && (
+              <p className="px-4 py-12 text-center text-text-muted">
+                {filtrosAplicados.owner || filtrosAplicados.status
+                  ? t("Nenhum negócio com este filtro.")
+                  : t("Nenhum negócio neste funil.")}
+              </p>
+            )}
           </div>
 
           <footer className="flex flex-wrap items-center justify-between gap-3 text-sm">
