@@ -115,6 +115,68 @@ function escapeRegex(word: string): string {
   return word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** Aberturas que só reconhecem o que a pessoa disse; a lista não é heurística. */
+const RECONHECIMENTOS_SEM_CONTEUDO = new Set([
+  "entendi",
+  "entendido",
+  "certo",
+  "claro",
+  "ok",
+  "combinado",
+  "anotado",
+  "perfeito",
+  "beleza",
+  "tudo bem",
+  "tudo certo",
+  "sem problema",
+  "sem problemas",
+]);
+
+function ehReconhecimentoSemConteudo(frase: string): boolean {
+  const partes = frase
+    .split(",")
+    .map((parte) => parte.replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim());
+  return (
+    partes.length >= 1 &&
+    partes.length <= 2 &&
+    partes.every((parte) => RECONHECIMENTOS_SEM_CONTEUDO.has(parte))
+  );
+}
+
+const INICIADOR_DE_CONSENTIMENTO =
+  /^(?:(?:voce|vc)\s+)?(?:quer|gostaria|prefere|deseja|autoriza|posso|podemos)\b/;
+const ACAO_DE_OFERTA_HUMANA =
+  /\b(?:encaminh|repass|transfer|acion|escal|direcion|pass|cham|verific|fal|confer|confirm|consult|alinh|valid|chec|ped|pec|solicit)\w*/;
+const ACAO_FUTURA_OU_EXECUTADA =
+  /\b(?:ja|vou|vamos|vai|vao|ira|irao|sera|serao|ficara|ficarao|transferi|encaminhei|registrei|acabei)\b/;
+const PRAZO_OU_GARANTIA =
+  /\b(?:hoje|amanha|agora|logo|em\s+seguida|ate|minutos?|horas?|semanas?|dias?|\d+\s*h|\d{1,2}:\d{2}|pode\s+deixar|fica\s+tranquil[oa]|fique\s+tranquil[oa])\b/;
+const RETORNO_PROMETIDO =
+  /\b(?:te|lhe)\s+(?:lig|retorn|respond|contat|procur|cham|d[ae])\w*|\bretorn\w*|\bentr\w*\s+em\s+contato/;
+
+function ehPerguntaDeConsentimento(frase: string): boolean {
+  return (
+    frase.endsWith("?") &&
+    INICIADOR_DE_CONSENTIMENTO.test(frase) &&
+    ACAO_DE_OFERTA_HUMANA.test(frase) &&
+    !ACAO_FUTURA_OU_EXECUTADA.test(frase) &&
+    !PRAZO_OU_GARANTIA.test(frase) &&
+    !RETORNO_PROMETIDO.test(frase)
+  );
+}
+
+/**
+ * A isenção continua cobrindo a mensagem inteira. Só aceita perguntas de
+ * consentimento válidas, com no máximo uma abertura curta da lista fechada;
+ * qualquer frase extra devolve o texto inteiro à análise dos padrões.
+ */
+function soPedeConsentimento(text: string): boolean {
+  const todas = text.split(/(?<=[.!?\n])/).map((frase) => frase.trim()).filter(Boolean);
+  const temAbertura = todas.length > 1 && ehReconhecimentoSemConteudo(todas[0] ?? "");
+  const perguntas = temAbertura ? todas.slice(1) : todas;
+  return perguntas.length > 0 && perguntas.every(ehPerguntaDeConsentimento);
+}
+
 /**
  * True se a candidata promete envolver um humano/retaguarda. Determinístico,
  * conservador (spec §10.2). Vazio/whitespace = false.
@@ -135,6 +197,7 @@ function escapeRegex(word: string): string {
 export function detectHumanPromise(body: string, extraHumanNames?: readonly string[]): boolean {
   if (body.trim() === "") return false;
   const text = normalize(body);
+  if (soPedeConsentimento(text)) return false;
   if (extraHumanNames === undefined || extraHumanNames.length === 0) {
     return PATTERNS.some((re) => re.test(text));
   }
