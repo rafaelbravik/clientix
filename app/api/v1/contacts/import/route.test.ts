@@ -29,12 +29,22 @@ interface Resumo {
 
 /** Só as fronteiras externas são dubladas; multipart, CSV e schemas são reais. */
 function banco(opcoes: {
-  existentes?: Array<{ phone_number?: string; email_normalized?: string }>;
+  existentes?: Array<{
+    phone_number?: string;
+    email_normalized?: string;
+    organization_id?: string;
+    is_merged_into?: string | null;
+  }>;
   falhas?: Array<{ code: string; message: string } | null>;
   /** O país declarado pela organização; ausente/`null` é o Brasil. */
   pais?: string | null;
 } = {}) {
   const tentativas: Record<string, unknown>[] = [];
+  const prechecks: Array<{
+    coluna: "phone_number" | "email_normalized";
+    organizationId: unknown;
+    mesclado: unknown;
+  }> = [];
   const rpc = vi.fn().mockResolvedValue({ error: null });
   const from = vi.fn((tabela: string) => {
     // A régua do documento vem do PAÍS da organização (issue #1033): a rota lê a
@@ -51,11 +61,23 @@ function banco(opcoes: {
     const consulta = {
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
+      is: vi.fn().mockReturnThis(),
       not: vi.fn().mockReturnThis(),
       in: vi.fn(async (coluna: "phone_number" | "email_normalized", valores: string[]) => {
         expect(consulta.eq).toHaveBeenCalledWith("organization_id", ORG);
+        expect(consulta.is).toHaveBeenCalledWith("is_merged_into", null);
+        prechecks.push({
+          coluna,
+          organizationId: consulta.eq.mock.calls.find(([campo]) => campo === "organization_id")?.[1],
+          mesclado: consulta.is.mock.calls.find(([campo]) => campo === "is_merged_into")?.[1],
+        });
         return {
-          data: (opcoes.existentes ?? []).filter((r) => valores.includes(r[coluna] ?? "")),
+          data: (opcoes.existentes ?? []).filter(
+            (r) =>
+              (r.organization_id ?? ORG) === ORG &&
+              (r.is_merged_into ?? null) === null &&
+              valores.includes(r[coluna] ?? ""),
+          ),
           error: null,
         };
       }),
@@ -71,7 +93,7 @@ function banco(opcoes: {
     return consulta;
   });
   vi.mocked(createClient).mockResolvedValue({ from, rpc } as never);
-  return { tentativas, rpc };
+  return { tentativas, prechecks, rpc };
 }
 
 async function importar(linhas: string[]): Promise<Resumo> {
@@ -196,6 +218,101 @@ describe("POST /api/v1/contacts/import — desfecho por linha", () => {
     expect(db.tentativas).toHaveLength(2);
     expect(db.rpc).toHaveBeenCalledTimes(1);
   });
+});
+
+describe("POST /api/v1/contacts/import — identificadores em fichas mescladas", () => {
+  const PRINCIPAL = "33333333-3333-4333-8333-333333333333";
+  const OUTRA_ORG = "44444444-4444-4444-8444-444444444444";
+  const CASOS = [
+    {
+      campo: "telefone",
+      coluna: "phone_number" as const,
+      linha: `Pessoa,${PHONE},`,
+      identificador: { phone_number: PHONE },
+      principal: { phone_number: "+5521999997777" },
+    },
+    {
+      campo: "e-mail",
+      coluna: "email_normalized" as const,
+      linha: "Pessoa,,absorvido@example.com",
+      identificador: { email_normalized: "absorvido@example.com" },
+      principal: { email_normalized: "principal@example.com" },
+    },
+  ];
+
+  it.each(CASOS)("importa $campo que existe somente na ficha mesclada", async ({ linha, identificador, principal, coluna }) => {
+    const db = banco({ existentes: [
+      { ...principal, organization_id: ORG, is_merged_into: null },
+      { ...identificador, organization_id: ORG, is_merged_into: PRINCIPAL },
+    ] });
+
+    const resumo = await importar([linha]);
+
+    expect(resumo).toEqual({ total_linhas: 1, imported: 1, skipped_duplicates: 0, errors: [] });
+    expect(db.tentativas).toHaveLength(1);
+    expect(db.prechecks).toContainEqual({ coluna, organizationId: ORG, mesclado: null });
+    expect(db.rpc).toHaveBeenCalledExactlyOnceWith("emit_event", expect.objectContaining({
+      p_event_type: "contact.created",
+      p_organization_id: ORG,
+    }));
+  });
+
+  it.each(CASOS)("mantém $campo ativo como duplicado", async ({ linha, identificador, coluna }) => {
+    const db = banco({ existentes: [
+      { ...identificador, organization_id: ORG, is_merged_into: null },
+    ] });
+
+    const resumo = await importar([linha]);
+
+    expect(resumo).toEqual({ total_linhas: 1, imported: 0, skipped_duplicates: 1, errors: [] });
+    expect(db.tentativas).toHaveLength(0);
+    expect(db.prechecks).toContainEqual({ coluna, organizationId: ORG, mesclado: null });
+    expect(db.rpc).not.toHaveBeenCalled();
+  });
+
+  it.each(CASOS)("prefere a ocorrência ativa de $campo mesmo quando também está mesclada", async ({ linha, identificador }) => {
+    const db = banco({ existentes: [
+      { ...identificador, organization_id: ORG, is_merged_into: null },
+      { ...identificador, organization_id: ORG, is_merged_into: PRINCIPAL },
+    ] });
+
+    const resumo = await importar([linha]);
+
+    expect(resumo.skipped_duplicates).toBe(1);
+    expect(resumo.imported).toBe(0);
+    expect(db.tentativas).toHaveLength(0);
+  });
+
+  it.each(CASOS)("não considera $campo de outra organização como duplicado", async ({ linha, identificador }) => {
+    const db = banco({ existentes: [
+      { ...identificador, organization_id: OUTRA_ORG, is_merged_into: null },
+    ] });
+
+    const resumo = await importar([linha]);
+
+    expect(resumo.imported).toBe(1);
+    expect(resumo.skipped_duplicates).toBe(0);
+    expect(db.prechecks.every((filtro) => filtro.organizationId === ORG)).toBe(true);
+    expect(db.rpc).toHaveBeenCalledExactlyOnceWith("emit_event", expect.objectContaining({
+      p_event_type: "contact.created",
+      p_organization_id: ORG,
+    }));
+  });
+
+  it.each(["lgpd_subject_suppressed", "lgpd_suppression_unavailable"])(
+    "preserva a recusa fail-closed do trigger LGPD (%s)",
+    async (mensagem) => {
+      const db = banco({ falhas: [{ code: mensagem.endsWith("unavailable") ? "55000" : "42501", message: mensagem }] });
+
+      const resumo = await importar([`Pessoa,${PHONE},`]);
+
+      expect(resumo.imported).toBe(0);
+      expect(resumo.skipped_duplicates).toBe(0);
+      expect(resumo.errors).toHaveLength(1);
+      expect(db.tentativas).toHaveLength(1);
+      expect(db.rpc).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe("POST /api/v1/contacts/import — a planilha segue o PAÍS da organização (issue #1033)", () => {

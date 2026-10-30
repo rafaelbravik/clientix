@@ -182,9 +182,10 @@ export async function POST(req: NextRequest): Promise<Response> {
 
   // ─── Pré-filtro de duplicados contra o banco (uma query por identificador) ──
   //
-  // Os índices únicos são parciais (excluem mesclados/anonimizados), então a
-  // busca espelha o WHERE do índice — filtrar pelo que o índice não cobre
-  // produziria "duplicado" imaginário.
+  // Os índices únicos são parciais (excluem fichas mescladas), então a busca
+  // espelha esse predicado — uma identidade que ficou somente na ficha
+  // absorvida não reserva telefone/e-mail. A supressão LGPD é uma régua distinta
+  // e continua protegida atomicamente pelo trigger BEFORE INSERT de contacts.
   const phones = candidatos
     .map((c) => c.contato.phone_number as string | undefined)
     .filter((p): p is string => typeof p === "string");
@@ -199,6 +200,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       .from("contacts")
       .select("phone_number")
       .eq("organization_id", orgId)
+      .is("is_merged_into", null)
       .not("phone_number", "is", null)
       .in("phone_number", lookup);
     for (const r of data ?? []) {
@@ -212,6 +214,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       .from("contacts")
       .select("email_normalized")
       .eq("organization_id", orgId)
+      .is("is_merged_into", null)
       .in("email_normalized", emails.map((e) => e.toLowerCase()));
     for (const r of data ?? []) existentes.add(`email:${(r as { email_normalized: string }).email_normalized}`);
   }
