@@ -1,10 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // ingest.ts importa @/lib/audit (→ supabase/server → validação de env);
 // o mock corta a cadeia sem tocar no que está sob teste.
 vi.mock("@/lib/audit", () => ({ audit: vi.fn() }));
 
 import { dispatchWahaEvent, parseChatId, type WahaEnvelope, type WahaPayload } from "@/lib/waha/ingest";
+import { limparCacheDoNumeroInterno } from "@/lib/escalacao/numero-interno-de-aviso";
 
 /**
  * A MENSAGEM QUE O DONO DIGITA NO CELULAR TEM QUE CHEGAR NO CRM.
@@ -39,10 +40,18 @@ interface Duplo {
   admin: unknown;
   messages: LinhaMessage[];
   rpcs: Array<{ fn: string; args: Record<string, unknown> }>;
+  configQueries: Array<{ organization_id: string | null }>;
 }
 
 /** Admin de mentira com um "banco" em memória só de `messages`. */
-function bancoDeMentira(preexistentes: Array<Partial<LinhaMessage>> = []): Duplo {
+function bancoDeMentira(
+  preexistentes: Array<Partial<LinhaMessage>> = [],
+  configAviso: {
+    organization_id: string;
+    telefone_destino: string | null;
+    destino_jid: string | null;
+  } | null = null,
+): Duplo {
   const messages: LinhaMessage[] = preexistentes.map((m, i) => ({
     id: `pre-${i + 1}`,
     organization_id: "org-1",
@@ -50,6 +59,7 @@ function bancoDeMentira(preexistentes: Array<Partial<LinhaMessage>> = []): Duplo
     ...m,
   }));
   const rpcs: Array<{ fn: string; args: Record<string, unknown> }> = [];
+  const configQueries: Array<{ organization_id: string | null }> = [];
 
   const consulta = () => {
     let org: string | null = null;
@@ -106,43 +116,63 @@ function bancoDeMentira(preexistentes: Array<Partial<LinhaMessage>> = []): Duplo
     return q;
   };
 
-  const tabela = (nome: string) => ({
-    select: () => consulta(),
-    insert: (linha: Record<string, unknown>) => ({
-      select: () => ({
-        async maybeSingle() {
-          if (nome !== "messages") return { data: { id: "x" }, error: null };
-          const externo = linha.external_id as string | null;
-          const colide =
-            externo !== null &&
-            messages.some((m) => m.organization_id === linha.organization_id && m.external_id === externo);
-          if (colide) {
-            return {
-              data: null,
-              error: { code: "23505", message: 'duplicate key value violates "messages_org_external_id_unique"' },
-            };
-          }
-          const nova = { id: `msg-${messages.length + 1}`, ...linha } as LinhaMessage;
-          messages.push(nova);
-          return { data: { id: nova.id }, error: null };
+  const tabela = (nome: string) => {
+    if (nome === "config_aviso_de_caso") {
+      let org: string | null = null;
+      const q = {
+        eq(coluna: string, valor: string) {
+          if (coluna === "organization_id") org = valor;
+          return q;
         },
-      }),
-    }),
-    // Encadeável em qualquer profundidade/ordem (.eq().in(), .eq().eq(), ...) — o
-    // `pausarIaPorAtendimentoManual` (ver `lib/escalacao/atendimento-manual.ts`) faz `.update(...).eq("id",
-    // ...).eq("organization_id", ...)`, dois `.eq()` seguidos, diferente do `.eq().in()`
-    // que os demais updates deste arquivo já usavam. `await` num objeto plano (não-thenable)
-    // simplesmente devolve o objeto — por isso resolver como `{ error: null }` direto
-    // funciona em qualquer ponto da cadeia.
-    update: () => {
-      const encadeavel: { error: null; eq: () => typeof encadeavel; in: () => typeof encadeavel } = {
-        error: null,
-        eq: () => encadeavel,
-        in: () => encadeavel,
+        async maybeSingle() {
+          configQueries.push({ organization_id: org });
+          return {
+            data: configAviso?.organization_id === org ? configAviso : null,
+            error: null,
+          };
+        },
       };
-      return encadeavel;
-    },
-  });
+      return { select: () => q };
+    }
+
+    return {
+      select: () => consulta(),
+      insert: (linha: Record<string, unknown>) => ({
+        select: () => ({
+          async maybeSingle() {
+            if (nome !== "messages") return { data: { id: "x" }, error: null };
+            const externo = linha.external_id as string | null;
+            const colide =
+              externo !== null &&
+              messages.some((m) => m.organization_id === linha.organization_id && m.external_id === externo);
+            if (colide) {
+              return {
+                data: null,
+                error: { code: "23505", message: 'duplicate key value violates "messages_org_external_id_unique"' },
+              };
+            }
+            const nova = { id: `msg-${messages.length + 1}`, ...linha } as LinhaMessage;
+            messages.push(nova);
+            return { data: { id: nova.id }, error: null };
+          },
+        }),
+      }),
+      // Encadeável em qualquer profundidade/ordem (.eq().in(), .eq().eq(), ...) — o
+      // `pausarIaPorAtendimentoManual` (ver `lib/escalacao/atendimento-manual.ts`) faz `.update(...).eq("id",
+      // ...).eq("organization_id", ...)`, dois `.eq()` seguidos, diferente do `.eq().in()`
+      // que os demais updates deste arquivo já usavam. `await` num objeto plano (não-thenable)
+      // simplesmente devolve o objeto — por isso resolver como `{ error: null }` direto
+      // funciona em qualquer ponto da cadeia.
+      update: () => {
+        const encadeavel: { error: null; eq: () => typeof encadeavel; in: () => typeof encadeavel } = {
+          error: null,
+          eq: () => encadeavel,
+          in: () => encadeavel,
+        };
+        return encadeavel;
+      },
+    };
+  };
 
   const admin = {
     from: (nome: string) => tabela(nome),
@@ -156,8 +186,12 @@ function bancoDeMentira(preexistentes: Array<Partial<LinhaMessage>> = []): Duplo
     },
   };
 
-  return { admin, messages, rpcs };
+  return { admin, messages, rpcs, configQueries };
 }
+
+beforeEach(() => {
+  limparCacheDoNumeroInterno();
+});
 
 const SESSION = { id: "sessao-1", organization_id: "org-1" };
 
@@ -176,6 +210,131 @@ const CELULAR_NOWEB: WahaPayload = {
   body: "respondi por aqui mesmo",
   timestamp: 1_760_000_000,
 };
+
+const AVISO_LID: WahaPayload = {
+  id: "true_250302204792918@lid_3EB0ABCDEF",
+  from: "250302204792918@lid",
+  fromMe: true,
+  body: "aviso interno sintético",
+  _data: { key: { remoteJidAlt: "5511999999999@s.whatsapp.net" } },
+};
+
+const CONFIG_AVISO_ORG_1 = {
+  organization_id: "org-1",
+  telefone_destino: "+5511999999999",
+  destino_jid: null,
+};
+
+describe("eco outbound do aviso interno em modo LID", () => {
+  it("descarta @lid quando remoteJidAlt corresponde ao telefone interno antes de qualquer upsert", async () => {
+    const { admin, messages, rpcs, configQueries } = bancoDeMentira([], CONFIG_AVISO_ORG_1);
+
+    await dispatchWahaEvent(admin as never, SESSION as never, envelope(AVISO_LID), "req-aviso-lid");
+
+    expect(messages).toHaveLength(0);
+    expect(rpcs.some((c) => c.fn === "fn_upsert_wa_contact")).toBe(false);
+    expect(rpcs.some((c) => c.fn === "fn_upsert_wa_conversation")).toBe(false);
+    expect(rpcs).toContainEqual({ fn: "fn_contar_mensagem_ignorada", args: { p_org: "org-1" } });
+    expect(configQueries).toEqual([{ organization_id: "org-1" }]);
+  });
+
+  it("normaliza a variante do telefone alternativo sem o nono dígito", async () => {
+    const payload: WahaPayload = {
+      ...AVISO_LID,
+      _data: { key: { remoteJidAlt: "551199999999@s.whatsapp.net" } },
+    };
+    const { admin, messages, rpcs } = bancoDeMentira([], CONFIG_AVISO_ORG_1);
+
+    await dispatchWahaEvent(admin as never, SESSION as never, envelope(payload), "req-aviso-variante");
+
+    expect(messages).toHaveLength(0);
+    expect(rpcs.some((c) => c.fn === "fn_upsert_wa_contact")).toBe(false);
+    expect(rpcs).toContainEqual({ fn: "fn_contar_mensagem_ignorada", args: { p_org: "org-1" } });
+  });
+
+  it("continua descartando telefone puro @c.us igual ao destino interno", async () => {
+    const payload: WahaPayload = {
+      id: "true_5511999999999@c.us_3EB0ABCDEF",
+      from: "5511999999999@c.us",
+      fromMe: true,
+      body: "aviso interno sintético",
+    };
+    const { admin, messages, rpcs } = bancoDeMentira([], CONFIG_AVISO_ORG_1);
+
+    await dispatchWahaEvent(admin as never, SESSION as never, envelope(payload), "req-aviso-phone");
+
+    expect(messages).toHaveLength(0);
+    expect(rpcs.some((c) => c.fn === "fn_upsert_wa_contact")).toBe(false);
+    expect(rpcs).toContainEqual({ fn: "fn_contar_mensagem_ignorada", args: { p_org: "org-1" } });
+  });
+
+  it("sem configuração, o mesmo evento LID segue pelo fluxo outbound normal", async () => {
+    const { admin, messages, rpcs } = bancoDeMentira();
+
+    await dispatchWahaEvent(admin as never, SESSION as never, envelope(AVISO_LID), "req-sem-config");
+
+    expect(messages).toHaveLength(1);
+    expect(rpcs.some((c) => c.fn === "fn_upsert_wa_contact")).toBe(true);
+    expect(rpcs.some((c) => c.fn === "fn_contar_mensagem_ignorada")).toBe(false);
+  });
+
+  it("configuração de outro tenant com o mesmo telefone não interfere", async () => {
+    const configOutroTenant = { ...CONFIG_AVISO_ORG_1, organization_id: "org-2" };
+    const { admin, messages, rpcs, configQueries } = bancoDeMentira([], configOutroTenant);
+
+    await dispatchWahaEvent(admin as never, SESSION as never, envelope(AVISO_LID), "req-outro-tenant");
+
+    expect(messages).toHaveLength(1);
+    expect(rpcs.some((c) => c.fn === "fn_upsert_wa_contact")).toBe(true);
+    expect(rpcs.some((c) => c.fn === "fn_contar_mensagem_ignorada")).toBe(false);
+    expect(configQueries).toEqual([{ organization_id: "org-1" }]);
+  });
+
+  it("outro telefone da mesma organização segue pelo fluxo normal", async () => {
+    const { admin, messages, rpcs } = bancoDeMentira([], CONFIG_AVISO_ORG_1);
+    const payload: WahaPayload = {
+      ...AVISO_LID,
+      _data: { key: { remoteJidAlt: "5511888888888@s.whatsapp.net" } },
+    };
+
+    await dispatchWahaEvent(admin as never, SESSION as never, envelope(payload), "req-outro-numero");
+
+    expect(messages).toHaveLength(1);
+    expect(rpcs.some((c) => c.fn === "fn_upsert_wa_contact")).toBe(true);
+    expect(rpcs.some((c) => c.fn === "fn_contar_mensagem_ignorada")).toBe(false);
+  });
+
+  it("campo remoteJidAlt malformado não derruba ingest nem bloqueia um chat não comprovado", async () => {
+    const payload = {
+      ...AVISO_LID,
+      _data: { key: { remoteJidAlt: 55 } },
+    } as unknown as WahaPayload;
+    const { admin, messages, rpcs } = bancoDeMentira([], CONFIG_AVISO_ORG_1);
+
+    await expect(
+      dispatchWahaEvent(admin as never, SESSION as never, envelope(payload), "req-alt-malformado"),
+    ).resolves.toBeUndefined();
+
+    expect(messages).toHaveLength(1);
+    expect(rpcs.some((c) => c.fn === "fn_upsert_wa_contact")).toBe(true);
+  });
+
+  it("mantém o corte por destino_jid quando o telefone alternativo não está disponível", async () => {
+    const configPorJid = {
+      organization_id: "org-1",
+      telefone_destino: null,
+      destino_jid: "250302204792918@lid",
+    };
+    const payload = { ...AVISO_LID, _data: { key: {} } };
+    const { admin, messages, rpcs } = bancoDeMentira([], configPorJid);
+
+    await dispatchWahaEvent(admin as never, SESSION as never, envelope(payload), "req-aviso-jid");
+
+    expect(messages).toHaveLength(0);
+    expect(rpcs.some((c) => c.fn === "fn_upsert_wa_contact")).toBe(false);
+    expect(rpcs.some((c) => c.fn === "fn_contar_mensagem_ignorada")).toBe(true);
+  });
+});
 
 describe("mensagem digitada no celular do dono (fromMe)", () => {
   it("NOWEB sem `to`: a mensagem é gravada como outbound", async () => {

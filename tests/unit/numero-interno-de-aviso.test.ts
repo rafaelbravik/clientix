@@ -81,6 +81,24 @@ describe("ehOChatDoAviso — a regra pura", () => {
     expect(ehOChatDoAviso({ kind: "lid", phone: null, lid: "999999" }, cfg)).toBe(false);
   });
 
+  it("casa o telefone alternativo do @lid sem perder a correspondência por destino_jid", () => {
+    const identidade = { kind: "lid", phone: "+5511999999999", lid: "224466" };
+    expect(
+      ehOChatDoAviso(identidade, {
+        destino: "+5511999999999",
+        jid: "outro-lid@lid",
+      }),
+    ).toBe(true);
+    // Se o telefone alternativo for outro, o JID ainda é uma autoridade válida
+    // que já era suportada pelo contrato do número interno.
+    expect(
+      ehOChatDoAviso(identidade, {
+        destino: "+5511888888888",
+        jid: "224466@lid",
+      }),
+    ).toBe(true);
+  });
+
   it("sem JID gravado, o identificador opaco NÃO casa — e isso é o buraco declarado", () => {
     // O JID só é conhecido depois do PRIMEIRO aviso enviado. Antes disso, uma
     // resposta de quem está em modo privacidade passa. É por isso que o handler

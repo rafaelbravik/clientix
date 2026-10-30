@@ -449,12 +449,26 @@ export function telefoneAlternativoDe(p: WahaPayload): string | null {
 }
 
 /**
+ * Completa a identidade de um chat individual @lid com o telefone que o WAHA
+ * fornece em `remoteJidAlt`. O `lid` continua presente para que a configuração
+ * por `destino_jid` siga funcionando; o telefone permite que o guard de aviso
+ * também reconheça `telefone_destino` antes de qualquer upsert.
+ */
+function identidadeDoChat(
+  p: WahaPayload,
+  parsed: ChatIdentity,
+): { kind: string; phone: string | null; lid: string | null } {
+  if (parsed.kind !== "lid") return parsed;
+  return { kind: "lid", phone: telefoneAlternativoDe(p), lid: parsed.lid };
+}
+
+/**
  * O miolo de `telefoneAlternativoDe`, separado para o remetente de GRUPO usar a
  * MESMA régua sobre `participantAlt` — sem o `remoteJidAlt` na frente, que em
  * grupo não é de quem escreveu. Mesma entrada de fora, mesmas guardas.
  */
 function telefoneDoJid(bruto: string | null | undefined): string | null {
-  if (!bruto) return null;
+  if (typeof bruto !== "string" || bruto.length === 0) return null;
   // ⚠️ `endsWith`/`indexOf` e NÃO regex — este valor vem de FORA (é campo de
   // webhook) e a versão com `/@(s\.whatsapp\.net|c\.us)$/` foi apontada pelo
   // CodeQL como ReDoS de severidade alta: o motor tenta casar a partir de CADA
@@ -1072,7 +1086,14 @@ async function handleOutboundFromUserPhone(
   // de eco não o reconhece como nosso — sem este corte, o próprio aviso que
   // acabou de sair voltaria pelo webhook, viraria conversa com o número do
   // plantão e ainda chamaria `pausarIaPorAtendimentoManual` no fim.
-  if (!grupo && (await ehNumeroInternoDeAviso(admin, session.organization_id, parsed))) {
+  if (
+    !grupo &&
+    (await ehNumeroInternoDeAviso(
+      admin,
+      session.organization_id,
+      identidadeDoChat(p, parsed),
+    ))
+  ) {
     await registrarMensagemIgnorada(admin, session.organization_id, {
       direction: "outbound",
       sessionId: session.id,

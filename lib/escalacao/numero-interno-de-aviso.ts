@@ -99,8 +99,16 @@ export function limparCacheDoNumeroInterno(): void {
 export function ehOChatDoAviso(parsed: ChatIdentidade, cfg: NumeroInternoDeAviso): boolean {
   if (!cfg.destino && !cfg.jid) return false;
 
-  if (parsed.kind === "phone" && parsed.phone && cfg.destino) {
-    return phoneLookupVariants(cfg.destino).includes(parsed.phone);
+  // Um @lid pode carregar também o telefone canônico em `remoteJidAlt`.
+  // Preservar os dois campos permite casar tanto o telefone configurado quanto
+  // o destino_jid conhecido, sem trocar a identidade opaca do chat.
+  if (
+    (parsed.kind === "phone" || parsed.kind === "lid") &&
+    parsed.phone &&
+    cfg.destino &&
+    phoneLookupVariants(cfg.destino).includes(parsed.phone)
+  ) {
+    return true;
   }
 
   // O destinatário em modo privacidade chega SEM telefone, com um identificador
