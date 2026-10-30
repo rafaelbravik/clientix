@@ -293,6 +293,9 @@ const schema = z
     UPSTASH_REDIS_REST_URL: required("UPSTASH_REDIS_REST_URL"),
     UPSTASH_REDIS_REST_TOKEN: required("UPSTASH_REDIS_REST_TOKEN"),
 
+    // Engine local de prospecção, controlado pela instalação e desligado por padrão.
+    PROSPECTING_LOCAL_HTTP_URL: z.string().optional().default(""),
+
     // AI providers — env-gated. Worker no-ops with skip="ai_gateway_key_missing"
     // when AI_GATEWAY_API_KEY is absent, so production boot must not be fatal.
     AI_GATEWAY_API_KEY: z.string().optional().default(""),

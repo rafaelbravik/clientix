@@ -26,6 +26,9 @@ export class ProspectingError extends Error {
      * retomada manual; não pausar uma que devia parar custa a lista inteira.
      */
     public escopo: EscopoDaFalha = "campanha",
+    public code = "prospecting_unavailable",
+    /** Início remoto pode ter sido aceito mesmo sem resposta confirmatória. */
+    public uncertain = false,
   ) {
     super(message);
   }

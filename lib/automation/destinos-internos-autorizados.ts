@@ -96,6 +96,11 @@ export function listaCobreIp(ip: string, faixas: readonly Faixa[]): boolean {
   return faixas.some((f) => ((alvo & f.mascara) >>> 0) === ((f.base & f.mascara) >>> 0));
 }
 
+/** Confirma a autorização da instalação para um IP resolvido, sem autorizar nomes. */
+export async function ipInternoAutorizadoPelaInstalacao(ip: string): Promise<boolean> {
+  return listaCobreIp(ip, faixasDeclaradas(await destinosInternosAutorizados()));
+}
+
 /** O `.env` como lista: vírgula separa, espaço em volta não conta, vazio é ausente. */
 export function entradasDoPiso(bruto: string = env.IA_DESTINOS_INTERNOS_PERMITIDOS): string[] {
   return bruto

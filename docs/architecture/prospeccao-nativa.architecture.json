@@ -19,6 +19,10 @@
     {
       "id": "db",
       "label": "Banco"
+    },
+    {
+      "id": "engine",
+      "label": "Engine privado"
     }
   ],
   "mainPath": [
@@ -44,6 +48,34 @@
       "col": 1,
       "type": "component",
       "label": "Busca e enriquecimento comercial"
+    },
+    {
+      "id": "provider-dispatcher",
+      "lane": "app",
+      "col": 1,
+      "type": "component",
+      "label": "Provider por organização: Apify padrão, local-http opt-in"
+    },
+    {
+      "id": "source-policy",
+      "lane": "app",
+      "col": 2,
+      "type": "component",
+      "label": "Allowlist de fontes: nenhuma fonte real aprovada"
+    },
+    {
+      "id": "local-search-queue",
+      "lane": "db",
+      "col": 3,
+      "type": "component",
+      "label": "Fila local por organização, quota e fairness"
+    },
+    {
+      "id": "local-http-engine",
+      "lane": "engine",
+      "col": 4,
+      "type": "component",
+      "label": "Engine local privado; sintético apenas em teste"
     },
     {
       "id": "candidates",
@@ -117,6 +149,36 @@
     }
   ],
   "edges": [
+    {
+      "from": "operator",
+      "to": "provider-dispatcher",
+      "label": "seleção da organização; default Apify"
+    },
+    {
+      "from": "provider-dispatcher",
+      "to": "discovery",
+      "label": "provider validado e dispatch"
+    },
+    {
+      "from": "provider-dispatcher",
+      "to": "source-policy",
+      "label": "local-http precisa de fonte aprovada"
+    },
+    {
+      "from": "source-policy",
+      "to": "local-search-queue",
+      "label": "quota rolling e uma busca por organização"
+    },
+    {
+      "from": "local-search-queue",
+      "to": "local-http-engine",
+      "label": "até três jobs em rede privada"
+    },
+    {
+      "from": "local-http-engine",
+      "to": "discovery",
+      "label": "JSON limitado, campos projetados e normalizados"
+    },
     {
       "from": "operator",
       "to": "discovery",

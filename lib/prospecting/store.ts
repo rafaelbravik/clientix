@@ -7,6 +7,7 @@ import { loadPublishedAgentConfig } from "@/lib/agent-engine/agent/agent-config"
 import { createLeadSchema } from "@/lib/schemas/leads";
 import { beginServiceAtOrigin } from "@/lib/atendimento/origem";
 import { capabilitiesOf } from "@/lib/channels/capabilities";
+import { env } from "@/lib/env";
 import type { ChannelProvider } from "@/lib/channels/types";
 import { phoneLookupVariants } from "@/lib/channels/phone-variants";
 import { decryptWebhookSecret, encryptWebhookSecret } from "@/lib/webhooks/secrets";
@@ -17,19 +18,31 @@ import {
   type SearchInput,
   type Prospect,
 } from "./schema";
+import { ProspectingError } from "./provider";
 import {
-  ProspectingError,
-  providerRequest,
-  readResults,
-  readSearch,
-  startSearch,
-} from "./provider";
+  providerByName,
+  providerNameForOrganization,
+  validateApifyCredential,
+  type ProspectingProviderName,
+} from "./dispatcher";
+import { assertProspectingSourceAllowed } from "./source-policy";
+import { LOCAL_HTTP_LIMITS } from "./provider-local-http";
+import {
+  assertLocalHttpSearchCapacity,
+  localHttpGlobalSlots,
+  LOCAL_HTTP_SEARCH_POLICY,
+} from "./local-http-limits";
 
 export interface Campaign {
   id: string;
   organization_id: string;
   name: string;
-  search: SearchInput;
+  search: SearchInput & {
+    provider?: ProspectingProviderName;
+    source?: string;
+    accepted?: boolean;
+    dispatch_status?: "queued" | "dispatching" | "submitted";
+  };
   config: CampaignConfig | null;
   status: string;
   search_status: string;
@@ -104,7 +117,7 @@ export async function configureCredential(
   org: string,
   key: string,
 ) {
-  await providerRequest(key, "users/me");
+  await validateApifyCredential(key);
   const encrypted = await encryptWebhookSecret(admin, key);
   if (!encrypted)
     throw new ProspectingError("A cifra de credenciais da instalação não está disponível.");
@@ -126,6 +139,21 @@ export async function createSearch(
       [org, requestId],
     );
     if (prior.rows[0]) return prior.rows[0];
+    const providerName = await providerNameForOrganization(db, org);
+    if (providerName === "local-http") {
+      // This wave has no approved real source. The policy gate runs before a
+      // queue row is created and before any network request can be made.
+      const rawUrl = env.PROSPECTING_LOCAL_HTTP_URL.trim();
+      if (!rawUrl)
+        throw new ProspectingError(
+          "O engine local não está configurado nesta instalação.",
+          503,
+          "campanha",
+          "local_http_unavailable",
+        );
+      assertProspectingSourceAllowed("google_maps");
+      return createLocalHttpSearch(db, org, requestId, search);
+    }
     const key = await credential(db, admin, org);
     const { rows } = await db.query<Campaign>(
       "insert into prospecting_campaigns(organization_id,request_id,name,search) values($1,$2,$3,$4) returning *",
@@ -133,7 +161,7 @@ export async function createSearch(
     );
     const campaign = rows[0]!;
     try {
-      const run = await startSearch(key, search);
+      const run = await providerByName("apify").startSearch(key, search);
       await db.query(
         "update prospecting_campaigns set run_id=$3,dataset_id=$4,search_status='running',updated_at=now() where organization_id=$1 and id=$2",
         [org, campaign.id, run.id, run.defaultDatasetId ?? null],
@@ -158,10 +186,180 @@ export async function createSearch(
     ).rows[0]!;
   });
 }
+
+async function withLocalHttpGlobalLock<T>(db: pg.PoolClient, fn: () => Promise<T>): Promise<T> {
+  const locked =
+    (await db.query<{ locked: boolean }>(
+      "select pg_try_advisory_lock(hashtextextended('prospecting:local-http:dispatch',0)) as locked",
+    )).rows[0]?.locked === true;
+  if (!locked)
+    throw new ProspectingError("A fila de busca está ocupada. Tente novamente em instantes.", 409);
+  try {
+    return await fn();
+  } finally {
+    await db.query("select pg_advisory_unlock(hashtextextended('prospecting:local-http:dispatch',0))");
+  }
+}
+
+async function createLocalHttpSearch(
+  db: pg.PoolClient,
+  org: string,
+  requestId: string,
+  search: SearchInput,
+): Promise<Campaign> {
+  return withLocalHttpGlobalLock(db, async () => {
+    const stats = (
+      await db.query<{
+        accepted_24h: number;
+        last_accepted_at: Date | null;
+        active_org: number;
+      }>(
+        `select
+           count(*) filter (where search->>'accepted'='true' and created_at > now()-interval '24 hours')::int as accepted_24h,
+           max(created_at) filter (where search->>'accepted'='true') as last_accepted_at,
+           count(*) filter (where search_status in ('starting','running') or (search_status='unknown' and updated_at > now()-interval '10 minutes'))::int as active_org
+         from prospecting_campaigns
+         where organization_id=$1 and search->>'provider'='local-http'`,
+        [org],
+      )
+    ).rows[0]!;
+    assertLocalHttpSearchCapacity(
+      {
+        acceptedInLast24Hours: Number(stats.accepted_24h),
+        lastAcceptedAt: stats.last_accepted_at ? new Date(stats.last_accepted_at) : null,
+        activeForOrganization: Number(stats.active_org),
+      },
+    );
+    const searchSnapshot = {
+      ...search,
+      provider: "local-http" as const,
+      source: "google_maps",
+      accepted: true,
+      dispatch_status: "queued" as const,
+      limits: {
+        per_org_per_day: LOCAL_HTTP_SEARCH_POLICY.maxPerOrganizationPer24Hours,
+        min_interval_seconds: LOCAL_HTTP_SEARCH_POLICY.minIntervalMs / 1000,
+        max_concurrent_per_org: LOCAL_HTTP_SEARCH_POLICY.maxConcurrentPerOrganization,
+        max_global_concurrent: LOCAL_HTTP_SEARCH_POLICY.maxConcurrentGlobal,
+        response_bytes: LOCAL_HTTP_LIMITS.maxResponseBytes,
+      },
+    };
+    const { rows } = await db.query<Campaign>(
+      "insert into prospecting_campaigns(organization_id,request_id,name,search) values($1,$2,$3,$4) returning *",
+      [org, requestId, search.name, searchSnapshot],
+    );
+    return rows[0]!;
+  });
+}
+
+/** Reserva no máximo três jobs e um por organização em round-robin pela espera mais antiga. */
+export async function claimQueuedLocalHttpSearches(
+  pool: pg.Pool,
+  blockedOrganizations: readonly string[] = [],
+): Promise<Campaign[]> {
+  const db = await pool.connect();
+  let locked = false;
+  try {
+    locked =
+      (await db.query<{ locked: boolean }>(
+        "select pg_try_advisory_lock(hashtextextended('prospecting:local-http:dispatch',0)) as locked",
+      )).rows[0]?.locked === true;
+    if (!locked) return [];
+    // A criação remota tem prazo de 10s e o engine recebe timeout máximo de
+    // 300s. Um dispatching mais velho que 2 min significa queda entre claim e
+    // confirmação; vira unknown, conserva a quota de 24h e deixa a reconciliação
+    // impedir repetição até o limite conservador de execução do engine.
+    await db.query(
+      `update prospecting_campaigns
+       set search_status='unknown',error='Busca local sem confirmação. A quota permanece reservada por segurança.',updated_at=now()
+       where search_status='starting' and search->>'provider'='local-http'
+         and search->>'dispatch_status'='dispatching' and updated_at<now()-interval '2 minutes'`,
+    );
+    const active =
+      (await db.query<{ count: number }>(
+        `select count(*)::int as count from prospecting_campaigns
+         where search->>'provider'='local-http'
+           and (search_status='running'
+             or (search_status='unknown' and updated_at > now()-interval '10 minutes')
+             or (search_status='starting' and search->>'dispatch_status'='dispatching'))`,
+      )).rows[0]?.count ?? 0;
+    const slots = localHttpGlobalSlots(Number(active));
+    if (!slots) return [];
+    const eligible = (
+      await db.query<{ id: string; organization_id: string }>(
+        `select id, organization_id from (
+           select distinct on (c.organization_id) c.id, c.organization_id, c.created_at
+           from prospecting_campaigns c
+           where c.search_status='starting'
+             and c.search->>'provider'='local-http'
+             and c.search->>'dispatch_status'='queued'
+             and c.organization_id <> all($1::uuid[])
+             and not exists (
+               select 1 from prospecting_campaigns active
+               where active.organization_id=c.organization_id
+                 and active.search->>'provider'='local-http'
+                 and (active.search_status='running'
+                   or (active.search_status='unknown' and active.updated_at > now()-interval '10 minutes')
+                   or (active.search_status='starting' and active.search->>'dispatch_status'='dispatching'))
+             )
+           order by c.organization_id, c.created_at, c.id
+         ) eligible order by created_at, organization_id limit $2`,
+        [blockedOrganizations, slots],
+      )
+    ).rows;
+    const claimed: Campaign[] = [];
+    for (const item of eligible) {
+      const result = await db.query<Campaign>(
+        `update prospecting_campaigns
+         set search=jsonb_set(search,'{dispatch_status}','"dispatching"'::jsonb,true),updated_at=now()
+         where organization_id=$1 and id=$2 and search_status='starting'
+           and search->>'provider'='local-http' and search->>'dispatch_status'='queued'
+         returning *`,
+        [item.organization_id, item.id],
+      );
+      if (result.rows[0]) claimed.push(result.rows[0]);
+    }
+    return claimed;
+  } finally {
+    try {
+      if (locked)
+        await db.query("select pg_advisory_unlock(hashtextextended('prospecting:local-http:dispatch',0))");
+    } finally {
+      db.release();
+    }
+  }
+}
+
+export async function dispatchClaimedLocalHttpSearch(pool: pg.Pool, campaign: Campaign): Promise<void> {
+  try {
+    const run = await providerByName("local-http").startSearch("", campaign.search);
+    const status = run.status === "FAILED" ? "failed" : run.status === "SUCCEEDED" ? "succeeded" : "running";
+    await pool.query(
+      `update prospecting_campaigns
+       set run_id=$3,dataset_id=$4,cost_usd=0,search_status=$5,
+           search=jsonb_set(search,'{dispatch_status}','"submitted"'::jsonb,true),error=null,updated_at=now()
+       where organization_id=$1 and id=$2 and search_status='starting'
+         and search->>'dispatch_status'='dispatching'`,
+      [campaign.organization_id, campaign.id, run.id, run.defaultDatasetId ?? run.id, status],
+    );
+  } catch (error) {
+    const failure = error instanceof ProspectingError ? error : null;
+    const status = failure?.uncertain ? "unknown" : "failed";
+    const message = failure?.message ?? "Não foi possível iniciar a busca local.";
+    await pool.query(
+      `update prospecting_campaigns set search_status=$3,error=$4,updated_at=now()
+       where organization_id=$1 and id=$2 and search_status='starting'
+         and search->>'dispatch_status'='dispatching'`,
+      [campaign.organization_id, campaign.id, status, message],
+    );
+  }
+}
 export async function synchronizeSearch(db: pg.PoolClient, admin: SupabaseClient, c: Campaign) {
   if (!c.run_id) return;
-  const key = await credential(db, admin, c.organization_id);
-  const run = await readSearch(key, c.run_id);
+  const providerName = c.search.provider ?? "apify";
+  const provider = providerByName(providerName);
+  const key = providerName === "apify" ? await credential(db, admin, c.organization_id) : "";
+  const run = await provider.readSearch(key, c.run_id);
   if (["FAILED", "ABORTED", "TIMED-OUT"].includes(run.status)) {
     await db.query(
       "update prospecting_campaigns set search_status='failed',error=$3,updated_at=now() where organization_id=$1 and id=$2",
@@ -172,7 +370,7 @@ export async function synchronizeSearch(db: pg.PoolClient, admin: SupabaseClient
   if (run.status !== "SUCCEEDED") return;
   const dataset = run.defaultDatasetId ?? c.dataset_id;
   if (!dataset) throw new ProspectingError("Busca concluída sem resultado disponível.");
-  const items = await readResults(key, dataset, c.search.limit);
+  const items = await provider.readResults(key, dataset, c.search.limit);
   let inserted = 0;
   await db.query("begin");
   try {

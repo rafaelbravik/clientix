@@ -28,6 +28,8 @@ import { OrgNaoOperanteError, idsDeOrgsParadas } from "@/lib/organizacao/operant
 import {
   withProspectingLock,
   synchronizeSearch,
+  claimQueuedLocalHttpSearches,
+  dispatchClaimedLocalHttpSearch,
   validateConfig,
   type Campaign,
   type Candidate,
@@ -352,8 +354,20 @@ export async function tickProspecting(pool: pg.Pool, admin: SupabaseClient) {
   // ordem é `min(updated_at)`, e a org pulada nunca toca `updated_at` — filtrar
   // depois a deixaria no topo para sempre, com as operantes esperando atrás.
   const paradas = await idsDeOrgsParadas(admin);
+  const localQueue = await claimQueuedLocalHttpSearches(pool, paradas);
+  for (const search of localQueue) {
+    try {
+      await dispatchClaimedLocalHttpSearch(pool, search);
+    } catch (error) {
+      logger.error("[prospecting] falha ao despachar busca local", {
+        organization_id: search.organization_id,
+        campaign_id: search.id,
+        error: error instanceof ProspectingError ? error.code : "local_http_dispatch_failed",
+      });
+    }
+  }
   const { rows: organizations } = await pool.query<{ organization_id: string }>(
-    "select organization_id from prospecting_campaigns where (status='running' or search_status in ('starting','running')) and organization_id <> all($1::uuid[]) group by organization_id order by min(updated_at) limit 20",
+    "select organization_id from prospecting_campaigns where (status='running' or search_status in ('starting','running')) and not (search_status='starting' and search->>'provider'='local-http') and organization_id <> all($1::uuid[]) group by organization_id order by min(updated_at) limit 20",
     [paradas],
   );
   const deadline = Date.now() + 180000;
@@ -363,7 +377,7 @@ export async function tickProspecting(pool: pg.Pool, admin: SupabaseClient) {
     try {
       await withProspectingLock(pool, org, async (db) => {
         await db.query(
-          "update prospecting_campaigns set search_status='unknown',error='Busca sem confirmação. Consulte o histórico no provedor antes de repetir.',updated_at=now() where organization_id=$1 and search_status='starting' and created_at<now()-interval '2 minutes'",
+          "update prospecting_campaigns set search_status='unknown',error='Busca sem confirmação. Consulte o histórico no provedor antes de repetir.',updated_at=now() where organization_id=$1 and search_status='starting' and created_at<now()-interval '2 minutes' and (search->>'provider' is distinct from 'local-http' or search->>'dispatch_status'='dispatching')",
           [org],
         );
         await db.query(

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type * as OrganizacaoOperante from "@/lib/organizacao/operante";
 const mocks = vi.hoisted(() => ({
   generate: vi.fn(),
   send: vi.fn(),
@@ -10,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   knobs: vi.fn(),
   open: vi.fn(),
   paradas: vi.fn(),
+  claimLocal: vi.fn(),
+  dispatchLocal: vi.fn(),
 }));
 vi.mock("@/app/api/v1/messages/_handler", () => ({ sendMessageHandler: mocks.send }));
 vi.mock("@/lib/audit", () => ({ audit: mocks.audit }));
@@ -50,12 +53,14 @@ vi.mock("@/lib/env", () => ({ env: {} }));
 // Só `idsDeOrgsParadas` é dublê: `OrgNaoOperanteError` segue a classe real
 // (a Task 26b a usa no `catch` do tick, e `instanceof` exige a mesma classe).
 vi.mock("@/lib/organizacao/operante", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/organizacao/operante")>()),
+  ...(await importOriginal<typeof OrganizacaoOperante>()),
   idsDeOrgsParadas: mocks.paradas,
 }));
 vi.mock("@/lib/prospecting/store", () => ({
   withProspectingLock: vi.fn(),
   synchronizeSearch: vi.fn(),
+  claimQueuedLocalHttpSearches: mocks.claimLocal,
+  dispatchClaimedLocalHttpSearch: mocks.dispatchLocal,
   validateConfig: vi.fn().mockResolvedValue(undefined),
 }));
 import { sendNextCandidate, tickProspecting } from "@/lib/prospecting/worker";
@@ -111,6 +116,8 @@ function database(
 }
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.claimLocal.mockResolvedValue([]);
+  mocks.dispatchLocal.mockResolvedValue(undefined);
   mocks.knobs.mockResolvedValue({ knobs: {} });
   mocks.open.mockReturnValue(true);
   mocks.preflight.mockResolvedValue({ permite: true });
@@ -243,6 +250,7 @@ describe("tick da prospecção × organização parada", () => {
     await tickProspecting({ query } as never, {} as never);
     const [sql, params] = query.mock.calls[0]!;
     expect(sql).toMatch(/organization_id <> all\(\$1::uuid\[\]\)/);
+    expect(sql).toMatch(/not \(search_status='starting' and search->>'provider'='local-http'\)/);
     expect(sql.indexOf("<> all")).toBeLessThan(sql.indexOf("limit 20"));
     expect(params).toEqual([[parada]]);
   });

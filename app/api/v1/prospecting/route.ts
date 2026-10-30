@@ -10,6 +10,10 @@ import type { ChannelProvider } from "@/lib/channels/types";
 import { ProspectingError } from "@/lib/prospecting/provider";
 import { prospectingInputSchema } from "@/lib/prospecting/schema";
 import {
+  providerNameForOrganization,
+  updateProspectingProvider,
+} from "@/lib/prospecting/dispatcher";
+import {
   activateCampaign,
   configureCredential,
   createSearch,
@@ -23,7 +27,7 @@ export const maxDuration = 300;
 const headers = { "Cache-Control": "no-store" };
 function failure(error: unknown, requestId: string) {
   return fail(
-    "prospecting_unavailable",
+    error instanceof ProspectingError ? error.code : "prospecting_unavailable",
     error instanceof ProspectingError
       ? error.message
       : "Não foi possível concluir a operação. Verifique a configuração e tente novamente.",
@@ -61,9 +65,11 @@ export async function GET() {
         [org],
       ),
     ]);
+    const provider = await providerNameForOrganization(db, org);
     return ok(
       {
         configured: !!settings.rows.length,
+        provider,
         campaigns: campaigns.rows,
         candidates: candidates.rows,
         agents: agents.rows,
@@ -105,6 +111,9 @@ export async function POST(req: Request) {
     if (body.action === "configure") {
       await configureCredential(pool, admin, org, body.api_key);
       result = { configured: true };
+    } else if (body.action === "select_provider") {
+      await updateProspectingProvider(pool, org, body.provider);
+      result = { provider: body.provider };
     } else if (body.action === "search")
       result = await createSearch(pool, admin, org, body.request_id, body.search);
     else if (body.action === "start")
