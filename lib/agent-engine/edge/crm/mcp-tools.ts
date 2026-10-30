@@ -97,6 +97,9 @@ export async function buildMcpTurnTools(
   const claim = originJob ? claimOfJob(originJob) : undefined;
   const ctx: McpContext = {
     sourceJobId: ids.jobId,
+    ...(originJob?.id === ids.jobId && originJob.kind === "followup_turn"
+      ? { sourceJobKind: "followup_turn" as const }
+      : {}),
     ...(originJob?.id === ids.jobId && boundary && claim
       ? { meetingBooking: { sourceJobId: originJob.id, claim, boundary } }
       : {}),

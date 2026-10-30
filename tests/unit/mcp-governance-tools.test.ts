@@ -25,6 +25,7 @@ interface Query {
   select: string | null;
   count: boolean;
   terminal: "maybeSingle" | "then";
+  filters: Array<{ column: string; value: unknown }>;
 }
 type Resolver = (q: Query) => { data?: unknown; count?: number; error?: unknown };
 
@@ -39,7 +40,7 @@ interface Captures {
 
 function makeSupabase(resolve: Resolver, cap: Captures) {
   const from = (table: string) => {
-    const q: Query = { table, select: null, count: false, terminal: "then" };
+    const q: Query = { table, select: null, count: false, terminal: "then", filters: [] };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const chain: any = {
       select: (cols: string, opts?: { head?: boolean }) => {
@@ -47,7 +48,10 @@ function makeSupabase(resolve: Resolver, cap: Captures) {
         q.count = Boolean(opts?.head);
         return chain;
       },
-      eq: () => chain,
+      eq: (column: string, value: unknown) => {
+        q.filters.push({ column, value });
+        return chain;
+      },
       is: () => chain,
       in: () => chain,
       lte: () => chain,
@@ -235,6 +239,105 @@ describe("crm_manage_tags", () => {
       makeCtx(withTags("contacts", []), cap),
     );
     expect(cap.updates).toContainEqual({ table: "contacts", values: { tags: ["novo"] } });
+  });
+
+  it("follow-up: contato com nova tag emite evento tenant-scoped sem caused_by_rule", async () => {
+    const cap = makeCap({
+      rpcResults: [
+        { data: { observed_at: "2026-10-30T12:00:00Z" }, error: null },
+        { data: [{ id: "event-1" }], error: null },
+      ],
+    });
+    const queries: Query[] = [];
+    const ctx = makeCtx((q) => {
+      queries.push(q);
+      return withTags("contacts", ["existente"])(q);
+    }, cap);
+    ctx.sourceJobKind = "followup_turn";
+    ctx.requestId = "followup-job-1";
+
+    await crmManageTags.handler(
+      { target_kind: "contact", target_id: CONV, add: ["existente", "novo", "outro"] },
+      ctx,
+    );
+
+    const event = cap.rpc.find((call) => call.fn === "emit_event");
+    expect(event?.args).toMatchObject({
+      p_event_type: "contact.tag_added",
+      p_entity_kind: "contact",
+      p_entity_id: CONV,
+      p_organization_id: ORG,
+      p_payload: {
+        added_tags: ["novo", "outro"],
+        tags: ["existente", "novo", "outro"],
+        service_origin: { kind: "command" },
+      },
+      p_metadata: { request_id: "followup-job-1", actor_type: "ai_agent" },
+    });
+    expect(event?.args.p_metadata).not.toHaveProperty("caused_by_rule");
+    expect(queries[0]?.filters).toContainEqual({ column: "organization_id", value: ORG });
+    expect(cap.rpc[0]?.fn).toBe("fn_service_observe_command");
+  });
+
+  it("follow-up: lead com nova tag emite lead.tag_added com contato de origem", async () => {
+    const contactId = "55555555-5555-4555-8555-555555555555";
+    const cap = makeCap({
+      rpcResults: [
+        { data: { observed_at: "2026-10-30T12:00:00Z" }, error: null },
+        { data: [{ id: "event-2" }], error: null },
+      ],
+    });
+    const ctx = makeCtx(
+      (q) =>
+        q.table === "crm_leads" && q.terminal === "maybeSingle"
+          ? { data: { id: CONV, tags: [], contact_id: contactId }, error: null }
+          : { data: null, error: null },
+      cap,
+    );
+    ctx.sourceJobKind = "followup_turn";
+
+    await crmManageTags.handler(
+      { target_kind: "lead", target_id: CONV, add: ["qualificado"] },
+      ctx,
+    );
+
+    const event = cap.rpc.find((call) => call.fn === "emit_event");
+    expect(event?.args).toMatchObject({
+      p_event_type: "lead.tag_added",
+      p_entity_kind: "crm_lead",
+      p_entity_id: CONV,
+      p_organization_id: ORG,
+      p_payload: { added_tags: ["qualificado"], tags: ["qualificado"] },
+    });
+    expect(cap.rpc[0]).toMatchObject({
+      fn: "fn_service_observe_command",
+      args: { p_org: ORG, p_contact: contactId },
+    });
+    expect(event?.args.p_metadata).not.toHaveProperty("caused_by_rule");
+  });
+
+  it("follow-up: tag existente não emite evento nem consulta origem", async () => {
+    const cap = makeCap();
+    const ctx = makeCtx(withTags("contacts", ["vip"]), cap);
+    ctx.sourceJobKind = "followup_turn";
+
+    await crmManageTags.handler(
+      { target_kind: "contact", target_id: CONV, add: ["vip"] },
+      ctx,
+    );
+
+    expect(cap.rpc).toEqual([]);
+  });
+
+  it("MCP fora de follow-up preserva o comportamento sem tag_added", async () => {
+    const cap = makeCap();
+
+    await crmManageTags.handler(
+      { target_kind: "contact", target_id: CONV, add: ["novo"] },
+      makeCtx(withTags("contacts", []), cap),
+    );
+
+    expect(cap.rpc).toEqual([]);
   });
 
   // O que já estava gravado pode estar em caixa mista no banco (dado anterior à

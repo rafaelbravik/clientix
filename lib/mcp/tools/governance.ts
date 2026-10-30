@@ -12,8 +12,10 @@
  */
 import { z } from "zod";
 
+import { observeServiceOrigin } from "@/lib/atendimento/origem";
 import { audit } from "@/lib/audit";
 import { normalizarTags } from "@/lib/contacts/tag-normalizada";
+import { logger } from "@/lib/logger";
 import { conversationTagSchema, conversationTagsSchema } from "@/lib/schemas/messaging";
 import { getQueueStatus } from "@/lib/routing/queue";
 import type { McpContext } from "../types";
@@ -193,20 +195,35 @@ export const crmManageTags: McpToolDefinition<typeof tagsInputShape> = {
 
     const { data: row, error: fetchErr } = await ctx.supabase
       .from(table)
-      .select("id, tags")
+      .select(input.target_kind === "lead" ? "id, tags, contact_id" : "id, tags")
       .eq("id", input.target_id)
       .eq("organization_id", ctx.organizationId)
       .maybeSingle();
     if (fetchErr) throw new Error(fetchErr.message);
     if (!row) throw new Error("target_not_found");
+    const target = row as unknown as { tags: string[] | null; contact_id?: string | null };
 
     // O que já está gravado pode vir em caixa mista (dado anterior à #1224):
     // sem normalizar aqui, `remove: ["vip"]` não alcançaria o "VIP" do banco e
     // o marcador ficaria impossível de tirar pela MCP.
-    const current = normalizarTags((row as { tags: string[] | null }).tags ?? []);
+    const current = normalizarTags(target.tags ?? []);
     const merged = [...current, ...addTags].filter((t) => !removeTags.has(t));
     // Dedup + teto de 20 (rejeita se estourar) — mesma validação da G3-05.
     const nextTags = conversationTagsSchema.parse(merged);
+    const addedTags = nextTags.filter((tag) => !current.includes(tag));
+    const emitsFollowupTagEvent =
+      ctx.sourceJobKind === "followup_turn" &&
+      input.target_kind !== "conversation" &&
+      addedTags.length > 0;
+    const contactId =
+      input.target_kind === "contact"
+        ? input.target_id
+        : input.target_kind === "lead"
+          ? target.contact_id ?? null
+          : null;
+    const serviceOrigin = emitsFollowupTagEvent
+      ? await observeServiceOrigin(ctx.supabase, ctx.organizationId, contactId)
+      : null;
 
     const { error: updateErr } = await ctx.supabase
       .from(table)
@@ -214,6 +231,29 @@ export const crmManageTags: McpToolDefinition<typeof tagsInputShape> = {
       .eq("id", input.target_id)
       .eq("organization_id", ctx.organizationId);
     if (updateErr) throw new Error(updateErr.message);
+
+    if (emitsFollowupTagEvent) {
+      const eventType = input.target_kind === "lead" ? "lead.tag_added" : "contact.tag_added";
+      const entityKind = input.target_kind === "lead" ? "crm_lead" : "contact";
+      const { error: eventError } = await ctx.supabase.rpc("emit_event", {
+        p_event_type: eventType,
+        p_entity_kind: entityKind,
+        p_entity_id: input.target_id,
+        p_payload: { added_tags: addedTags, tags: nextTags, service_origin: serviceOrigin },
+        p_metadata: {
+          request_id: ctx.requestId,
+          ...actorAudit(ctx).metadataActor,
+        },
+        p_organization_id: ctx.organizationId,
+      });
+      if (eventError) {
+        logger.error("followup_tag_event_emit_failed", {
+          organization_id: ctx.organizationId,
+          event_type: eventType,
+          error_code: (eventError as { code?: string }).code ?? "unknown",
+        });
+      }
+    }
 
     const a = actorAudit(ctx);
     await audit({

@@ -21,6 +21,8 @@ export interface McpContext {
   idempotencyKey?: string;
   /** Job estável do runtime in-process; nunca vem dos argumentos da tool. */
   sourceJobId?: string;
+  /** Origem restrita ao worker interno; MCP externo não pode declarar tipo de job. */
+  sourceJobKind?: "followup_turn";
   organizationId: string;
   role: Role;
   actor: Actor;
