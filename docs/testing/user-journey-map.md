@@ -1994,6 +1994,16 @@ quebrada no CI pelo motivo acima — e quem a escrever vai perder as mesmas hora
 **Evidência visual:** `evidence/inbox-tempo-real/mensagem-sem-reload.png` — a
 conversa aberta com as mensagens das rodadas, cada uma entregue sem recarregar.
 
+### Evidências visuais da Wave 8L — identidade IA e etiquetas ocultas
+
+| Viewport | Finalidade da captura | Evidência | Resultado |
+|---|---|---|---|
+| Desktop 1440×900 | Rótulos IA com e sem nome, nome longo, autores humano/automação/sistema e contagens de etiquetas `+N` | `evidence/wave-8l/desktop-1440x900.png` | PASS |
+| Desktop 1440×900 (rolagem) | Continuação da conversa com nome longo e mensagens humana, de automação e do sistema | `evidence/wave-8l/desktop-system-scrolled.png` | PASS |
+| Tablet 768×1024 | Rótulos de mensagens e contagens de etiquetas no layout tablet | `evidence/wave-8l/tablet-768x1024.png` | PASS |
+| Mobile 390×844 | Lista de conversas com contagens de etiquetas e início da conversa com rótulos IA | `evidence/wave-8l/mobile-390x844.png` | PASS |
+| Mobile 390×844 (captura completa) | Nome longo e rótulos de mensagens IA, humana, automação e sistema no fluxo completo | `evidence/wave-8l/mobile-390x844-full.png` | PASS |
+
 ## O gate de CHANGELOG que falta — desenho combinado (2026-08-25)
 
 **Nada no repo cobra que mudança de comportamento tenha entrada no CHANGELOG.** Esquecer é de
