@@ -2019,6 +2019,14 @@ conversa aberta com as mensagens das rodadas, cada uma entregue sem recarregar.
 | Mobile 390×844 | Preview de múltiplos arquivos e nome longo | `evidence/wave-8m/mobile-390x844-multiple-preview.png` | PASS |
 | Mobile 390×844 | Preview de anexo no modo de nota interna | `evidence/wave-8m/mobile-390x844-internal-note-preview.png` | PASS |
 
+### Evidências visuais da Wave 8O — criação de etiquetas sem duplicatas
+
+| Viewport | Finalidade da captura | Evidência | Resultado |
+|---|---|---|---|
+| Desktop 1440×900 | Busca parcial com duas etiquetas existentes e “Criar” por último; correspondência por caixa/acento sem opção de criar; limite de 20 etiquetas | `evidence/wave-8o/desktop-1440x900.jpg` | PASS |
+| Tablet 768×1024 | Correspondência existente aplicada visualmente ao lado de criação normalizada | `evidence/wave-8o/tablet-768x1024.jpg` | PASS |
+| Mobile 390×844 | Nome de etiqueta longo, sugestões parciais, criação por último e layout sem overflow | `evidence/wave-8o/mobile-390x844.jpg` | PASS |
+
 ## O gate de CHANGELOG que falta — desenho combinado (2026-08-25)
 
 **Nada no repo cobra que mudança de comportamento tenha entrada no CHANGELOG.** Esquecer é de

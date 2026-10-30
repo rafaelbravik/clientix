@@ -112,6 +112,83 @@ describe("ContactTagsEditor", () => {
     expect(mutate).not.toHaveBeenCalled();
   });
 
+  it("Enter aplica a grafia canônica para equivalência por caixa e acento", async () => {
+    get.mockResolvedValue({ data: ["carteira-andreia", "carteira-danilo"] });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <ContactTagsEditor contactId="c-1" orgId={ORG} tags={[]} />
+      </QueryClientProvider>,
+    );
+
+    await userEvent.type(
+      screen.getByLabelText("Adicionar tag ao contato"),
+      "CARTEIRA-ANDRÉIA{Enter}",
+    );
+
+    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(mutate).toHaveBeenCalledWith({ tags: ["carteira-andreia"] });
+  });
+
+  it("mantém sugestões parciais na ordem do vocabulário e Criar no final", async () => {
+    get.mockResolvedValue({ data: ["carteira-andreia", "carteira-danilo", "vip"] });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <ContactTagsEditor contactId="c-1" orgId={ORG} tags={[]} />
+      </QueryClientProvider>,
+    );
+
+    const campo = screen.getByLabelText("Adicionar tag ao contato");
+    await userEvent.type(campo, "carteira");
+
+    const opcoes = screen
+      .getAllByRole("button")
+      .map((button) => (button.textContent ?? "").replace(/\s+/g, " ").trim())
+      .filter((label) => label.startsWith("+ ") || label.startsWith("Criar «"));
+    expect(opcoes).toEqual([
+      "+ carteira-andreia",
+      "+ carteira-danilo",
+      "Criar «carteira»",
+    ]);
+  });
+
+  it("não oferece criar em correspondência exata/equivalente nem para tag selecionada", async () => {
+    get.mockResolvedValue({ data: ["carteira-andreia", "vip"] });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <ContactTagsEditor contactId="c-1" orgId={ORG} tags={["vip"]} />
+      </QueryClientProvider>,
+    );
+
+    const campo = screen.getByLabelText("Adicionar tag ao contato");
+    await userEvent.type(campo, "CARTEIRA-ANDRÉIA");
+    expect(screen.getByRole("button", { name: "+ carteira-andreia" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Criar «/ })).toBeNull();
+
+    await userEvent.clear(campo);
+    await userEvent.type(campo, "VIP");
+    expect(screen.queryByRole("button", { name: /^Criar «/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "+ vip" })).toBeNull();
+  });
+
+  it("clique em Criar usa a normalização de trim e lowercase", async () => {
+    get.mockResolvedValue({ data: ["vip"] });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <ContactTagsEditor contactId="c-1" orgId={ORG} tags={[]} />
+      </QueryClientProvider>,
+    );
+
+    await userEvent.type(screen.getByLabelText("Adicionar tag ao contato"), "  Nova Tag  ");
+    await userEvent.click(screen.getByRole("button", { name: "Criar «nova tag»" }));
+
+    expect(mutate).toHaveBeenCalledWith({ tags: ["nova tag"] });
+    expect(document.activeElement).toBe(screen.getByLabelText("Adicionar tag ao contato"));
+  });
+
   it("contato com a tag em caixa mista não recebe o chip da versão minúscula", async () => {
     get.mockResolvedValue({ data: ["vip", "google"] });
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -149,6 +226,7 @@ describe("ContactTagsEditor", () => {
     await userEvent.click(google);
 
     expect(mutate).toHaveBeenCalledWith({ tags: ["cliente", "google"] });
+    expect(document.activeElement).toBe(screen.getByLabelText("Adicionar tag ao contato"));
   });
 
   it("a sugestão mostra a cor da etiqueta, e não desenha nada quando ela não tem cor", async () => {

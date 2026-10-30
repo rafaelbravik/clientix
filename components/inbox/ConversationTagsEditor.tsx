@@ -1,11 +1,18 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useT } from "@/hooks/i18n/useT";
 import { ChipDeEtiqueta } from "@/components/tags/ChipDeEtiqueta";
 import { PontoDaEtiqueta } from "@/components/tags/PontoDaEtiqueta";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { X, Plus } from "@/lib/ui/icons";
+import { TAMANHO_MAXIMO_DA_TAG } from "@/lib/contacts/tag-normalizada";
+import {
+  etiquetaParaGravar,
+  etiquetasConhecidas,
+  opcaoDeCriar,
+  sugestoesDeEtiqueta,
+} from "@/lib/contacts/etiquetas";
 import {
   useUpdateConversationTags,
   useConversationTagVocabulary,
@@ -21,6 +28,7 @@ interface Props {
 export function ConversationTagsEditor({ conversationId, orgId, tags }: Props) {
   const t = useT();
   const [draft, setDraft] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
   const mutation = useUpdateConversationTags();
   const { data: vocabulary } = useConversationTagVocabulary(orgId);
 
@@ -30,17 +38,22 @@ export function ConversationTagsEditor({ conversationId, orgId, tags }: Props) {
   }
 
   function add(raw: string) {
-    const tag = raw.trim().toLowerCase().slice(0, 40);
-    if (!tag || tags.includes(tag) || tags.length >= 20) return;
+    const tag = etiquetaParaGravar({ conhecidas, selecionadas: tags, digitado: raw });
+    if (!tag || tags.length >= 20) return;
     apply([...tags, tag]);
     setDraft("");
+    inputRef.current?.focus();
   }
 
   function remove(tag: string) {
     apply(tags.filter((v) => v !== tag));
   }
 
-  const suggestions = (vocabulary ?? []).filter((v) => !tags.includes(v)).slice(0, 8);
+  const conhecidas = etiquetasConhecidas(vocabulary);
+  const suggestions = sugestoesDeEtiqueta({ conhecidas, selecionadas: tags, digitado: draft });
+  const createOption = tags.length < 20
+    ? opcaoDeCriar({ conhecidas, selecionadas: tags, digitado: draft })
+    : null;
 
   return (
     <section>
@@ -70,6 +83,7 @@ export function ConversationTagsEditor({ conversationId, orgId, tags }: Props) {
 
       <div className="mt-2 flex gap-1">
         <Input
+          ref={inputRef}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
@@ -79,7 +93,7 @@ export function ConversationTagsEditor({ conversationId, orgId, tags }: Props) {
             }
           }}
           placeholder={t("Nova tag…")}
-          maxLength={40}
+          maxLength={TAMANHO_MAXIMO_DA_TAG}
           disabled={mutation.isPending || tags.length >= 20}
           className="h-11 text-xs lg:h-7"
           aria-label={t("Adicionar tag à conversa")}
@@ -96,7 +110,7 @@ export function ConversationTagsEditor({ conversationId, orgId, tags }: Props) {
         </Button>
       </div>
 
-      {suggestions.length > 0 && (
+      {(suggestions.length > 0 || createOption !== null) && (
         <div className="mt-2 flex flex-wrap gap-1">
           {suggestions.map((tag) => (
             <button
@@ -110,6 +124,16 @@ export function ConversationTagsEditor({ conversationId, orgId, tags }: Props) {
               + {tag}
             </button>
           ))}
+          {createOption !== null && (
+            <button
+              type="button"
+              onClick={() => add(draft)}
+              disabled={mutation.isPending || tags.length >= 20}
+              className="inline-flex min-h-11 items-center gap-1 rounded-full border border-dashed border-border px-3 py-2 text-xs text-muted-foreground hover:border-solid hover:text-foreground disabled:opacity-50 lg:min-h-0 lg:px-2 lg:py-0.5 lg:text-[10px]"
+            >
+              {t("Criar")} «{createOption}»
+            </button>
+          )}
         </div>
       )}
     </section>

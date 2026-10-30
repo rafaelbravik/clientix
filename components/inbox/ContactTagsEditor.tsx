@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useT } from "@/hooks/i18n/useT";
 import { ChipDeEtiqueta } from "@/components/tags/ChipDeEtiqueta";
 import { PontoDaEtiqueta } from "@/components/tags/PontoDaEtiqueta";
@@ -8,7 +8,13 @@ import { Input } from "@/components/ui/input";
 import { X, Plus } from "@/lib/ui/icons";
 import { useUpdateContact } from "@/hooks/contacts/useUpdateContact";
 import { useContactTagVocabulary } from "@/hooks/contacts/useContactTagVocabulary";
-import { normalizarTag, TAMANHO_MAXIMO_DA_TAG } from "@/lib/contacts/tag-normalizada";
+import { TAMANHO_MAXIMO_DA_TAG } from "@/lib/contacts/tag-normalizada";
+import {
+  etiquetaParaGravar,
+  etiquetasConhecidas,
+  opcaoDeCriar,
+  sugestoesDeEtiqueta,
+} from "@/lib/contacts/etiquetas";
 
 interface Props {
   contactId: string;
@@ -21,6 +27,7 @@ interface Props {
 export function ContactTagsEditor({ contactId, orgId, tags }: Props) {
   const t = useT();
   const [draft, setDraft] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
   const mutation = useUpdateContact(contactId);
   const { data: vocabulary } = useContactTagVocabulary(orgId);
 
@@ -29,27 +36,22 @@ export function ContactTagsEditor({ contactId, orgId, tags }: Props) {
   }
 
   function add(raw: string) {
-    const tag = normalizarTag(raw);
-    if (!tag || tags.some((v) => normalizarTag(v) === tag) || tags.length >= 20) return;
+    const tag = etiquetaParaGravar({ conhecidas, selecionadas: tags, digitado: raw });
+    if (!tag || tags.length >= 20) return;
     apply([...tags, tag]);
     setDraft("");
+    inputRef.current?.focus();
   }
 
   function remove(tag: string) {
     apply(tags.filter((v) => v !== tag));
   }
 
-  // Sem sugestão cada operador digitava a sua variação da mesma tag (#852).
-  // A comparação é entre formas NORMALIZADAS: um contato que já tem "VIP"
-  // (gravado antes, pelo diálogo de contato, que não normaliza) recebia o chip
-  // "+ vip" e ficava com as duas — a duplicação que a sugestão veio impedir.
-  // E o chip MOSTRA a forma normalizada, não a que a fonte mandou: o rótulo
-  // precisa ser o que o clique grava mesmo que a lista chegue crua (a rota a
-  // normaliza hoje, mas a fonte está marcada para trocar).
-  const jaTem = new Set(tags.map(normalizarTag));
-  const suggestions = [...new Set((vocabulary ?? []).map(normalizarTag))]
-    .filter((v) => v && !jaTem.has(v))
-    .slice(0, 8);
+  const conhecidas = etiquetasConhecidas(vocabulary);
+  const suggestions = sugestoesDeEtiqueta({ conhecidas, selecionadas: tags, digitado: draft });
+  const createOption = tags.length < 20
+    ? opcaoDeCriar({ conhecidas, selecionadas: tags, digitado: draft })
+    : null;
 
   return (
     <div className="mt-2 space-y-2 rounded-md border border-border p-2">
@@ -75,6 +77,7 @@ export function ContactTagsEditor({ contactId, orgId, tags }: Props) {
 
       <div className="flex gap-1">
         <Input
+          ref={inputRef}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
@@ -101,7 +104,7 @@ export function ContactTagsEditor({ contactId, orgId, tags }: Props) {
         </Button>
       </div>
 
-      {suggestions.length > 0 && (
+      {(suggestions.length > 0 || createOption !== null) && (
         <div className="flex flex-wrap gap-1">
           {suggestions.map((tag) => (
             <button
@@ -115,6 +118,16 @@ export function ContactTagsEditor({ contactId, orgId, tags }: Props) {
               + {tag}
             </button>
           ))}
+          {createOption !== null && (
+            <button
+              type="button"
+              onClick={() => add(draft)}
+              disabled={mutation.isPending || tags.length >= 20}
+              className="inline-flex min-h-11 items-center gap-1 rounded-full border border-dashed border-border px-3 py-2 text-xs text-muted-foreground hover:border-solid hover:text-foreground disabled:opacity-50 lg:min-h-0 lg:px-2 lg:py-0.5 lg:text-[10px]"
+            >
+              {t("Criar")} «{createOption}»
+            </button>
+          )}
         </div>
       )}
     </div>
