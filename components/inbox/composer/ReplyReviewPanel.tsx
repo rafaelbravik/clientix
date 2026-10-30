@@ -4,6 +4,12 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { showApiError } from "@/components/feedback/ApiErrorToast";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { useT } from "@/hooks/i18n/useT";
@@ -113,15 +119,22 @@ export function ReplyReviewPanel({
         <p className="text-sm font-medium">
           {t(draft ? (statuses[draft.status] ?? "Assistência do agente") : "Assistência do agente")}
         </p>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={disabled || busy}
-          onClick={generate}
-        >
-          {t(busy ? "Preparando…" : "Sugerir resposta")}
-        </Button>
+        <TooltipProvider delayDuration={200}>
+          <Tooltip disableHoverableContent>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={disabled || busy}
+                onClick={generate}
+              >
+                {t(busy ? "Preparando…" : "Sugerir resposta")}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t("Sugerir resposta")}</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
       {draft && (
         <>
