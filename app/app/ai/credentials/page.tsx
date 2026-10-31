@@ -25,6 +25,11 @@ import { logger } from "@/lib/logger";
 import { PROVEDORES } from "@/lib/ai/pontos/provedores";
 import { tagDeIdioma } from "@/lib/i18n/datas";
 import { CredentialsList } from "./_components/CredentialsList";
+import { ChatGPTSubscriptionPanel } from "./_components/ChatGPTSubscriptionPanel";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { moduloLigado } from "@/lib/instalacao/modulos";
+import { CHATGPT_SUBSCRIPTION_MODULE, CHATGPT_SUBSCRIPTION_PROVIDER } from "@/lib/ai/credenciais/chatgpt-siwc";
+import { lerEstadoDaConexaoSiwc } from "@/lib/ai/credenciais/chatgpt-subscription";
 
 export const dynamic = "force-dynamic";
 
@@ -41,13 +46,21 @@ export default async function CredentialsPage() {
   }
 
   const supabase = await createClient();
+  const admin = createAdminClient();
+  const subscriptionEnabled = await moduloLigado(admin, CHATGPT_SUBSCRIPTION_MODULE);
   const { data } = await supabase
     .from("ai_provider_credentials_safe")
     .select(SAFE_COLUMNS)
     .eq("organization_id", activeOrg.orgId)
     .order("created_at", { ascending: false });
 
-  const credentials = (data ?? []) as CredentialRow[];
+  const subscriptionStatus = subscriptionEnabled
+    ? await lerEstadoDaConexaoSiwc(admin, activeOrg.orgId)
+    : null;
+
+  const credentials = ((data ?? []) as CredentialRow[]).filter(
+    (credential) => (credential.provider as string) !== CHATGPT_SUBSCRIPTION_PROVIDER,
+  );
   const canWrite = ROLE_RANK[activeOrg.role] >= ROLE_RANK.admin;
 
   // Mesma regra do DELETE — e a mesma da FK `ON DELETE RESTRICT`: TODA versão
@@ -165,6 +178,9 @@ export default async function CredentialsPage() {
           )}
         </p>
       </header>
+      {subscriptionEnabled && subscriptionStatus ? (
+        <ChatGPTSubscriptionPanel initialStatus={subscriptionStatus.status} />
+      ) : null}
       <CredentialsList
         initialData={credentials}
         canWrite={canWrite}

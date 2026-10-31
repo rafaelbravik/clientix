@@ -217,6 +217,13 @@ const MODULOS_NA_TELA: ReadonlyArray<{ modulo: ModuloPorFlag; id: string; rotulo
     descricao:
       "Ligado, cada empresa ganha no CRM o cadastro de Empresas (razão social e CNPJ, com os dados públicos preenchidos pela BrasilAPI), as Pessoas que decidem dentro delas, com vários telefones, e a importação de planilha CSV ou Excel. Consultar um CNPJ manda o número para a BrasilAPI. Desligado, as telas e o menu somem.",
   },
+  {
+    modulo: "login_codex",
+    id: "modulo-login-codex",
+    rotulo: "Assinatura do ChatGPT",
+    descricao:
+      "Ligado, cada empresa pode vincular uma conta ChatGPT em Credenciais. O vínculo não ativa o uso por agentes; essa capacidade depende de uma etapa posterior. Desligado, o painel e as operações de conexão não ficam disponíveis.",
+  },
 ];
 
 export function FormularioDeModulos({ ligados }: { ligados: readonly ModuloOpcional[] }) {

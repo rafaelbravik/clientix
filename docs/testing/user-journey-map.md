@@ -3320,3 +3320,25 @@ Ao entrar em `awaiting_human`, o banco inicia um relógio e contador por espera.
 | J42.3 | Intervalo, limite e enabled por organização | aviso só no vencimento, respeita teto e isolamento de config | PASS no invariante DB (`case-wait-reminders.test.ts`) |
 | J42.4 | Dois workers reivindicam o mesmo caso vencido | exatamente um aviso e um avanço do contador | PASS no invariante DB (`case-wait-reminders.test.ts`) |
 | J42.5 | Admin altera enabled, cadência e teto pela Central | gravação validada, auditada e reaparece após reload | **PROVA VISUAL PENDENTE** |
+
+## J43 — Vincular assinatura do ChatGPT por SIWC `[P0-1A]` (2026-10-30)
+
+O painel só aparece com `login_codex` ligado pelo administrador da instalação. O estado
+desconectado, conectado sintético, expirado e ilegível foi certificado em fixture local; nenhuma
+conta ChatGPT, credencial ou serviço de produção foi usado. A conexão SIWC não habilita agentes
+nesta etapa.
+
+| Viewport | Estado sintético | Captura | Resultado |
+|---|---|---|---|
+| Desktop 1440×900 | Desconectado; ação de conectar | [desktop-1440x900-not_connected.png](../../evidence/p0-chatgpt-subscription-a/desktop-1440x900-not_connected.png) | PASS |
+| Desktop 1440×900 | Conectado; reconectar/desconectar | [desktop-1440x900-connected.png](../../evidence/p0-chatgpt-subscription-a/desktop-1440x900-connected.png) | PASS |
+| Desktop 1440×900 | Sessão expirada; reconectar | [desktop-1440x900-expired.png](../../evidence/p0-chatgpt-subscription-a/desktop-1440x900-expired.png) | PASS |
+| Desktop 1440×900 | Envelope ilegível; saída segura | [desktop-1440x900-unreadable.png](../../evidence/p0-chatgpt-subscription-a/desktop-1440x900-unreadable.png) | PASS |
+| Tablet 768×1024 | Desconectado; ação de conectar | [tablet-768x1024-not_connected.png](../../evidence/p0-chatgpt-subscription-a/tablet-768x1024-not_connected.png) | PASS |
+| Tablet 768×1024 | Conectado; reconectar/desconectar | [tablet-768x1024-connected.png](../../evidence/p0-chatgpt-subscription-a/tablet-768x1024-connected.png) | PASS |
+| Tablet 768×1024 | Sessão expirada; reconectar | [tablet-768x1024-expired.png](../../evidence/p0-chatgpt-subscription-a/tablet-768x1024-expired.png) | PASS |
+| Tablet 768×1024 | Envelope ilegível; saída segura | [tablet-768x1024-unreadable.png](../../evidence/p0-chatgpt-subscription-a/tablet-768x1024-unreadable.png) | PASS |
+| Mobile 390×844 | Desconectado; ação de conectar | [mobile-390x844-not_connected.png](../../evidence/p0-chatgpt-subscription-a/mobile-390x844-not_connected.png) | PASS |
+| Mobile 390×844 | Conectado; reconectar/desconectar | [mobile-390x844-connected.png](../../evidence/p0-chatgpt-subscription-a/mobile-390x844-connected.png) | PASS |
+| Mobile 390×844 | Sessão expirada; reconectar | [mobile-390x844-expired.png](../../evidence/p0-chatgpt-subscription-a/mobile-390x844-expired.png) | PASS |
+| Mobile 390×844 | Envelope ilegível; saída segura | [mobile-390x844-unreadable.png](../../evidence/p0-chatgpt-subscription-a/mobile-390x844-unreadable.png) | PASS |

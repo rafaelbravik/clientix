@@ -17,6 +17,7 @@ import { z } from "zod";
 import { ok, fail } from "@/lib/api/wrappers";
 import { requireRole } from "@/lib/auth/require-role";
 import { guardarCredencial } from "@/lib/ai/credenciais/guardar";
+import { CHATGPT_SUBSCRIPTION_PROVIDER } from "@/lib/ai/credenciais/chatgpt-siwc";
 import { IDS_COM_CHAVE } from "@/lib/ai/pontos/provedores";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -57,6 +58,7 @@ export async function GET(): Promise<Response> {
     .from("ai_provider_credentials_safe")
     .select(SAFE_COLUMNS)
     .eq("organization_id", activeOrg.orgId)
+    .not("provider", "eq", CHATGPT_SUBSCRIPTION_PROVIDER)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -80,6 +82,17 @@ export async function POST(req: NextRequest): Promise<Response> {
     rawBody = await req.json();
   } catch {
     return fail("invalid_request", t("Body JSON inválido."), 400, { requestId });
+  }
+
+  if (
+    rawBody &&
+    typeof rawBody === "object" &&
+    "provider" in rawBody &&
+    rawBody.provider === CHATGPT_SUBSCRIPTION_PROVIDER
+  ) {
+    return fail("validation_failed", t("A assinatura do ChatGPT só pode ser conectada pelo login oficial."), 422, {
+      requestId,
+    });
   }
 
   const parsed = createSchema.safeParse(rawBody);

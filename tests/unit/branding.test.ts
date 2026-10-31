@@ -838,6 +838,11 @@ const HOSTS_DECLARADOS: Record<string, EntradaDeHost> = {
     motivo:
       "endpoint da API da OpenAI (embeddings da busca e transcrição de áudio). É o destino do request: trocar pelo domínio do revendedor faria a chamada não chegar a lugar nenhum.",
   },
+  "auth.openai.com": {
+    categoria: "FORNECEDOR",
+    motivo:
+      "endpoint oficial do Sign in with ChatGPT usado pelo fluxo SIWC server-side para autorização, troca/renovação/revogação de tokens e JWKS. O domínio é fixo e não controlável pelo tenant; não é texto de interface nem destino configurável.",
+  },
   "api.typesafe.ai": {
     categoria: "FORNECEDOR",
     motivo:

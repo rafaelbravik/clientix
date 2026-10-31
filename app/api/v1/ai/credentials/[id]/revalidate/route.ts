@@ -14,6 +14,7 @@ import { audit } from "@/lib/audit";
 import { requireRole } from "@/lib/auth/require-role";
 import { byteaToBuffer, decryptKey } from "@/lib/crypto/aes_gcm";
 import { validateProviderKey } from "@/lib/ai/provider-validators";
+import { CHATGPT_SUBSCRIPTION_PROVIDER } from "@/lib/ai/credenciais/chatgpt-siwc";
 import { lerBaseUrlDaCredencial } from "@/lib/ai/credenciais/guardar";
 import { logger } from "@/lib/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -55,6 +56,9 @@ export async function POST(
     return fail("internal_error", "Erro ao consultar credential.", 500, { requestId });
   }
   if (!row || row.organization_id !== activeOrg.orgId) {
+    return fail("not_found", t("Credential não encontrada."), 404, { requestId });
+  }
+  if (row.provider === CHATGPT_SUBSCRIPTION_PROVIDER) {
     return fail("not_found", t("Credential não encontrada."), 404, { requestId });
   }
   if (!row.is_active) {

@@ -38,6 +38,7 @@ import { audit } from "@/lib/audit";
 import { requireRole } from "@/lib/auth/require-role";
 import type { ProvedorComChave } from "@/lib/ai/pontos/provedores";
 import { rotacionarCredencial } from "@/lib/ai/credenciais/guardar";
+import { CHATGPT_SUBSCRIPTION_PROVIDER } from "@/lib/ai/credenciais/chatgpt-siwc";
 import { gravarConfigDoJev, lerConfigDoJev } from "@/lib/ai/decisao/config";
 import { credencialEmUsoPeloJev, PROVEDOR_DO_JEV } from "@/lib/ai/decisao/credencial";
 import { logger } from "@/lib/logger";
@@ -173,6 +174,9 @@ export async function PATCH(
   if (!cred || cred.organization_id !== activeOrg.orgId) {
     return fail("not_found", t("Credential não encontrada."), 404, { requestId });
   }
+  if (cred.provider === CHATGPT_SUBSCRIPTION_PROVIDER) {
+    return fail("not_found", t("Credential não encontrada."), 404, { requestId });
+  }
 
   const resultado = await rotacionarCredencial({
     admin,
@@ -237,6 +241,9 @@ export async function DELETE(
     return fail("internal_error", "Erro ao consultar credential.", 500, { requestId });
   }
   if (!cred || cred.organization_id !== activeOrg.orgId) {
+    return fail("not_found", t("Credential não encontrada."), 404, { requestId });
+  }
+  if (cred.provider === CHATGPT_SUBSCRIPTION_PROVIDER) {
     return fail("not_found", t("Credential não encontrada."), 404, { requestId });
   }
 

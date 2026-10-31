@@ -47,6 +47,9 @@ vi.mock("@/lib/auth/server", () => ({
   requireAuth: vi.fn(async () => ({ id: "actor", idioma: "pt-BR" })),
   resolveActiveOrg: vi.fn(async () => ({ orgId: ORG, role: "admin" })),
 }));
+vi.mock("@/lib/instalacao/modulos", () => ({
+  moduloLigado: vi.fn(async () => false),
+}));
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({
     from: (tabela: string) => {

@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Login da assinatura ChatGPT por organização",
+    "subtitle": "Autorização SIWC com PKCE e nonce único; credencial cifrada, sem ativar uso em agentes",
+    "quality_profile": "standard"
+  },
+  "lanes": [
+    { "id": "operador", "label": "Operador" },
+    { "id": "servidor", "label": "Clientix" },
+    { "id": "persistencia", "label": "Persistência" },
+    { "id": "openai", "label": "OpenAI" }
+  ],
+  "mainPath": ["adminInstalacao", "painel", "inicio", "autorizacao", "retorno", "conclusao", "nonce", "token", "validacao", "credencial"],
+  "nodes": [
+    { "id": "adminInstalacao", "lane": "operador", "col": 1, "type": "frontend", "label": "/admin/sistema — liga login_codex, padrão desligado" },
+    { "id": "flag", "lane": "persistencia", "col": 2, "type": "database", "label": "platform_config.MODULO_LOGIN_CODEX — leitura fail-closed" },
+    { "id": "painel", "lane": "operador", "col": 2, "type": "frontend", "label": "IA › Credenciais — painel SIWC aparece somente com módulo ligado" },
+    { "id": "inicio", "lane": "servidor", "col": 3, "type": "service", "label": "startChatGPTSubscriptionLogin — sessão, organização, admin, MFA e write guard" },
+    { "id": "pendencia", "lane": "persistencia", "col": 4, "type": "config", "label": "Cookie HttpOnly/SameSite, payload cifrado e válido por até 10 min: verifier, state, nonce e vínculo da sessão" },
+    { "id": "autorizacao", "lane": "openai", "col": 4, "type": "external", "label": "Sign in with ChatGPT — Authorization Code + PKCE S256 e scopes fixos" },
+    { "id": "retorno", "lane": "operador", "col": 5, "type": "frontend", "label": "Operador copia URL de loopback estrita; sem redirect para host do Clientix" },
+    { "id": "conclusao", "lane": "servidor", "col": 6, "type": "service", "label": "completeChatGPTSubscriptionLogin — callback, state, sessão, org e client_id validados" },
+    { "id": "nonce", "lane": "persistencia", "col": 7, "type": "database", "label": "calendar_oauth_nonces — INSERT único antes da troca do código" },
+    { "id": "token", "lane": "openai", "col": 7, "type": "external", "label": "Token endpoint oficial — troca de código server-side; refresh rotativo e revogação" },
+    { "id": "validacao", "lane": "servidor", "col": 8, "type": "lib", "label": "ID token: assinatura RS256/JWKS, issuer, audience, nonce, expiração e sub" },
+    { "id": "credencial", "lane": "persistencia", "col": 9, "type": "database", "label": "ai_provider_credentials — provider fixo, tenant-scoped, envelope AES-256-GCM; api_key_last4 neutro" },
+    { "id": "audit", "lane": "persistencia", "col": 6, "type": "database", "label": "api_audit_log — connected, reconnected e disconnected sem segredo" },
+    { "id": "auditTela", "lane": "operador", "col": 7, "type": "frontend", "label": "/admin/audit — trilha da mudança de conexão" },
+    { "id": "runtimeFuturo", "lane": "servidor", "col": 10, "type": "service", "label": "Runtime/publicação de agente — não conectado nesta etapa; HOLD_MIGRATION_GOVERNANCE" }
+  ],
+  "edges": [
+    { "id": "e1", "from": "adminInstalacao", "to": "flag", "label": "altera flag global com ação administrativa auditada" },
+    { "id": "e2", "from": "flag", "to": "painel", "label": "painel só é exibido quando ligado" },
+    { "id": "e3", "from": "painel", "to": "inicio", "label": "inicia login sem receber organização do cliente" },
+    { "id": "e4", "from": "inicio", "to": "pendencia", "label": "gera verifier/nonce e sela vínculo de usuário/organização/client_id" },
+    { "id": "e5", "from": "inicio", "to": "autorizacao", "label": "redireciona para o endpoint oficial com challenge S256 e state assinado" },
+    { "id": "e6", "from": "autorizacao", "to": "retorno", "label": "consentimento entrega code, state e client_id na URL de loopback" },
+    { "id": "e7", "from": "retorno", "to": "conclusao", "label": "callback copiada é submetida à sessão original" },
+    { "id": "e8", "from": "pendencia", "to": "conclusao", "label": "valida cookie cifrado e identidade da sessão" },
+    { "id": "e9", "from": "conclusao", "to": "nonce", "label": "consome nonce single-use antes de trocar o código" },
+    { "id": "e10", "from": "conclusao", "to": "token", "label": "envia code e verifier somente do servidor" },
+    { "id": "e11", "from": "token", "to": "validacao", "label": "retorna tokens e ID token para validação criptográfica" },
+    { "id": "e12", "from": "validacao", "to": "credencial", "label": "sub validado; grava envelope cifrado sob organization_id da sessão" },
+    { "id": "e13", "from": "credencial", "to": "painel", "label": "exibe somente estado seguro da conexão" },
+    { "id": "e14", "from": "conclusao", "to": "audit", "label": "audita conectado/reconectado sem tokens, code ou email" },
+    { "id": "e15", "from": "painel", "to": "audit", "label": "disconnect tenta revogação e remove a credencial local" },
+    { "id": "e16", "from": "audit", "to": "auditTela", "label": "trilha fica consultável por administradores" },
+    { "id": "e17", "from": "credencial", "to": "runtimeFuturo", "label": "uso permanece bloqueado até a governança da migration liberar a publicação do provider" }
+  ]
+}

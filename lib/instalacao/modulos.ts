@@ -52,6 +52,7 @@ export const MODULOS_OPCIONAIS = [
   "fluxos_atendimento",
   "propostas",
   "crm_b2b",
+  "login_codex",
   "honorarios",
 ] as const;
 export type ModuloOpcional = (typeof MODULOS_OPCIONAIS)[number];
@@ -72,6 +73,7 @@ export const MODULOS_OPCIONAIS_POR_FLAG = [
   "fluxos_atendimento",
   "propostas",
   "crm_b2b",
+  "login_codex",
 ] as const satisfies readonly ModuloOpcional[];
 
 /** A linha de cada módulo por FLAG em `platform_config`. O formato é o da CHECK da 0341.
@@ -91,6 +93,7 @@ export const CHAVE_DO_MODULO: Record<(typeof MODULOS_OPCIONAIS_POR_FLAG)[number]
   // metade B2B do #1621. A maior parte de quem usa vende para pessoas; quem
   // vende para empresas liga. Desligado, as telas e as rotas somem (404).
   crm_b2b: "MODULO_CRM_B2B",
+  login_codex: "MODULO_LOGIN_CODEX",
 };
 
 const LIGADO = "ligado";

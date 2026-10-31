@@ -9,11 +9,11 @@
 import { byteaToBuffer, decryptKey } from "@/lib/crypto/aes_gcm";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-import type { ProvedorComChave } from "@/lib/ai/pontos/provedores";
+import { IDS_DE_PROVEDOR, type ProvedorComChave } from "@/lib/ai/pontos/provedores";
 
 export interface LoadedCredential {
   apiKey: string;
-  provider: ProvedorComChave;
+  provider: string;
   label: string;
   /**
    * O endereço da API quando a credencial É de provedor personalizado (#1642);
@@ -80,6 +80,9 @@ export async function loadCredential(
   if (data.organization_id !== organizationId) {
     throw new CredentialUnavailableError("wrong_org", "credential pertence a outra org");
   }
+  if (!(IDS_DE_PROVEDOR as readonly string[]).includes(data.provider)) {
+    throw new CredentialUnavailableError("not_found", "credential provider não disponível no runtime de API key");
+  }
   if (!data.is_active) {
     throw new CredentialUnavailableError("inactive", "credential desativada");
   }
@@ -117,5 +120,5 @@ export async function loadCredential(
     baseUrl = typeof endereco?.base_url === "string" ? endereco.base_url : null;
   }
 
-  return { apiKey, provider: data.provider, label: data.label, baseUrl };
+  return { apiKey, provider: data.provider as ProvedorComChave, label: data.label, baseUrl };
 }

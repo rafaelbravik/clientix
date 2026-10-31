@@ -2794,6 +2794,76 @@ export const DICIONARIO: Traducoes = {
     {
       es: "Top K = cuántos fragmentos buscar. Similarity threshold = relevancia mínima (cosine).",
     },
+  "Assinatura do ChatGPT": { es: "Suscripción de ChatGPT" },
+  "Permite que cada empresa vincule uma conta ChatGPT pela autorização oficial. O uso em agentes continua desligado nesta etapa.": {
+    es: "Permite que cada empresa vincule una cuenta de ChatGPT mediante la autorización oficial. El uso en agentes sigue desactivado en esta etapa.",
+  },
+  "Ligado, cada empresa pode vincular uma conta ChatGPT em Credenciais. O vínculo não ativa o uso por agentes; essa capacidade depende de uma etapa posterior. Desligado, o painel e as operações de conexão não ficam disponíveis.": {
+    es: "Activado, cada empresa puede vincular una cuenta de ChatGPT en Credenciales. El vínculo no activa el uso por agentes; esa capacidad depende de una etapa posterior. Desactivado, el panel y las operaciones de conexión no están disponibles.",
+  },
+  "Vincule uma conta pelo login oficial do ChatGPT. Esta conexão não ativa o uso por agentes nesta etapa.": {
+    es: "Vincula una cuenta mediante el inicio de sesión oficial de ChatGPT. Esta conexión no activa el uso por agentes en esta etapa.",
+  },
+  "A autorização expirou. Reconecte a conta para renovar o acesso.": {
+    es: "La autorización venció. Vuelve a conectar la cuenta para renovar el acceso.",
+  },
+  "A conexão não pôde ser lida. Reconecte ou desconecte a conta.": {
+    es: "No se pudo leer la conexión. Vuelve a conectar o desconecta la cuenta.",
+  },
+  "Nenhuma conta conectada.": { es: "No hay ninguna cuenta conectada." },
+  "Preparando conexão…": { es: "Preparando la conexión…" },
+  "Validando conexão…": { es: "Validando la conexión…" },
+  "Abra o login oficial, conclua a autorização e copie a URL completa exibida pelo navegador para colar abaixo.": {
+    es: "Abre el inicio de sesión oficial, completa la autorización y copia la URL completa que muestra el navegador para pegarla abajo.",
+  },
+  "Abrir login do ChatGPT": { es: "Abrir inicio de sesión de ChatGPT" },
+  "Conectar assinatura do ChatGPT": { es: "Conectar suscripción de ChatGPT" },
+  "URL de retorno": { es: "URL de retorno" },
+  "Concluir conexão": { es: "Completar conexión" },
+  "Conta reconectada com segurança.": { es: "Cuenta reconectada de forma segura." },
+  "Conta conectada com segurança.": { es: "Cuenta conectada de forma segura." },
+  "Desconectar a conta ChatGPT desta organização?": { es: "¿Desconectar la cuenta de ChatGPT de esta organización?" },
+  "A conta foi removida daqui, mas não foi possível confirmar a revogação remota.": {
+    es: "La cuenta se eliminó de aquí, pero no se pudo confirmar la revocación remota.",
+  },
+  "O módulo de assinatura está desligado nesta instalação.": { es: "El módulo de suscripción está desactivado en esta instalación." },
+  "Sua função não permite alterar esta credencial.": { es: "Tu rol no permite modificar esta credencial." },
+  "Confirme a autenticação multifator antes de alterar credenciais.": {
+    es: "Confirma la autenticación multifactor antes de modificar credenciales.",
+  },
+  "A URL de retorno não corresponde ao formato esperado. Inicie a conexão novamente.": {
+    es: "La URL de retorno no coincide con el formato esperado. Inicia la conexión de nuevo.",
+  },
+  "A conexão não pôde ser confirmada. Inicie o login novamente nesta organização.": {
+    es: "No se pudo confirmar la conexión. Inicia sesión de nuevo en esta organización.",
+  },
+  "Esta tentativa expirou. Inicie a conexão novamente.": { es: "Este intento venció. Inicia la conexión de nuevo." },
+  "Esta tentativa já foi usada. Inicie a conexão novamente.": { es: "Este intento ya se usó. Inicia la conexión de nuevo." },
+  "Outra conta já está conectada. Desconecte a conta atual antes de vincular outra.": {
+    es: "Ya hay otra cuenta conectada. Desconecta la cuenta actual antes de vincular otra.",
+  },
+  "O provedor não concluiu a autorização. Tente conectar novamente.": {
+    es: "El proveedor no completó la autorización. Intenta conectar de nuevo.",
+  },
+  "A identidade recebida não pôde ser validada. Tente conectar novamente.": {
+    es: "No se pudo validar la identidad recibida. Intenta conectar de nuevo.",
+  },
+  "A credencial não pôde ser lida com segurança. Desconecte e conecte novamente.": {
+    es: "No se pudo leer la credencial de forma segura. Desconecta y vuelve a conectar.",
+  },
+  "A configuração de conexão não está disponível nesta instalação.": {
+    es: "La configuración de conexión no está disponible en esta instalación.",
+  },
+  "Não foi possível salvar a conexão com segurança. Tente novamente.": {
+    es: "No se pudo guardar la conexión de forma segura. Inténtalo de nuevo.",
+  },
+  "A sessão local foi removida, mas o provedor não confirmou a revogação remota.": {
+    es: "La sesión local se eliminó, pero el proveedor no confirmó la revocación remota.",
+  },
+  "Não foi possível concluir esta operação.": { es: "No se pudo completar esta operación." },
+  "A assinatura do ChatGPT só pode ser conectada pelo login oficial.": {
+    es: "La suscripción de ChatGPT solo se puede conectar mediante el inicio de sesión oficial.",
+  },
   "Chaves de acesso à IA": { es: "Claves de acceso a la IA" },
   "A conta de inteligência artificial é sua: você contrata direto com {provedores} e cola a chave aqui. A chave fica guardada criptografada e nunca mais aparece na tela depois de salva — nem para você. O Jev (TypeSafe) não conversa com o cliente: a chave dele serve só para decisões rápidas.": {
     es: "La cuenta de inteligencia artificial es tuya: la contratas directamente con {provedores} y pegas la clave aquí. La clave queda guardada cifrada y nunca más aparece en pantalla después de guardarla, ni siquiera para ti. Jev (TypeSafe) no conversa con el cliente: su clave sirve solo para decisiones rápidas.",

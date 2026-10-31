@@ -198,6 +198,13 @@ function refsNormalizadas(doc: string): string[] {
     ...new Set(
       refs.map((ref) => {
         const limpa = ref.replace(/^\.\//, "");
+        // Link Markdown escrito relativo ao próprio documento (por exemplo,
+        // `../../evidence/...` em `docs/testing/`) precisa resolver para o
+        // mesmo caminho que o leitor encontra ao abrir o mapa no GitHub.
+        // Sem isso, a citação válida da jornada virava órfã só para o teste.
+        if (ref.startsWith("../") || ref.startsWith("./")) {
+          return path.posix.normalize(path.posix.join(dir, ref));
+        }
         // `docs/handoffs/` conta como raiz: são handoffs ARQUIVADOS que nasceram
         // na raiz do repo e citam evidência sem prefixo, como todo doc de raiz.
         // Arquivar o documento não move as imagens — elas seguem em `evidence/`.

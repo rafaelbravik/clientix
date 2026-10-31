@@ -113,6 +113,10 @@ const TEXTO_DO_MODULO: Record<ModuloOpcional, { nome: string; oQueFaz: string }>
     nome: "Empresas e pessoas (venda para empresas)",
     oQueFaz: "Cadastro de empresas por CNPJ, das pessoas que decidem nelas e importação de planilha.",
   },
+  login_codex: {
+    nome: "Assinatura do ChatGPT",
+    oQueFaz: "Permite que cada empresa vincule uma conta ChatGPT pela autorização oficial. O uso em agentes continua desligado nesta etapa.",
+  },
   honorarios: {
     nome: "Honorários",
     oQueFaz: "Contratos de honorários com parcelas e o controle do que já foi pago.",

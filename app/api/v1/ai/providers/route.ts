@@ -29,6 +29,7 @@ import {
 } from "@/lib/ai/pontos/resolver";
 import { PAPEIS, PONTOS_DE_IA, PONTO_POR_ID } from "@/lib/ai/pontos/registro";
 import { PROVEDORES, ehProvedorSuportado } from "@/lib/ai/pontos/provedores";
+import { CHATGPT_SUBSCRIPTION_PROVIDER } from "@/lib/ai/credenciais/chatgpt-siwc";
 import { validarBinding } from "@/lib/ai/pontos/validar-binding";
 import { lerAmbiente } from "@/lib/instalacao/ambiente";
 import { modeloDeTranscricaoEmVigor } from "@/lib/messaging/media/transcription";
@@ -66,6 +67,7 @@ export async function GET(): Promise<Response> {
       .from("ai_provider_credentials")
       .select("id, provider, label, api_key_last4, validated_at, is_active")
       .eq("organization_id", org.orgId)
+      .not("provider", "eq", CHATGPT_SUBSCRIPTION_PROVIDER)
       .eq("is_active", true),
     db
       .from("ai_models")

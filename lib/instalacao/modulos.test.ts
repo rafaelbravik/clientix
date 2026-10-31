@@ -80,6 +80,20 @@ describe("modulosLigados — banco_externo (flag em platform_config)", () => {
   });
 });
 
+describe("modulosLigados — assinatura do ChatGPT", () => {
+  it("login_codex fica desligado sem configuração e liga somente com o valor canônico", async () => {
+    expect(await modulosLigados(banco().db)).not.toContain("login_codex");
+    const ligado = banco({
+      platform_config: { data: [{ chave: "MODULO_LOGIN_CODEX", valor: "ligado" }] },
+    });
+    expect(await modulosLigados(ligado.db)).toContain("login_codex");
+    const lixo = banco({
+      platform_config: { data: [{ chave: "MODULO_LOGIN_CODEX", valor: "true" }] },
+    });
+    expect(await modulosLigados(lixo.db)).not.toContain("login_codex");
+  });
+});
+
 describe("modulosLigados — honorarios (módulo de tabela, ADR-0002)", () => {
   it("sem linha em modulos_instalados, honorarios está desligado", async () => {
     expect(await modulosLigados(banco().db)).toEqual([]);
