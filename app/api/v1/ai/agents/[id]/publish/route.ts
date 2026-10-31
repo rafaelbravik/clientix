@@ -96,7 +96,10 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
       const status = result.code === "agent_not_found" || result.code === "version_not_found"
         ? 404
         : 422;
-      return fail(result.code, t("Validação de publish falhou."), status, { requestId });
+      const message = result.code === "provider_not_publishable"
+        ? t("A publicação pela assinatura do ChatGPT ainda não está disponível nesta etapa.")
+        : t("Validação de publish falhou.");
+      return fail(result.code, message, status, { requestId });
     }
     return fail("internal_error", "Erro ao publicar.", 500, { requestId });
   }

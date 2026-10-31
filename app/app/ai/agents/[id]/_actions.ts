@@ -432,7 +432,13 @@ export async function publishAgentAction(
 
   if (!result.ok) {
     if (PUBLISH_ERROR_CODES.has(result.code as string)) {
-      return { ok: false, error: result.code };
+      return {
+        ok: false,
+        error: result.code,
+        ...(result.code === "provider_not_publishable"
+          ? { message: traduzir("A publicação pela assinatura do ChatGPT ainda não está disponível nesta etapa.", authUser.idioma) }
+          : {}),
+      };
     }
     return { ok: false, error: "internal_error" };
   }
@@ -528,7 +534,7 @@ export async function revertToVersionAction(
     return {
       ok: false,
       error: "provider_not_publishable",
-      message: "A publicação deste provedor ainda depende de uma etapa de governança.",
+      message: traduzir("A publicação pela assinatura do ChatGPT ainda não está disponível nesta etapa.", authUser.idioma),
     };
   }
 

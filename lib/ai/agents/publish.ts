@@ -50,7 +50,7 @@ export async function publishAgentVersion(
     return {
       ok: false,
       code: "provider_not_publishable",
-      message: "provider_not_publishable",
+      message: "A publicação pela assinatura do ChatGPT ainda não está disponível nesta etapa.",
     };
   }
   const platform = version.credential_id === null;

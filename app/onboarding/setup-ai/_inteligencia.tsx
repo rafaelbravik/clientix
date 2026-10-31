@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { useT } from "@/hooks/i18n/useT";
 
@@ -47,7 +48,13 @@ type Prova =
   | { estado: "problema"; codigo: string }
   | { estado: "nao_deu" };
 
-export function InteligenciaDele({ inicial }: { inicial: EstadoDaChave }) {
+export function InteligenciaDele({
+  inicial,
+  assinaturaNoOnboarding = false,
+}: {
+  inicial: EstadoDaChave;
+  assinaturaNoOnboarding?: boolean;
+}) {
   const t = useT();
   const [chave, setChave] = useState(inicial);
   const [prova, setProva] = useState<Prova | null>(null);
@@ -201,6 +208,7 @@ export function InteligenciaDele({ inicial }: { inicial: EstadoDaChave }) {
             {t("Ela é guardada cifrada — nem nós conseguimos lê-la depois.")}
           </span>
         </div>
+        {assinaturaNoOnboarding ? <CaminhoDaAssinatura t={t} /> : null}
       </section>
     );
   }
@@ -232,6 +240,23 @@ export function InteligenciaDele({ inicial }: { inicial: EstadoDaChave }) {
           )}
         {prova === null && t("Pronta para uso.")}
       </p>
+      {assinaturaNoOnboarding ? <CaminhoDaAssinatura t={t} /> : null}
     </section>
+  );
+}
+
+function CaminhoDaAssinatura({ t }: { t: (texto: string) => string }) {
+  return (
+    <div className="space-y-2 rounded-md border border-border/60 p-3">
+      <div>
+        <h4 className="text-sm font-medium">{t("Usar uma assinatura do ChatGPT")}</h4>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {t("Conecte a conta separadamente para escolher modelos da assinatura em um rascunho de agente. A publicação por assinatura ainda não está disponível nesta etapa.")}
+        </p>
+      </div>
+      <Button asChild size="sm" variant="outline">
+        <Link href="/app/ai/credentials">{t("Conectar assinatura do ChatGPT")}</Link>
+      </Button>
+    </div>
   );
 }

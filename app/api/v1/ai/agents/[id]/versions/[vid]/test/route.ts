@@ -39,6 +39,8 @@ import { requestTurnDeps } from "@/lib/agent-engine/agent/request-deps";
 import { getRequestPool } from "@/lib/agent-engine/db/request-pool";
 import { traduzir } from "@/lib/i18n/dicionario";
 import { logger } from "@/lib/logger";
+import { CHATGPT_SUBSCRIPTION_PROVIDER } from "@/lib/ai/credenciais/chatgpt-siwc";
+import { validarModeloDaAssinatura } from "@/lib/ai/catalogo/modelos-da-assinatura";
 
 export const dynamic = "force-dynamic";
 
@@ -113,7 +115,7 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
   const { data: version } = await admin
     .from("ai_agent_versions")
     .select(
-      "id, agent_id, organization_id, system_prompt, provider, model, channel_session_id, max_steps, token_budget, cost_budget_cents, tool_ids",
+      "id, agent_id, organization_id, system_prompt, provider, model, credential_id, channel_session_id, max_steps, token_budget, cost_budget_cents, tool_ids",
     )
     .eq("id", vid)
     .eq("organization_id", activeOrg.orgId)
@@ -121,6 +123,29 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
     .maybeSingle();
 
   if (!version) return fail("not_found", t("Version não encontrada."), 404, { requestId });
+
+  // O preview é permitido para rascunhos, mas precisa respeitar o mesmo vínculo
+  // tenant/modelo do editor antes de criar run ou chamar o runtime canônico.
+  if (version.provider === CHATGPT_SUBSCRIPTION_PROVIDER) {
+    const permitido = await validarModeloDaAssinatura({
+      admin,
+      organizationId: activeOrg.orgId,
+      credentialId: version.credential_id,
+      modelId: version.model,
+    });
+    if (!permitido.ok) {
+      const mensagens = {
+        feature_disabled: t("Este recurso está desativado nesta instalação."),
+        not_connected: t("Conecte a assinatura do ChatGPT em IA › Credenciais."),
+        model_not_allowed: t("A conta conectada não oferece este modelo. Atualize o catálogo em IA › Credenciais."),
+        credential_storage_failed: t("Não foi possível validar a conexão da conta."),
+      } as const;
+      const status = permitido.error === "feature_disabled" ? 403
+        : permitido.error === "credential_storage_failed" ? 500
+        : 422;
+      return fail(permitido.error, mensagens[permitido.error], status, { requestId });
+    }
+  }
 
   const startedAt = new Date();
 

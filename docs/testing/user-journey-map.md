@@ -3367,3 +3367,19 @@ O seletor usa somente o catálogo devolvido para a conta conectada da organizaç
 | Mobile 390×844 | login_codex desligado; provider oculto | [feature-off-mobile-390x844.png](../../evidence/p0-chatgpt-subscription-b/feature-off-mobile-390x844.png) | PASS |
 
 Nos três tamanhos, não houve overflow horizontal, erro de console, erro de rede nem tráfego para origem externa. O aviso de catálogo falho preserva explicitamente o estado conectado; a lista vazia não é tratada como desconexão.
+
+## J45 — Usar a assinatura do ChatGPT nas superfícies do agente `[P0-1D]` (2026-10-31)
+
+O editor mostra o provider e apenas o modelo da conta sintética quando `login_codex` está ligado; desconexão, catálogo vazio e erro de catálogo têm estados distintos. Com o módulo desligado, o provider some das opções e o onboarding não oferece essa rota. O rascunho informa que a publicação ainda está bloqueada. Capturas feitas no servidor local com credenciais e respostas sintéticas; nenhuma conta ChatGPT, chamada OpenAI ou produção foi usada.
+
+| Viewport | Estado sintético | Captura | Resultado |
+|---|---|---|---|
+| Desktop 1440×900 | Provider disponível, modelo carregado e publicação bloqueada | [desktop-1440x900-connected.png](../../evidence/p0-chatgpt-subscription-d/desktop-1440x900-connected.png) | PASS |
+| Desktop 1440×900 | Conta não conectada; orientação para Credenciais | [desktop-1440x900-not-connected.png](../../evidence/p0-chatgpt-subscription-d/desktop-1440x900-not-connected.png) | PASS |
+| Desktop 1440×900 | Conta conectada sem modelos disponíveis | [desktop-1440x900-empty.png](../../evidence/p0-chatgpt-subscription-d/desktop-1440x900-empty.png) | PASS |
+| Desktop 1440×900 | Falha do catálogo sem indicar desconexão | [desktop-1440x900-catalog-error.png](../../evidence/p0-chatgpt-subscription-d/desktop-1440x900-catalog-error.png) | PASS |
+| Desktop 1440×900 | `login_codex` desligado; provider e onboarding de assinatura ocultos | [desktop-1440x900-feature-off.png](../../evidence/p0-chatgpt-subscription-d/desktop-1440x900-feature-off.png) | PASS |
+| Tablet 768×1024 | Provider disponível, modelo carregado e publicação bloqueada | [tablet-768x1024-connected.png](../../evidence/p0-chatgpt-subscription-d/tablet-768x1024-connected.png) | PASS |
+| Mobile 390×844 | Provider disponível, modelo carregado e publicação bloqueada | [mobile-390x844-connected.png](../../evidence/p0-chatgpt-subscription-d/mobile-390x844-connected.png) | PASS |
+
+Não houve overflow horizontal, erro de console, falha de rede ou request para origem externa. A assinatura não aparece na lista de provedores de chave do onboarding.

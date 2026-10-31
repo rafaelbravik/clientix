@@ -23,6 +23,10 @@ import { agentRunsKey } from "@/hooks/ai/useAgentRuns";
 import { useT } from "@/hooks/i18n/useT";
 import type { AgentRow } from "@/hooks/ai/useAgent";
 import type { AgentVersionRow } from "@/hooks/ai/useAgentVersions";
+import {
+  CHATGPT_SUBSCRIPTION_PROVIDER,
+  CHATGPT_SUBSCRIPTION_PROVIDER_LABEL,
+} from "@/lib/ai/credenciais/chatgpt-subscription-constants";
 
 import { RunTrace } from "./RunTrace";
 
@@ -210,17 +214,23 @@ export function TestPanel({ agent, draft, published, readOnly }: Props) {
           <div className="flex items-center gap-2 text-sm">
             <Badge variant="outline">{versionLabel}</Badge>
             <span className="font-mono text-xs">
-              {target.provider} / {target.model}
+              {target.provider === CHATGPT_SUBSCRIPTION_PROVIDER
+                ? CHATGPT_SUBSCRIPTION_PROVIDER_LABEL
+                : target.provider} / {target.model}
             </span>
           </div>
         </div>
 
         <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-xs">
           <p className="font-medium text-amber-700 dark:text-amber-400">
-            {t("⚠ Modo teste consome créditos do provider.")}
+            {target.provider === CHATGPT_SUBSCRIPTION_PROVIDER
+              ? t("O teste usa a assinatura ChatGPT conectada.")
+              : t("⚠ Modo teste consome créditos do provider.")}
           </p>
           <p className="mt-1 text-muted-foreground">
-            {t("Nenhuma mensagem é enviada via WhatsApp. O run é registrado como dry-run.")}
+            {target.provider === CHATGPT_SUBSCRIPTION_PROVIDER
+              ? t("Nenhuma mensagem é enviada via WhatsApp. O teste não usa chave de API.")
+              : t("Nenhuma mensagem é enviada via WhatsApp. O run é registrado como dry-run.")}
           </p>
         </div>
 

@@ -244,6 +244,16 @@ export async function duplicateAgentAction(id: string): Promise<ActionResult<{ n
         message: traduzir("Este recurso está desativado nesta instalação.", authUser.idioma),
       };
     }
+    if (result.error === "model_not_allowed") {
+      return {
+        ok: false,
+        error: "model_not_allowed",
+        message: traduzir(
+          "A conta conectada não oferece mais este modelo. Atualize o catálogo em IA › Credenciais.",
+          authUser.idioma,
+        ),
+      };
+    }
     return { ok: false, error: "internal_error", message: result.message };
   }
 

@@ -14,6 +14,10 @@ import {
 import { useT } from "@/hooks/i18n/useT";
 
 import { PROVEDORES } from "@/lib/ai/pontos/provedores";
+import {
+  CHATGPT_SUBSCRIPTION_PROVIDER,
+  CHATGPT_SUBSCRIPTION_PROVIDER_LABEL,
+} from "@/lib/ai/credenciais/chatgpt-subscription-constants";
 import type { AgentVersionRow } from "@/hooks/ai/useAgentVersions";
 
 interface Props {
@@ -41,6 +45,7 @@ function diffArr(prev: string[], next: string[]) {
  * sumir com a informação.
  */
 function rotuloDoProvedor(id: string): string {
+  if (id === CHATGPT_SUBSCRIPTION_PROVIDER) return CHATGPT_SUBSCRIPTION_PROVIDER_LABEL;
   return PROVEDORES.find((p) => p.id === id)?.rotulo ?? id;
 }
 

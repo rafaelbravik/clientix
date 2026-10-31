@@ -13,6 +13,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { CHATGPT_SUBSCRIPTION_PROVIDER } from "@/lib/ai/credenciais/chatgpt-siwc";
+import { validarModeloDaAssinatura } from "@/lib/ai/catalogo/modelos-da-assinatura";
 import { moduloLigado } from "@/lib/instalacao/modulos";
 
 export const DUPLICATE_AGENT_COLUMNS =
@@ -32,6 +33,7 @@ export type DuplicateAgentError =
   | "not_found"
   | "no_version_to_duplicate"
   | "provider_disabled"
+  | "model_not_allowed"
   | "agent_insert_failed"
   | "version_insert_failed";
 
@@ -146,6 +148,20 @@ export async function duplicateAgentWithVersion(
     !(await moduloLigado(admin, "login_codex"))
   ) {
     return { ok: false, error: "provider_disabled" };
+  }
+
+  // A versão duplicada continua vinculada à mesma organização, mas o catálogo
+  // pode ter mudado desde que a origem foi salva. Confere a credencial e o
+  // modelo no tenant ativo antes de qualquer INSERT, sem copiar token nem
+  // transportar uma credencial de outra organização.
+  if (srcVersion?.provider === CHATGPT_SUBSCRIPTION_PROVIDER) {
+    const permitido = await validarModeloDaAssinatura({
+      admin,
+      organizationId: orgId,
+      credentialId: typeof srcVersion.credential_id === "string" ? srcVersion.credential_id : null,
+      modelId: typeof srcVersion.model === "string" ? srcVersion.model : "",
+    });
+    if (!permitido.ok) return { ok: false, error: "model_not_allowed" };
   }
 
   // A rota da API trata "sem versão" como 409; o botão da lista precisa seguir

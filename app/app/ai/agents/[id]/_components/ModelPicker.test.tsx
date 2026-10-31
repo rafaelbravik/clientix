@@ -59,4 +59,21 @@ describe("ModelPicker para assinatura ChatGPT", () => {
     expect(screen.getByText("A conta está conectada, mas não há modelos disponíveis para seleção.")).toBeTruthy();
     expect(screen.queryByPlaceholderText("Digite o identificador do modelo")).toBeNull();
   });
+
+  it("transita de carregando para catálogo vazio sem alternar Select controlado e não controlado", () => {
+    const erroConsole = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mocks.useQuery.mockReturnValue({ data: undefined, isError: false, isLoading: true, isFetching: true });
+    const view = render(
+      <ModelPicker provider={CHATGPT_SUBSCRIPTION_PROVIDER} value="gpt-antigo" onChange={() => undefined} />,
+    );
+
+    mocks.useQuery.mockReturnValue({ data: [], isError: false, isLoading: false, isFetching: false });
+    view.rerender(
+      <ModelPicker provider={CHATGPT_SUBSCRIPTION_PROVIDER} value="gpt-antigo" onChange={() => undefined} />,
+    );
+
+    expect(screen.getByText("A conta está conectada, mas não há modelos disponíveis para seleção.")).toBeTruthy();
+    expect(erroConsole.mock.calls.flat().join(" ")).not.toContain("changing from controlled to uncontrolled");
+    erroConsole.mockRestore();
+  });
 });

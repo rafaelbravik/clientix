@@ -109,7 +109,7 @@ export function ModelPicker({ provider, value, onChange, disabled, id, placehold
     return (
       <div className="space-y-1">
         <Label htmlFor={id}>{t("Modelo")}</Label>
-        <Select disabled value={undefined}>
+        <Select disabled value="">
           <SelectTrigger id={id}>
             <SelectValue placeholder={t("Nenhum modelo disponível na conta conectada")} />
           </SelectTrigger>

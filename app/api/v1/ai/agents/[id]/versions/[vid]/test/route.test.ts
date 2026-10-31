@@ -14,6 +14,7 @@ import { ROLE_RANK, type AuthUser, type Role } from "@/lib/auth/types";
 import { testAgentVersion } from "@/lib/agent-engine/agent/sandbox";
 import { requestTurnDeps } from "@/lib/agent-engine/agent/request-deps";
 import { getRequestPool } from "@/lib/agent-engine/db/request-pool";
+import { validarModeloDaAssinatura } from "@/lib/ai/catalogo/modelos-da-assinatura";
 
 vi.mock("@/lib/auth/require-role", () => ({ requireRole: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
@@ -25,13 +26,18 @@ vi.mock("@/lib/agent-engine/agent/sandbox", () => ({
 }));
 vi.mock("@/lib/agent-engine/agent/request-deps", () => ({ requestTurnDeps: vi.fn() }));
 vi.mock("@/lib/agent-engine/db/request-pool", () => ({ getRequestPool: vi.fn() }));
+vi.mock("@/lib/ai/catalogo/modelos-da-assinatura", () => ({ validarModeloDaAssinatura: vi.fn() }));
 
 const ORG = "22222222-2222-4222-8222-222222222222";
 const USER = "11111111-1111-4111-8111-111111111111";
 const AGENT = "33333333-3333-4333-8333-333333333333";
 const VERSION = "44444444-4444-4444-8444-444444444444";
 
-function stubAdmin(atualizacoes: Record<string, unknown>[]) {
+function stubAdmin(
+  atualizacoes: Record<string, unknown>[],
+  versaoExtra: Record<string, unknown> = {},
+  runs: Record<string, unknown>[] = [],
+) {
   return {
     from: (table: string) => {
       if (table === "ai_agent_versions") {
@@ -48,11 +54,13 @@ function stubAdmin(atualizacoes: Record<string, unknown>[]) {
                       system_prompt: "oi",
                       provider: "anthropic",
                       model: "claude-sonnet-4-6",
+                      credential_id: null,
                       channel_session_id: null,
                       max_steps: 3,
                       token_budget: 1000,
                       cost_budget_cents: 100,
                       tool_ids: [],
+                      ...versaoExtra,
                     },
                     error: null,
                   }),
@@ -64,9 +72,12 @@ function stubAdmin(atualizacoes: Record<string, unknown>[]) {
       }
       // ai_agent_runs
       return {
-        insert: () => ({
+        insert: (row: Record<string, unknown>) => {
+          runs.push(row);
+          return ({
           select: () => ({ single: async () => ({ data: { id: "run-1" }, error: null }) }),
-        }),
+          });
+        },
         update: (payload: Record<string, unknown>) => {
           atualizacoes.push(payload);
           const chain = {
@@ -88,6 +99,8 @@ describe("POST .../versions/:vid/test — core compartilhado", () => {
 
   beforeEach(() => {
     atualizacoes.length = 0;
+    vi.mocked(validarModeloDaAssinatura).mockReset().mockResolvedValue({ ok: true });
+    vi.mocked(testAgentVersion).mockReset().mockRejectedValue(new Error("AI_GATEWAY_API_KEY ausente"));
     const user: AuthUser = {
       id: USER,
       email: "a@example.com",
@@ -144,6 +157,62 @@ describe("POST .../versions/:vid/test — core compartilhado", () => {
     expect(atualizacoes).toContainEqual(expect.objectContaining({
       status: "failed",
       error_code: "preview_failed",
+    }));
+  });
+
+  it("recusa assinatura indisponível antes de criar run ou chamar o runtime", async () => {
+    const runs: Record<string, unknown>[] = [];
+    vi.mocked(createAdminClient).mockReturnValue(stubAdmin(atualizacoes, {
+      provider: "openai-assinatura",
+      model: "gpt-a",
+      credential_id: "cred-a",
+    }, runs) as never);
+    vi.mocked(validarModeloDaAssinatura).mockResolvedValue({ ok: false, error: "feature_disabled" });
+
+    const { POST } = await import("./route");
+    const req = new NextRequest("http://localhost/x", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sample_message: "oi" }),
+    });
+    const res = await POST(req, { params: Promise.resolve({ id: AGENT, vid: VERSION }) });
+    const body = (await res.json()) as { error?: { code?: string } };
+
+    expect(res.status).toBe(403);
+    expect(body.error?.code).toBe("feature_disabled");
+    expect(validarModeloDaAssinatura).toHaveBeenCalledWith({
+      admin: expect.anything(), organizationId: ORG, credentialId: "cred-a", modelId: "gpt-a",
+    });
+    expect(runs).toEqual([]);
+    expect(testAgentVersion).not.toHaveBeenCalled();
+  });
+
+  it("preview de assinatura validada usa o testAgentVersion canônico", async () => {
+    const runs: Record<string, unknown>[] = [];
+    vi.mocked(createAdminClient).mockReturnValue(stubAdmin(atualizacoes, {
+      provider: "openai-assinatura",
+      model: "gpt-a",
+      credential_id: "cred-a",
+    }, runs) as never);
+    vi.mocked(testAgentVersion).mockResolvedValue({ candidates: [], proposals: [] } as never);
+
+    const { POST } = await import("./route");
+    const req = new NextRequest("http://localhost/x", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sample_message: "oi" }),
+    });
+    const res = await POST(req, { params: Promise.resolve({ id: AGENT, vid: VERSION }) });
+
+    expect(res.status).toBe(200);
+    expect(validarModeloDaAssinatura).toHaveBeenCalledWith({
+      admin: expect.anything(), organizationId: ORG, credentialId: "cred-a", modelId: "gpt-a",
+    });
+    expect(runs).toHaveLength(1);
+    expect(testAgentVersion).toHaveBeenCalledWith(requestPool, turnDeps, expect.objectContaining({
+      organizationId: ORG,
+      agentId: AGENT,
+      versionId: VERSION,
     }));
   });
 });

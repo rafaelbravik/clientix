@@ -51,6 +51,37 @@ describe("guardas do login ChatGPT por assinatura", () => {
     expect(panel).not.toContain("AddCredentialDialog");
   });
 
+  it("editor e onboarding oferecem assinatura só pelo caminho próprio e com flag", () => {
+    const onboardingPage = fonte("app/onboarding/setup-ai/page.tsx");
+    const onboardingUi = fonte("app/onboarding/setup-ai/_inteligencia.tsx");
+    const providers = fonte("lib/ai/catalogo/provedores-do-editor.ts");
+    expect(onboardingPage).toContain('moduloLigado(createAdminClient(), "login_codex")');
+    expect(onboardingPage).toContain("assinaturaNoOnboarding");
+    expect(onboardingUi).toContain('href="/app/ai/credentials"');
+    expect(onboardingUi).toContain("PROVEDORES.map");
+    expect(onboardingUi).toContain("CaminhoDaAssinatura");
+    expect(providers).toContain("loginCodexLigado && assinaturaConectada");
+  });
+
+  it("PATCH e preview validam flag, conta e modelo do tenant antes de gravar/executar", () => {
+    const patch = fonte("app/api/v1/ai/agents/[id]/versions/[vid]/route.ts");
+    const preview = fonte("app/api/v1/ai/agents/[id]/versions/[vid]/test/route.ts");
+    expect(patch).toContain("validarModeloDaAssinatura");
+    expect(patch).toContain("organizationId: activeOrg.orgId");
+    expect(preview).toContain("validarModeloDaAssinatura");
+    expect(preview).toContain("organizationId: activeOrg.orgId");
+    expect(preview.indexOf("validarModeloDaAssinatura")).toBeLessThan(preview.indexOf('.from("ai_agent_runs")'));
+    expect(preview.indexOf("validarModeloDaAssinatura")).toBeLessThan(preview.indexOf("testAgentVersion("));
+  });
+
+  it("publicação preserva o gate explícito e devolve orientação legível", () => {
+    const publish = fonte("lib/ai/agents/publish.ts");
+    const route = fonte("app/api/v1/ai/agents/[id]/publish/route.ts");
+    expect(publish).toContain('code: "provider_not_publishable"');
+    expect(publish).toContain("A publicação pela assinatura do ChatGPT ainda não está disponível nesta etapa.");
+    expect(route).toContain('result.code === "provider_not_publishable"');
+  });
+
   it("server-side resolve org da sessão, aplica admin/MFA e feature flag sem aceitar organization_id", () => {
     const actions = fonte("app/actions/settings/chatgptSubscription.ts");
     expect(actions).toContain("loadAuthUser()");

@@ -525,7 +525,7 @@ export function AgentForm(props: Props) {
   const publishBlockReason = React.useMemo(() => {
     if (!isEdit) return t("Salve o agent antes de publicar.");
     if (form.provider === CHATGPT_SUBSCRIPTION_PROVIDER) {
-      return t("A publicação deste provedor ainda depende de uma etapa de governança.");
+      return t("A publicação pela assinatura do ChatGPT ainda não está disponível nesta etapa.");
     }
     const motivo = bloqueioDePublicacao({
       temRascunhoVigente: !!props.draft,
@@ -891,12 +891,22 @@ export function AgentForm(props: Props) {
             <div className="space-y-1">
               <Label htmlFor="provider">{t("Empresa de inteligência artificial")}</Label>
               <Select
-                value={form.provider}
+                value={
+                  form.provider === CHATGPT_SUBSCRIPTION_PROVIDER && props.loginCodexLigado !== true
+                    ? undefined
+                    : form.provider
+                }
                 onValueChange={(v) => changeProvider(v as Provider)}
                 disabled={disabled}
               >
                 <SelectTrigger id="provider">
-                  <SelectValue />
+                  <SelectValue
+                    placeholder={
+                      form.provider === CHATGPT_SUBSCRIPTION_PROVIDER && props.loginCodexLigado !== true
+                        ? t("Provedor indisponível nesta instalação")
+                        : t("Selecione uma empresa de inteligência artificial")
+                    }
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   {/*
@@ -914,8 +924,20 @@ export function AgentForm(props: Props) {
                       {p.rotulo}
                     </SelectItem>
                   ))}
+                  {form.provider === CHATGPT_SUBSCRIPTION_PROVIDER &&
+                  props.loginCodexLigado === true &&
+                  !assinaturaConectada ? (
+                    <SelectItem value={CHATGPT_SUBSCRIPTION_PROVIDER} disabled>
+                      {t("OpenAI pela assinatura (ChatGPT) — conecte em IA › Credenciais")}
+                    </SelectItem>
+                  ) : null}
                 </SelectContent>
               </Select>
+              {form.provider === CHATGPT_SUBSCRIPTION_PROVIDER && props.loginCodexLigado !== true ? (
+                <p className="text-xs text-muted-foreground" role="status">
+                  {t("O provedor desta versão está desativado. Selecione uma opção disponível antes de salvar.")}
+                </p>
+              ) : null}
             </div>
 
             <ModelPicker

@@ -9,6 +9,9 @@ import { capacidadesPadraoDoOnboarding } from "@/lib/ai/agents/capacidades-padra
 import { TOOL_CATALOG } from "@/lib/mcp/tools/catalog";
 import { CONFERENCIAS_DE_SAIDA } from "@/lib/ai/guardrails/lista-de-conferencia";
 import { traduzir } from "@/lib/i18n/dicionario";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { moduloLigado } from "@/lib/instalacao/modulos";
+import { ROLE_RANK } from "@/lib/auth/types";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +34,9 @@ export default async function SetupAiPage() {
   const activeOrg = await resolveActiveOrg(user);
   if (!activeOrg) redirect("/login");
   const idioma = user.idioma;
+  const assinaturaNoOnboarding =
+    ROLE_RANK[activeOrg.role] >= ROLE_RANK.admin &&
+    (await moduloLigado(createAdminClient(), "login_codex"));
 
   const supabase = await createClient();
   const retrato = await lerRetratoDaInstalacao({ supabase, orgId: activeOrg.orgId });
@@ -57,6 +63,7 @@ export default async function SetupAiPage() {
         a chave passa a importar — um clique antes de ele ser criado com ela.
       */}
       <InteligenciaDele
+        assinaturaNoOnboarding={assinaturaNoOnboarding}
         inicial={{
           origem: retrato.inteligencia.origemDaChave,
           provedor: retrato.inteligencia.provedor,

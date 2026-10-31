@@ -2794,6 +2794,33 @@ export const DICIONARIO: Traducoes = {
     {
       es: "Top K = cuántos fragmentos buscar. Similarity threshold = relevancia mínima (cosine).",
     },
+  // ─── P0-1D: superfícies da assinatura nos agentes e onboarding ───
+  "A publicação pela assinatura do ChatGPT ainda não está disponível nesta etapa.": {
+    es: "La publicación mediante la suscripción de ChatGPT todavía no está disponible en esta etapa.",
+  },
+  "Provedor indisponível nesta instalação": { es: "Proveedor no disponible en esta instalación" },
+  "Selecione uma empresa de inteligência artificial": {
+    es: "Selecciona una empresa de inteligencia artificial",
+  },
+  "OpenAI pela assinatura (ChatGPT) — conecte em IA › Credenciais": {
+    es: "OpenAI mediante suscripción (ChatGPT) — conecta la cuenta en IA › Credenciales",
+  },
+  "O provedor desta versão está desativado. Selecione uma opção disponível antes de salvar.": {
+    es: "El proveedor de esta versión está desactivado. Selecciona una opción disponible antes de guardar.",
+  },
+  "O teste usa a assinatura ChatGPT conectada.": {
+    es: "La prueba usa la suscripción de ChatGPT conectada.",
+  },
+  "Nenhuma mensagem é enviada via WhatsApp. O teste não usa chave de API.": {
+    es: "No se envía ningún mensaje por WhatsApp. La prueba no usa una clave de API.",
+  },
+  "A conta conectada não oferece mais este modelo. Atualize o catálogo em IA › Credenciais.": {
+    es: "La cuenta conectada ya no ofrece este modelo. Actualiza el catálogo en IA › Credenciales.",
+  },
+  "Usar uma assinatura do ChatGPT": { es: "Usar una suscripción de ChatGPT" },
+  "Conecte a conta separadamente para escolher modelos da assinatura em um rascunho de agente. A publicação por assinatura ainda não está disponível nesta etapa.": {
+    es: "Conecta la cuenta por separado para elegir modelos de la suscripción en un borrador de agente. La publicación mediante suscripción todavía no está disponible en esta etapa.",
+  },
   "Assinatura do ChatGPT": { es: "Suscripción de ChatGPT" },
   "OpenAI pela assinatura (ChatGPT)": { es: "OpenAI mediante suscripción (ChatGPT)" },
   "Usa os modelos disponíveis na conta ChatGPT conectada por login oficial. A publicação de agentes ainda depende de uma etapa de governança.": {
