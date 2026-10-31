@@ -81,8 +81,9 @@ describe("signed installer compatibility contract", () => {
     const quickRepliesBarMigration = schemaManifest.migrations.find((entry) => entry.sequence === 524);
     const campaignSplitMessagesMigration = schemaManifest.migrations.find((entry) => entry.sequence === 525);
     const lgpdIdentitySuppressionMigration = schemaManifest.migrations.find((entry) => entry.sequence === 541);
-    expect(schemaManifest.schema_target).toBe("0541");
-    expect(schemaManifest.baseline.incorporated_through_sequence).toBe(541);
+    const chatgptSubscriptionPublicationMigration = schemaManifest.migrations.find((entry) => entry.sequence === 9059);
+    expect(schemaManifest.schema_target).toBe("9059");
+    expect(schemaManifest.baseline.incorporated_through_sequence).toBe(9059);
     expect(webchatMigration).toMatchObject({
       file: "20261010120000_0511_webchat_widget_bootstrap.sql",
       version: "20261010120000",
@@ -161,6 +162,12 @@ describe("signed installer compatibility contract", () => {
       version: "20261028180000",
       sequence: 541,
       slug: "lgpd_identity_suppression",
+    });
+    expect(chatgptSubscriptionPublicationMigration).toMatchObject({
+      file: "20261031202143_9059_publish_chatgpt_subscription.sql",
+      version: "20261031202143",
+      sequence: 9059,
+      slug: "publish_chatgpt_subscription",
     });
 
     const baseline510Checksum = "a".repeat(64);
@@ -281,6 +288,18 @@ describe("signed installer compatibility contract", () => {
         { version: lgpdIdentitySuppressionMigration.version, checksum: lgpdIdentitySuppressionMigration.checksum },
       ],
     }, schemaManifest)).toMatchObject({ valid: true, currentSchema: "0541" });
+    expect(deriveCurrentSchema({
+      ...trackedState,
+      applied: [...trackedState.applied, ...migrationsThrough519,
+        { version: knowledgeSourceAtomicMigration.version, checksum: knowledgeSourceAtomicMigration.checksum },
+        { version: caseWaitRemindersMigration.version, checksum: caseWaitRemindersMigration.checksum },
+        { version: pipelineListMigration.version, checksum: pipelineListMigration.checksum },
+        { version: quickRepliesBarMigration.version, checksum: quickRepliesBarMigration.checksum },
+        { version: campaignSplitMessagesMigration.version, checksum: campaignSplitMessagesMigration.checksum },
+        { version: lgpdIdentitySuppressionMigration.version, checksum: lgpdIdentitySuppressionMigration.checksum },
+        { version: chatgptSubscriptionPublicationMigration.version, checksum: chatgptSubscriptionPublicationMigration.checksum },
+      ],
+    }, schemaManifest)).toMatchObject({ valid: true, currentSchema: "9059" });
     expect(deriveCurrentSchema({ type: "FRESH_DATABASE" }, schemaManifest)).toMatchObject({ valid: true, currentSchema: null });
     expect(deriveCurrentSchema({ type: "EXISTING_UNTRACKED_INSTALLATION" }, schemaManifest).valid).toBe(false);
     expect(deriveCurrentSchema({ type: "TRACKED_INSTALLATION", applied: [] }, schemaManifest).valid).toBe(false);

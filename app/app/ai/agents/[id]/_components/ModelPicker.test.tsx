@@ -13,7 +13,16 @@ vi.mock("@/hooks/auth/AuthProvider", () => ({
 vi.mock("@/hooks/i18n/useT", () => ({ useT: () => (text: string) => text }));
 
 import { CHATGPT_SUBSCRIPTION_PROVIDER } from "@/lib/ai/credenciais/chatgpt-subscription-constants";
-import { ModelPicker, providerModelsQueryKey } from "./ModelPicker";
+import { ModelPicker, providerModelsQueryKey, useModelAvailability } from "./ModelPicker";
+
+function AvailabilityProbe({ modelId }: { modelId: string }) {
+  const availability = useModelAvailability(CHATGPT_SUBSCRIPTION_PROVIDER, modelId);
+  return (
+    <output data-testid="model-availability">
+      {`${availability.catalogLoaded}:${availability.model?.model_id ?? "missing"}`}
+    </output>
+  );
+}
 
 describe("ModelPicker para assinatura ChatGPT", () => {
   beforeEach(() => {
@@ -58,6 +67,31 @@ describe("ModelPicker para assinatura ChatGPT", () => {
     render(<ModelPicker provider={CHATGPT_SUBSCRIPTION_PROVIDER} value="" onChange={() => undefined} />);
     expect(screen.getByText("A conta está conectada, mas não há modelos disponíveis para seleção.")).toBeTruthy();
     expect(screen.queryByPlaceholderText("Digite o identificador do modelo")).toBeNull();
+  });
+
+  it("confirma disponibilidade somente contra o catálogo carregado da conta", () => {
+    mocks.useQuery.mockReturnValue({
+      data: [{ provider: CHATGPT_SUBSCRIPTION_PROVIDER, model_id: "gpt-A" }],
+      isError: false,
+      isLoading: false,
+      isFetching: false,
+    });
+    const { rerender } = render(<AvailabilityProbe modelId="gpt-A" />);
+    expect(screen.getByTestId("model-availability").textContent).toBe("true:gpt-A");
+
+    rerender(<AvailabilityProbe modelId="gpt-antigo" />);
+    expect(screen.getByTestId("model-availability").textContent).toBe("true:missing");
+  });
+
+  it("não considera confirmado um modelo enquanto o catálogo ainda carrega", () => {
+    mocks.useQuery.mockReturnValue({
+      data: undefined,
+      isError: false,
+      isLoading: true,
+      isFetching: true,
+    });
+    render(<AvailabilityProbe modelId="gpt-A" />);
+    expect(screen.getByTestId("model-availability").textContent).toBe("false:missing");
   });
 
   it("transita de carregando para catálogo vazio sem alternar Select controlado e não controlado", () => {

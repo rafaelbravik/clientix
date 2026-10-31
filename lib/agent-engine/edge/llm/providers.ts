@@ -34,10 +34,10 @@ export type ProviderRegistry = Record<
   (apiKey: string, modelId: string, baseUrl?: string) => LanguageModel
 >;
 
-/** Providers registrados para o runtime, mas ainda não selecionáveis/publicáveis. */
+/** Providers com fluxo de credencial/catálogo próprio, fora da lista genérica de chaves. */
 export const PROVEDORES_SOMENTE_RUNTIME: ReadonlySet<string> = new Set([
-  // A inferência SIWC está pronta para configuração sintética e catálogo da
-  // conta. A publicação continua bloqueada pela governança de schema.
+  // A assinatura tem seletor e catálogo vinculados à conta; não entra nos
+  // formulários genéricos de API key. Esta lista não controla publicação.
   CHATGPT_SUBSCRIPTION_PROVIDER,
 ]);
 

@@ -163,7 +163,11 @@ export function ModelPicker({ provider, value, onChange, disabled, id, placehold
   );
 }
 
-export function useModelMeta(provider: Provider, modelId: string): ModelOption | null {
+export function useModelAvailability(provider: Provider, modelId: string) {
   const query = useModelList(provider);
-  return (query.data ?? []).find((m) => m.model_id === modelId) ?? null;
+  const model = (query.data ?? []).find((m) => m.model_id === modelId) ?? null;
+  return {
+    model,
+    catalogLoaded: Array.isArray(query.data),
+  };
 }

@@ -322,7 +322,7 @@ export type PublishErrorCode =
   | "channel_session_not_found"
   | "channel_session_offline"
   | "model_not_found"
-  | "provider_not_publishable"
+  | "feature_disabled"
   | "tool_id_invalid";
 
 export const PUBLISH_ERROR_CODES: ReadonlySet<string> = new Set<PublishErrorCode>([
@@ -339,6 +339,6 @@ export const PUBLISH_ERROR_CODES: ReadonlySet<string> = new Set<PublishErrorCode
   "channel_session_not_found",
   "channel_session_offline",
   "model_not_found",
-  "provider_not_publishable",
+  "feature_disabled",
   "tool_id_invalid",
 ]);

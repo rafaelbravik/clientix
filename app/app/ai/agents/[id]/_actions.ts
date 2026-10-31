@@ -31,7 +31,7 @@ import {
   versionCreateSchema,
   versionPatchSchema,
 } from "@/lib/ai/agents/validation";
-import { publishAgentVersion } from "@/lib/ai/agents/publish";
+import { publishAgentVersion, verificarFeatureDePublicacao } from "@/lib/ai/agents/publish";
 import { escolherVersoesDaTela } from "@/lib/ai/agents/versoes-da-tela";
 import { VALID_TOOL_IDS } from "@/lib/mcp/tools";
 import { CHATGPT_SUBSCRIPTION_PROVIDER } from "@/lib/ai/credenciais/chatgpt-siwc";
@@ -435,8 +435,8 @@ export async function publishAgentAction(
       return {
         ok: false,
         error: result.code,
-        ...(result.code === "provider_not_publishable"
-          ? { message: traduzir("A publicação pela assinatura do ChatGPT ainda não está disponível nesta etapa.", authUser.idioma) }
+        ...(result.code === "feature_disabled"
+          ? { message: traduzir("O uso da assinatura do ChatGPT está desativado nesta instalação.", authUser.idioma) }
           : {}),
       };
     }
@@ -530,11 +530,12 @@ export async function revertToVersionAction(
     .eq("agent_id", agentId)
     .maybeSingle();
   if (!source) return { ok: false, error: "version_not_found" };
-  if (source.provider === CHATGPT_SUBSCRIPTION_PROVIDER) {
+  const featureGate = await verificarFeatureDePublicacao(admin, source.provider);
+  if (featureGate) {
     return {
       ok: false,
-      error: "provider_not_publishable",
-      message: traduzir("A publicação pela assinatura do ChatGPT ainda não está disponível nesta etapa.", authUser.idioma),
+      error: featureGate.code,
+      message: traduzir(featureGate.message, authUser.idioma),
     };
   }
 

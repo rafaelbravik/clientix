@@ -9,6 +9,8 @@ import { chaveDePlataforma } from "@/lib/ai/runtime/agent";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PUBLISH_ERROR_CODES, type PublishErrorCode } from "./validation";
 import { CHATGPT_SUBSCRIPTION_PROVIDER } from "@/lib/ai/credenciais/chatgpt-siwc";
+import { CHATGPT_SUBSCRIPTION_MODULE } from "@/lib/ai/credenciais/chatgpt-subscription-constants";
+import { moduloLigado } from "@/lib/instalacao/modulos";
 
 export interface PublishOk {
   ok: true;
@@ -25,6 +27,24 @@ export interface PublishFail {
 }
 
 export type PublishResult = PublishOk | PublishFail;
+
+/** Fail-closed server-side gate shared by normal publication and reversion. */
+export async function verificarFeatureDePublicacao(
+  admin: SupabaseClient,
+  provider: string,
+): Promise<PublishFail | null> {
+  if (
+    provider === CHATGPT_SUBSCRIPTION_PROVIDER &&
+    !(await moduloLigado(admin, CHATGPT_SUBSCRIPTION_MODULE))
+  ) {
+    return {
+      ok: false,
+      code: "feature_disabled",
+      message: "O uso da assinatura do ChatGPT está desativado nesta instalação.",
+    };
+  }
+  return null;
+}
 
 interface PublishRow {
   agent_id: string;
@@ -46,13 +66,8 @@ export async function publishAgentVersion(
     .maybeSingle();
   if (readError || !version)
     return { ok: false, code: "version_not_found", message: "version_not_found" };
-  if (version.provider === CHATGPT_SUBSCRIPTION_PROVIDER) {
-    return {
-      ok: false,
-      code: "provider_not_publishable",
-      message: "A publicação pela assinatura do ChatGPT ainda não está disponível nesta etapa.",
-    };
-  }
+  const featureGate = await verificarFeatureDePublicacao(admin, version.provider);
+  if (featureGate) return featureGate;
   const platform = version.credential_id === null;
   if (platform && !chaveDePlataforma(version.provider))
     return { ok: false, code: "credential_missing", message: "credential_missing" };

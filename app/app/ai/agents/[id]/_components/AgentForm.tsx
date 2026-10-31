@@ -40,7 +40,7 @@ import { PROVEDORES } from "@/lib/ai/pontos/provedores";
 import { provedoresDoEditorAgente } from "@/lib/ai/catalogo/provedores-do-editor";
 import { CHATGPT_SUBSCRIPTION_PROVIDER } from "@/lib/ai/credenciais/chatgpt-subscription-constants";
 
-import { ModelPicker, useModelMeta, type Provider } from "./ModelPicker";
+import { ModelPicker, useModelAvailability, type Provider } from "./ModelPicker";
 import { CHAVE_DA_INSTALACAO, CredentialPicker, STATUS_LABEL, findCredential } from "./CredentialPicker";
 import { rotuloDoEstadoDoCanal } from "@/lib/channels/estado";
 import { bloqueioDePublicacao } from "@/lib/ai/agents/bloqueio-de-publicacao";
@@ -438,7 +438,8 @@ export function AgentForm(props: Props) {
   const cred = findCredential(props.credentials, form.credential_id);
   const credSt = cred ? credentialStatus(cred) : null;
   const channelSession = props.channelSessions.find((c) => c.id === form.channel_session_id);
-  const modelMeta = useModelMeta(form.provider, form.model);
+  const modelAvailability = useModelAvailability(form.provider, form.model);
+  const modelMeta = modelAvailability.model;
 
   // ---------------------------------------------------------------------
   // Validação (espelha versionCreateSchema, no client; server revalida).
@@ -467,6 +468,17 @@ export function AgentForm(props: Props) {
         `${t("As instruções têm")} ${tamanhoDoPrompt.toLocaleString("pt-BR")} ${t("caracteres, e o máximo é 20.000. Corte")} ` +
         `${(tamanhoDoPrompt - 20000).toLocaleString("pt-BR")} ${t("para conseguir salvar.")}`;
     if (!form.model) errors.model = t("Escolha o modelo de inteligência artificial.");
+    else if (
+      form.provider === CHATGPT_SUBSCRIPTION_PROVIDER &&
+      props.loginCodexLigado === true &&
+      assinaturaConectada &&
+      modelAvailability.catalogLoaded &&
+      !modelMeta
+    ) {
+      errors.model = t(
+        "A conta conectada não oferece mais este modelo. Atualize o catálogo em IA › Credenciais.",
+      );
+    }
     if (!form.credential_id)
       errors.credential_id = t("Escolha a chave de acesso da empresa de inteligência artificial.");
     if (form.provider === CHATGPT_SUBSCRIPTION_PROVIDER) {
@@ -508,9 +520,23 @@ export function AgentForm(props: Props) {
       }
     }
     return errors;
-  }, [form, t, props.loginCodexLigado, assinaturaConectada, assinaturaCredential]);
+  }, [
+    form,
+    t,
+    props.loginCodexLigado,
+    assinaturaConectada,
+    assinaturaCredential,
+    modelAvailability.catalogLoaded,
+    modelMeta,
+  ]);
 
-  const isValid = Object.keys(validation).length === 0;
+  const assinaturaModelValidated =
+    form.provider !== CHATGPT_SUBSCRIPTION_PROVIDER ||
+    (props.loginCodexLigado === true &&
+      assinaturaConectada &&
+      modelAvailability.catalogLoaded &&
+      modelMeta !== null);
+  const isValid = Object.keys(validation).length === 0 && assinaturaModelValidated;
 
   /**
    * A dica do botão "Publicar" — uma frase, vinda de UM motivo.
@@ -524,9 +550,6 @@ export function AgentForm(props: Props) {
    */
   const publishBlockReason = React.useMemo(() => {
     if (!isEdit) return t("Salve o agent antes de publicar.");
-    if (form.provider === CHATGPT_SUBSCRIPTION_PROVIDER) {
-      return t("A publicação pela assinatura do ChatGPT ainda não está disponível nesta etapa.");
-    }
     const motivo = bloqueioDePublicacao({
       temRascunhoVigente: !!props.draft,
       formularioValido: isValid,

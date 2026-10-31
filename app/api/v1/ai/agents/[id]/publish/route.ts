@@ -95,9 +95,11 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
     if (PUBLISH_ERROR_CODES.has(result.code as string)) {
       const status = result.code === "agent_not_found" || result.code === "version_not_found"
         ? 404
-        : 422;
-      const message = result.code === "provider_not_publishable"
-        ? t("A publicação pela assinatura do ChatGPT ainda não está disponível nesta etapa.")
+        : result.code === "feature_disabled"
+          ? 403
+          : 422;
+      const message = result.code === "feature_disabled"
+        ? t("O uso da assinatura do ChatGPT está desativado nesta instalação.")
         : t("Validação de publish falhou.");
       return fail(result.code, message, status, { requestId });
     }

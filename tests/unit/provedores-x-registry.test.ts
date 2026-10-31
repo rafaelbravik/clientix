@@ -54,7 +54,7 @@ describe("lista de provedores × registry", () => {
     ).toEqual([]);
   });
 
-  it("openai-assinatura é somente runtime enquanto publication estiver sob governança", () => {
+  it("openai-assinatura usa catálogo e credencial próprios, fora do catálogo genérico de chaves", () => {
     expect(PROVEDORES_SOMENTE_RUNTIME.has("openai-assinatura")).toBe(true);
     expect(registry["openai-assinatura"]).toBeTypeOf("function");
     expect(ehProvedorSuportado("openai-assinatura")).toBe(false);

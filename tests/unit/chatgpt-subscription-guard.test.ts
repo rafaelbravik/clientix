@@ -74,12 +74,19 @@ describe("guardas do login ChatGPT por assinatura", () => {
     expect(preview.indexOf("validarModeloDaAssinatura")).toBeLessThan(preview.indexOf("testAgentVersion("));
   });
 
-  it("publicação preserva o gate explícito e devolve orientação legível", () => {
+  it("publicação aplica login_codex no servidor e usa a RPC canônica quando ligado", () => {
     const publish = fonte("lib/ai/agents/publish.ts");
     const route = fonte("app/api/v1/ai/agents/[id]/publish/route.ts");
-    expect(publish).toContain('code: "provider_not_publishable"');
-    expect(publish).toContain("A publicação pela assinatura do ChatGPT ainda não está disponível nesta etapa.");
-    expect(route).toContain('result.code === "provider_not_publishable"');
+    const actions = fonte("app/app/ai/agents/[id]/_actions.ts");
+    const form = fonte("app/app/ai/agents/[id]/_components/AgentForm.tsx");
+    expect(publish).toContain("verificarFeatureDePublicacao");
+    expect(publish).toContain("moduloLigado(admin, CHATGPT_SUBSCRIPTION_MODULE)");
+    expect(publish).toContain('code: "feature_disabled"');
+    expect(route).toContain('result.code === "feature_disabled"');
+    expect(actions).toContain("verificarFeatureDePublicacao(admin, source.provider)");
+    expect(actions).toContain('error: featureGate.code');
+    expect(form).not.toContain("A publicação pela assinatura do ChatGPT ainda não está disponível nesta etapa.");
+    expect(form).toContain("bloqueioDePublicacao({");
   });
 
   it("server-side resolve org da sessão, aplica admin/MFA e feature flag sem aceitar organization_id", () => {

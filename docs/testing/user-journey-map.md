@@ -3383,3 +3383,18 @@ O editor mostra o provider e apenas o modelo da conta sintética quando `login_c
 | Mobile 390×844 | Provider disponível, modelo carregado e publicação bloqueada | [mobile-390x844-connected.png](../../evidence/p0-chatgpt-subscription-d/mobile-390x844-connected.png) | PASS |
 
 Não houve overflow horizontal, erro de console, falha de rede ou request para origem externa. A assinatura não aparece na lista de provedores de chave do onboarding.
+
+## J46 — Publicar agente com modelo autorizado pela assinatura `[P0-1E]` (2026-10-31)
+
+Certificação sintética da autorização de publicação. O caso válido usa `login_codex` ligado, credencial sintética e modelo presente em `models_available`; nenhuma conta real, chamada à OpenAI, produção ou WAHA foi usada. Nos casos sem conta e com a feature desligada, a publicação fica desabilitada e a tela explica o estado. Quando o modelo salvo deixa de constar no catálogo atualizado da conta, o seletor fica sem opção, o botão é desabilitado e a tela orienta atualizar o catálogo em IA › Credenciais.
+
+| Viewport | Estado sintético | Captura | Resultado |
+|---|---|---|---|
+| Desktop 1440×900 | Conta conectada, modelo autorizado, Publicar habilitado | [desktop-1440x900-publish-enabled.png](../../evidence/p0-chatgpt-subscription-e/desktop-1440x900-publish-enabled.png) | PASS |
+| Tablet 768×1024 | Conta conectada, modelo autorizado, Publicar habilitado | [tablet-768x1024-publish-enabled.png](../../evidence/p0-chatgpt-subscription-e/tablet-768x1024-publish-enabled.png) | PASS |
+| Mobile 390×844 | Conta conectada, modelo autorizado, Publicar habilitado | [mobile-390x844-publish-enabled.png](../../evidence/p0-chatgpt-subscription-e/mobile-390x844-publish-enabled.png) | PASS |
+| Desktop 1440×900 | Modelo anterior removido do catálogo; seletor vazio, Publicar desabilitado e explicação visível | [desktop-1440x900-invalid-model.png](../../evidence/p0-chatgpt-subscription-e/desktop-1440x900-invalid-model.png) | PASS |
+| Desktop 1440×900 | `login_codex` desligado; Publicar desabilitado | [desktop-1440x900-feature-off.png](../../evidence/p0-chatgpt-subscription-e/desktop-1440x900-feature-off.png) | PASS |
+| Desktop 1440×900 | Conta não conectada; orientação para Credenciais, Publicar desabilitado | [desktop-1440x900-not-connected.png](../../evidence/p0-chatgpt-subscription-e/desktop-1440x900-not-connected.png) | PASS |
+
+Nos três viewports não houve overflow horizontal nem erro de console. Os cenários de catálogo inválido, módulo desligado e conta desconectada também mantiveram Publicar desabilitado. Toda chamada foi ao servidor local sintético; nenhuma requisição externa ou chamada real à OpenAI ocorreu.

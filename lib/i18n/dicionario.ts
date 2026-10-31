@@ -2798,6 +2798,9 @@ export const DICIONARIO: Traducoes = {
   "A publicação pela assinatura do ChatGPT ainda não está disponível nesta etapa.": {
     es: "La publicación mediante la suscripción de ChatGPT todavía no está disponible en esta etapa.",
   },
+  "O uso da assinatura do ChatGPT está desativado nesta instalação.": {
+    es: "El uso de la suscripción de ChatGPT está desactivado en esta instalación.",
+  },
   "Provedor indisponível nesta instalação": { es: "Proveedor no disponible en esta instalación" },
   "Selecione uma empresa de inteligência artificial": {
     es: "Selecciona una empresa de inteligencia artificial",

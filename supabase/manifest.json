@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "generated_at": "2026-10-28T23:28:32.322Z",
-  "schema_target": "0541",
+  "generated_at": "2026-10-31T20:26:20.859Z",
+  "schema_target": "9059",
   "baseline": {
     "file": "baseline.sql",
-    "checksum": "bd6fb623d9515212ff465713e114d8db4bd660def9381b28e3af70933de1c2df",
-    "size_bytes": 2521384,
-    "incorporated_through_sequence": 541
+    "checksum": "6d7755fd7399792f8e2561708021999c625f523d7b5f616abd0e8a01c7fd4768",
+    "size_bytes": 2527477,
+    "incorporated_through_sequence": 9059
   },
   "migrations": [
     {
@@ -3448,7 +3448,15 @@
       "slug": "lgpd_identity_suppression",
       "checksum": "e91f92e907ebd386d3996b9e6faa89ad620bcfb788044edd6dd2de0e28bcaa98",
       "transactional": true
+    },
+    {
+      "file": "20261031202143_9059_publish_chatgpt_subscription.sql",
+      "version": "20261031202143",
+      "sequence": 9059,
+      "slug": "publish_chatgpt_subscription",
+      "checksum": "bb90da28e1db549dd3d68e7843670416cf16007f8e137327187e124bceecc65a",
+      "transactional": true
     }
   ],
-  "updated_at": "2026-10-29T01:09:07.752Z"
+  "updated_at": "2026-10-31T20:26:20.859Z"
 }
