@@ -55,6 +55,9 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
     if (result.error === "no_version_to_duplicate") {
       return fail("state_conflict", t("Agent não tem versão para duplicar."), 409, { requestId });
     }
+    if (result.error === "provider_disabled") {
+      return fail("feature_disabled", t("Este recurso está desativado nesta instalação."), 403, { requestId });
+    }
     return fail(
       "internal_error",
       result.error === "version_insert_failed" ? t("Erro ao duplicar versão.") : "Erro ao duplicar agent.",

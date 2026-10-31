@@ -16,8 +16,9 @@ import { audit } from "@/lib/audit";
 import { loadAuthUser, resolveActiveOrg } from "@/lib/auth/server";
 import { ROLE_RANK } from "@/lib/auth/types";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { Role } from "@/lib/auth/types";
+import type { AuthUser, Role } from "@/lib/auth/types";
 import { duplicateAgentWithVersion } from "@/lib/ai/agents/duplicate";
+import { traduzir } from "@/lib/i18n/dicionario";
 
 const UUID_RX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -25,7 +26,7 @@ type ActionResult<T = void> =
   { ok: true; data?: T } | { ok: false; error: string; message?: string };
 
 type AdminGuard =
-  | { kind: "ok"; authUser: { id: string }; activeOrg: { orgId: string; role: Role } }
+  | { kind: "ok"; authUser: AuthUser; activeOrg: { orgId: string; role: Role } }
   | { kind: "fail"; result: { ok: false; error: string } };
 
 async function ensureAdmin(): Promise<AdminGuard> {
@@ -236,6 +237,13 @@ export async function duplicateAgentAction(id: string): Promise<ActionResult<{ n
 
   if (!result.ok) {
     if (result.error === "not_found") return { ok: false, error: "not_found" };
+    if (result.error === "provider_disabled") {
+      return {
+        ok: false,
+        error: "feature_disabled",
+        message: traduzir("Este recurso está desativado nesta instalação.", authUser.idioma),
+      };
+    }
     return { ok: false, error: "internal_error", message: result.message };
   }
 

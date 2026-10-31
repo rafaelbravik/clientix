@@ -25,7 +25,7 @@ import { useOperatorMetrics } from "@/hooks/ai/useOperatorMetrics";
 import { ModelPicker } from "./ModelPicker";
 import { ToolPicker } from "./ToolPicker";
 import { FORA_DO_OPERADOR } from "@/lib/agent-engine/agent/entrega-de-capacidade";
-import type { Provider } from "@/hooks/ai/useCredentials";
+import type { Provider } from "./ModelPicker";
 
 interface Props {
   enabled: boolean;

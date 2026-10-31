@@ -11,6 +11,7 @@ import { z } from "zod";
 import { VALID_TOOL_IDS } from "@/lib/mcp/tools/catalog";
 import { TETO_TOOLS_POR_AGENTE } from "@/lib/mcp/tools/selecao-por-pacote";
 import { IDS_DE_PROVEDOR } from "@/lib/ai/pontos/provedores";
+import { CHATGPT_SUBSCRIPTION_PROVIDER } from "@/lib/ai/credenciais/chatgpt-siwc";
 
 /**
  * Derivado de `lib/ai/pontos/provedores.ts` (a lista única desde a 0127). Como
@@ -18,8 +19,17 @@ import { IDS_DE_PROVEDOR } from "@/lib/ai/pontos/provedores";
  * alcance da OpenRouter — justamente os dois pontos que a abertura do
  * vocabulário existia para atender.
  */
+/**
+ * Provedores que um rascunho de agente pode descrever. A assinatura fica fora
+ * do registry genérico de runtime/API key: P0-1B só permite preparar o draft;
+ * a publicação segue bloqueada até a mudança de governança.
+ */
+// The canonical provider registry remains executable providers only. Other
+// modules (for example prospecting) consume this list to build runtime options.
 export const PROVIDERS = IDS_DE_PROVEDOR;
-export type Provider = (typeof PROVIDERS)[number];
+/** Providers an agent draft may describe, subject to tenant/module validation. */
+export const PROVIDERS_DE_RASCUNHO = [...IDS_DE_PROVEDOR, CHATGPT_SUBSCRIPTION_PROVIDER] as const;
+export type Provider = (typeof PROVIDERS_DE_RASCUNHO)[number];
 
 const UUID = z.string().uuid();
 
@@ -106,7 +116,7 @@ export type FollowupConfig = z.infer<typeof followupConfigSchema>;
 const versionShapeSchema = z
   .object({
     system_prompt: z.string().trim().min(10).max(20000),
-    provider: z.enum(PROVIDERS),
+    provider: z.enum(PROVIDERS_DE_RASCUNHO),
     model: z.string().trim().min(1).max(120),
     /**
      * `null` = usar a chave que veio na INSTALAÇÃO.
@@ -312,6 +322,7 @@ export type PublishErrorCode =
   | "channel_session_not_found"
   | "channel_session_offline"
   | "model_not_found"
+  | "provider_not_publishable"
   | "tool_id_invalid";
 
 export const PUBLISH_ERROR_CODES: ReadonlySet<string> = new Set<PublishErrorCode>([
@@ -328,5 +339,6 @@ export const PUBLISH_ERROR_CODES: ReadonlySet<string> = new Set<PublishErrorCode
   "channel_session_not_found",
   "channel_session_offline",
   "model_not_found",
+  "provider_not_publishable",
   "tool_id_invalid",
 ]);

@@ -12,6 +12,8 @@
  * published. A cópia nasce sempre como draft v1 — duplicar não publica nada.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { CHATGPT_SUBSCRIPTION_PROVIDER } from "@/lib/ai/credenciais/chatgpt-siwc";
+import { moduloLigado } from "@/lib/instalacao/modulos";
 
 export const DUPLICATE_AGENT_COLUMNS =
   "id, organization_id, name, description, model, system_prompt, is_active, is_default, kind, priority, published_version_id, archived_at, config, guardrails, active_kb_version_id, created_at, updated_at";
@@ -29,8 +31,10 @@ export const DUPLICATE_VERSION_COLUMNS =
 export type DuplicateAgentError =
   | "not_found"
   | "no_version_to_duplicate"
+  | "provider_disabled"
   | "agent_insert_failed"
   | "version_insert_failed";
+
 
 export type DuplicateAgentResult =
   | {
@@ -136,6 +140,13 @@ export async function duplicateAgentWithVersion(
   const src = srcAgent as Record<string, unknown>;
   const isMcp = src.kind === "mcp_agent";
   const srcVersion = isMcp ? await pickSourceVersion(admin, orgId, agentId) : null;
+
+  if (
+    srcVersion?.provider === CHATGPT_SUBSCRIPTION_PROVIDER &&
+    !(await moduloLigado(admin, "login_codex"))
+  ) {
+    return { ok: false, error: "provider_disabled" };
+  }
 
   // A rota da API trata "sem versão" como 409; o botão da lista precisa seguir
   // duplicando o rag_bot legado, que não tem versão nenhuma por natureza.

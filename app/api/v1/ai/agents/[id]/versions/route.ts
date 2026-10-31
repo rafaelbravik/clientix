@@ -19,6 +19,8 @@ import { mensagemDoEscopo, validarEscopoDaVersao } from "@/lib/ai/agents/escopo"
 import { versionCreateSchema } from "@/lib/ai/agents/validation";
 import { lerAmbiente } from "@/lib/instalacao/ambiente";
 import { traduzir } from "@/lib/i18n/dicionario";
+import { CHATGPT_SUBSCRIPTION_PROVIDER } from "@/lib/ai/credenciais/chatgpt-siwc";
+import { validarModeloDaAssinatura } from "@/lib/ai/catalogo/modelos-da-assinatura";
 
 export const dynamic = "force-dynamic";
 
@@ -117,7 +119,26 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
     // publicada para morrer em toda mensagem — e o dono só descobriria com o
     // primeiro cliente. O schema valida FORMA; quem conhece o ambiente do
     // servidor é esta rota.
-    if (v.credential_id === null && lerAmbiente().chavesDeProvedor[v.provider] !== true) {
+    if (v.provider === CHATGPT_SUBSCRIPTION_PROVIDER) {
+      const permitido = await validarModeloDaAssinatura({
+        admin,
+        organizationId: activeOrg.orgId,
+        credentialId: v.credential_id,
+        modelId: v.model,
+      });
+      if (!permitido.ok) {
+        const mensagens = {
+          feature_disabled: "Este recurso está desativado nesta instalação.",
+          not_connected: "Conecte a assinatura do ChatGPT em IA › Credenciais.",
+          model_not_allowed: "Escolha um modelo do catálogo da conta conectada.",
+          credential_storage_failed: "Não foi possível validar a conexão da conta.",
+        } as const;
+        const status = permitido.error === "feature_disabled" ? 403
+          : permitido.error === "credential_storage_failed" ? 500
+          : 422;
+        return fail(permitido.error, t(mensagens[permitido.error]), status, { requestId });
+      }
+    } else if (v.credential_id === null && lerAmbiente().chavesDeProvedor[v.provider] !== true) {
       return fail(
         "credential_required",
         `Esta instalação não tem chave de ${v.provider} no ambiente. Cadastre uma chave em IA › Credenciais ou escolha outra empresa de inteligência artificial.`,

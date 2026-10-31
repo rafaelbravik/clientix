@@ -34,6 +34,9 @@ import {
 import { publishAgentVersion } from "@/lib/ai/agents/publish";
 import { escolherVersoesDaTela } from "@/lib/ai/agents/versoes-da-tela";
 import { VALID_TOOL_IDS } from "@/lib/mcp/tools";
+import { CHATGPT_SUBSCRIPTION_PROVIDER } from "@/lib/ai/credenciais/chatgpt-siwc";
+import { validarModeloDaAssinatura } from "@/lib/ai/catalogo/modelos-da-assinatura";
+import { traduzir } from "@/lib/i18n/dicionario";
 
 const UUID_RX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -124,6 +127,7 @@ export async function saveAgentDraftAction(
   const guard = await ensureAdmin();
   if (!guard.ok) return guard;
   const { authUser, activeOrg } = guard;
+  const t = (texto: string) => traduzir(texto, authUser.idioma);
 
   const parsed = versionCreateSchema.safeParse(payload);
   if (!parsed.success) {
@@ -152,6 +156,24 @@ export async function saveAgentDraftAction(
   const v = parsed.data;
   const requestId = randomUUID();
   const admin = createAdminClient();
+
+  if (v.provider === CHATGPT_SUBSCRIPTION_PROVIDER) {
+    const permitido = await validarModeloDaAssinatura({
+      admin,
+      organizationId: activeOrg.orgId,
+      credentialId: v.credential_id,
+      modelId: v.model,
+    });
+    if (!permitido.ok) {
+      const mensagens = {
+        feature_disabled: t("Este recurso está desativado nesta instalação."),
+        not_connected: t("Conecte a assinatura do ChatGPT em IA › Credenciais."),
+        model_not_allowed: t("Escolha um modelo do catálogo da conta conectada."),
+        credential_storage_failed: t("Não foi possível validar a conexão da conta."),
+      } as const;
+      return { ok: false, error: permitido.error, message: mensagens[permitido.error] };
+    }
+  }
 
   // Sanity: o agent existe e é da org? não está arquivado?
   const { data: agent } = await admin
@@ -502,6 +524,13 @@ export async function revertToVersionAction(
     .eq("agent_id", agentId)
     .maybeSingle();
   if (!source) return { ok: false, error: "version_not_found" };
+  if (source.provider === CHATGPT_SUBSCRIPTION_PROVIDER) {
+    return {
+      ok: false,
+      error: "provider_not_publishable",
+      message: "A publicação deste provedor ainda depende de uma etapa de governança.",
+    };
+  }
 
   // Espelha tool_id check do publish.
   const tools = ((source as { tool_ids: string[] | null }).tool_ids ?? []) as string[];
@@ -688,6 +717,7 @@ export async function createMcpAgentAction(
   const guard = await ensureAdmin();
   if (!guard.ok) return guard;
   const { authUser, activeOrg } = guard;
+  const t = (texto: string) => traduzir(texto, authUser.idioma);
 
   const parsed = agentMcpCreateSchema.safeParse(payload);
   if (!parsed.success) {
@@ -696,6 +726,24 @@ export async function createMcpAgentAction(
 
   const requestId = randomUUID();
   const admin = createAdminClient();
+
+  if (parsed.data.version.provider === CHATGPT_SUBSCRIPTION_PROVIDER) {
+    const permitido = await validarModeloDaAssinatura({
+      admin,
+      organizationId: activeOrg.orgId,
+      credentialId: parsed.data.version.credential_id,
+      modelId: parsed.data.version.model,
+    });
+    if (!permitido.ok) {
+      const mensagens = {
+        feature_disabled: t("Este recurso está desativado nesta instalação."),
+        not_connected: t("Conecte a assinatura do ChatGPT em IA › Credenciais."),
+        model_not_allowed: t("Escolha um modelo do catálogo da conta conectada."),
+        credential_storage_failed: t("Não foi possível validar a conexão da conta."),
+      } as const;
+      return { ok: false, error: permitido.error, message: mensagens[permitido.error] };
+    }
+  }
 
   // Cria agent kind='mcp_agent' + v1 draft. Compensa rollback se versão falhar.
   const { data: agentRow, error: agentErr } = await admin

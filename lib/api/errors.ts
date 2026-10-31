@@ -33,6 +33,7 @@ export const ApiErrorCodes = {
   forbidden: "forbidden",
   forbidden_role: "forbidden_role",
   forbidden_tenant: "forbidden_tenant",
+  feature_disabled: "feature_disabled",
   // Conta da empresa suspensa (spec da cobrança §4): sessão, token `dsk_` e MCP.
   // Só LGPD e cobrança passam, por `requireRole({ permiteOrgSuspensa: true })`.
   org_suspended: "org_suspended",
@@ -108,6 +109,17 @@ export const ApiErrorCodes = {
 
   // 422 — semântica
   unprocessable_entity: "unprocessable_entity",
+  not_connected: "not_connected",
+  model_not_allowed: "model_not_allowed",
+  provider_not_publishable: "provider_not_publishable",
+  token_refresh_failed: "token_refresh_failed",
+  credential_unreadable: "credential_unreadable",
+  credential_storage_failed: "credential_storage_failed",
+  models_http_error: "models_http_error",
+  models_timeout: "models_timeout",
+  models_network_error: "models_network_error",
+  models_invalid_payload: "models_invalid_payload",
+  models_refresh_failed: "models_refresh_failed",
   channel_without_session: "channel_without_session", // operação de sessão (reiniciar, parear) pedida a canal que não tem sessão no transporte — o oficial
   janela_fechada: "janela_fechada", // POST /messages por token/agente com texto livre fora das 24h em canal com restrição (131047) — a saída é modelo aprovado (#1614)
   invalid_state_transition: "invalid_state_transition",

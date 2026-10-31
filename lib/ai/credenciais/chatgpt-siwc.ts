@@ -8,9 +8,19 @@ import {
   verify as verificarAssinatura,
 } from "node:crypto";
 
-export const CHATGPT_SUBSCRIPTION_PROVIDER = "openai-assinatura" as const;
-export const CHATGPT_SUBSCRIPTION_LABEL = "Assinatura do ChatGPT";
-export const CHATGPT_SUBSCRIPTION_MODULE = "login_codex" as const;
+import {
+  CHATGPT_SUBSCRIPTION_MODULE,
+  CHATGPT_SUBSCRIPTION_PROVIDER,
+  CHATGPT_SUBSCRIPTION_LABEL,
+} from "./chatgpt-subscription-constants";
+export {
+  CHATGPT_SUBSCRIPTION_MODULE,
+  CHATGPT_SUBSCRIPTION_PROVIDER,
+  CHATGPT_SUBSCRIPTION_LABEL,
+  CHATGPT_SUBSCRIPTION_PROVIDER_LABEL,
+  CHATGPT_SUBSCRIPTION_PROVIDER_DESCRIPTION,
+} from "./chatgpt-subscription-constants";
+
 export const CHATGPT_SUBSCRIPTION_HOST_KEY = "OPENAI_SIWC_EXT_AGENT_HOST_ID";
 export const CHATGPT_DYNAMIC_CLIENT_ID = "dynamic_agent_client";
 export const CHATGPT_REDIRECT_URI = "http://127.0.0.1:1455/auth/callback";

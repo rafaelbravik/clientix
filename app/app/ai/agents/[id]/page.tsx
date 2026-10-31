@@ -4,6 +4,7 @@ import { requireAuth, resolveActiveOrg } from "@/lib/auth/server";
 import { ROLE_RANK } from "@/lib/auth/types";
 import { listSelectableChannels } from "@/lib/channels/selectable";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { AgentRow } from "@/hooks/ai/useAgent";
 import type { AgentVersionRow } from "@/hooks/ai/useAgentVersions";
 import type { CredentialRow } from "@/hooks/ai/useCredentials";
@@ -19,6 +20,8 @@ import type { CoberturaPorFunil } from "./_components/FunisDoAgente";
 import { lerAmbiente } from "@/lib/instalacao/ambiente";
 import { escolherVersoesDaTela } from "@/lib/ai/agents/versoes-da-tela";
 import { fusoUtilizavel } from "@/lib/tempo/fusos";
+import { moduloLigado } from "@/lib/instalacao/modulos";
+import { CHATGPT_SUBSCRIPTION_PROVIDER } from "@/lib/ai/credenciais/chatgpt-siwc";
 
 export const dynamic = "force-dynamic";
 
@@ -101,7 +104,7 @@ export default async function AgentEditorPage({ params }: { params: Promise<{ id
   }
 
   // mcp_agent: busca versions + lookups.
-  const [versionsRes, credentialsRes, channelSessions, routerMemberRes, funisRes, acervoRes] =
+  const [versionsRes, credentialsRes, channelSessions, routerMemberRes, funisRes, acervoRes, loginCodexLigado] =
     await Promise.all([
       supabase
         .from("ai_agent_versions")
@@ -139,6 +142,7 @@ export default async function AgentEditorPage({ params }: { params: Promise<{ id
         .eq("organization_id", activeOrg.orgId)
         .eq("is_active", true)
         .order("created_at", { ascending: true }),
+      moduloLigado(createAdminClient(), "login_codex"),
     ]);
 
   const versions = (versionsRes.data ?? []) as unknown as AgentVersionRow[];
@@ -163,7 +167,9 @@ export default async function AgentEditorPage({ params }: { params: Promise<{ id
     const c = coberturaDoFunil(etapasPorFunil.get(f.id) ?? []);
     cobertura[f.id] = { traduzidos: c.traduzidos, total: c.total, mudo: c.mudo };
   }
-  const credentials = (credentialsRes.data ?? []) as CredentialRow[];
+  const credentials = ((credentialsRes.data ?? []) as CredentialRow[]).filter(
+    (credential) => loginCodexLigado || credential.provider !== CHATGPT_SUBSCRIPTION_PROVIDER,
+  );
   const routerMemberRow = routerMemberRes.data as {
     router_id: string;
     ai_routers: { name: string } | null;
@@ -236,6 +242,7 @@ export default async function AgentEditorPage({ params }: { params: Promise<{ id
         routerMembership={routerMembership}
         readOnly={readOnly}
         organizationTimezone={fusoUtilizavel(activeOrg.timezone)}
+        loginCodexLigado={loginCodexLigado}
       />
     </div>
   );

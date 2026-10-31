@@ -25,6 +25,8 @@ import { mensagemDoEscopo, validarEscopoDaVersao } from "@/lib/ai/agents/escopo"
 import { agentCreateSchema } from "@/lib/ai/guardrails-schema";
 import { agentMcpCreateSchema } from "@/lib/ai/agents/validation";
 import { traduzir } from "@/lib/i18n/dicionario";
+import { CHATGPT_SUBSCRIPTION_PROVIDER } from "@/lib/ai/credenciais/chatgpt-siwc";
+import { validarModeloDaAssinatura } from "@/lib/ai/catalogo/modelos-da-assinatura";
 
 export const dynamic = "force-dynamic";
 
@@ -121,6 +123,26 @@ export async function POST(req: NextRequest): Promise<Response> {
     // Validate scope before the first write; a rejected form leaves no orphan.
     const escopo = await validarEscopoDaVersao(admin, activeOrg.orgId, input.version);
     if (!escopo.ok) return fail("validation_failed", mensagemDoEscopo(escopo), 422, { requestId });
+    if (input.version.provider === CHATGPT_SUBSCRIPTION_PROVIDER) {
+      const permitido = await validarModeloDaAssinatura({
+        admin,
+        organizationId: activeOrg.orgId,
+        credentialId: input.version.credential_id,
+        modelId: input.version.model,
+      });
+      if (!permitido.ok) {
+        const mensagens = {
+          feature_disabled: "Este recurso está desativado nesta instalação.",
+          not_connected: "Conecte a assinatura do ChatGPT em IA › Credenciais.",
+          model_not_allowed: "Escolha um modelo do catálogo da conta conectada.",
+          credential_storage_failed: "Não foi possível validar a conexão da conta.",
+        } as const;
+        const status = permitido.error === "feature_disabled" ? 403
+          : permitido.error === "credential_storage_failed" ? 500
+          : 422;
+        return fail(permitido.error, t(mensagens[permitido.error]), status, { requestId });
+      }
+    }
     const records = mcpAgentDraftRecords({ orgId: activeOrg.orgId, userId: authUser.id }, input);
     const { data: agentRow, error: agentError } = await admin
       .from("ai_agents")

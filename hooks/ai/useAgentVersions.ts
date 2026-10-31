@@ -2,7 +2,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 
-export type Provider = "anthropic" | "openai" | "google";
+import type { Provider as ProviderDeVersao } from "@/lib/ai/agents/validation";
+
+export type Provider = ProviderDeVersao;
 
 export interface AgentVersionRow {
   id: string;

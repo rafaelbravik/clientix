@@ -2795,6 +2795,37 @@ export const DICIONARIO: Traducoes = {
       es: "Top K = cuántos fragmentos buscar. Similarity threshold = relevancia mínima (cosine).",
     },
   "Assinatura do ChatGPT": { es: "Suscripción de ChatGPT" },
+  "OpenAI pela assinatura (ChatGPT)": { es: "OpenAI mediante suscripción (ChatGPT)" },
+  "Usa os modelos disponíveis na conta ChatGPT conectada por login oficial. A publicação de agentes ainda depende de uma etapa de governança.": {
+    es: "Usa los modelos disponibles en la cuenta de ChatGPT conectada mediante el inicio de sesión oficial. La publicación de agentes aún depende de una etapa de gobernanza.",
+  },
+  "Conta ChatGPT": { es: "Cuenta de ChatGPT" },
+  "Conta conectada por login oficial.": { es: "Cuenta conectada mediante el inicio de sesión oficial." },
+  "Conecte uma conta ChatGPT em IA › Credenciais.": { es: "Conecta una cuenta de ChatGPT en IA › Credenciales." },
+  "Gerenciar conexão em IA › Credenciais": { es: "Gestionar conexión en IA › Credenciales" },
+  "Este recurso está desativado nesta instalação.": { es: "Esta función está desactivada en esta instalación." },
+  "Conecte a assinatura do ChatGPT em IA › Credenciais.": { es: "Conecta la suscripción de ChatGPT en IA › Credenciales." },
+  "Escolha um modelo do catálogo da conta conectada.": { es: "Elige un modelo del catálogo de la cuenta conectada." },
+  "Não foi possível validar a conexão da conta.": { es: "No se pudo validar la conexión de la cuenta." },
+  "A publicação deste provedor ainda depende de uma etapa de governança.": {
+    es: "La publicación de este proveedor aún depende de una etapa de gobernanza.",
+  },
+  "Não foi possível ler a conexão salva. Revise IA › Credenciais.": {
+    es: "No se pudo leer la conexión guardada. Revisa IA › Credenciales.",
+  },
+  "Não foi possível atualizar a conexão salva. Revise IA › Credenciais.": {
+    es: "No se pudo actualizar la conexión guardada. Revisa IA › Credenciales.",
+  },
+  "A conexão da conta precisa ser renovada. Reconecte em IA › Credenciais.": {
+    es: "La conexión de la cuenta debe renovarse. Vuelve a conectarla en IA › Credenciales.",
+  },
+  "Não foi possível atualizar o catálogo. A conta continua conectada; tente novamente.": {
+    es: "No se pudo actualizar el catálogo. La cuenta sigue conectada; inténtalo de nuevo.",
+  },
+  "Nenhum modelo disponível na conta conectada": { es: "No hay modelos disponibles en la cuenta conectada" },
+  "A conta está conectada, mas não há modelos disponíveis para seleção.": {
+    es: "La cuenta está conectada, pero no hay modelos disponibles para seleccionar.",
+  },
   "Permite que cada empresa vincule uma conta ChatGPT pela autorização oficial. O uso em agentes continua desligado nesta etapa.": {
     es: "Permite que cada empresa vincule una cuenta de ChatGPT mediante la autorización oficial. El uso en agentes sigue desactivado en esta etapa.",
   },

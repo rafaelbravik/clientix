@@ -8,6 +8,7 @@
 import { chaveDePlataforma } from "@/lib/ai/runtime/agent";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PUBLISH_ERROR_CODES, type PublishErrorCode } from "./validation";
+import { CHATGPT_SUBSCRIPTION_PROVIDER } from "@/lib/ai/credenciais/chatgpt-siwc";
 
 export interface PublishOk {
   ok: true;
@@ -45,6 +46,13 @@ export async function publishAgentVersion(
     .maybeSingle();
   if (readError || !version)
     return { ok: false, code: "version_not_found", message: "version_not_found" };
+  if (version.provider === CHATGPT_SUBSCRIPTION_PROVIDER) {
+    return {
+      ok: false,
+      code: "provider_not_publishable",
+      message: "provider_not_publishable",
+    };
+  }
   const platform = version.credential_id === null;
   if (platform && !chaveDePlataforma(version.provider))
     return { ok: false, code: "credential_missing", message: "credential_missing" };

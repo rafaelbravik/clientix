@@ -15,9 +15,11 @@ import {
   type Provider,
   credentialStatus,
 } from "@/hooks/ai/useCredentials";
+import { CHATGPT_SUBSCRIPTION_PROVIDER } from "@/lib/ai/credenciais/chatgpt-subscription-constants";
+import type { Provider as ModelProvider } from "./ModelPicker";
 
 interface Props {
-  provider: Provider;
+  provider: Provider | ModelProvider;
   credentials: CredentialRow[];
   value: string;
   onChange: (id: string) => void;
@@ -55,6 +57,23 @@ export function CredentialPicker({
 }: Props) {
   const t = useT();
   const filtered = credentials.filter((c) => c.provider === provider);
+  if (provider === CHATGPT_SUBSCRIPTION_PROVIDER) {
+    const connected = filtered.find((credential) => credential.id === value && credentialStatus(credential) === "validated");
+    return (
+      <div className="space-y-1">
+        <Label htmlFor={id}>{t("Conta ChatGPT")}</Label>
+        <p id={id} className="text-sm text-muted-foreground">
+          {connected ? t("Conta conectada por login oficial.") : t("Conecte uma conta ChatGPT em IA › Credenciais.")}
+        </p>
+        <Link
+          href="/app/ai/credentials"
+          className="text-xs font-medium text-foreground underline underline-offset-4"
+        >
+          {t("Gerenciar conexão em IA › Credenciais")}
+        </Link>
+      </div>
+    );
+  }
   // Sem nenhuma das duas origens não há o que escolher — e é aí que o atalho
   // para cadastrar precisa aparecer.
   const semOpcao = filtered.length === 0 && !instalacaoTemChave;

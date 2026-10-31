@@ -15,6 +15,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { versionPatchSchema } from "@/lib/ai/agents/validation";
 import { traduzir } from "@/lib/i18n/dicionario";
+import { CHATGPT_SUBSCRIPTION_PROVIDER } from "@/lib/ai/credenciais/chatgpt-siwc";
+import { validarModeloDaAssinatura } from "@/lib/ai/catalogo/modelos-da-assinatura";
 
 export const dynamic = "force-dynamic";
 
@@ -87,7 +89,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<Response> {
   const admin = createAdminClient();
   const { data: existing } = await admin
     .from("ai_agent_versions")
-    .select("id, status, agent_id, organization_id, followup")
+    .select("id, status, agent_id, organization_id, followup, provider, model, credential_id")
     .eq("id", vid)
     .eq("organization_id", activeOrg.orgId)
     .eq("agent_id", id)
@@ -99,6 +101,30 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<Response> {
       requestId,
       details: { current_status: existing.status },
     });
+  }
+
+  const provider = patch.provider ?? existing.provider;
+  const model = patch.model ?? existing.model;
+  const credentialId = patch.credential_id === undefined ? existing.credential_id : patch.credential_id;
+  if (provider === CHATGPT_SUBSCRIPTION_PROVIDER) {
+    const permitido = await validarModeloDaAssinatura({
+      admin,
+      organizationId: activeOrg.orgId,
+      credentialId,
+      modelId: model,
+    });
+    if (!permitido.ok) {
+      const mensagens = {
+        feature_disabled: "Este recurso está desativado nesta instalação.",
+        not_connected: "Conecte a assinatura do ChatGPT em IA › Credenciais.",
+        model_not_allowed: "Escolha um modelo do catálogo da conta conectada.",
+        credential_storage_failed: "Não foi possível validar a conexão da conta.",
+      } as const;
+      const status = permitido.error === "feature_disabled" ? 403
+        : permitido.error === "credential_storage_failed" ? 500
+        : 422;
+      return fail(permitido.error, t(mensagens[permitido.error]), status, { requestId });
+    }
   }
 
   const update: Record<string, unknown> = {};

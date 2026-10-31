@@ -4,10 +4,13 @@ import { requireAuth, resolveActiveOrg } from "@/lib/auth/server";
 import { ROLE_RANK } from "@/lib/auth/types";
 import { listSelectableChannels } from "@/lib/channels/selectable";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { CredentialRow } from "@/hooks/ai/useCredentials";
 
 import { lerAmbiente } from "@/lib/instalacao/ambiente";
 import { fusoUtilizavel } from "@/lib/tempo/fusos";
+import { moduloLigado } from "@/lib/instalacao/modulos";
+import { CHATGPT_SUBSCRIPTION_PROVIDER } from "@/lib/ai/credenciais/chatgpt-siwc";
 
 import { AgentForm } from "../[id]/_components/AgentForm";
 
@@ -40,7 +43,7 @@ export default async function NewAgentPage() {
   }
 
   const supabase = await createClient();
-  const [orgRes, credentialsRes, channelSessions] = await Promise.all([
+  const [orgRes, credentialsRes, channelSessions, loginCodexLigado] = await Promise.all([
     // O provedor que a organização JÁ usa: sem ele, o agente novo nascia
     // `anthropic` e o formulário pedia "Cadastrar credencial anthropic" para
     // quem só tem chave da OpenAI.
@@ -50,9 +53,12 @@ export default async function NewAgentPage() {
       .select(CREDENTIAL_COLUMNS)
       .eq("organization_id", activeOrg.orgId),
     listSelectableChannels(supabase, activeOrg.orgId),
+    moduloLigado(createAdminClient(), "login_codex"),
   ]);
 
-  const credentials = (credentialsRes.data ?? []) as CredentialRow[];
+  const credentials = ((credentialsRes.data ?? []) as CredentialRow[]).filter(
+    (credential) => loginCodexLigado || credential.provider !== CHATGPT_SUBSCRIPTION_PROVIDER,
+  );
   const llmDaOrg = (
     orgRes.data?.settings as { llm?: { provider?: string } } | null
   )?.llm;
@@ -66,6 +72,7 @@ export default async function NewAgentPage() {
         provedorPadrao={llmDaOrg?.provider}
         channelSessions={channelSessions}
         organizationTimezone={fusoUtilizavel(activeOrg.timezone)}
+        loginCodexLigado={loginCodexLigado}
       />
     </div>
   );

@@ -62,7 +62,8 @@ export function CredentialsList({
     PROVEDORES_COM_CHAVE.map((p) => [p.id, [] as CredentialRow[]]),
   );
   for (const c of credentials) {
-    grouped[c.provider]?.push(c);
+    const provedorGenerico = PROVEDORES_COM_CHAVE.find((provider) => provider.id === c.provider);
+    if (provedorGenerico) grouped[provedorGenerico.id]?.push(c);
   }
 
   // A chave que o Jev usa, pela mesma regra que a escolhe para a rede, sobre a

@@ -39,6 +39,7 @@ interface Props {
   routerMembership?: { routerId: string; routerName: string } | null;
   readOnly?: boolean;
   organizationTimezone?: string;
+  loginCodexLigado?: boolean;
 }
 
 export function AgentTabs(props: Props) {
@@ -82,6 +83,7 @@ export function AgentTabs(props: Props) {
           routerMembership={props.routerMembership}
           readOnly={props.readOnly}
           organizationTimezone={props.organizationTimezone}
+          loginCodexLigado={props.loginCodexLigado}
         />
       </TabsContent>
 

@@ -105,6 +105,14 @@ export function useActiveOrg(): ActiveOrg | null {
 }
 
 /**
+ * Leitura opcional para componentes compartilhados/testes que também podem ser
+ * usados fora da casca autenticada. Não é uma fonte de autorização.
+ */
+export function useOptionalActiveOrg(): ActiveOrg | null {
+  return useContext(Ctx)?.activeOrg ?? null;
+}
+
+/**
  * Permission gate based on role rank. Action mapping is intentionally
  * minimal here — feature-specific gates can extend with custom logic.
  */

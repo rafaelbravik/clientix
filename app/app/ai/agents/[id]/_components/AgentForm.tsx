@@ -37,8 +37,10 @@ import Link from "next/link";
 
 import { TETO_TOOLS_POR_AGENTE } from "@/lib/mcp/tools/selecao-por-pacote";
 import { PROVEDORES } from "@/lib/ai/pontos/provedores";
+import { provedoresDoEditorAgente } from "@/lib/ai/catalogo/provedores-do-editor";
+import { CHATGPT_SUBSCRIPTION_PROVIDER } from "@/lib/ai/credenciais/chatgpt-subscription-constants";
 
-import { ModelPicker, useModelMeta } from "./ModelPicker";
+import { ModelPicker, useModelMeta, type Provider } from "./ModelPicker";
 import { CHAVE_DA_INSTALACAO, CredentialPicker, STATUS_LABEL, findCredential } from "./CredentialPicker";
 import { rotuloDoEstadoDoCanal } from "@/lib/channels/estado";
 import { bloqueioDePublicacao } from "@/lib/ai/agents/bloqueio-de-publicacao";
@@ -71,7 +73,7 @@ import {
 import type { SelectableChannel as ChannelSessionLite } from "@/lib/channels/selectable";
 import type { AgentRow } from "@/hooks/ai/useAgent";
 import type { AgentVersionRow } from "@/hooks/ai/useAgentVersions";
-import type { CredentialRow, Provider } from "@/hooks/ai/useCredentials";
+import type { CredentialRow } from "@/hooks/ai/useCredentials";
 import { credentialStatus } from "@/hooks/ai/useCredentials";
 import type { FunilDaResposta } from "@/hooks/pipelines/usePipelines";
 import { callbacksHabilitados } from "@/lib/followup/callback-policy";
@@ -118,6 +120,8 @@ interface BaseProps {
   routerMembership?: { routerId: string; routerName: string } | null;
   readOnly?: boolean;
   organizationTimezone?: string;
+  /** Feature flag da instalação, resolvida server-side. Ausente = desligado. */
+  loginCodexLigado?: boolean;
 }
 
 interface EditProps extends BaseProps {
@@ -369,6 +373,15 @@ export function AgentForm(props: Props) {
   const router = useRouter();
   const isEdit = props.mode === "edit";
   const readOnly = props.readOnly ?? false;
+  const assinaturaCredential = props.credentials.find(
+    (credential) => credential.provider === CHATGPT_SUBSCRIPTION_PROVIDER,
+  );
+  const assinaturaConectada =
+    !!assinaturaCredential && credentialStatus(assinaturaCredential) === "validated";
+  const provedoresDoEditor = provedoresDoEditorAgente(
+    props.loginCodexLigado === true,
+    assinaturaConectada,
+  );
 
   const baseline = React.useMemo(() => {
     if (isEdit) {
@@ -412,7 +425,14 @@ export function AgentForm(props: Props) {
 
   // Quando provider muda, limpa credential e modelo (eles dependem do provider).
   function changeProvider(p: Provider) {
-    patch({ provider: p, credential_id: "", model: "" });
+    patch({
+      provider: p,
+      credential_id:
+        p === CHATGPT_SUBSCRIPTION_PROVIDER && assinaturaConectada
+          ? assinaturaCredential!.id
+          : "",
+      model: "",
+    });
   }
 
   const cred = findCredential(props.credentials, form.credential_id);
@@ -449,6 +469,13 @@ export function AgentForm(props: Props) {
     if (!form.model) errors.model = t("Escolha o modelo de inteligência artificial.");
     if (!form.credential_id)
       errors.credential_id = t("Escolha a chave de acesso da empresa de inteligência artificial.");
+    if (form.provider === CHATGPT_SUBSCRIPTION_PROVIDER) {
+      if (props.loginCodexLigado !== true) {
+        errors.credential_id = t("Este recurso está desativado nesta instalação.");
+      } else if (!assinaturaConectada || assinaturaCredential?.id !== form.credential_id) {
+        errors.credential_id = t("Conecte a assinatura do ChatGPT em IA › Credenciais.");
+      }
+    }
     // Escolher "a chave desta instalação" para um provedor que a instalação NÃO
     // tem seria publicar um agente que morre em toda mensagem. A mesma recusa
     // existe no servidor (rota de versões); aqui ela chega antes do clique.
@@ -481,7 +508,7 @@ export function AgentForm(props: Props) {
       }
     }
     return errors;
-  }, [form, t]);
+  }, [form, t, props.loginCodexLigado, assinaturaConectada, assinaturaCredential]);
 
   const isValid = Object.keys(validation).length === 0;
 
@@ -497,6 +524,9 @@ export function AgentForm(props: Props) {
    */
   const publishBlockReason = React.useMemo(() => {
     if (!isEdit) return t("Salve o agent antes de publicar.");
+    if (form.provider === CHATGPT_SUBSCRIPTION_PROVIDER) {
+      return t("A publicação deste provedor ainda depende de uma etapa de governança.");
+    }
     const motivo = bloqueioDePublicacao({
       temRascunhoVigente: !!props.draft,
       formularioValido: isValid,
@@ -870,14 +900,16 @@ export function AgentForm(props: Props) {
                 </SelectTrigger>
                 <SelectContent>
                   {/*
-                    Derivado de PROVEDORES, nunca escrito à mão: esta lista tinha
+                    O catálogo padrão vem de PROVEDORES; a assinatura só entra
+                    quando o módulo está ligado e existe uma conta conectada.
+                    Esta lista tinha
                     três itens fixos enquanto o sistema executava quatro, e a
                     OpenRouter — a opção [1] do instalador — não aparecia. Um
                     agente publicado nela abria com o campo em BRANCO, porque
                     nenhum item casava com o valor, e o primeiro save silencioso
                     trocava o provedor do dono por outro.
                   */}
-                  {PROVEDORES.map((p) => (
+                  {provedoresDoEditor.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.rotulo}
                     </SelectItem>

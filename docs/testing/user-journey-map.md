@@ -3342,3 +3342,28 @@ nesta etapa.
 | Mobile 390×844 | Conectado; reconectar/desconectar | [mobile-390x844-connected.png](../../evidence/p0-chatgpt-subscription-a/mobile-390x844-connected.png) | PASS |
 | Mobile 390×844 | Sessão expirada; reconectar | [mobile-390x844-expired.png](../../evidence/p0-chatgpt-subscription-a/mobile-390x844-expired.png) | PASS |
 | Mobile 390×844 | Envelope ilegível; saída segura | [mobile-390x844-unreadable.png](../../evidence/p0-chatgpt-subscription-a/mobile-390x844-unreadable.png) | PASS |
+
+
+## J44 — Selecionar modelos da assinatura ChatGPT por organização [P0-1B] (2026-10-31)
+
+O seletor usa somente o catálogo devolvido para a conta conectada da organização ativa. login_codex desligado oculta o provider; conta conectada com catálogo vazio ou falha mantém estados distintos. Capturas feitas em ambiente local, com conta e respostas sintéticas; nenhuma chamada à OpenAI, conta real ou produção foi usada. Publicação e inferência do agente permanecem bloqueadas nesta etapa.
+
+| Viewport | Estado sintético | Captura | Resultado |
+|---|---|---|---|
+| Desktop 1440×900 | Provider disponível, conta conectada e modelos carregados | [available-desktop-1440x900.png](../../evidence/p0-chatgpt-subscription-b/available-desktop-1440x900.png) | PASS |
+| Desktop 1440×900 | Sem conta conectada | [disconnected-desktop-1440x900.png](../../evidence/p0-chatgpt-subscription-b/disconnected-desktop-1440x900.png) | PASS |
+| Desktop 1440×900 | Conta conectada, lista vazia válida | [empty-desktop-1440x900.png](../../evidence/p0-chatgpt-subscription-b/empty-desktop-1440x900.png) | PASS |
+| Desktop 1440×900 | Erro de catálogo com conta ainda conectada | [catalog-error-desktop-1440x900.png](../../evidence/p0-chatgpt-subscription-b/catalog-error-desktop-1440x900.png) | PASS |
+| Desktop 1440×900 | login_codex desligado; provider oculto | [feature-off-desktop-1440x900.png](../../evidence/p0-chatgpt-subscription-b/feature-off-desktop-1440x900.png) | PASS |
+| Tablet 768×1024 | Provider disponível, conta conectada e modelos carregados | [available-tablet-768x1024.png](../../evidence/p0-chatgpt-subscription-b/available-tablet-768x1024.png) | PASS |
+| Tablet 768×1024 | Sem conta conectada | [disconnected-tablet-768x1024.png](../../evidence/p0-chatgpt-subscription-b/disconnected-tablet-768x1024.png) | PASS |
+| Tablet 768×1024 | Conta conectada, lista vazia válida | [empty-tablet-768x1024.png](../../evidence/p0-chatgpt-subscription-b/empty-tablet-768x1024.png) | PASS |
+| Tablet 768×1024 | Erro de catálogo com conta ainda conectada | [catalog-error-tablet-768x1024.png](../../evidence/p0-chatgpt-subscription-b/catalog-error-tablet-768x1024.png) | PASS |
+| Tablet 768×1024 | login_codex desligado; provider oculto | [feature-off-tablet-768x1024.png](../../evidence/p0-chatgpt-subscription-b/feature-off-tablet-768x1024.png) | PASS |
+| Mobile 390×844 | Provider disponível, conta conectada e modelos carregados | [available-mobile-390x844.png](../../evidence/p0-chatgpt-subscription-b/available-mobile-390x844.png) | PASS |
+| Mobile 390×844 | Sem conta conectada | [disconnected-mobile-390x844.png](../../evidence/p0-chatgpt-subscription-b/disconnected-mobile-390x844.png) | PASS |
+| Mobile 390×844 | Conta conectada, lista vazia válida | [empty-mobile-390x844.png](../../evidence/p0-chatgpt-subscription-b/empty-mobile-390x844.png) | PASS |
+| Mobile 390×844 | Erro de catálogo com conta ainda conectada | [catalog-error-mobile-390x844.png](../../evidence/p0-chatgpt-subscription-b/catalog-error-mobile-390x844.png) | PASS |
+| Mobile 390×844 | login_codex desligado; provider oculto | [feature-off-mobile-390x844.png](../../evidence/p0-chatgpt-subscription-b/feature-off-mobile-390x844.png) | PASS |
+
+Nos três tamanhos, não houve overflow horizontal, erro de console, erro de rede nem tráfego para origem externa. O aviso de catálogo falho preserva explicitamente o estado conectado; a lista vazia não é tratada como desconexão.
