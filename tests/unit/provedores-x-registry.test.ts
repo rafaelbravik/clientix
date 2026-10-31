@@ -17,7 +17,10 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { createDefaultRegistry } from "@/lib/agent-engine/edge/llm/providers";
+import {
+  createDefaultRegistry,
+  PROVEDORES_SOMENTE_RUNTIME,
+} from "@/lib/agent-engine/edge/llm/providers";
 import {
   ehProvedorSuportado,
   IDS_DE_PROVEDOR,
@@ -42,11 +45,19 @@ describe("lista de provedores × registry", () => {
   });
 
   it("todo provedor executável é oferecido na tela", () => {
-    const semPorta = Object.keys(registry).filter((id) => !ehProvedorSuportado(id));
+    const semPorta = Object.keys(registry).filter(
+      (id) => !ehProvedorSuportado(id) && !PROVEDORES_SOMENTE_RUNTIME.has(id),
+    );
     expect(
       semPorta,
       "o sistema saberia usar um provedor que ninguém consegue escolher — trabalho inalcançável",
     ).toEqual([]);
+  });
+
+  it("openai-assinatura é somente runtime enquanto publication estiver sob governança", () => {
+    expect(PROVEDORES_SOMENTE_RUNTIME.has("openai-assinatura")).toBe(true);
+    expect(registry["openai-assinatura"]).toBeTypeOf("function");
+    expect(ehProvedorSuportado("openai-assinatura")).toBe(false);
   });
 });
 

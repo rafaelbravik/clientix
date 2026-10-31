@@ -18,6 +18,7 @@ describe("createDefaultRegistry", () => {
       "deepseek",
       "google",
       "openai",
+      "openai-assinatura",
       "openrouter",
       "requesty",
     ]);
@@ -26,6 +27,7 @@ describe("createDefaultRegistry", () => {
     const reg = createDefaultRegistry();
     expect(() => reg.anthropic!("k", "claude-sonnet-4-6")).not.toThrow();
     expect(() => reg.openai!("k", "gpt-5")).not.toThrow();
+    expect(() => reg["openai-assinatura"]!("oauth-synthetic-token", "gpt-5-mini")).not.toThrow();
     expect(() => reg.google!("k", "gemini-2.5-pro")).not.toThrow();
     expect(() => reg.openrouter!("k", "meta-llama/llama-3.3-70b-instruct")).not.toThrow();
     expect(() => reg.deepseek!("k", "deepseek-flash")).not.toThrow();
@@ -44,5 +46,13 @@ describe("createDefaultRegistry", () => {
     const reg = createDefaultRegistry();
     const modelo = reg.openrouter!("k", "google/gemini-2.5-flash-lite") as { provider?: string };
     expect(modelo.provider).toBe("openai.chat");
+  });
+
+  it("assinatura é um modelo Responses separado e recusa base URL customizada", () => {
+    const reg = createDefaultRegistry();
+    const model = reg["openai-assinatura"]!("oauth-synthetic-token", "gpt-5-mini") as { provider?: string };
+    expect(model.provider).toBe("openai.responses");
+    expect(() => reg["openai-assinatura"]!("oauth-synthetic-token", "gpt-5-mini", "https://gateway.invalid/v1"))
+      .toThrow("A API da assinatura do ChatGPT recusou os parâmetros da chamada.");
   });
 });

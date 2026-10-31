@@ -42,6 +42,7 @@ interface CredentialRow {
   api_key_iv: unknown;
   api_key_tag: unknown;
   api_key_last4: string;
+  models_available: string[] | null;
   validated_at: string | null;
   is_active: boolean;
   updated_at: string;
@@ -105,7 +106,7 @@ function colunasCifradas(envelope: ChatGPTSubscriptionEnvelope) {
 async function lerLinha(admin: Admin, organizationId: string): Promise<CredentialRow | null> {
   const { data, error } = await admin
     .from("ai_provider_credentials")
-    .select("id, organization_id, provider, label, api_key_encrypted, api_key_iv, api_key_tag, api_key_last4, validated_at, is_active, updated_at")
+    .select("id, organization_id, provider, label, api_key_encrypted, api_key_iv, api_key_tag, api_key_last4, models_available, validated_at, is_active, updated_at")
     .eq("organization_id", organizationId)
     .eq("provider", CHATGPT_SUBSCRIPTION_PROVIDER)
     .eq("label", CHATGPT_SUBSCRIPTION_LABEL)
@@ -318,7 +319,7 @@ export async function revogarSessaoSiwc(
 }
 
 export type ResultadoDeAccessTokenSiwc =
-  | { ok: true; accessToken: string; scopes: string[]; subject: string }
+  | { ok: true; accessToken: string; scopes: string[]; subject: string; credentialId: string; modelsAvailable: string[] }
   | { ok: false; error: "feature_disabled" | "not_connected" | "credential_unreadable" | "refresh_failed" | "refresh_in_progress" | "storage_failed" };
 
 /**
@@ -329,6 +330,8 @@ export async function obterAccessTokenSiwc(entrada: {
   admin?: Admin;
   organizationId: string;
   agora?: number;
+  /** Força refresh após 401; nunca devolve o access token que a API acabou de rejeitar. */
+  forceRefresh?: boolean;
   renovar?: (refreshToken: string, clientId: string, agora: number) => Promise<TokenGrant>;
 }): Promise<ResultadoDeAccessTokenSiwc> {
   const admin = entrada.admin ?? createAdminClient();
@@ -347,16 +350,40 @@ export async function obterAccessTokenSiwc(entrada: {
   }
   if (!lido) return { ok: false, error: "not_connected" };
   const { row, envelope } = lido;
-  if (envelope.expires_at > agora + CHATGPT_REFRESH_EARLY_MS) {
-    return { ok: true, accessToken: envelope.access_token, scopes: envelope.scopes, subject: envelope.subject };
-  }
-  if (envelope.expires_at <= agora && (envelope.refresh_lock_until ?? 0) > agora) {
-    return { ok: false, error: "refresh_in_progress" };
+  const modelos = Array.isArray(row.models_available)
+    ? row.models_available.filter((model): model is string => typeof model === "string" && model.length > 0)
+    : [];
+  const sucesso = (accessToken: string, scopes: string[], subject: string) => ({
+    ok: true as const,
+    accessToken,
+    scopes,
+    subject,
+    credentialId: row.id,
+    modelsAvailable: modelos,
+  });
+  const forcado = entrada.forceRefresh === true;
+  if (!forcado && envelope.expires_at > agora + CHATGPT_REFRESH_EARLY_MS) {
+    return sucesso(envelope.access_token, envelope.scopes, envelope.subject);
   }
   if ((envelope.refresh_lock_until ?? 0) > agora) {
-    return envelope.expires_at > agora
-      ? { ok: true, accessToken: envelope.access_token, scopes: envelope.scopes, subject: envelope.subject }
-      : { ok: false, error: "refresh_in_progress" };
+    if (!forcado && envelope.expires_at > agora) {
+      return sucesso(envelope.access_token, envelope.scopes, envelope.subject);
+    }
+    if (forcado) {
+      try {
+        const atual = await lerTokensSiwc(admin, entrada.organizationId);
+        if (
+          atual &&
+          atual.envelope.access_token !== envelope.access_token &&
+          atual.envelope.expires_at > agora
+        ) {
+          return sucesso(atual.envelope.access_token, atual.envelope.scopes, atual.envelope.subject);
+        }
+      } catch {
+        return { ok: false, error: "storage_failed" };
+      }
+    }
+    return { ok: false, error: "refresh_in_progress" };
   }
 
   const claimedEnvelope: ChatGPTSubscriptionEnvelope = {
@@ -382,13 +409,12 @@ export async function obterAccessTokenSiwc(entrada: {
   if (!claim) {
     try {
       const atual = await lerTokensSiwc(admin, entrada.organizationId);
-      if (atual && atual.envelope.expires_at > agora) {
-        return {
-          ok: true,
-          accessToken: atual.envelope.access_token,
-          scopes: atual.envelope.scopes,
-          subject: atual.envelope.subject,
-        };
+      if (
+        atual &&
+        atual.envelope.expires_at > agora &&
+        (!forcado || atual.envelope.access_token !== envelope.access_token)
+      ) {
+        return sucesso(atual.envelope.access_token, atual.envelope.scopes, atual.envelope.subject);
       }
     } catch {
       return { ok: false, error: "storage_failed" };
@@ -435,5 +461,5 @@ export async function obterAccessTokenSiwc(entrada: {
     .maybeSingle();
   if (saveError) return { ok: false, error: "storage_failed" };
   if (!saved) return { ok: false, error: "not_connected" };
-  return { ok: true, accessToken: refreshed.access_token, scopes: refreshed.scopes, subject: refreshed.subject };
+  return sucesso(refreshed.access_token, refreshed.scopes, refreshed.subject);
 }

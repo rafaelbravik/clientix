@@ -250,6 +250,91 @@ describe("ChatGPT subscription credential storage", () => {
     expect((await lerTokensSiwc(db.admin, "org-a"))?.envelope.refresh_token).toBe("rotated-refresh-token-0123456789");
   });
 
+  it("devolve o catálogo da credencial do tenant junto com sua identidade", async () => {
+    const db = bancoFalso();
+    await salvarCredencialSiwc({ admin: db.admin, organizationId: "org-a", userId: "u-a", envelope: envelope("sub-a") });
+    db.rows[0]!.models_available = ["gpt-org-a"];
+
+    const result = await obterAccessTokenSiwc({ admin: db.admin, organizationId: "org-a" });
+
+    expect(result).toMatchObject({
+      ok: true,
+      credentialId: "credential-1",
+      modelsAvailable: ["gpt-org-a"],
+    });
+    const read = db.chamadas.find((call) => call.operation === "select");
+    expect(read?.filters).toContainEqual(["organization_id", "org-a"]);
+    expect(read?.filters).toContainEqual(["provider", CHATGPT_SUBSCRIPTION_PROVIDER]);
+  });
+
+  it("refresh forçado após 401 gira o token uma vez e nunca devolve o token rejeitado", async () => {
+    const db = bancoFalso();
+    await salvarCredencialSiwc({ admin: db.admin, organizationId: "org-a", userId: "u-a", envelope: envelope("sub-a") });
+    const renovar = vi.fn(async () => ({
+      accessToken: "rotated-access-token-0123456789",
+      refreshToken: "rotated-refresh-token-0123456789",
+      scopes: [...CHATGPT_SCOPES],
+      tokenType: "Bearer",
+      expiresAt: Date.now() + 3_600_000,
+    }));
+
+    const result = await obterAccessTokenSiwc({
+      admin: db.admin,
+      organizationId: "org-a",
+      forceRefresh: true,
+      renovar,
+    });
+
+    expect(renovar).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ ok: true, accessToken: "rotated-access-token-0123456789" });
+  });
+
+  it("dois refresh forçados concorrentes não reutilizam o token já rejeitado", async () => {
+    const db = bancoFalso();
+    await salvarCredencialSiwc({ admin: db.admin, organizationId: "org-a", userId: "u-a", envelope: envelope("sub-a") });
+    const renovar = vi.fn(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      return {
+        accessToken: "rotated-access-token-0123456789",
+        refreshToken: "rotated-refresh-token-0123456789",
+        scopes: [...CHATGPT_SCOPES],
+        tokenType: "Bearer",
+        expiresAt: Date.now() + 3_600_000,
+      };
+    });
+
+    const results = await Promise.all([
+      obterAccessTokenSiwc({ admin: db.admin, organizationId: "org-a", forceRefresh: true, renovar }),
+      obterAccessTokenSiwc({ admin: db.admin, organizationId: "org-a", forceRefresh: true, renovar }),
+    ]);
+
+    expect(renovar).toHaveBeenCalledTimes(1);
+    expect(results.filter((result) => result.ok)).toHaveLength(1);
+    expect(results.some((result) => !result.ok && result.error === "refresh_in_progress")).toBe(true);
+    expect(results.filter((result) => result.ok).every((result) => result.accessToken !== envelope("sub-a").access_token)).toBe(true);
+  });
+
+  it("reconnect invalida models_available antigo até buscar o catálogo novo", async () => {
+    const db = bancoFalso();
+    await salvarCredencialSiwc({ admin: db.admin, organizationId: "org-a", userId: "u-a", envelope: envelope("sub-a") });
+    db.rows[0]!.models_available = ["gpt-old"];
+
+    const result = await salvarCredencialSiwc({
+      admin: db.admin,
+      organizationId: "org-a",
+      userId: "u-a",
+      envelope: envelope("sub-a"),
+      expectedSubject: "sub-a",
+    });
+
+    expect(result).toMatchObject({ ok: true, reconnected: true });
+    expect(db.rows[0]!.models_available).toBeNull();
+    expect(await obterAccessTokenSiwc({ admin: db.admin, organizationId: "org-a" })).toMatchObject({
+      ok: true,
+      modelsAvailable: [],
+    });
+  });
+
   it("falha de refresh é tipada e conserva a credencial cifrada", async () => {
     const db = bancoFalso();
     await salvarCredencialSiwc({

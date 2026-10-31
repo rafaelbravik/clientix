@@ -19,6 +19,8 @@ import type pg from 'pg';
 import { z } from 'zod';
 
 import { byteaToBuffer, decryptKey } from '@/lib/crypto/aes_gcm';
+import { obterAccessTokenSiwc } from '@/lib/ai/credenciais/chatgpt-subscription';
+import { CHATGPT_SUBSCRIPTION_PROVIDER } from '@/lib/ai/credenciais/chatgpt-siwc';
 import {
   LIMIAR_PADRAO_PCT,
   normalizarChaveDeOrcamento,
@@ -28,6 +30,7 @@ import {
 } from './orcamento';
 import type { RaciocinioDeepseek } from './providers';
 import type { CacheTtl } from './stable-prefix';
+import { ChatGPTSubscriptionRuntimeError } from './subscription-runtime';
 
 /** Config da camada LLM montada do env validado (padrão crmEdgeConfigFromEnv). */
 export interface LlmEdgeConfig {
@@ -153,6 +156,8 @@ export type OrigemDaChaveLlm = 'credencial_da_organizacao' | 'chave_da_instalaca
 
 export interface OrgLlmConfig {
   provider: string;
+  /** Identidade da credencial selecionada; só presente nos providers que a consomem. */
+  credentialId?: string | null;
   /** plaintext decifrado — existe só em memória, jamais logado/persistido */
   apiKey: string;
   /**
@@ -332,6 +337,43 @@ export async function resolveOrgLlmConfig(
           limiarPct: Number(linha?.limiar_pct ?? LIMIAR_PADRAO_PCT),
         };
 
+  // A assinatura não é uma chave BYOK comum. O helper SIWC faz a leitura
+  // tenant-scoped, decifra o envelope OAuth, renova se necessário e devolve o
+  // catálogo dessa mesma credencial. Este ramo antecede o AES genérico e todas
+  // as escadas de OPENAI_API_KEY/provider `openai`.
+  if (provider === CHATGPT_SUBSCRIPTION_PROVIDER) {
+    const token = await obterAccessTokenSiwc({ organizationId });
+    if (!token.ok) {
+      const codigo =
+        token.error === 'feature_disabled'
+          ? 'subscription_feature_disabled'
+          : token.error === 'not_connected'
+            ? 'subscription_not_connected'
+            : token.error === 'credential_unreadable' || token.error === 'storage_failed'
+              ? 'subscription_credential_unavailable'
+              : 'subscription_token_refresh_failed';
+      throw new ChatGPTSubscriptionRuntimeError(codigo);
+    }
+    if (override?.credentialId && override.credentialId !== token.credentialId) {
+      throw new ChatGPTSubscriptionRuntimeError('subscription_credential_unavailable');
+    }
+
+    return {
+      provider,
+      credentialId: token.credentialId,
+      apiKey: token.accessToken,
+      origemDaChave: 'credencial_da_organizacao',
+      defaultModel: settings.default_model ?? null,
+      params: settings.params,
+      // Para assinatura, `models_available` é a única autoridade. Catálogo
+      // global e enabled_models de settings não podem liberar modelos na conta.
+      enabledModels: token.modelsAvailable,
+      orcamento,
+      orcamentoIndisponivelPorque,
+      baseUrl: null,
+    };
+  }
+
   // Credencial: a ESCOLHIDA na versão publicada quando houver (ainda exigindo
   // ativa+validada — publish valida, mas a credencial pode ser revogada depois);
   // senão a mais recente ativa/validada do provider. Sempre escopada pela org.
@@ -409,6 +451,7 @@ export async function resolveOrgLlmConfig(
 
   return {
     provider,
+    credentialId: cred?.id ?? null,
     apiKey,
     baseUrl,
     origemDaChave,

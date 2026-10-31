@@ -12,6 +12,11 @@ import { MockLanguageModelV3 } from 'ai/test';
 import { fetchParaDestinoDaOrganizacao } from '@/lib/automation/destinos-internos-autorizados';
 
 import { allowlistedFetch, buildAllowlist } from '../egress';
+import {
+  CHATGPT_SUBSCRIPTION_PROVIDER,
+  ChatGPTSubscriptionRuntimeError,
+  exigirResponseCompleted,
+} from './subscription-runtime';
 
 /**
  * provider name → (chave BYOK da org, id do modelo, endpoint opcional) → modelo
@@ -29,6 +34,13 @@ export type ProviderRegistry = Record<
   (apiKey: string, modelId: string, baseUrl?: string) => LanguageModel
 >;
 
+/** Providers registrados para o runtime, mas ainda não selecionáveis/publicáveis. */
+export const PROVEDORES_SOMENTE_RUNTIME: ReadonlySet<string> = new Set([
+  // A inferência SIWC está pronta para configuração sintética e catálogo da
+  // conta. A publicação continua bloqueada pela governança de schema.
+  CHATGPT_SUBSCRIPTION_PROVIDER,
+]);
+
 /**
  * Endpoint canônico do provider Anthropic (baseURL default do @ai-sdk/anthropic). NÃO é
  * um knob de política (a allowlist de política é a do egress.ts) — é o destino INTRÍNSECO
@@ -37,6 +49,7 @@ export type ProviderRegistry = Record<
  */
 const ANTHROPIC_ENDPOINT = 'https://api.anthropic.com';
 const OPENAI_ENDPOINT = 'https://api.openai.com';
+export const OPENAI_SUBSCRIPTION_BASE_URL = 'https://api.openai.com/v1';
 const GOOGLE_ENDPOINT = 'https://generativelanguage.googleapis.com';
 /**
  * A OpenRouter fala a API da OpenAI, então o provider `@ai-sdk/openai` conversa
@@ -242,6 +255,30 @@ export function createDefaultRegistry(opts?: {
       return allowlistedFetch(url, init, { allowlist: allow });
     };
   };
+  const fetchDaAssinatura = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    let url: URL;
+    try {
+      url = input instanceof URL ? input : new URL(typeof input === 'string' ? input : input.url);
+    } catch {
+      throw new ChatGPTSubscriptionRuntimeError('subscription_invalid_request');
+    }
+    const method = init?.method ?? (input instanceof Request ? input.method : 'GET');
+    if (
+      url.origin !== OPENAI_ENDPOINT ||
+      url.pathname !== '/v1/responses' ||
+      url.search.length > 0 ||
+      url.hash.length > 0 ||
+      url.username.length > 0 ||
+      url.password.length > 0 ||
+      method.toUpperCase() !== 'POST'
+    ) {
+      throw new ChatGPTSubscriptionRuntimeError('subscription_invalid_request');
+    }
+    const response = await allowlistedFetch(url, init, {
+      allowlist: buildAllowlist([OPENAI_ENDPOINT]),
+    });
+    return exigirResponseCompleted(response);
+  };
   return {
     anthropic: (apiKey, modelId) =>
       createAnthropic({ apiKey, fetch: contain(ANTHROPIC_ENDPOINT) })(modelId),
@@ -252,6 +289,16 @@ export function createDefaultRegistry(opts?: {
           ? comEsforcoDeRaciocinio(contido, esforcoOpenAI)
           : contido;
       return createOpenAI({ apiKey, fetch: fetchFinal })(modelId);
+    },
+    [CHATGPT_SUBSCRIPTION_PROVIDER]: (oauthAccessToken, modelId, baseUrl) => {
+      if (baseUrl !== undefined) {
+        throw new ChatGPTSubscriptionRuntimeError('subscription_invalid_request');
+      }
+      return createOpenAI({
+        apiKey: oauthAccessToken,
+        baseURL: OPENAI_SUBSCRIPTION_BASE_URL,
+        fetch: fetchDaAssinatura,
+      }).responses(modelId);
     },
     google: (apiKey, modelId) =>
       createGoogleGenerativeAI({ apiKey, fetch: contain(GOOGLE_ENDPOINT) })(modelId),

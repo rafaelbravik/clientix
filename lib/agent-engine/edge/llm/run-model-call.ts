@@ -16,10 +16,11 @@ import { guardServiceTools } from "@/lib/atendimento/fronteira-server";
  * cacheWriteTokens}. Validado no ai@7 via scripts/smoke-llm.sh (modelo real) —
  * upgrade de major re-valida esses paths pelo mesmo gate (regra dura 16).
  */
-import { generateText, stepCountIs, type ModelMessage, type ToolSet } from 'ai';
+import { generateText, stepCountIs, streamText, type ModelMessage, type ToolSet } from 'ai';
 import type pg from 'pg';
 import { z } from 'zod';
 
+import { obterAccessTokenSiwc, type ResultadoDeAccessTokenSiwc } from '@/lib/ai/credenciais/chatgpt-subscription';
 import { PONTO_POR_ID } from '@/lib/ai/pontos/registro';
 import { scrubMessage } from '@/lib/sentry/scrub';
 
@@ -38,6 +39,12 @@ import {
   type ChaveDeOrcamento,
 } from './orcamento';
 import { costCents } from './pricing';
+import {
+  CHATGPT_SUBSCRIPTION_PROVIDER,
+  ChatGPTSubscriptionRuntimeError,
+  classificarErroDaAssinatura,
+  eh401DaAssinatura,
+} from './subscription-runtime';
 import { chaveDeOrcamentoDaInstalacao } from '../../../instalacao/comportamento';
 import { createDefaultRegistry, type ProviderRegistry } from './providers';
 import { buildStablePrefix } from './stable-prefix';
@@ -240,6 +247,8 @@ export interface RunModelCallDeps {
    * surpresa em produção.
    */
   agora?: Date;
+  /** Override de teste do refresh SIWC; produção usa o CAS/lock da P0-1A. */
+  refreshSubscriptionToken?: (organizationId: string) => Promise<ResultadoDeAccessTokenSiwc>;
 }
 
 /**
@@ -566,7 +575,14 @@ export async function runModelCall(db: pg.Pool, cfg: LlmEdgeConfig, input: RunMo
         'organizations.settings.llm.default_model, ou passe input.model',
     );
   }
-  if (config.enabledModels.length > 0 && !config.enabledModels.includes(model)) {
+  if (
+    config.provider === CHATGPT_SUBSCRIPTION_PROVIDER
+      ? !config.enabledModels.includes(model)
+      : config.enabledModels.length > 0 && !config.enabledModels.includes(model)
+  ) {
+    if (config.provider === CHATGPT_SUBSCRIPTION_PROVIDER) {
+      throw new ChatGPTSubscriptionRuntimeError('subscription_model_not_available');
+    }
     throw new LlmModelNotEnabledError(model);
   }
   const factory = registry[config.provider];
@@ -616,6 +632,9 @@ export async function runModelCall(db: pg.Pool, cfg: LlmEdgeConfig, input: RunMo
     });
     if (erroOuNulo) throw erroOuNulo;
   }
+  if (config.provider === CHATGPT_SUBSCRIPTION_PROVIDER && (decisao.baseUrl || config.baseUrl)) {
+    throw new ChatGPTSubscriptionRuntimeError('subscription_invalid_request');
+  }
 
   // ═══ O TETO, LOGO ANTES DE SAIR BYTE ═══
   //
@@ -657,18 +676,12 @@ export async function runModelCall(db: pg.Pool, cfg: LlmEdgeConfig, input: RunMo
 
   const startedAt = Date.now();
   let result: Awaited<ReturnType<typeof generateText>>;
+  let configDaChamada = config;
   try {
     input.abortSignal?.throwIfAborted();
-    // `system` aceita SystemModelMessage (com providerOptions de cache) — igual
-    // em v6 e v7 (smoke prova que o cacheControl continua virando cache_control).
-    result = await generateText({
-      // `decisao.baseUrl` só é preenchido quando o painel apontou um endpoint
-      // (gateway OpenAI-compatível, ou modelo local). Providers canônicos
-      // ignoram o terceiro argumento e vão ao endpoint intrínseco.
-      // `config.baseUrl` é o da PRÓPRIA credencial e só o provedor personalizado
-      // (#1642) tem um: o endereço nasce junto da chave, então o agente
-      // publicado nele alcança o mesmo gateway que a tela testou ao salvar.
-      model: factory(config.apiKey, model, decisao.baseUrl ?? config.baseUrl ?? undefined),
+    const opcoesBase = {
+      // `system` aceita SystemModelMessage (com providerOptions de cache) — igual
+      // em v6 e v7. A assinatura ignora o namespace Anthropic do prefixo estável.
       system: prefix.system,
       messages: input.messages,
       abortSignal: input.abortSignal,
@@ -679,13 +692,91 @@ export async function runModelCall(db: pg.Pool, cfg: LlmEdgeConfig, input: RunMo
           : input.pararQuando === undefined
             ? stepCountIs(input.maxSteps)
             : [stepCountIs(input.maxSteps), input.pararQuando],
-      temperature,
-      topP,
-      topK,
-      maxOutputTokens: input.maxOutputTokens === undefined
-        ? maxOutputTokens
-        : Math.min(maxOutputTokens ?? Infinity, input.maxOutputTokens),
-    });
+    };
+
+    const chamarModelo = async (): Promise<Awaited<ReturnType<typeof generateText>>> => {
+      if (config.provider !== CHATGPT_SUBSCRIPTION_PROVIDER) {
+        return generateText({
+          ...opcoesBase,
+          model: factory(configDaChamada.apiKey, model, decisao.baseUrl ?? configDaChamada.baseUrl ?? undefined),
+          temperature,
+          topP,
+          topK,
+          maxOutputTokens: input.maxOutputTokens === undefined
+            ? maxOutputTokens
+            : Math.min(maxOutputTokens ?? Infinity, input.maxOutputTokens),
+        });
+      }
+
+      // SIWC exige Responses API em streaming e `store:false`. O stream é
+      // consumido por completo antes de retornar ao contrato síncrono do motor;
+      // opções de amostragem genéricas não são propagadas para a assinatura.
+      let erroOriginalDoStream: unknown = null;
+      const streamed = streamText({
+        ...opcoesBase,
+        model: factory(configDaChamada.apiKey, model, decisao.baseUrl ?? configDaChamada.baseUrl ?? undefined),
+        providerOptions: { openai: { store: false } },
+        onError: ({ error }) => {
+          erroOriginalDoStream = error;
+        },
+      });
+
+      try {
+        await streamed.consumeStream();
+        if (erroOriginalDoStream !== null) throw erroOriginalDoStream;
+        const [text, usage, response, steps, responseMessages, toolCalls, finishReason] = await Promise.all([
+          streamed.text,
+          streamed.usage,
+          streamed.response,
+          streamed.steps,
+          streamed.responseMessages,
+          streamed.toolCalls,
+          streamed.finishReason,
+        ]);
+        const resultadoDoStream = {
+          text,
+          usage,
+          response: { ...response, messages: responseMessages },
+          responseMessages,
+          steps,
+          toolCalls,
+          finishReason,
+        };
+        return resultadoDoStream as unknown as Awaited<ReturnType<typeof generateText>>;
+      } catch (erro) {
+        throw classificarErroDaAssinatura(erroOriginalDoStream ?? erro);
+      }
+    };
+
+    try {
+      result = await chamarModelo();
+    } catch (erroInicial) {
+      const erroSeguro = classificarErroDaAssinatura(erroInicial);
+      if (config.provider !== CHATGPT_SUBSCRIPTION_PROVIDER || !eh401DaAssinatura(erroSeguro)) {
+        throw config.provider === CHATGPT_SUBSCRIPTION_PROVIDER ? erroSeguro : erroInicial;
+      }
+
+      // Um único refresh/retry de autenticação. A helper da P0-1A usa lock e
+      // compare-and-swap; se outro processo já renovou, só aceita token novo.
+      const renovar = deps.refreshSubscriptionToken ?? ((organizationId: string) =>
+        obterAccessTokenSiwc({ organizationId, forceRefresh: true }));
+      const renovacao = await renovar(input.tenantId);
+      if (!renovacao.ok) {
+        throw new ChatGPTSubscriptionRuntimeError('subscription_token_refresh_failed', 401);
+      }
+      if (renovacao.accessToken === configDaChamada.apiKey) {
+        throw new ChatGPTSubscriptionRuntimeError('subscription_token_refresh_failed', 401);
+      }
+      if (!renovacao.modelsAvailable.includes(model)) {
+        throw new ChatGPTSubscriptionRuntimeError('subscription_model_not_available');
+      }
+      configDaChamada = { ...configDaChamada, apiKey: renovacao.accessToken, enabledModels: renovacao.modelsAvailable };
+      try {
+        result = await chamarModelo();
+      } catch (erroFinal) {
+        throw classificarErroDaAssinatura(erroFinal);
+      }
+    }
   } catch (err) {
     // ─── A LINHA QUE FALTAVA ────────────────────────────────────────────────
     //
@@ -732,7 +823,10 @@ export async function runModelCall(db: pg.Pool, cfg: LlmEdgeConfig, input: RunMo
   // O TTL é o MESMO que gravou o prefixo estável acima: a gravação de cache custa
   // 1.25× a entrada em 5m e 2× em 1h, e supor a doutrina superfaturaria 60% da
   // parcela de cache write em quem usa o knob.
-  const cost = costCents(model, usage, cfg.cacheTtl ?? '1h');
+  // OAuth da assinatura não é consumo de API paga; nunca estime custo da chave.
+  const cost = config.provider === CHATGPT_SUBSCRIPTION_PROVIDER
+    ? null
+    : costCents(model, usage, cfg.cacheTtl ?? '1h');
 
   const { rows } = await db.query<{ id: string }>(
     `insert into llm_calls
@@ -771,6 +865,7 @@ export async function runModelCall(db: pg.Pool, cfg: LlmEdgeConfig, input: RunMo
     // pegou. Vira coluna em llm_calls na frente de logs.
     origem_da_escolha: decisao.origem,
     ...usage,
+    ...(config.provider === CHATGPT_SUBSCRIPTION_PROVIDER ? { steps_count: result.steps.length } : {}),
     cost_cents: cost,
     latency_ms: latencyMs,
   });
@@ -838,6 +933,13 @@ export function normalizarErro(err: unknown): {
       error_code: 'endereco_exige_chave_da_empresa',
       error_message: redigirMensagemDoProvedor(bruto),
       http_status: null,
+    };
+  }
+  if (err instanceof ChatGPTSubscriptionRuntimeError) {
+    return {
+      error_code: err.code,
+      error_message: err.message,
+      http_status: err.statusCode,
     };
   }
 
