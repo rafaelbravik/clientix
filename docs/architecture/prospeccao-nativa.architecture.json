@@ -113,6 +113,34 @@
       "label": "data.site por organização; falha provisória preserva fato definitivo"
     },
     {
+      "id": "site-strategy",
+      "lane": "app",
+      "col": 3,
+      "type": "component",
+      "label": "Estratégia determinística por classe e códigos fechados da auditoria"
+    },
+    {
+      "id": "site-preview-action",
+      "lane": "app",
+      "col": 4,
+      "type": "component",
+      "label": "Prévia manual autenticada; rate limit, lock e agente publicado da organização"
+    },
+    {
+      "id": "site-preview-runtime",
+      "lane": "engine",
+      "col": 5,
+      "type": "component",
+      "label": "runModelCall canônico; budget e uso normais; sem tools ou envio"
+    },
+    {
+      "id": "site-preview-jsonb",
+      "lane": "db",
+      "col": 4,
+      "type": "component",
+      "label": "data.previa versionada com fingerprint da auditoria e versão do agente"
+    },
+    {
       "id": "crm",
       "lane": "app",
       "col": 3,
@@ -256,6 +284,36 @@
       "from": "site-audit-jsonb",
       "to": "candidates",
       "label": "merge tenant-scoped em data.site"
+    },
+    {
+      "from": "candidates",
+      "to": "site-strategy",
+      "label": "derivar somente de classe, fatos fechados e data verificada"
+    },
+    {
+      "from": "site-strategy",
+      "to": "site-preview-action",
+      "label": "estratégia determinística separada de fatos externos"
+    },
+    {
+      "from": "operator",
+      "to": "site-preview-action",
+      "label": "gerar prévia manual para revisão; sem envio automático"
+    },
+    {
+      "from": "site-preview-action",
+      "to": "site-preview-runtime",
+      "label": "agente publicado da mesma organização; prospecto marcado não confiável no user"
+    },
+    {
+      "from": "site-preview-runtime",
+      "to": "site-preview-jsonb",
+      "label": "texto curto validado; erro não altera auditoria"
+    },
+    {
+      "from": "site-preview-jsonb",
+      "to": "candidates",
+      "label": "salvar somente data.previa; fingerprint invalida ao mudar site ou versão"
     },
     {
       "from": "crm",

@@ -3,18 +3,18 @@ import { searchSchema, safePublicLink } from "./schema";
 import { sitePreparationOptions } from "./site-options";
 
 describe("opções persistidas para preparação de sites", () => {
-  it("usa avaliar_site=true por padrão e mantém prévia desligada até a wave própria", () => {
+  it("liga avaliação para busca nova, mantém preview antigo ausente desligado e exige avaliação", () => {
     expect(sitePreparationOptions(undefined)).toEqual({ avaliarSite: true, gerarPrevia: false });
     expect(sitePreparationOptions({ })).toEqual({ avaliarSite: true, gerarPrevia: false });
     expect(sitePreparationOptions({ avaliar_site: false, gerar_previa: true })).toEqual({ avaliarSite: false, gerarPrevia: false });
     expect(sitePreparationOptions({ avaliar_site: true, gerar_previa: true })).toEqual({ avaliarSite: true, gerarPrevia: true });
   });
 
-  it("persiste as opções tipadas no JSON da busca sem tornar o preview obrigatório", () => {
+  it("busca nova grava preview habilitado sem auto-gerar nesta wave", () => {
     const parsed = searchSchema.parse({ name: "Busca", niche: "clínica", location: "São Paulo", enrich: true });
     expect(parsed.avaliar_site).toBe(true);
-    expect(parsed.gerar_previa).toBeUndefined();
-    expect(sitePreparationOptions(parsed)).toEqual({ avaliarSite: true, gerarPrevia: false });
+    expect(parsed.gerar_previa).toBe(true);
+    expect(sitePreparationOptions(parsed)).toEqual({ avaliarSite: true, gerarPrevia: true });
   });
 
   it("só oferece links externos http(s) sem userinfo nem IP literal privado", () => {

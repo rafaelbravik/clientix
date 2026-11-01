@@ -31,6 +31,7 @@ const search: SearchInput = {
   budget_usd: 1,
   enrich: true,
   avaliar_site: true,
+  gerar_previa: true,
 };
 
 function databaseFor(org: string, provider: "apify" | "local-http", cipher?: Buffer) {

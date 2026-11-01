@@ -3433,3 +3433,20 @@ A tela de prospecção mostra o resultado da auditoria no próprio candidato e p
 | Desktop 1440×900 | Reanálise inconclusiva preserva o resultado anterior | [desktop-1440x900-reanalyze-error.png](../../evidence/p0-prospecting-b/desktop-1440x900-reanalyze-error.png) | PASS |
 
 Não houve overflow horizontal, erro de console, falha de rede ou requisição externa em qualquer captura. O botão foi exercitado em estado sintético; o harness bloqueou toda origem fora de `127.0.0.1`.
+
+## J49 — Revisar estratégia e prévia de abordagem da prospecção `[P0-2C]` (2026-11-01)
+
+A estratégia usa classes e motivos fechados da auditoria; resultados provisórios aparecem como verificação pendente. A prévia usa o agente publicado da organização pelo runtime canônico, fica salva separada da auditoria e não envia mensagem. Conteúdo do prospect e do site fica isolado no bloco de dados externos não confiáveis. As capturas usam dados sintéticos; nenhuma chamada OpenAI, Apify, Google ou de site externo foi feita.
+
+| Viewport | Estado sintético | Captura | Resultado |
+|---|---|---|---|
+| Desktop 1440×900 | Estratégia definida e prévia pronta para revisão | [desktop-1440x900-preview-ready.png](../../evidence/p0-prospecting-c/desktop-1440x900-preview-ready.png) | PASS |
+| Desktop 1440×900 | Sem site informado; estratégia sem afirmação de resultado comercial | [desktop-1440x900-strategy-no-site.png](../../evidence/p0-prospecting-c/desktop-1440x900-strategy-no-site.png) | PASS |
+| Desktop 1440×900 | Auditoria provisória, sem afirmação negativa; geração manual disponível | [desktop-1440x900-audit-pending.png](../../evidence/p0-prospecting-c/desktop-1440x900-audit-pending.png) | PASS |
+| Desktop 1440×900 | Prévia desatualizada após mudança de auditoria/versão do agente | [desktop-1440x900-preview-stale.png](../../evidence/p0-prospecting-c/desktop-1440x900-preview-stale.png) | PASS |
+| Desktop 1440×900 | Erro ao gerar prévia sem apagar a auditoria | [desktop-1440x900-preview-error.png](../../evidence/p0-prospecting-c/desktop-1440x900-preview-error.png) | PASS |
+| Tablet 768×1024 | Prévia pronta, texto legível e revisão manual | [tablet-768x1024-preview-ready.png](../../evidence/p0-prospecting-c/tablet-768x1024-preview-ready.png) | PASS |
+| Mobile 390×844 | Prévia pronta, sem overflow horizontal | [mobile-390x844-preview-ready.png](../../evidence/p0-prospecting-c/mobile-390x844-preview-ready.png) | PASS |
+| Mobile 390×844 com rolagem | Prévia e ação de geração acessíveis na tela estreita | [mobile-390x844-preview-ready-scroll.png](../../evidence/p0-prospecting-c/mobile-390x844-preview-ready-scroll.png) | PASS |
+
+Os estados sem site, pendente, pronta, desatualizada e erro foram montados com dados sintéticos. O único tráfego foi para o harness local; não houve erro de console, erro de rede nem request externo.

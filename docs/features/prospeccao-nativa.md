@@ -65,6 +65,16 @@ A ativação cria contatos e negócios usando os handlers existentes. Telefones 
 
 Há uma campanha ativa por organização, até 50 tentativas em 24 horas no conjunto das campanhas, e intervalo mínimo de cinco minutos. Falhas e envios incertos consomem o limite. A janela do número, modo de teste, versão do agente, fechamento do atendimento, recusa, pausa e intervenção humana continuam ativos. Pausar interrompe novas abordagens; uma transmissão já iniciada pode concluir.
 
+### Estratégia e prévia de abordagem (P0-2C)
+
+Cada candidato mostra uma estratégia determinística derivada das classes e dos códigos fechados da auditoria. Um resultado provisório ou não citável aparece como verificação pendente e não vira argumento comercial. Quando um fato da auditoria é citado, a data da medição acompanha o texto. O resumo e os fatos extraídos do site continuam sendo conteúdo externo não confiável; texto livre do site não define estratégia nem instruções do sistema.
+
+O administrador pode pedir manualmente uma prévia usando o agente publicado, ativo e automático da campanha, pelo runtime canônico de IA. A chamada conserva o tenant, o orçamento, o registro de uso e `llm_calls`; não recebe ferramentas e não envia mensagens. A resposta é validada como texto simples de até 1.200 caracteres. Erro de geração não muda o estado da busca nem apaga a auditoria.
+
+A prévia fica em `prospecting_candidates.data.previa`, separada de `data.site`, com fingerprint da URL/auditoria e a versão publicada do agente. Se a auditoria ou a versão do agente mudar, o texto anterior é marcado como desatualizado e precisa ser gerado novamente. A geração manual tem limite por organização e candidato e não inicia preparo em lote; a próxima wave decide qualquer automação.
+
+**Continuidade do sistema:** entrada = botão manual do administrador em `/app/prospecting`; processamento = rota tenant-scoped, rate limit por organização/candidato e lock PostgreSQL por candidato; saída = prévia validada em `data.previa` e evento `prospecting.changed` sem conteúdo; superfície = estratégia, estado atual/desatualizado e erro no próprio candidato; retorno após falha = auditoria permanece visível, e mudança de auditoria/versão invalida o texto e pede uma nova revisão manual.
+
 ## Operação e recuperação
 
 - Scheduler chama `/api/v1/cron/prospecting` a cada minuto, com segredo interno. Atualize a imagem do scheduler junto da aplicação. Em desenvolvimento, `pnpm dev:crons` inclui a mesma rota.

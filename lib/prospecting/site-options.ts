@@ -1,4 +1,4 @@
-/** Shared defaults for the search JSONB flags; preview remains opt-in until its own wave. */
+/** Shared defaults for new search requests and older persisted search JSON. */
 export interface SitePreparationOptions {
   avaliarSite: boolean;
   gerarPrevia: boolean;

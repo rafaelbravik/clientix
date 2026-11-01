@@ -15,6 +15,9 @@ import { useActiveOrg } from "@/hooks/auth/AuthProvider";
 import { safePublicLink, type CampaignConfig, type Prospect } from "@/lib/prospecting/schema";
 import type { SiteAuditResult } from "@/lib/prospecting/site-classify";
 import { SiteAudit } from "@/components/prospecting/SiteAudit";
+import { StrategyPreview } from "@/components/prospecting/StrategyPreview";
+import type { EstrategiaDoCandidato } from "@/lib/prospecting/estrategia-site";
+import type { PreviaSalva } from "@/lib/prospecting/previa";
 import type {
   ProspectingProviderName,
   ProspectingProviderStatus,
@@ -42,6 +45,10 @@ type Candidate = {
   message_status: string | null;
   error: string | null;
   conversation_id: string | null;
+  agent_version_id: string | null;
+  strategy: EstrategiaDoCandidato;
+  preview: PreviaSalva | null;
+  preview_state: "none" | "ready" | "stale";
 };
 type State = {
   configured: boolean;
@@ -113,6 +120,8 @@ export function ProspectingClient() {
   const [campaignDrafts, setCampaignDrafts] = useState<Record<string, CampaignConfig>>({});
   const [manualCampaigns, setManualCampaigns] = useState<Record<string, boolean>>({});
   const [createdAgents, setCreatedAgents] = useState<{ id: string; name: string }[]>([]);
+  const [previewBusy, setPreviewBusy] = useState<Record<string, boolean>>({});
+  const [previewErrors, setPreviewErrors] = useState<Record<string, string | null>>({});
   const campaign = data?.campaigns.find((c) => c.id === selected) ?? data?.campaigns[0];
   const canSearch = data?.provider === "apify" && data.provider_status === "apify_ready";
   // A stored config is frozen by activation; unsaved choices belong to one campaign.
@@ -178,6 +187,21 @@ export function ProspectingClient() {
       return false;
     } finally {
       setBusy(false);
+    }
+  }
+  async function generatePreview(candidateId: string) {
+    setPreviewBusy((current) => ({ ...current, [candidateId]: true }));
+    setPreviewErrors((current) => ({ ...current, [candidateId]: null }));
+    try {
+      await apiClient.post("/api/v1/prospecting", { action: "gerar_previa", candidate_id: candidateId });
+      await query.refetch();
+    } catch (e) {
+      setPreviewErrors((current) => ({
+        ...current,
+        [candidateId]: e instanceof Error ? e.message : t("Não foi possível gerar a prévia."),
+      }));
+    } finally {
+      setPreviewBusy((current) => ({ ...current, [candidateId]: false }));
     }
   }
   const update = <K extends keyof CampaignConfig>(field: K, value: CampaignConfig[K]) =>
@@ -935,6 +959,14 @@ export function ProspectingClient() {
                                     t("Auditoria do site atualizada."),
                                   )
                                 }
+                              />
+                              <StrategyPreview
+                                strategy={c.strategy}
+                                preview={c.preview}
+                                previewState={c.preview_state}
+                                busy={!!previewBusy[c.id]}
+                                error={previewErrors[c.id] ?? null}
+                                onGenerate={() => void generatePreview(c.id)}
                               />
                               <p className="mt-1 text-xs text-muted-foreground">
                                 {c.data.rating ?? "—"} ★ · {c.data.reviews ?? 0} {t("avaliações")}

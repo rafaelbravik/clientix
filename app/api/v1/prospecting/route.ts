@@ -29,6 +29,14 @@ import {
   type Campaign,
 } from "@/lib/prospecting/store";
 import { reanalyzeCandidateSite } from "@/lib/prospecting/site-store";
+import { estrategiaDoCandidato } from "@/lib/prospecting/estrategia-site";
+import { previaAtual } from "@/lib/prospecting/previa";
+import { gerarPreviaDoCandidato } from "@/lib/prospecting/previa-gerar";
+import {
+  carregarCandidatoParaPrevia,
+  salvarPreviaDoCandidato,
+  withPreviewCandidateLock,
+} from "@/lib/prospecting/previa-store";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -57,7 +65,7 @@ export async function GET() {
         [org],
       ),
       db.query(
-        "select p.id,p.campaign_id,p.data,p.status,p.error,p.lead_id,p.conversation_id,p.attempted_at,m.status as message_status,case when l.stage_id::text=c.config->>'qualified_stage_id' then 'qualified' when v.last_inbound_at is not null then 'replied' else p.status end as progress from prospecting_candidates p join prospecting_campaigns c on c.organization_id=p.organization_id and c.id=p.campaign_id left join crm_leads l on l.organization_id=p.organization_id and l.id=p.lead_id left join conversations v on v.organization_id=p.organization_id and v.id=p.conversation_id left join messages m on m.organization_id=p.organization_id and m.id=p.message_id where p.organization_id=$1 order by p.created_at desc limit 5000",
+        "select p.id,p.campaign_id,p.data,p.status,p.error,p.lead_id,p.contact_id,p.conversation_id,p.attempted_at,m.status as message_status,aa.published_version_id::text as agent_version_id,case when l.stage_id::text=c.config->>'qualified_stage_id' then 'qualified' when v.last_inbound_at is not null then 'replied' else p.status end as progress from prospecting_candidates p join prospecting_campaigns c on c.organization_id=p.organization_id and c.id=p.campaign_id left join ai_agents aa on aa.organization_id=c.organization_id and aa.id::text=c.config->>'agent_id' left join crm_leads l on l.organization_id=p.organization_id and l.id=p.lead_id left join conversations v on v.organization_id=p.organization_id and v.id=p.conversation_id left join messages m on m.organization_id=p.organization_id and m.id=p.message_id where p.organization_id=$1 order by p.created_at desc limit 5000",
         [org],
       ),
       db.query(
@@ -94,7 +102,23 @@ export async function GET() {
         provider,
         provider_status: providerStatusValue,
         campaigns: campaigns.rows,
-        candidates: candidates.rows,
+        candidates: candidates.rows.map((candidate) => {
+          const candidateData = candidate.data && typeof candidate.data === "object"
+            ? candidate.data as Record<string, unknown>
+            : {};
+          const strategy = estrategiaDoCandidato(
+            candidateData as Parameters<typeof estrategiaDoCandidato>[0],
+            new Date().toISOString(),
+          );
+          const rawPreview = candidateData.previa;
+          const currentPreview = previaAtual(rawPreview, candidateData, candidate.agent_version_id);
+          return {
+            ...candidate,
+            strategy,
+            preview: currentPreview,
+            preview_state: rawPreview ? (currentPreview ? "ready" : "stale") : "none",
+          };
+        }),
         agents: agents.rows,
         channels: channels.rows.filter((c) => {
           try {
@@ -164,6 +188,45 @@ export async function POST(req: Request) {
         class: reanalyzed.site.classe,
         provisional: reanalyzed.site.provisorio,
       };
+    }
+    else if (body.action === "gerar_previa") {
+      const porCandidato = await checkRateLimit(
+        `prospecting:preview:${org}:${body.candidate_id}`,
+        5,
+        60 * 60,
+      );
+      const porOrganizacao = await checkRateLimit(`prospecting:preview-org:${org}`, 60, 60 * 60);
+      if (!porCandidato.allowed || !porOrganizacao.allowed) {
+        throw new ProspectingError(
+          "Muitas prévias foram solicitadas. Tente novamente mais tarde.",
+          429,
+          "candidato",
+          "preview_rate_limited",
+        );
+      }
+      result = await withPreviewCandidateLock(pool, org, body.candidate_id, async () => {
+        const candidate = await carregarCandidatoParaPrevia(pool, org, body.candidate_id);
+        const generated = await gerarPreviaDoCandidato(pool, org, candidate);
+        const candidateData = candidate.data && typeof candidate.data === "object"
+          ? candidate.data as Record<string, unknown>
+          : {};
+        await salvarPreviaDoCandidato(pool, {
+          organizationId: org,
+          campaignId: candidate.campaign_id,
+          candidateId: candidate.id,
+          expectedWebsite: typeof candidateData.website === "string" ? candidateData.website : null,
+          expectedSiteJson: candidateData.site === undefined ? null : JSON.stringify(candidateData.site),
+          previa: generated.previa,
+        });
+        auditMetadata = {
+          operation: body.action,
+          agent_id: generated.previa.agente_id,
+          agent_version_id: generated.previa.agente_versao_id,
+          provider: generated.previa.provider,
+          status: "generated",
+        };
+        return { previa: generated.previa, strategy: generated.estrategia };
+      });
     }
     else if (body.action === "start")
       result = await activateCampaign(pool, admin, org, body.id, body.config);

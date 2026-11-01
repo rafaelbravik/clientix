@@ -24,7 +24,9 @@ export const searchSchema = z
     budget_usd: z.number().min(0.5).max(10).default(1),
     enrich: z.boolean().default(true),
     avaliar_site: z.boolean().default(true),
-    gerar_previa: z.boolean().optional(),
+    // New searches opt into previews; persisted older JSON without this key
+    // stays opt-out through sitePreparationOptions.
+    gerar_previa: z.boolean().default(true),
   })
   .strict();
 export const prospectingInputSchema = z.discriminatedUnion("action", [
@@ -44,6 +46,7 @@ export const prospectingInputSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("pause"), id: z.string().uuid() }).strict(),
   z.object({ action: z.literal("resume"), id: z.string().uuid() }).strict(),
   z.object({ action: z.literal("reanalisar_site"), candidate_id: z.string().uuid() }).strict(),
+  z.object({ action: z.literal("gerar_previa"), candidate_id: z.string().uuid() }).strict(),
 ]);
 export type CampaignConfig = z.infer<typeof campaignConfigSchema>;
 export type SearchInput = z.infer<typeof searchSchema>;

@@ -10,6 +10,7 @@ vi.mock("@/hooks/auth/AuthProvider", () => ({ useActiveOrg: () => ({ orgId: "org
 
 import { ProspectingClient } from "@/app/app/prospecting/_client";
 import { ApiError } from "@/lib/api/types";
+import { estrategiaDoCandidato } from "@/lib/prospecting/estrategia-site";
 import type { AgentSessionResponse } from "@/lib/prospecting/agent-session-schema";
 
 const CAMPAIGN = "11111111-1111-4111-8111-111111111111";
@@ -71,6 +72,9 @@ function fixture() {
       message_status: null,
       error: null,
       conversation_id: null,
+      strategy: STRATEGY_NO_SITE,
+      preview: null,
+      preview_state: "none" as const,
       data: {
         name: "Empresa de teste",
         category: "Serviços",
@@ -98,6 +102,7 @@ const CREATE = "/api/v1/prospecting/agents";
 const PREPARE = `${CREATE}/prepare`;
 const SESSION = `${CREATE}/session`;
 const VERSION = "66666666-6666-4666-8666-666666666666";
+const STRATEGY_NO_SITE = estrategiaDoCandidato({ website: null });
 let chatReply: typeof api.post;
 let createReply: typeof api.post;
 let prepareReply: typeof api.post;

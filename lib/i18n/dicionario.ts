@@ -524,6 +524,118 @@ export const DICIONARIO: Traducoes = {
   "Auditoria do site ainda não realizada.": { es: "La auditoría del sitio aún no se ha realizado." },
   "Verificar site": { es: "Verificar sitio" },
   "Auditoria do site": { es: "Auditoría del sitio" },
+  "Estratégia": { es: "Estrategia" },
+  "Estratégia e prévia": { es: "Estrategia y borrador" },
+  "Verificado em": { es: "Verificado el" },
+  "Possíveis ganchos": { es: "Posibles temas de conversación" },
+  "Objeções possíveis": { es: "Posibles objeciones" },
+  "Próximo passo:": { es: "Próximo paso:" },
+  "Prévia de abordagem": { es: "Borrador de acercamiento" },
+  "Atual": { es: "Actual" },
+  "Desatualizada": { es: "Desactualizado" },
+  "Gerar prévia": { es: "Generar borrador" },
+  "Gerar nova prévia": { es: "Generar un nuevo borrador" },
+  "A auditoria ou a versão do agente mudou. Gere uma nova prévia antes de usar o texto anterior.": {
+    es: "La auditoría o la versión del agente cambió. Genera un nuevo borrador antes de usar el texto anterior.",
+  },
+  "A prévia é um rascunho para revisão. Nenhuma mensagem é enviada.": {
+    es: "El borrador es para revisión. No se envía ningún mensaje.",
+  },
+  "Não foi possível gerar a prévia. A auditoria continua disponível.": {
+    es: "No fue posible generar el borrador. La auditoría sigue disponible.",
+  },
+  "Não foi possível gerar a prévia.": { es: "No fue posible generar el borrador." },
+  "Verificação pendente": { es: "Verificación pendiente" },
+  "Link de rede ou diretório": { es: "Enlace de red o directorio" },
+  "Site medido sem os sinais avaliados": { es: "Sitio verificado sin las señales evaluadas" },
+  "Ponto técnico medido": { es: "Punto técnico medido" },
+  "Endereço não respondeu à medição": { es: "La dirección no respondió a la medición" },
+  "A verificação não confirmou um ponto que possa ser citado. Não afirme um defeito do site.": {
+    es: "La verificación no confirmó un punto que se pueda mencionar. No afirmes que el sitio tiene un defecto.",
+  },
+  "O cadastro não trouxe um site próprio. Apresente a possibilidade de ter uma página própria como opção, sem prometer mais clientes ou resultados.": {
+    es: "El registro no incluye un sitio propio. Presenta la posibilidad de tener una página propia como opción, sin prometer más clientes ni resultados.",
+  },
+  "O link cadastrado leva a uma rede ou diretório, não a um site próprio. Trate um site próprio como possibilidade complementar, sem desvalorizar os canais atuais.": {
+    es: "El enlace registrado lleva a una red social o directorio, no a un sitio propio. Presenta un sitio propio como opción complementaria, sin restar valor a los canales actuales.",
+  },
+  "A medição não encontrou os sinais técnicos avaliados. Não apresente uma abordagem de conserto; se houver conversa, trate-a como exploração de objetivos futuros.": {
+    es: "La medición no encontró las señales técnicas evaluadas. No enfoques la conversación como una reparación; si conversan, explora objetivos futuros.",
+  },
+  "A medição não encontrou a configuração de viewport para celular. Apresente como observação pontual e confirme se a empresa reconhece essa necessidade, sem prometer resultados.": {
+    es: "La medición no encontró la configuración de vista para celular. Preséntalo como una observación puntual y confirma si la empresa reconoce esta necesidad, sin prometer resultados.",
+  },
+  "A página apresentou pouco conteúdo visível na medição. Apresente como observação pontual e confirme se a empresa reconhece essa necessidade, sem prometer resultados.": {
+    es: "La página mostró poco contenido visible en la medición. Preséntalo como una observación puntual y confirma si la empresa reconoce esta necesidad, sin prometer resultados.",
+  },
+  "A resposta da página levou mais de cinco segundos na medição. Apresente como observação pontual e confirme se a empresa reconhece essa necessidade, sem prometer resultados.": {
+    es: "La página tardó más de cinco segundos en responder durante la medición. Preséntalo como una observación puntual y confirma si la empresa reconoce esta necesidad, sin prometer resultados.",
+  },
+  "A página carregou ao menos um recurso por uma conexão sem criptografia. Apresente como observação pontual e confirme se a empresa reconhece essa necessidade, sem prometer resultados.": {
+    es: "La página cargó al menos un recurso mediante una conexión sin cifrar. Preséntalo como una observación puntual y confirma si la empresa reconoce esta necesidad, sin prometer resultados.",
+  },
+  "O endereço abriu sem redirecionar para a versão com conexão segura. Apresente como observação pontual e confirme se a empresa reconhece essa necessidade, sem prometer resultados.": {
+    es: "La dirección abrió sin redirigir a la versión con conexión segura. Preséntalo como una observación puntual y confirma si la empresa reconoce esta necesidad, sin prometer resultados.",
+  },
+  "A medição não encontrou uma versão com conexão segura. Apresente como observação pontual e confirme se a empresa reconhece essa necessidade, sem prometer resultados.": {
+    es: "La medición no encontró una versión con conexión segura. Preséntalo como una observación puntual y confirma si la empresa reconoce esta necesidad, sin prometer resultados.",
+  },
+  "A medição identificou um construtor de páginas; isso, por si só, não prova um defeito. Apresente como observação pontual e confirme se a empresa reconhece essa necessidade, sem prometer resultados.": {
+    es: "La medición identificó un creador de páginas; esto por sí solo no demuestra un defecto. Preséntalo como una observación puntual y confirma si la empresa reconoce esta necesidad, sin prometer resultados.",
+  },
+  "A auditoria registrou um ponto técnico que pode ser revisto com a empresa. Apresente como observação pontual e confirme se a empresa reconhece essa necessidade, sem prometer resultados.": {
+    es: "La auditoría registró un punto técnico que se puede revisar con la empresa. Preséntalo como una observación puntual y confirma si la empresa reconoce esta necesidad, sin prometer resultados.",
+  },
+  "A validação do certificado de segurança falhou na medição. Comunique isso como observação de cortesia, sem exagerar consequências.": {
+    es: "La validación del certificado de seguridad falló durante la medición. Comunícalo como una observación de cortesía, sin exagerar las consecuencias.",
+  },
+  "A medição conclusiva não conseguiu acessar o endereço. Trate como aviso de cortesia e confirme com a empresa antes de propor uma correção.": {
+    es: "La medición concluyente no pudo acceder a la dirección. Avísalo con cortesía y confirma la situación con la empresa antes de proponer una corrección.",
+  },
+  "Perguntar se a empresa já considera ter uma página própria.": { es: "Preguntar si la empresa ya considera tener una página propia." },
+  "Perguntar se a empresa já avaliou uma página própria além dos canais atuais.": {
+    es: "Preguntar si la empresa ya evaluó tener una página propia además de sus canales actuales.",
+  },
+  "Perguntar quais objetivos digitais a empresa gostaria de priorizar.": {
+    es: "Preguntar qué objetivos digitales le gustaría priorizar a la empresa.",
+  },
+  "A medição não encontrou a configuração de viewport para celular.": { es: "La medición no encontró la configuración de vista para celular." },
+  "A página apresentou pouco conteúdo visível na medição.": { es: "La página mostró poco contenido visible en la medición." },
+  "A resposta da página levou mais de cinco segundos na medição.": { es: "La página tardó más de cinco segundos en responder durante la medición." },
+  "A página carregou ao menos um recurso por uma conexão sem criptografia.": { es: "La página cargó al menos un recurso mediante una conexión sin cifrar." },
+  "O endereço abriu sem redirecionar para a versão com conexão segura.": { es: "La dirección abrió sin redirigir a la versión con conexión segura." },
+  "A medição não encontrou uma versão com conexão segura.": { es: "La medición no encontró una versión con conexión segura." },
+  "A medição identificou um construtor de páginas; isso, por si só, não prova um defeito.": {
+    es: "La medición identificó un creador de páginas; esto por sí solo no demuestra un defecto.",
+  },
+  "A auditoria registrou um ponto técnico que pode ser revisto com a empresa.": { es: "La auditoría registró un punto técnico que se puede revisar con la empresa." },
+  "Avisar que o navegador pode sinalizar um problema no certificado e confirmar se a empresa já está tratando disso.": {
+    es: "Avisar que el navegador podría señalar un problema con el certificado y confirmar si la empresa ya lo está resolviendo.",
+  },
+  "Perguntar se a equipe já sabe que o endereço não respondeu na verificação.": {
+    es: "Preguntar si el equipo ya sabe que la dirección no respondió durante la verificación.",
+  },
+  "Já tenho uma solução para isso.": { es: "Ya tengo una solución para eso." },
+  "Entendi. A conversa pode ser apenas para comparar opções, sem compromisso.": {
+    es: "Entiendo. La conversación puede ser solo para comparar opciones, sin compromiso.",
+  },
+  "Aguardar uma medição conclusiva antes de usar o site como argumento.": {
+    es: "Esperar una medición concluyente antes de usar el sitio como argumento.",
+  },
+  "Confirmar com a empresa se a ausência do site no cadastro corresponde à situação atual.": {
+    es: "Confirmar con la empresa si la ausencia del sitio en el registro corresponde a la situación actual.",
+  },
+  "Confirmar se existe outro site próprio antes de sugerir qualquer mudança.": {
+    es: "Confirmar si existe otro sitio propio antes de sugerir cualquier cambio.",
+  },
+  "Prioridade baixa para uma abordagem sobre reparo de site.": { es: "Prioridad baja para un acercamiento sobre reparación del sitio." },
+  "Convidar para revisar somente o ponto técnico que a medição confirmou.": {
+    es: "Invitar a revisar únicamente el punto técnico que confirmó la medición.",
+  },
+  "Oferecer uma revisão do certificado após confirmar que o registro ainda está atual.": {
+    es: "Ofrecer una revisión del certificado después de confirmar que el registro sigue vigente.",
+  },
+  "Confirmar a situação antes de recomendar qualquer serviço.": { es: "Confirmar la situación antes de recomendar cualquier servicio." },
   "Página de rede ou diretório": { es: "Página de red social o directorio" },
   "Sem site informado": { es: "No se indicó un sitio web" },
   "Site medido": { es: "Sitio verificado" },
