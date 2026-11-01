@@ -32,12 +32,16 @@ import {
   localHttpGlobalSlots,
   LOCAL_HTTP_SEARCH_POLICY,
 } from "./local-http-limits";
+import { siteWithoutFetch } from "./site-classify";
+import { sitePreparationOptions } from "./site-options";
 
 export interface Campaign {
   id: string;
   organization_id: string;
   name: string;
   search: SearchInput & {
+    avaliar_site?: boolean;
+    gerar_previa?: boolean;
     provider?: ProspectingProviderName;
     source?: string;
     accepted?: boolean;
@@ -147,6 +151,12 @@ export async function createSearch(
   search: SearchInput,
 ) {
   return withProspectingLock(pool, org, async (db) => {
+    const preparation = sitePreparationOptions(search);
+    const storedSearch = {
+      ...search,
+      avaliar_site: preparation.avaliarSite,
+      gerar_previa: preparation.gerarPrevia,
+    };
     const prior = await db.query<Campaign>(
       "select * from prospecting_campaigns where organization_id=$1 and request_id=$2",
       [org, requestId],
@@ -174,12 +184,12 @@ export async function createSearch(
           "local_http_unavailable",
         );
       }
-      return createLocalHttpSearch(db, org, requestId, search);
+      return createLocalHttpSearch(db, org, requestId, storedSearch);
     }
     const key = await credential(db, admin, org);
     const { rows } = await db.query<Campaign>(
       "insert into prospecting_campaigns(organization_id,request_id,name,search) values($1,$2,$3,$4) returning *",
-      [org, requestId, search.name, search],
+      [org, requestId, search.name, storedSearch],
     );
     const campaign = rows[0]!;
     try {
@@ -399,9 +409,11 @@ export async function synchronizeSearch(db: pg.PoolClient, admin: SupabaseClient
     for (const item of items) {
       const p = normalizeProspect(item);
       if (!p) continue;
+      const site = c.search.avaliar_site === false ? null : siteWithoutFetch(p.website, new Date().toISOString());
+      const candidateData = site ? { ...p, site } : p;
       const result = await db.query(
         "insert into prospecting_candidates(organization_id,campaign_id,place_id,phone,data) values($1,$2,$3,$4,$5) on conflict do nothing",
-        [c.organization_id, c.id, p.key, p.phone, p],
+        [c.organization_id, c.id, p.key, p.phone, candidateData],
       );
       inserted += result.rowCount ?? 0;
     }

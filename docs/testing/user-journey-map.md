@@ -3415,3 +3415,21 @@ A tela de prospecção identifica Google Maps / Places via Apify, mantém o engi
 | Mobile 390×844 | Apify configurado; fonte, orçamento e busca habilitada | [mobile-390x844-apify-ready.png](../../evidence/p0-prospecting-a/mobile-390x844-apify-ready.png) | PASS |
 
 Nos três viewports não houve overflow horizontal, erro de console, falha de rede ou request externo. A busca, configuração e remoção da credencial foram mockadas; o token não apareceu no DOM.
+
+## J48 — Medir com segurança o site de uma empresa prospectada `[P0-2B]` (2026-11-01)
+
+A tela de prospecção mostra o resultado da auditoria no próprio candidato e permite reanálise manual por usuário administrador. A medição usa conteúdo sintético na bancada visual; nenhum site externo foi acessado. As classes sem-site, agregador, site medido, pontos de atenção e não medido provisório permanecem distintas. A verificação transitória preserva a medição definitiva anterior e deixa a ação de reanálise disponível.
+
+| Viewport | Estado sintético | Captura | Resultado |
+|---|---|---|---|
+| Desktop 1440×900 | Visão conjunta de sem-site, agregador, site medido, site-ruim, não medido provisório e reanálise | [desktop-1440x900-all-states.png](../../evidence/p0-prospecting-b/desktop-1440x900-all-states.png) | PASS |
+| Tablet 768×1024 | Site medido e botão Reanalisar site | [tablet-768x1024-site-ok.png](../../evidence/p0-prospecting-b/tablet-768x1024-site-ok.png) | PASS |
+| Mobile 390×844 | Site medido, texto legível e botão Reanalisar site habilitado | [mobile-390x844-site-ok.png](../../evidence/p0-prospecting-b/mobile-390x844-site-ok.png) | PASS |
+| Desktop 1440×900 | Estado sem site informado | [desktop-1440x900-sem-site.png](../../evidence/p0-prospecting-b/desktop-1440x900-sem-site.png) | PASS |
+| Desktop 1440×900 | Instagram tratado como agregador, sem ação de fetch | [desktop-1440x900-agregador.png](../../evidence/p0-prospecting-b/desktop-1440x900-agregador.png) | PASS |
+| Desktop 1440×900 | Resultado site-ok definitivo | [desktop-1440x900-site-ok.png](../../evidence/p0-prospecting-b/desktop-1440x900-site-ok.png) | PASS |
+| Desktop 1440×900 | Site com ponto de atenção e reanálise | [desktop-1440x900-site-ruim.png](../../evidence/p0-prospecting-b/desktop-1440x900-site-ruim.png) | PASS |
+| Desktop 1440×900 | Falha provisória de rede claramente não conclusiva | [desktop-1440x900-nao-medido-provisorio.png](../../evidence/p0-prospecting-b/desktop-1440x900-nao-medido-provisorio.png) | PASS |
+| Desktop 1440×900 | Reanálise inconclusiva preserva o resultado anterior | [desktop-1440x900-reanalyze-error.png](../../evidence/p0-prospecting-b/desktop-1440x900-reanalyze-error.png) | PASS |
+
+Não houve overflow horizontal, erro de console, falha de rede ou requisição externa em qualquer captura. O botão foi exercitado em estado sintético; o harness bloqueou toda origem fora de `127.0.0.1`.

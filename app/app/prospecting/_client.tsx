@@ -13,6 +13,8 @@ import { apiClient } from "@/lib/api/client";
 import { useT } from "@/hooks/i18n/useT";
 import { useActiveOrg } from "@/hooks/auth/AuthProvider";
 import { safePublicLink, type CampaignConfig, type Prospect } from "@/lib/prospecting/schema";
+import type { SiteAuditResult } from "@/lib/prospecting/site-classify";
+import { SiteAudit } from "@/components/prospecting/SiteAudit";
 import type {
   ProspectingProviderName,
   ProspectingProviderStatus,
@@ -35,7 +37,7 @@ type Campaign = {
 type Candidate = {
   id: string;
   campaign_id: string;
-  data: Prospect;
+  data: Prospect & { site?: SiteAuditResult | null };
   progress: string;
   message_status: string | null;
   error: string | null;
@@ -918,11 +920,22 @@ export function ProspectingClient() {
                                   className="mt-1 block underline"
                                   href={safePublicLink(c.data.website)}
                                   target="_blank"
-                                  rel="noreferrer"
+                                  rel="noopener noreferrer"
                                 >
                                   {t("Site da empresa")}
                                 </a>
                               )}
+                              <SiteAudit
+                                site={c.data.site}
+                                website={c.data.website}
+                                disabled={busy}
+                                onReanalyze={() =>
+                                  void perform(
+                                    { action: "reanalisar_site", candidate_id: c.id },
+                                    t("Auditoria do site atualizada."),
+                                  )
+                                }
+                              />
                               <p className="mt-1 text-xs text-muted-foreground">
                                 {c.data.rating ?? "—"} ★ · {c.data.reviews ?? 0} {t("avaliações")}
                               </p>

@@ -30,6 +30,7 @@ const search: SearchInput = {
   limit: 20,
   budget_usd: 1,
   enrich: true,
+  avaliar_site: true,
 };
 
 function databaseFor(org: string, provider: "apify" | "local-http", cipher?: Buffer) {

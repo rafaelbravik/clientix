@@ -814,6 +814,75 @@ const HOSTS_DECLARADOS: Record<string, EntradaDeHost> = {
     motivo:
       "link de mapa que `lib/messaging/localizacao.ts` monta com as coordenadas do pino que o CLIENTE mandou pelo WhatsApp: é o que o atendente toca para ver o endereço de entrega e o que o agente lê. O código não chama o host; o celular abre o app de mapas. Trocar pelo domínio do revendedor não abriria mapa nenhum.",
   },
+  // ── auditoria de sites: hosts conhecidos classificados sem request ───────
+  "allmylinks.com": {
+    categoria: "PLATAFORMA",
+    motivo: "host reconhecido apenas pelo classificador de páginas agregadoras da auditoria de sites; a aplicação não envia requests a esse domínio.",
+  },
+  "api.whatsapp.com": {
+    categoria: "PLATAFORMA",
+    motivo: "host reconhecido como link do WhatsApp que não é site próprio na auditoria de prospects; não é endpoint chamado pelo produto nesta wave.",
+  },
+  "beacons.ai": {
+    categoria: "PLATAFORMA",
+    motivo: "host reconhecido apenas como agregador de links na auditoria de sites; a aplicação não envia requests a esse domínio.",
+  },
+  "bio.site": {
+    categoria: "PLATAFORMA",
+    motivo: "host reconhecido apenas como agregador de links na auditoria de sites; a aplicação não envia requests a esse domínio.",
+  },
+  "carrd.co": {
+    categoria: "PLATAFORMA",
+    motivo: "host reconhecido apenas como página de links na auditoria de sites; a aplicação não envia requests a esse domínio.",
+  },
+  "facebook.com": {
+    categoria: "PLATAFORMA",
+    motivo: "host reconhecido como rede social, que não é site próprio na auditoria de prospects; não é endpoint chamado pelo produto nesta wave.",
+  },
+  "forms.office.com": {
+    categoria: "PLATAFORMA",
+    motivo: "host reconhecido apenas como formulário hospedado na auditoria de sites; a aplicação não envia requests a esse domínio.",
+  },
+  "google.com": {
+    categoria: "PLATAFORMA",
+    motivo: "host reconhecido somente para identificar URLs de Google Maps cadastradas como site de prospect; a aplicação não envia requests a esse domínio.",
+  },
+  "instagram.com": {
+    categoria: "PLATAFORMA",
+    motivo: "host reconhecido como rede social, que não é site próprio na auditoria de prospects; não é endpoint chamado pelo produto nesta wave.",
+  },
+  "jotform.com": {
+    categoria: "PLATAFORMA",
+    motivo: "host reconhecido apenas como formulário hospedado na auditoria de sites; a aplicação não envia requests a esse domínio.",
+  },
+  "linkbio.co": {
+    categoria: "PLATAFORMA",
+    motivo: "host reconhecido apenas como agregador de links na auditoria de sites; a aplicação não envia requests a esse domínio.",
+  },
+  "linkpop.com": {
+    categoria: "PLATAFORMA",
+    motivo: "host reconhecido apenas como agregador de links na auditoria de sites; a aplicação não envia requests a esse domínio.",
+  },
+  "maps.app": {
+    categoria: "PLATAFORMA",
+    motivo: "host reconhecido como encurtador de Google Maps na auditoria de prospects; não é site próprio nem endpoint chamado pelo produto nesta wave.",
+  },
+  "snipfeed.co": {
+    categoria: "PLATAFORMA",
+    motivo: "host reconhecido apenas como agregador de links na auditoria de sites; a aplicação não envia requests a esse domínio.",
+  },
+  "typeform.com": {
+    categoria: "PLATAFORMA",
+    motivo: "host reconhecido apenas como formulário hospedado na auditoria de sites; a aplicação não envia requests a esse domínio.",
+  },
+  "whatsapp.com": {
+    categoria: "PLATAFORMA",
+    motivo: "host reconhecido como link do WhatsApp que não é site próprio na auditoria de prospects; não é endpoint chamado pelo produto nesta wave.",
+  },
+  "wordpress.com": {
+    categoria: "PLATAFORMA",
+    motivo: "host aparece apenas como sinal de construtor de site na classificação da auditoria; a aplicação não envia requests a esse domínio.",
+  },
   // ── empresas e pessoas (metade B2B do #1621): consulta de CNPJ ──
   "brasilapi.com.br": {
     categoria: "FORNECEDOR",
@@ -1143,14 +1212,27 @@ describe("catraca de host de terceiro no código que embarca", () => {
     ).toEqual([
       "000000000000-xxxxxxxx.apps.googleusercontent.com",
       "aistudio.google.com",
+      "allmylinks.com",
+      "api.whatsapp.com",
       // Decisão escrita: painel de chaves da Requesty, o mesmo caso dos outros
       // CONSOLE (o link "Onde pegar a chave" da tela de Credenciais).
       "app.requesty.ai",
-      "console.anthropic.com",
+      "beacons.ai",
+      "bio.site",
+      "carrd.co",
       // Decisão escrita: é o painel de chaves do Jev, o mesmo caso dos outros
       // CONSOLE — o link "Onde pegar a chave" da tela de Credenciais.
+      "console.anthropic.com",
       "console.typesafe.ai",
       "deskcomm.app",
+      "facebook.com",
+      "forms.office.com",
+      "google.com",
+      "instagram.com",
+      "jotform.com",
+      "linkbio.co",
+      "linkpop.com",
+      "maps.app",
       // Link que abre o pino que o CLIENTE mandou (`lib/messaging/localizacao.ts`).
       // Mesma natureza do `wa.me` abaixo: o produto não fala com o host, quem
       // abre é o celular do atendente. Crescimento escrito, como a regra pede.
@@ -1168,11 +1250,15 @@ describe("catraca de host de terceiro no código que embarca", () => {
       // protocolo manda. Entrou aqui porque a régua nova do #914 passou a
       // enxergá-lo, e não porque o produto ganhou host novo.
       "s.whatsapp.net",
+      "snipfeed.co",
       "tusitio.com",
       // Exemplo de link do WhatsApp gerado pela tela de Conversões (#924). Está
       // aqui, e não em FORNECEDOR, porque o produto NÃO fala com esse host: quem
       // abre o link é o visitante do site. Crescimento escrito, como a regra pede.
+      "typeform.com",
       "wa.me",
+      "whatsapp.com",
+      "wordpress.com",
     ]);
   });
 

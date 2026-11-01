@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { parsePublicWebsiteUrl } from "./site-url";
 
 export const campaignConfigSchema = z
   .object({
@@ -22,6 +23,8 @@ export const searchSchema = z
     limit: z.number().int().min(1).max(100).default(20),
     budget_usd: z.number().min(0.5).max(10).default(1),
     enrich: z.boolean().default(true),
+    avaliar_site: z.boolean().default(true),
+    gerar_previa: z.boolean().optional(),
   })
   .strict();
 export const prospectingInputSchema = z.discriminatedUnion("action", [
@@ -40,6 +43,7 @@ export const prospectingInputSchema = z.discriminatedUnion("action", [
     .strict(),
   z.object({ action: z.literal("pause"), id: z.string().uuid() }).strict(),
   z.object({ action: z.literal("resume"), id: z.string().uuid() }).strict(),
+  z.object({ action: z.literal("reanalisar_site"), candidate_id: z.string().uuid() }).strict(),
 ]);
 export type CampaignConfig = z.infer<typeof campaignConfigSchema>;
 export type SearchInput = z.infer<typeof searchSchema>;
@@ -91,12 +95,9 @@ export function normalizeProspect(item: Record<string, unknown>): Prospect | nul
 }
 
 export function safePublicLink(value: string | null): string | undefined {
-  try {
-    const u = new URL(value ?? "");
-    return ["http:", "https:"].includes(u.protocol) ? u.href : undefined;
-  } catch {
-    return undefined;
-  }
+  if (!value) return undefined;
+  const url = parsePublicWebsiteUrl(value);
+  return url?.href;
 }
 
 /** Public business context shared by prospecting and the Inbox; no raw provider payload. */

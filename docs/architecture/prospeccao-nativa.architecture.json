@@ -85,6 +85,34 @@
       "label": "Campanhas e candidatos por organização"
     },
     {
+      "id": "site-audit-ui",
+      "lane": "app",
+      "col": 2,
+      "type": "component",
+      "label": "Auditoria do site: resultado e reanálise manual"
+    },
+    {
+      "id": "site-audit-fetch",
+      "lane": "engine",
+      "col": 3,
+      "type": "component",
+      "label": "GET limitado: HTML projetado, sem persistir documento bruto"
+    },
+    {
+      "id": "site-audit-egress",
+      "lane": "engine",
+      "col": 4,
+      "type": "component",
+      "label": "SSRF: DNS validado e IP pinado por redirect"
+    },
+    {
+      "id": "site-audit-jsonb",
+      "lane": "db",
+      "col": 3,
+      "type": "component",
+      "label": "data.site por organização; falha provisória preserva fato definitivo"
+    },
+    {
       "id": "crm",
       "lane": "app",
       "col": 3,
@@ -193,6 +221,41 @@
       "from": "candidates",
       "to": "crm",
       "label": "ativação autorizada"
+    },
+    {
+      "from": "candidates",
+      "to": "site-audit-ui",
+      "label": "estado da auditoria no candidato"
+    },
+    {
+      "from": "operator",
+      "to": "site-audit-ui",
+      "label": "reanálise manual com RBAC e limite por organização"
+    },
+    {
+      "from": "site-audit-ui",
+      "to": "site-audit-fetch",
+      "label": "ação autenticada; URL vem do candidato"
+    },
+    {
+      "from": "site-audit-fetch",
+      "to": "site-audit-egress",
+      "label": "validar DNS e destino em cada salto"
+    },
+    {
+      "from": "site-audit-egress",
+      "to": "site-audit-fetch",
+      "label": "conexão usa o IP público validado"
+    },
+    {
+      "from": "site-audit-fetch",
+      "to": "site-audit-jsonb",
+      "label": "persistir fatos e texto extraído; descartar HTML"
+    },
+    {
+      "from": "site-audit-jsonb",
+      "to": "candidates",
+      "label": "merge tenant-scoped em data.site"
     },
     {
       "from": "crm",

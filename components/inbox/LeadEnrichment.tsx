@@ -100,18 +100,14 @@ export function LeadEnrichment({
           {data.socials.some((url) => safePublicLink(url)) && (
             <div>
               <h4 className="mb-1 text-muted-foreground">{t("Redes sociais")}</h4>
-              {Array.from(new Set(data.socials)).map((url) => (
-                <BusinessLink
-                  key={url}
-                  value={url}
-                  label={
-                    safePublicLink(url)
-                      ? new URL(url).hostname.replace(/^www\./, "") +
-                        new URL(url).pathname.replace(/\/$/, "")
-                      : undefined
-                  }
-                />
-              ))}
+              {Array.from(new Set(data.socials)).map((url) => {
+                const href = safePublicLink(url);
+                const parsed = href ? new URL(href) : null;
+                const label = parsed
+                  ? parsed.hostname.replace(/^www\./, "") + parsed.pathname.replace(/\/$/, "")
+                  : undefined;
+                return <BusinessLink key={url} value={url} label={label} />;
+              })}
             </div>
           )}
           <div className="space-y-1 border-t pt-2 text-muted-foreground">

@@ -3,6 +3,7 @@ import { requireRole } from "@/lib/auth/require-role";
 import { requireSupportWrite } from "@/lib/impersonate/support";
 import { ok, fail } from "@/lib/api/wrappers";
 import { audit } from "@/lib/audit";
+import { checkRateLimit } from "@/lib/ai/dispatcher/rate-limit";
 import { getRequestPool } from "@/lib/agent-engine/db/request-pool";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { env } from "@/lib/env";
@@ -27,6 +28,7 @@ import {
   withProspectingLock,
   type Campaign,
 } from "@/lib/prospecting/store";
+import { reanalyzeCandidateSite } from "@/lib/prospecting/site-store";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -129,6 +131,7 @@ export async function POST(req: Request) {
     const pool = getRequestPool();
     const admin = createAdminClient();
     let result: unknown;
+    let auditMetadata: Record<string, unknown> = { operation: body.action };
     if (body.action === "configure") {
       await configureCredential(pool, admin, org, body.api_key);
       result = { configured: true };
@@ -140,6 +143,28 @@ export async function POST(req: Request) {
       result = { provider: body.provider };
     } else if (body.action === "search")
       result = await createSearch(pool, admin, org, body.request_id, body.search);
+    else if (body.action === "reanalisar_site") {
+      const porCandidato = await checkRateLimit(
+        `prospecting:site:${org}:${body.candidate_id}`,
+        5,
+        60 * 60,
+      );
+      const porOrganizacao = await checkRateLimit(`prospecting:site-org:${org}`, 60, 60 * 60);
+      if (!porCandidato.allowed || !porOrganizacao.allowed)
+        throw new ProspectingError(
+          "Muitas verificações de site foram solicitadas. Tente novamente mais tarde.",
+          429,
+          "candidato",
+          "site_audit_rate_limited",
+        );
+      const reanalyzed = await reanalyzeCandidateSite(pool, org, body.candidate_id);
+      result = { site: reanalyzed.site };
+      auditMetadata = {
+        operation: body.action,
+        class: reanalyzed.site.classe,
+        provisional: reanalyzed.site.provisorio,
+      };
+    }
     else if (body.action === "start")
       result = await activateCampaign(pool, admin, org, body.id, body.config);
     else if (body.action === "pause") {
@@ -177,14 +202,14 @@ export async function POST(req: Request) {
         return { resumed: true };
       });
     }
-    const resourceId = "id" in body ? body.id : null;
+    const resourceId = "candidate_id" in body ? body.candidate_id : "id" in body ? body.id : null;
     await audit({
       action: "prospecting.changed",
       organizationId: org,
       actorUserId: auth.user.id,
       resourceType: "prospecting",
       resourceId,
-      metadata: { operation: body.action },
+      metadata: auditMetadata,
       requestId,
     });
     return ok(result, { requestId, headers });

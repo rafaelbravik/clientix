@@ -520,6 +520,82 @@ export const DICIONARIO: Traducoes = {
   "Escolha a fonte que será usada nas próximas buscas desta organização.": { es: "Elige la fuente que se usará en las próximas búsquedas de esta organización." },
   "Editar chave da Apify": { es: "Editar clave de Apify" },
   "Configurar chave da Apify": { es: "Configurar clave de Apify" },
+  "Auditoria do site atualizada.": { es: "Auditoría del sitio actualizada." },
+  "Auditoria do site ainda não realizada.": { es: "La auditoría del sitio aún no se ha realizado." },
+  "Verificar site": { es: "Verificar sitio" },
+  "Auditoria do site": { es: "Auditoría del sitio" },
+  "Página de rede ou diretório": { es: "Página de red social o directorio" },
+  "Sem site informado": { es: "No se indicó un sitio web" },
+  "Site medido": { es: "Sitio verificado" },
+  "Site com pontos de atenção": { es: "Sitio con aspectos por mejorar" },
+  "Certificado de segurança inválido": { es: "Certificado de seguridad no válido" },
+  "Endereço não encontrado": { es: "Dirección no encontrada" },
+  "Não foi possível medir": { es: "No fue posible medir" },
+  "Provisório": { es: "Provisional" },
+  "Definitivo": { es: "Definitivo" },
+  "Última verificação:": { es: "Última verificación:" },
+  "A nova tentativa não foi conclusiva; o resultado definitivo anterior foi preservado.": {
+    es: "El nuevo intento no fue concluyente; se conservó el resultado definitivo anterior.",
+  },
+  "Reanalisar site": { es: "Volver a analizar el sitio" },
+  "Nenhum endereço de site foi informado.": { es: "No se indicó ninguna dirección del sitio web." },
+  "O link informado é do Google Maps, não do site da empresa.": {
+    es: "El enlace indicado es de Google Maps, no del sitio web de la empresa.",
+  },
+  "O endereço é de uma rede social ou página agregadora.": {
+    es: "La dirección corresponde a una red social o una página agregadora.",
+  },
+  "O endereço informado não é um link válido para site.": {
+    es: "La dirección indicada no es un enlace válido a un sitio web.",
+  },
+  "O endereço foi bloqueado pela proteção de rede.": {
+    es: "La protección de red bloqueó la dirección.",
+  },
+  "O domínio não foi encontrado.": { es: "No se encontró el dominio." },
+  "O site não usa uma conexão segura.": { es: "El sitio no usa una conexión segura." },
+  "O endereço abre sem redirecionar para a versão segura.": {
+    es: "La dirección abre sin redirigir a la versión segura.",
+  },
+  "Não foi possível confirmar a versão segura do site.": {
+    es: "No fue posible confirmar la versión segura del sitio.",
+  },
+  "A página carrega itens por uma conexão não segura.": {
+    es: "La página carga elementos mediante una conexión no segura.",
+  },
+  "O site não informa um layout adaptado para celular.": {
+    es: "El sitio no indica un diseño adaptado a móviles.",
+  },
+  "O site apresentou pouco conteúdo visível.": { es: "El sitio mostró poco contenido visible." },
+  "O site demorou para responder.": { es: "El sitio tardó en responder." },
+  "O site parece usar um construtor de páginas.": { es: "El sitio parece usar un creador de páginas." },
+  "O certificado de segurança não pôde ser validado.": {
+    es: "No se pudo validar el certificado de seguridad.",
+  },
+  "A página excedeu o limite seguro de leitura.": {
+    es: "La página superó el límite seguro de lectura.",
+  },
+  "O endereço não apresentou uma página HTML compatível.": {
+    es: "La dirección no devolvió una página HTML compatible.",
+  },
+  "A resposta do site não pôde ser lida com segurança.": {
+    es: "No se pudo leer la respuesta del sitio de forma segura.",
+  },
+  "O site redirecionou além do limite seguro.": {
+    es: "El sitio superó el límite seguro de redirecciones.",
+  },
+  "A página demorou além do limite de verificação.": {
+    es: "La página tardó más que el límite de verificación.",
+  },
+  "Não foi possível concluir a verificação da rede.": {
+    es: "No fue posible completar la verificación de red.",
+  },
+  "Não foi possível confirmar o endereço do site.": {
+    es: "No fue posible confirmar la dirección del sitio web.",
+  },
+  "A resposta do site excedeu o limite seguro.": {
+    es: "La respuesta del sitio superó el límite seguro.",
+  },
+  "O site respondeu com erro HTTP": { es: "El sitio respondió con el error HTTP" },
   "Google Maps / Places via Apify": { es: "Google Maps / Places a través de Apify" },
   "Usa a conta Apify configurada para esta organização.": { es: "Usa la cuenta de Apify configurada para esta organización." },
   "Engine local": { es: "Motor local" },
