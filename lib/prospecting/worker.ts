@@ -12,10 +12,7 @@ import { gerarAbordagemDeFormulario } from "@/lib/agent-engine/agent/abordagem-d
 import { llmEdgeConfigFromEnv } from "@/lib/agent-engine/edge/llm/credentials";
 import { assertServiceBoundarySupabase } from "@/lib/atendimento/origem";
 import { comSaida } from "./rodape-de-saida";
-import {
-  proximoEnvioDaEsteiraFria,
-  tetoDiarioDaEsteiraFria,
-} from "./ritmo-da-esteira-fria";
+import { proximoEnvioDaEsteiraFria, tetoDiarioDaEsteiraFria } from "./ritmo-da-esteira-fria";
 import { parseServiceBoundary } from "@/lib/atendimento/fronteira";
 import { autorizarContatoParaIA } from "@/lib/ai/elegibilidade/autorizacao";
 import { decidirPreGoLiveDoCanalViaSupabase } from "@/lib/ai/elegibilidade/consulta-pre-go-live";
@@ -25,6 +22,7 @@ import { assertProspectingDelivery } from "./guard";
 import { campaignConfigSchema } from "./schema";
 import { ProspectingError } from "./provider";
 import { OrgNaoOperanteError, idsDeOrgsParadas } from "@/lib/organizacao/operante";
+import { prepararCandidatos, PREPARATION_LIMITS } from "./preparo";
 import {
   withProspectingLock,
   synchronizeSearch,
@@ -146,10 +144,9 @@ export async function sendNextCandidate(
   // ritmo anti-banimento, então não há volume aqui para otimizar.
   const locale =
     (
-      await db.query<{ locale: string | null }>(
-        "select locale from organizations where id=$1",
-        [c.organization_id],
-      )
+      await db.query<{ locale: string | null }>("select locale from organizations where id=$1", [
+        c.organization_id,
+      ])
     ).rows[0]?.locale ?? null;
   const preflight = await decidirPreGoLiveDoCanalViaSupabase(admin, {
     organizationId: c.organization_id,
@@ -179,11 +176,7 @@ export async function sendNextCandidate(
     // furar o intervalo mínimo que o operador configurou.
     await db.query(
       "update prospecting_campaigns set next_send_at=$3 where organization_id=$1 and id=$2",
-      [
-        c.organization_id,
-        c.id,
-        proximoEnvioDaEsteiraFria(new Date(), cfg.interval_minutes, knobs),
-      ],
+      [c.organization_id, c.id, proximoEnvioDaEsteiraFria(new Date(), cfg.interval_minutes, knobs)],
     );
     // Reserve the shared channel budget before the external effect, including uncertain attempts.
     await recordSend(db, c.organization_id, cfg.channel_session_id, now);
@@ -437,8 +430,7 @@ export async function tickProspecting(pool: pg.Pool, admin: SupabaseClient) {
             // busca e o envio, uma instabilidade de um segundo no provedor — e a
             // lista só voltava se alguém abrisse a tela e retomasse à mão. É o
             // oposto do que a casa faz em todo lugar: item ruim marca o ITEM.
-            const doCandidato =
-              error instanceof ProspectingError && error.escopo === "candidato";
+            const doCandidato = error instanceof ProspectingError && error.escopo === "candidato";
             const motivo =
               error instanceof ProspectingError
                 ? error.message
@@ -483,6 +475,78 @@ export async function tickProspecting(pool: pg.Pool, admin: SupabaseClient) {
           // porque parece cobertura. Agora vai a causa.
           error: error instanceof Error ? error.message : String(error),
         });
+    }
+  }
+  // Site preparation and AI preview happen after all search/send locks have
+  // been released. A slow fetch or model call must never hold up the send lane.
+  // This second, tenant-filtered list also includes draft campaigns that the
+  // active search/send query above cannot see. Ordering by candidate age gives
+  // completed organizations a turn again after each bounded batch is updated.
+  let preparationOrganizations: string[] = [];
+  try {
+    preparationOrganizations = (
+      await pool.query<{ organization_id: string }>(
+        `select pc.organization_id
+           from prospecting_campaigns pc
+           join prospecting_candidates p
+             on p.organization_id=pc.organization_id and p.campaign_id=pc.id
+           left join ai_agents a
+             on a.organization_id=pc.organization_id and a.id::text=pc.config->>'agent_id'
+          where pc.organization_id <> all($1::uuid[])
+            and pc.status in ('draft','running') and pc.search_status='succeeded'
+            and p.status in ('new','queued')
+            and coalesce(pc.search->>'avaliar_site','true') <> 'false'
+            and (
+              ((p.data->'site' is null or p.data->'site'->>'provisorio'='true')
+                and p.data->'site'->>'motivo' is distinct from 'invalid_url'
+                and coalesce(p.data->'preparacao'->'site'->>'status','') <> 'exhausted'
+                and case
+                  when p.data->'preparacao'->'site'->>'retry_after' ~
+                    '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$'
+                  then (p.data->'preparacao'->'site'->>'retry_after')::timestamptz <= now()
+                  else true
+                end)
+              or (
+                coalesce(pc.search->>'gerar_previa','false')='true'
+                and a.published_version_id is not null
+                and a.paused_at is null and a.archived_at is null and a.operation_mode='automatic'
+                and (p.data->'site' is not null or nullif(trim(p.data->>'website'),'') is null)
+                and (p.data->'previa' is null
+                  or p.data->'preparacao'->'preview'->>'status' in ('error','stale','not_available')
+                  or p.data->'previa'->>'agente_versao_id' is distinct from a.published_version_id::text
+                  or p.data->'site'->>'verificado_em' > p.data->'previa'->>'gerada_em'
+                  or p.data->'site'->'ultima_tentativa'->>'verificado_em' > p.data->'previa'->>'gerada_em')
+              )
+            )
+          group by pc.organization_id
+          order by min(p.updated_at)
+          limit 20`,
+        [paradas],
+      )
+    ).rows.map((row) => row.organization_id);
+  } catch (error) {
+    logger.error("[prospecting] consulta das organizações para preparo falhou", {
+      error: error instanceof Error ? error.name : "unknown_error",
+    });
+  }
+  const organizationsToPrepare = [
+    ...new Set([...organizations.map((row) => row.organization_id), ...preparationOrganizations]),
+  ];
+  for (const org of organizationsToPrepare) {
+    if (Date.now() >= deadline) break;
+    try {
+      await prepararCandidatos(
+        pool,
+        admin,
+        org,
+        `prospecting-preparation:${org}`,
+        Math.min(deadline, Date.now() + PREPARATION_LIMITS.organizationDeadlineMs),
+      );
+    } catch (error) {
+      logger.error("[prospecting] preparo automático falhou", {
+        organization_id: org,
+        error: error instanceof ProspectingError ? error.code : "preparation_failed",
+      });
     }
   }
   return { processed };

@@ -3450,3 +3450,22 @@ A estratégia usa classes e motivos fechados da auditoria; resultados provisóri
 | Mobile 390×844 com rolagem | Prévia e ação de geração acessíveis na tela estreita | [mobile-390x844-preview-ready-scroll.png](../../evidence/p0-prospecting-c/mobile-390x844-preview-ready-scroll.png) | PASS |
 
 Os estados sem site, pendente, pronta, desatualizada e erro foram montados com dados sintéticos. O único tráfego foi para o harness local; não houve erro de console, erro de rede nem request externo.
+
+## J50 — Acompanhar auditoria e prévia automáticas da prospecção `[P0-2D]` (2026-11-01)
+
+Uma nova busca pode habilitar avaliação de site e prévia de abordagem com IA. A prévia depende da avaliação de site; as duas opções são persistidas na busca. O painel separa andamento da busca, auditorias, prévias e custo informado pela Apify, deixando claro que uso de IA não entra nesse custo. A rotina automática reutiliza a auditoria segura e o runtime canônico da prévia, opera com limites e locks por organização/candidato, não cria `selected` e não inicia envios. O estado pendente, erro de auditoria e agente indisponível permanecem distintos. As capturas foram feitas com dados sintéticos no harness local do componente real; o navegador bloqueou qualquer destino fora do harness. Não houve request real à Apify, Google, OpenAI ou a websites.
+
+| Viewport | Estado sintético | Captura | Resultado |
+|---|---|---|---|
+| Desktop 1440×900 | Auditoria e prévia concluídas; custo da busca separado | [desktop-1440x900-preparo-concluido.png](../../evidence/p0-prospecting-d/desktop-1440x900-preparo-concluido.png) | PASS |
+| Tablet 768×1024 | Auditoria e prévia concluídas; layout responsivo | [tablet-768x1024-preparo-concluido.png](../../evidence/p0-prospecting-d/tablet-768x1024-preparo-concluido.png) | PASS |
+| Mobile 390×844 | Auditoria e prévia concluídas; sem overflow horizontal do documento | [mobile-390x844-preparo-concluido.png](../../evidence/p0-prospecting-d/mobile-390x844-preparo-concluido.png) | PASS |
+| Desktop 1440×900 | Auditoria e prévia pendentes em segundo plano | [desktop-1440x900-preparo-pendente.png](../../evidence/p0-prospecting-d/desktop-1440x900-preparo-pendente.png) | PASS |
+| Tablet 768×1024 | Auditoria e prévia pendentes em segundo plano | [tablet-768x1024-preparo-pendente.png](../../evidence/p0-prospecting-d/tablet-768x1024-preparo-pendente.png) | PASS |
+| Mobile 390×844 | Auditoria e prévia pendentes em segundo plano | [mobile-390x844-preparo-pendente.png](../../evidence/p0-prospecting-d/mobile-390x844-preparo-pendente.png) | PASS |
+| Desktop 1440×900 | Falha provisória sem perder o estado da busca | [desktop-1440x900-preparo-com-erro.png](../../evidence/p0-prospecting-d/desktop-1440x900-preparo-com-erro.png) | PASS |
+| Tablet 768×1024 | Falha provisória com estado separado | [tablet-768x1024-preparo-com-erro.png](../../evidence/p0-prospecting-d/tablet-768x1024-preparo-com-erro.png) | PASS |
+| Mobile 390×844 | Falha provisória com estado separado | [mobile-390x844-preparo-com-erro.png](../../evidence/p0-prospecting-d/mobile-390x844-preparo-com-erro.png) | PASS |
+| Desktop 1440×900 | Agente indisponível; prévia não iniciada | [desktop-1440x900-agente-indisponivel.png](../../evidence/p0-prospecting-d/desktop-1440x900-agente-indisponivel.png) | PASS |
+| Tablet 768×1024 | Agente indisponível; prévia não iniciada | [tablet-768x1024-agente-indisponivel.png](../../evidence/p0-prospecting-d/tablet-768x1024-agente-indisponivel.png) | PASS |
+| Mobile 390×844 | Agente indisponível; prévia não iniciada | [mobile-390x844-agente-indisponivel.png](../../evidence/p0-prospecting-d/mobile-390x844-agente-indisponivel.png) | PASS |

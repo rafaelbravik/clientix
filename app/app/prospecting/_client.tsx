@@ -13,6 +13,7 @@ import { apiClient } from "@/lib/api/client";
 import { useT } from "@/hooks/i18n/useT";
 import { useActiveOrg } from "@/hooks/auth/AuthProvider";
 import { safePublicLink, type CampaignConfig, type Prospect } from "@/lib/prospecting/schema";
+import { sitePreparationOptions } from "@/lib/prospecting/site-options";
 import type { SiteAuditResult } from "@/lib/prospecting/site-classify";
 import { SiteAudit } from "@/components/prospecting/SiteAudit";
 import { StrategyPreview } from "@/components/prospecting/StrategyPreview";
@@ -30,6 +31,7 @@ type Campaign = {
   name: string;
   status: string;
   search_status: string;
+  search: { avaliar_site?: boolean; gerar_previa?: boolean } | null;
   error: string | null;
   config: CampaignConfig | null;
   result_count: number;
@@ -48,7 +50,8 @@ type Candidate = {
   agent_version_id: string | null;
   strategy: EstrategiaDoCandidato;
   preview: PreviaSalva | null;
-  preview_state: "none" | "ready" | "stale";
+  site_state: "disabled" | "pending" | "ready" | "provisional" | "error";
+  preview_state: "none" | "ready" | "stale" | "pending" | "error" | "not_available";
 };
 type State = {
   configured: boolean;
@@ -117,6 +120,8 @@ export function ProspectingClient() {
   const [limit, setLimit] = useState(20);
   const [budget, setBudget] = useState(1);
   const [enrich, setEnrich] = useState(true);
+  const [evaluateSite, setEvaluateSite] = useState(true);
+  const [generatePreviewsAutomatically, setGeneratePreviewsAutomatically] = useState(true);
   const [campaignDrafts, setCampaignDrafts] = useState<Record<string, CampaignConfig>>({});
   const [manualCampaigns, setManualCampaigns] = useState<Record<string, boolean>>({});
   const [createdAgents, setCreatedAgents] = useState<{ id: string; name: string }[]>([]);
@@ -173,6 +178,7 @@ export function ProspectingClient() {
     );
   }
   const candidates = data?.candidates.filter((c) => c.campaign_id === campaign?.id) ?? [];
+  const preparationOptions = sitePreparationOptions(campaign?.search);
   async function perform(body: unknown, message: string) {
     setBusy(true);
     setError(null);
@@ -193,7 +199,10 @@ export function ProspectingClient() {
     setPreviewBusy((current) => ({ ...current, [candidateId]: true }));
     setPreviewErrors((current) => ({ ...current, [candidateId]: null }));
     try {
-      await apiClient.post("/api/v1/prospecting", { action: "gerar_previa", candidate_id: candidateId });
+      await apiClient.post("/api/v1/prospecting", {
+        action: "gerar_previa",
+        candidate_id: candidateId,
+      });
       await query.refetch();
     } catch (e) {
       setPreviewErrors((current) => ({
@@ -380,6 +389,8 @@ export function ProspectingClient() {
                   limit,
                   budget,
                   enrich,
+                  evaluateSite,
+                  generatePreviewsAutomatically,
                 ]);
                 if (searchAttempt.current?.fingerprint !== fingerprint)
                   searchAttempt.current = { fingerprint, id: randomId() };
@@ -394,6 +405,8 @@ export function ProspectingClient() {
                       limit,
                       budget_usd: budget,
                       enrich,
+                      avaliar_site: evaluateSite,
+                      gerar_previa: evaluateSite && generatePreviewsAutomatically,
                     },
                   },
                   t("Solicitação registrada. Acompanhe o estado da busca nesta tela."),
@@ -468,6 +481,47 @@ export function ProspectingClient() {
                 />
                 {t("Enriquecer com e-mails comerciais e redes encontradas no site")}
               </label>
+              <div className="space-y-3 rounded-md border p-3">
+                <label className="flex items-start gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={evaluateSite}
+                    onChange={(e) => {
+                      setEvaluateSite(e.target.checked);
+                      if (!e.target.checked) setGeneratePreviewsAutomatically(false);
+                    }}
+                    className="mt-1"
+                  />
+                  <span>
+                    <span className="block font-medium">{t("Avaliar site dos prospects")}</span>
+                    <span className="mt-1 block text-xs text-muted-foreground">
+                      {t("Verifica presença, disponibilidade e sinais técnicos do site.")}
+                    </span>
+                  </span>
+                </label>
+                <label className="flex items-start gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={evaluateSite && generatePreviewsAutomatically}
+                    disabled={!evaluateSite}
+                    onChange={(e) => setGeneratePreviewsAutomatically(e.target.checked)}
+                    className="mt-1"
+                  />
+                  <span>
+                    <span className="block font-medium">
+                      {t("Gerar prévia de abordagem com IA")}
+                    </span>
+                    <span className="mt-1 block text-xs text-muted-foreground">
+                      {t("Usa o agente de IA configurado para produzir um rascunho de abordagem.")}
+                    </span>
+                  </span>
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  {t(
+                    "O uso de IA das prévias é contabilizado separadamente e não está incluído no custo da busca informado pela Apify.",
+                  )}
+                </p>
+              </div>
               <p className="text-xs text-muted-foreground">
                 {t(
                   "O teto por busca deve ficar entre US$ 0,50 e US$ 10; o padrão é US$ 1. A cobrança é feita na conta Apify associada à chave. A quantidade encontrada pode ser menor que o limite e nenhuma abordagem começa nesta etapa.",
@@ -553,6 +607,77 @@ export function ProspectingClient() {
                     </div>
                   ))}
                 </div>
+                <section
+                  className="mt-5 rounded-lg border bg-muted/20 p-4"
+                  aria-label={t("Preparação de prospects")}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-semibold">{t("Preparação de prospects")}</h3>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {t("A busca, a auditoria de sites e as prévias têm estados separados.")}
+                      </p>
+                    </div>
+                    <Badge variant="outline">
+                      {t(labels[campaign.search_status] ?? campaign.search_status)}
+                    </Badge>
+                  </div>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-md bg-background p-3">
+                      <p className="text-xs font-medium">{t("Auditoria de sites")}</p>
+                      <p className="mt-1 text-sm">
+                        {!preparationOptions.avaliarSite
+                          ? t("Desativada")
+                          : `${candidates.filter((candidate) => candidate.site_state === "ready" || candidate.site_state === "provisional").length} / ${candidates.length} ${t("verificados")}`}
+                      </p>
+                      {preparationOptions.avaliarSite && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {
+                            candidates.filter(
+                              (candidate) =>
+                                candidate.site_state === "pending" ||
+                                candidate.site_state === "error",
+                            ).length
+                          }{" "}
+                          {t("pendentes")}
+                        </p>
+                      )}
+                    </div>
+                    <div className="rounded-md bg-background p-3">
+                      <p className="text-xs font-medium">{t("Prévia com IA")}</p>
+                      <p className="mt-1 text-sm">
+                        {!preparationOptions.gerarPrevia
+                          ? t("Desativada")
+                          : `${candidates.filter((candidate) => candidate.preview_state === "ready").length} / ${candidates.length} ${t("prontas")}`}
+                      </p>
+                      {preparationOptions.gerarPrevia && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {
+                            candidates.filter((candidate) =>
+                              ["pending", "error", "stale", "not_available"].includes(
+                                candidate.preview_state,
+                              ),
+                            ).length
+                          }{" "}
+                          {t("pendentes ou para revisar")}
+                        </p>
+                      )}
+                    </div>
+                    <div className="rounded-md bg-background p-3">
+                      <p className="text-xs font-medium">{t("Custo da busca")}</p>
+                      <p className="mt-1 text-sm">
+                        {campaign.cost_usd === null
+                          ? t("Ainda não informado")
+                          : `US$ ${Number(campaign.cost_usd).toFixed(2)}`}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {t(
+                          "Uso de IA das prévias segue separado no acompanhamento de IA da organização.",
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </section>
                 {campaign.skipped_count > 0 && (
                   <p className="mt-3 text-xs text-muted-foreground">
                     {campaign.skipped_count}{" "}
@@ -964,6 +1089,7 @@ export function ProspectingClient() {
                                 strategy={c.strategy}
                                 preview={c.preview}
                                 previewState={c.preview_state}
+                                siteState={c.site_state}
                                 busy={!!previewBusy[c.id]}
                                 error={previewErrors[c.id] ?? null}
                                 onGenerate={() => void generatePreview(c.id)}

@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   paradas: vi.fn(),
   claimLocal: vi.fn(),
   dispatchLocal: vi.fn(),
+  prepare: vi.fn(),
 }));
 vi.mock("@/app/api/v1/messages/_handler", () => ({ sendMessageHandler: mocks.send }));
 vi.mock("@/lib/audit", () => ({ audit: mocks.audit }));
@@ -63,7 +64,12 @@ vi.mock("@/lib/prospecting/store", () => ({
   dispatchClaimedLocalHttpSearch: mocks.dispatchLocal,
   validateConfig: vi.fn().mockResolvedValue(undefined),
 }));
+vi.mock("@/lib/prospecting/preparo", () => ({
+  prepararCandidatos: mocks.prepare,
+  PREPARATION_LIMITS: { organizationDeadlineMs: 100_000 },
+}));
 import { sendNextCandidate, tickProspecting } from "@/lib/prospecting/worker";
+import { prepararCandidatos } from "@/lib/prospecting/preparo";
 import { OrgNaoOperanteError } from "@/lib/organizacao/operante";
 import { withProspectingLock } from "@/lib/prospecting/store";
 import type { Campaign } from "@/lib/prospecting/store";
@@ -118,6 +124,15 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.claimLocal.mockResolvedValue([]);
   mocks.dispatchLocal.mockResolvedValue(undefined);
+  mocks.prepare.mockResolvedValue({
+    considered: 0,
+    sitesAttempted: 0,
+    sitesCompleted: 0,
+    previewsAttempted: 0,
+    previewsCompleted: 0,
+    failures: 0,
+    skipped: false,
+  });
   mocks.knobs.mockResolvedValue({ knobs: {} });
   mocks.open.mockReturnValue(true);
   mocks.preflight.mockResolvedValue({ permite: true });
@@ -254,6 +269,52 @@ describe("tick da prospecção × organização parada", () => {
     expect(sql.indexOf("<> all")).toBeLessThan(sql.indexOf("limit 20"));
     expect(params).toEqual([[parada]]);
   });
+
+  it("roda o preparo automático depois do bloco de busca/envio e inclui rascunhos elegíveis", async () => {
+    const eventos: string[] = [];
+    mocks.paradas.mockResolvedValue([]);
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes("prospecting_campaigns pc") && sql.includes("prospecting_candidates p")) {
+        eventos.push("preparation-org-query");
+        return { rows: [{ organization_id: id }] };
+      }
+      if (sql.includes("from prospecting_campaigns where (status='running'")) {
+        eventos.push("active-org-query");
+        return { rows: [{ organization_id: id }] };
+      }
+      return { rows: [] };
+    });
+    (withProspectingLock as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+      async (_pool: unknown, _org: unknown, fn: (d: unknown) => Promise<unknown>) => {
+        eventos.push("send-lock-start");
+        const value = await fn({ query: vi.fn().mockResolvedValue({ rows: [] }) });
+        eventos.push("send-lock-end");
+        return value;
+      },
+    );
+    mocks.prepare.mockImplementation(async () => {
+      eventos.push("prepare");
+      return {
+        considered: 1,
+        sitesAttempted: 1,
+        sitesCompleted: 1,
+        previewsAttempted: 0,
+        previewsCompleted: 0,
+        failures: 0,
+        skipped: false,
+      };
+    });
+    await tickProspecting({ query } as never, {} as never);
+    expect(prepararCandidatos).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      id,
+      `prospecting-preparation:${id}`,
+      expect.any(Number),
+    );
+    expect(eventos.indexOf("send-lock-end")).toBeLessThan(eventos.indexOf("prepare"));
+    expect(eventos).toContain("preparation-org-query");
+  });
 });
 
 describe("tick da prospecção × organização que para no meio do envio", () => {
@@ -263,7 +324,9 @@ describe("tick da prospecção × organização que para no meio do envio", () =
     const base = database();
     const db = {
       query: vi.fn(async (sql: string) =>
-        sql.startsWith("select * from prospecting_campaigns where organization_id=$1 and status='running'")
+        sql.startsWith(
+          "select * from prospecting_campaigns where organization_id=$1 and status='running'",
+        )
           ? { rows: [campaign] }
           : base.query(sql),
       ),

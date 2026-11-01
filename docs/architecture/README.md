@@ -17,7 +17,7 @@ ser fonte sem ninguém decidir isso.
 | arquivo | escopo |
 |---|---|
 | `conversoes-de-anuncios.architecture.json` | venda, entrega, protocolo assíncrono, pendências e reprocessamento |
-| `prospeccao-nativa.architecture.json` | busca comercial, Apify padrão, dispatcher local-http gated, allowlist de fontes, auditoria segura, estratégia determinística, prévia manual com runtime canônico e armazenamento tenant-scoped; nenhuma fonte real está aprovada |
+| `prospeccao-nativa.architecture.json` | busca comercial, Apify padrão, dispatcher local-http gated, allowlist de fontes, auditoria segura, preparação automática limitada com locks/backoff, estratégia determinística, prévia manual/automática no runtime canônico e progresso tenant-scoped; nenhuma fonte real está aprovada |
 | `pre-go-live-whatsapp.architecture.json` | modo de teste por canal (issue #573): configuração administrativa, gate compartilhado, releitura no envio e validação pelo Inbox |
 | `app-da-meta-da-instalacao.architecture.json` | App da Meta da instalação (issue #850, migration 0257) — 10 peças, 12 arestas; a tela `/admin/meta` que grava a chave e mostra o token uma vez, o resolvedor que serve o par inteiro de UMA fonte (banco, com o `.env` de reserva) e por que Conexões só mostra o token quando ele veio do `.env` |
 | `meta-coexistence-contact-sync.architecture.json` | sincronização da agenda na coexistência: webhook assinado, tenant da sessão, tombstone LGPD antes do upsert atômico e sem efeitos de atendimento |

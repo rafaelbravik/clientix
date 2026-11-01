@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   audit: vi.fn(),
   checkRateLimit: vi.fn(),
   reanalyzeCandidateSite: vi.fn(),
+  prepareCandidate: vi.fn(),
   updateProvider: vi.fn(),
   configureCredential: vi.fn(),
   removeCredential: vi.fn(),
@@ -16,7 +17,9 @@ vi.mock("@/lib/auth/require-role", () => ({ requireRole: mocks.requireRole }));
 vi.mock("@/lib/impersonate/support", () => ({ requireSupportWrite: mocks.requireSupportWrite }));
 vi.mock("@/lib/audit", () => ({ audit: mocks.audit }));
 vi.mock("@/lib/ai/dispatcher/rate-limit", () => ({ checkRateLimit: mocks.checkRateLimit }));
-vi.mock("@/lib/prospecting/site-store", () => ({ reanalyzeCandidateSite: mocks.reanalyzeCandidateSite }));
+vi.mock("@/lib/prospecting/site-store", () => ({
+  reanalyzeCandidateSite: mocks.reanalyzeCandidateSite,
+}));
 vi.mock("@/lib/agent-engine/db/request-pool", () => ({ getRequestPool: () => mocks.pool }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({}) }));
 vi.mock("@/lib/prospecting/dispatcher", () => ({
@@ -32,6 +35,7 @@ vi.mock("@/lib/prospecting/store", () => ({
   validateConfig: vi.fn(),
   withProspectingLock: vi.fn(),
 }));
+vi.mock("@/lib/prospecting/preparo", () => ({ prepararCandidato: mocks.prepareCandidate }));
 
 import { POST } from "@/app/api/v1/prospecting/route";
 
@@ -56,7 +60,17 @@ beforeEach(() => {
   });
   mocks.audit.mockResolvedValue(undefined);
   mocks.checkRateLimit.mockResolvedValue({ allowed: true, count: 1, limit: 5, window_sec: 3600 });
-  mocks.reanalyzeCandidateSite.mockResolvedValue({ site: { classe: "site-ok", provisorio: false } });
+  mocks.reanalyzeCandidateSite.mockResolvedValue({
+    site: { classe: "site-ok", provisorio: false },
+  });
+  mocks.prepareCandidate.mockResolvedValue({
+    site: { classe: "site-ok", provisorio: false },
+    strategy: { cenario: "site-ok" },
+    preview: null,
+    previewStatus: "none",
+    siteAttempted: true,
+    previewAttempted: false,
+  });
   mocks.updateProvider.mockResolvedValue(undefined);
   mocks.configureCredential.mockResolvedValue(undefined);
   mocks.removeCredential.mockResolvedValue(undefined);
@@ -108,12 +122,15 @@ describe("POST /api/v1/prospecting provider boundary", () => {
   });
 
   it("reanalyzes only a candidate in the active organization and uses no client website or tenant", async () => {
-    const response = await POST(request({ action: "reanalisar_site", candidate_id: "33333333-3333-4333-8333-333333333333" }));
+    const response = await POST(
+      request({ action: "reanalisar_site", candidate_id: "33333333-3333-4333-8333-333333333333" }),
+    );
     expect(response.status).toBe(200);
-    expect(mocks.reanalyzeCandidateSite).toHaveBeenCalledWith(
+    expect(mocks.prepareCandidate).toHaveBeenCalledWith(
       mocks.pool,
       ORG_A,
       "33333333-3333-4333-8333-333333333333",
+      { mode: "reanalyze" },
     );
     expect(mocks.checkRateLimit).toHaveBeenCalledWith(
       `prospecting:site:${ORG_A}:33333333-3333-4333-8333-333333333333`,
@@ -125,18 +142,27 @@ describe("POST /api/v1/prospecting provider boundary", () => {
   });
 
   it("rejects tenant-controlled reanalysis fields and rate limits before network/storage", async () => {
-    const invalid = await POST(request({
-      action: "reanalisar_site",
-      candidate_id: "33333333-3333-4333-8333-333333333333",
-      organization_id: ORG_B,
-      website: "http://127.0.0.1/",
-    }));
+    const invalid = await POST(
+      request({
+        action: "reanalisar_site",
+        candidate_id: "33333333-3333-4333-8333-333333333333",
+        organization_id: ORG_B,
+        website: "http://127.0.0.1/",
+      }),
+    );
     expect(invalid.status).toBe(422);
-    expect(mocks.reanalyzeCandidateSite).not.toHaveBeenCalled();
+    expect(mocks.prepareCandidate).not.toHaveBeenCalled();
 
-    mocks.checkRateLimit.mockResolvedValueOnce({ allowed: false, count: 6, limit: 5, window_sec: 3600 });
-    const limited = await POST(request({ action: "reanalisar_site", candidate_id: "33333333-3333-4333-8333-333333333333" }));
+    mocks.checkRateLimit.mockResolvedValueOnce({
+      allowed: false,
+      count: 6,
+      limit: 5,
+      window_sec: 3600,
+    });
+    const limited = await POST(
+      request({ action: "reanalisar_site", candidate_id: "33333333-3333-4333-8333-333333333333" }),
+    );
     expect(limited.status).toBe(429);
-    expect(mocks.reanalyzeCandidateSite).not.toHaveBeenCalled();
+    expect(mocks.prepareCandidate).not.toHaveBeenCalled();
   });
 });

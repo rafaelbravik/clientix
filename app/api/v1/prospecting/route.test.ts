@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   generatePreview: vi.fn(),
   strategy: vi.fn(),
   previewCurrent: vi.fn(),
+  prepareCandidate: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/require-role", () => ({ requireRole: mocks.requireRole }));
@@ -38,18 +39,20 @@ vi.mock("@/lib/prospecting/store", () => ({
 vi.mock("@/lib/prospecting/site-store", () => ({ reanalyzeCandidateSite: vi.fn() }));
 vi.mock("@/lib/prospecting/estrategia-site", () => ({ estrategiaDoCandidato: mocks.strategy }));
 vi.mock("@/lib/prospecting/previa", () => ({ previaAtual: mocks.previewCurrent }));
-vi.mock("@/lib/prospecting/previa-gerar", () => ({ gerarPreviaDoCandidato: mocks.generatePreview }));
+vi.mock("@/lib/prospecting/previa-gerar", () => ({
+  gerarPreviaDoCandidato: mocks.generatePreview,
+}));
 vi.mock("@/lib/prospecting/previa-store", () => ({
   carregarCandidatoParaPrevia: mocks.loadCandidate,
   salvarPreviaDoCandidato: mocks.savePreview,
   withPreviewCandidateLock: mocks.withPreviewCandidateLock,
 }));
+vi.mock("@/lib/prospecting/preparo", () => ({ prepararCandidato: mocks.prepareCandidate }));
 
 const ORG_A = "10000000-0000-4000-8000-000000000011";
 const ORG_B = "10000000-0000-4000-8000-000000000012";
 const USER = "20000000-0000-4000-8000-000000000011";
 const CANDIDATE = "30000000-0000-4000-8000-000000000011";
-const CAMPAIGN = "40000000-0000-4000-8000-000000000011";
 const AGENT = "50000000-0000-4000-8000-000000000011";
 const VERSION = "60000000-0000-4000-8000-000000000011";
 const pool = { query: vi.fn() };
@@ -66,16 +69,6 @@ const generated = {
   },
   estrategia: { cenario: "Site medido", classe: "site-ok", angulo: "Sem reparo." },
 };
-const candidate = {
-  id: CANDIDATE,
-  campaign_id: CAMPAIGN,
-  data: { website: "https://example.invalid", site: { classe: "site-ok" } },
-  status: "new",
-  contact_id: null,
-  config: { agent_id: AGENT },
-  search: {},
-};
-
 function request(body: unknown) {
   return new Request("http://localhost/api/v1/prospecting", {
     method: "POST",
@@ -96,39 +89,46 @@ describe("POST /api/v1/prospecting gerar_previa", () => {
     mocks.audit.mockResolvedValue(undefined);
     mocks.checkRateLimit.mockResolvedValue({ allowed: true });
     mocks.getRequestPool.mockReturnValue(pool);
-    mocks.withPreviewCandidateLock.mockImplementation(async (_pool, _org, _candidate, work) => work());
-    mocks.loadCandidate.mockResolvedValue(candidate);
-    mocks.generatePreview.mockResolvedValue(generated);
-    mocks.savePreview.mockResolvedValue(undefined);
     mocks.strategy.mockReturnValue(generated.estrategia);
     mocks.previewCurrent.mockReturnValue(null);
+    mocks.prepareCandidate.mockResolvedValue({
+      site: { classe: "site-ok", provisorio: false },
+      strategy: generated.estrategia,
+      preview: generated.previa,
+      previewStatus: "ready",
+      siteAttempted: false,
+      previewAttempted: true,
+    });
   });
 
   it("usa a organização da sessão em leitura, runtime, gravação e audit; não audita o texto", async () => {
     const { POST } = await import("./route");
     const response = await POST(request({ action: "gerar_previa", candidate_id: CANDIDATE }));
     expect(response.status).toBe(200);
-    expect(mocks.requireRole).toHaveBeenCalledWith("admin", expect.objectContaining({ resource: "prospecting" }));
-    expect(mocks.loadCandidate).toHaveBeenCalledWith(pool, ORG_A, CANDIDATE);
-    expect(mocks.generatePreview).toHaveBeenCalledWith(pool, ORG_A, candidate);
+    expect(mocks.requireRole).toHaveBeenCalledWith(
+      "admin",
+      expect.objectContaining({ resource: "prospecting" }),
+    );
+    expect(mocks.prepareCandidate).toHaveBeenCalledWith(pool, ORG_A, CANDIDATE, {
+      mode: "preview",
+    });
     expect(mocks.checkRateLimit.mock.calls.map(([key]) => key)).toEqual([
       `prospecting:preview:${ORG_A}:${CANDIDATE}`,
       `prospecting:preview-org:${ORG_A}`,
     ]);
-    expect(mocks.withPreviewCandidateLock).toHaveBeenCalledWith(pool, ORG_A, CANDIDATE, expect.any(Function));
-    expect(mocks.savePreview).toHaveBeenCalledWith(pool, expect.objectContaining({
-      organizationId: ORG_A,
-      campaignId: CAMPAIGN,
-      candidateId: CANDIDATE,
-      previa: generated.previa,
-    }));
-    expect(mocks.audit).toHaveBeenCalledWith(expect.objectContaining({
-      action: "prospecting.changed",
-      organizationId: ORG_A,
-      actorUserId: USER,
-      resourceId: CANDIDATE,
-      metadata: expect.objectContaining({ operation: "gerar_previa", agent_id: AGENT, status: "generated" }),
-    }));
+    expect(mocks.audit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "prospecting.changed",
+        organizationId: ORG_A,
+        actorUserId: USER,
+        resourceId: CANDIDATE,
+        metadata: expect.objectContaining({
+          operation: "gerar_previa",
+          agent_id: AGENT,
+          status: "generated",
+        }),
+      }),
+    );
     const auditArgs = JSON.stringify(mocks.audit.mock.calls[0]?.[0]);
     expect(auditArgs).not.toContain(generated.previa.texto);
     expect(JSON.stringify(await response.json())).toContain(generated.previa.texto);
@@ -136,33 +136,34 @@ describe("POST /api/v1/prospecting gerar_previa", () => {
 
   it("rejeita organization_id enviado pelo cliente antes de ler ou gravar candidato", async () => {
     const { POST } = await import("./route");
-    const response = await POST(request({
-      action: "gerar_previa",
-      candidate_id: CANDIDATE,
-      organization_id: ORG_B,
-    }));
+    const response = await POST(
+      request({
+        action: "gerar_previa",
+        candidate_id: CANDIDATE,
+        organization_id: ORG_B,
+      }),
+    );
     expect(response.status).toBe(422);
-    expect(mocks.loadCandidate).not.toHaveBeenCalled();
-    expect(mocks.generatePreview).not.toHaveBeenCalled();
-    expect(mocks.savePreview).not.toHaveBeenCalled();
+    expect(mocks.prepareCandidate).not.toHaveBeenCalled();
   });
 
   it("bloqueia role sem acesso antes de tocar no candidato", async () => {
-    mocks.requireRole.mockResolvedValueOnce({ ok: false, response: new Response(null, { status: 403 }) });
+    mocks.requireRole.mockResolvedValueOnce({
+      ok: false,
+      response: new Response(null, { status: 403 }),
+    });
     const { POST } = await import("./route");
     const response = await POST(request({ action: "gerar_previa", candidate_id: CANDIDATE }));
     expect(response.status).toBe(403);
-    expect(mocks.loadCandidate).not.toHaveBeenCalled();
-    expect(mocks.generatePreview).not.toHaveBeenCalled();
+    expect(mocks.prepareCandidate).not.toHaveBeenCalled();
   });
 
   it("não revela payload do provider se a geração falhar", async () => {
-    mocks.generatePreview.mockRejectedValueOnce(new Error("Bearer synthetic-secret"));
+    mocks.prepareCandidate.mockRejectedValueOnce(new Error("Bearer synthetic-secret"));
     const { POST } = await import("./route");
     const response = await POST(request({ action: "gerar_previa", candidate_id: CANDIDATE }));
     const body = await response.text();
     expect(response.status).toBe(500);
     expect(body).not.toContain("synthetic-secret");
-    expect(mocks.savePreview).not.toHaveBeenCalled();
   });
 });

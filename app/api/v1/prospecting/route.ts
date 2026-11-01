@@ -11,6 +11,7 @@ import { capabilitiesOf } from "@/lib/channels/capabilities";
 import type { ChannelProvider } from "@/lib/channels/types";
 import { ProspectingError } from "@/lib/prospecting/provider";
 import { prospectingInputSchema } from "@/lib/prospecting/schema";
+import { estrategiaDoCandidato } from "@/lib/prospecting/estrategia-site";
 import {
   providerStatus,
   providerNameForOrganization,
@@ -28,15 +29,9 @@ import {
   withProspectingLock,
   type Campaign,
 } from "@/lib/prospecting/store";
-import { reanalyzeCandidateSite } from "@/lib/prospecting/site-store";
-import { estrategiaDoCandidato } from "@/lib/prospecting/estrategia-site";
 import { previaAtual } from "@/lib/prospecting/previa";
-import { gerarPreviaDoCandidato } from "@/lib/prospecting/previa-gerar";
-import {
-  carregarCandidatoParaPrevia,
-  salvarPreviaDoCandidato,
-  withPreviewCandidateLock,
-} from "@/lib/prospecting/previa-store";
+import { sitePreparationOptions } from "@/lib/prospecting/site-options";
+import { prepararCandidato } from "@/lib/prospecting/preparo";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -103,20 +98,54 @@ export async function GET() {
         provider_status: providerStatusValue,
         campaigns: campaigns.rows,
         candidates: candidates.rows.map((candidate) => {
-          const candidateData = candidate.data && typeof candidate.data === "object"
-            ? candidate.data as Record<string, unknown>
-            : {};
+          const candidateData =
+            candidate.data && typeof candidate.data === "object"
+              ? (candidate.data as Record<string, unknown>)
+              : {};
+          const campaign = campaigns.rows.find((row) => row.id === candidate.campaign_id);
+          const options = sitePreparationOptions(campaign?.search);
+          const preparation =
+            candidateData.preparacao && typeof candidateData.preparacao === "object"
+              ? (candidateData.preparacao as Record<string, { status?: string } | undefined>)
+              : {};
+          const rawSite = candidateData.site as { provisorio?: boolean } | undefined;
+          const siteState = !options.avaliarSite
+            ? "disabled"
+            : preparation.site?.status === "error"
+              ? "error"
+              : rawSite?.provisorio
+                ? "provisional"
+                : rawSite
+                  ? "ready"
+                  : "pending";
           const strategy = estrategiaDoCandidato(
             candidateData as Parameters<typeof estrategiaDoCandidato>[0],
             new Date().toISOString(),
           );
           const rawPreview = candidateData.previa;
           const currentPreview = previaAtual(rawPreview, candidateData, candidate.agent_version_id);
+          const autoPreviewEnabled =
+            options.gerarPrevia && ["new", "queued"].includes(candidate.status);
+          const previewState = currentPreview
+            ? "ready"
+            : rawPreview
+              ? "stale"
+              : !autoPreviewEnabled
+                ? "none"
+                : preparation.preview?.status === "error"
+                  ? "error"
+                  : preparation.preview?.status === "not_available"
+                    ? "not_available"
+                    : "pending";
+          const publicData = { ...candidateData };
+          delete publicData.preparacao;
           return {
             ...candidate,
+            data: publicData,
+            site_state: siteState,
             strategy,
             preview: currentPreview,
-            preview_state: rawPreview ? (currentPreview ? "ready" : "stale") : "none",
+            preview_state: previewState,
           };
         }),
         agents: agents.rows,
@@ -181,15 +210,14 @@ export async function POST(req: Request) {
           "candidato",
           "site_audit_rate_limited",
         );
-      const reanalyzed = await reanalyzeCandidateSite(pool, org, body.candidate_id);
-      result = { site: reanalyzed.site };
+      const prepared = await prepararCandidato(pool, org, body.candidate_id, { mode: "reanalyze" });
+      result = { site: prepared.site, strategy: prepared.strategy };
       auditMetadata = {
         operation: body.action,
-        class: reanalyzed.site.classe,
-        provisional: reanalyzed.site.provisorio,
+        class: prepared.site?.classe ?? null,
+        provisional: prepared.site?.provisorio ?? null,
       };
-    }
-    else if (body.action === "gerar_previa") {
+    } else if (body.action === "gerar_previa") {
       const porCandidato = await checkRateLimit(
         `prospecting:preview:${org}:${body.candidate_id}`,
         5,
@@ -204,31 +232,26 @@ export async function POST(req: Request) {
           "preview_rate_limited",
         );
       }
-      result = await withPreviewCandidateLock(pool, org, body.candidate_id, async () => {
-        const candidate = await carregarCandidatoParaPrevia(pool, org, body.candidate_id);
-        const generated = await gerarPreviaDoCandidato(pool, org, candidate);
-        const candidateData = candidate.data && typeof candidate.data === "object"
-          ? candidate.data as Record<string, unknown>
-          : {};
-        await salvarPreviaDoCandidato(pool, {
-          organizationId: org,
-          campaignId: candidate.campaign_id,
-          candidateId: candidate.id,
-          expectedWebsite: typeof candidateData.website === "string" ? candidateData.website : null,
-          expectedSiteJson: candidateData.site === undefined ? null : JSON.stringify(candidateData.site),
-          previa: generated.previa,
-        });
-        auditMetadata = {
-          operation: body.action,
-          agent_id: generated.previa.agente_id,
-          agent_version_id: generated.previa.agente_versao_id,
-          provider: generated.previa.provider,
-          status: "generated",
-        };
-        return { previa: generated.previa, strategy: generated.estrategia };
-      });
-    }
-    else if (body.action === "start")
+      const prepared = await prepararCandidato(pool, org, body.candidate_id, { mode: "preview" });
+      if (!prepared.preview)
+        throw new ProspectingError(
+          "A prévia ainda não está disponível. Confira o estado da campanha e tente novamente.",
+          409,
+          "candidato",
+          "preview_not_available",
+        );
+      result = {
+        previa: prepared.preview,
+        strategy: prepared.strategy,
+      };
+      auditMetadata = {
+        operation: body.action,
+        agent_id: prepared.preview.agente_id,
+        agent_version_id: prepared.preview.agente_versao_id,
+        provider: prepared.preview.provider,
+        status: "generated",
+      };
+    } else if (body.action === "start")
       result = await activateCampaign(pool, admin, org, body.id, body.config);
     else if (body.action === "pause") {
       // Pause does not wait for the worker lock; the delivery guard sees it before sending.

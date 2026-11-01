@@ -3,7 +3,7 @@
   "diagram_type": "architecture",
   "meta": {
     "title": "Prospecção nativa",
-    "subtitle": "Da pesquisa ao cliente qualificado",
+    "subtitle": "Da pesquisa ao preparo seguro e ao cliente qualificado",
     "output": "prospeccao-nativa.html",
     "quality_profile": "standard"
   },
@@ -50,6 +50,13 @@
       "label": "Busca e enriquecimento comercial"
     },
     {
+      "id": "preparation-options",
+      "lane": "app",
+      "col": 1,
+      "type": "component",
+      "label": "Opções da busca: avaliar site e gerar prévia"
+    },
+    {
       "id": "provider-dispatcher",
       "lane": "app",
       "col": 1,
@@ -83,6 +90,27 @@
       "col": 2,
       "type": "component",
       "label": "Campanhas e candidatos por organização"
+    },
+    {
+      "id": "preparation-worker",
+      "lane": "engine",
+      "col": 2,
+      "type": "component",
+      "label": "Worker limitado: 30 auditorias, 8 prévias, locks por organização e candidato"
+    },
+    {
+      "id": "preparation-state",
+      "lane": "db",
+      "col": 4,
+      "type": "component",
+      "label": "data.preparacao: progresso e retry; sem coluna ou conteúdo bruto"
+    },
+    {
+      "id": "preparation-progress",
+      "lane": "app",
+      "col": 4,
+      "type": "component",
+      "label": "Auditoria e prévia em progresso separado da busca e do custo Apify"
     },
     {
       "id": "site-audit-ui",
@@ -241,9 +269,49 @@
       "label": "busca com teto"
     },
     {
+      "from": "operator",
+      "to": "preparation-options",
+      "label": "optar por auditoria de site e prévia de IA ao iniciar a busca"
+    },
+    {
+      "from": "preparation-options",
+      "to": "discovery",
+      "label": "flags de preparo salvas no search JSONB; preview depende de auditoria"
+    },
+    {
       "from": "discovery",
       "to": "candidates",
       "label": "normalizar e deduplicar"
+    },
+    {
+      "from": "candidates",
+      "to": "preparation-worker",
+      "label": "somente busca concluída e campanha draft/running; sem selected"
+    },
+    {
+      "from": "preparation-worker",
+      "to": "site-audit-fetch",
+      "label": "reusa GET SSRF-safe e guarda resultado definitivo contra falha provisória"
+    },
+    {
+      "from": "preparation-worker",
+      "to": "site-preview-runtime",
+      "label": "prévia opcional no mesmo generator e runtime canônico; sem envio"
+    },
+    {
+      "from": "preparation-worker",
+      "to": "preparation-state",
+      "label": "persistir status seguro, tentativas e backoff em JSONB tenant-scoped"
+    },
+    {
+      "from": "preparation-state",
+      "to": "preparation-progress",
+      "label": "projetar progresso sem expor metadados internos"
+    },
+    {
+      "from": "preparation-progress",
+      "to": "operator",
+      "label": "busca, auditoria, prévia e custo externo permanecem distintos"
     },
     {
       "from": "candidates",
