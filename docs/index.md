@@ -152,6 +152,7 @@ acessibilidade).
 | Doc | Conteúdo |
 |---|---|
 | [`testing/user-journey-map.md`](testing/user-journey-map.md) | **Mapa de jornadas vivo** — casos, prioridade `[P0]`, achados. Atualizar sempre |
+| [`testing/final-operational-go-live-audit.md`](testing/final-operational-go-live-audit.md) | Auditoria operacional final — prontidão de uso pelo proprietário, pré-requisitos de produção e decisão de release separada |
 | [`testing/HANDOFF-vps-qa.md`](testing/HANDOFF-vps-qa.md) | Receita do ambiente fresco estilo VPS |
 | [`testing/clientix-qa-policy.md`](testing/clientix-qa-policy.md) | Baseline validado, validação por delta e convenções do runtime QA local |
 | [`harness-audit.md`](harness-audit.md) | **Auditoria do harness** — 20 itens + nível de maturidade |
