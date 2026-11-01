@@ -6,6 +6,7 @@ import "@testing-library/jest-dom/vitest";
 const api = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), patch: vi.fn() }));
 vi.mock("@/lib/api/client", () => ({ apiClient: api }));
 vi.mock("@/hooks/i18n/useT", () => ({ useT: () => (text: string) => text }));
+vi.mock("@/hooks/auth/AuthProvider", () => ({ useActiveOrg: () => ({ orgId: "org-a" }) }));
 
 import { ProspectingClient } from "@/app/app/prospecting/_client";
 import { ApiError } from "@/lib/api/types";
@@ -60,6 +61,8 @@ function fixture() {
   ];
   return {
     configured: true,
+    provider: "apify" as const,
+    provider_status: "apify_ready" as const,
     campaigns,
     candidates: campaigns.map((campaign, index) => ({
       id: `candidate-${index}`,

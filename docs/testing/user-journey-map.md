@@ -3398,3 +3398,20 @@ Certificação sintética da autorização de publicação. O caso válido usa `
 | Desktop 1440×900 | Conta não conectada; orientação para Credenciais, Publicar desabilitado | [desktop-1440x900-not-connected.png](../../evidence/p0-chatgpt-subscription-e/desktop-1440x900-not-connected.png) | PASS |
 
 Nos três viewports não houve overflow horizontal nem erro de console. Os cenários de catálogo inválido, módulo desligado e conta desconectada também mantiveram Publicar desabilitado. Toda chamada foi ao servidor local sintético; nenhuma requisição externa ou chamada real à OpenAI ocorreu.
+
+## J47 — Escolher a fonte de prospecção e entender o custo externo `[P0-2A]` (2026-10-31)
+
+A tela de prospecção identifica Google Maps / Places via Apify, mantém o engine local visivelmente indisponível enquanto fontes reais não forem aprovadas e explica que a cobrança ocorre na conta Apify vinculada. O teto por busca apresenta mínimo de US$ 0,50, máximo de US$ 10 e padrão de US$ 1. O estado concluído exibe somente `cost_usd` retornado pelo provedor; ausência de custo não gera estimativa. Os estados de chave ausente, configuração inválida e busca sem confirmação permanecem distintos. As capturas foram feitas com dados sintéticos em harness local da tela; nenhum request real ao Apify, Google ou outro provider foi feito.
+
+| Viewport | Estado sintético | Captura | Resultado |
+|---|---|---|---|
+| Desktop 1440×900 | Apify configurado; fonte, orçamento e busca habilitada | [desktop-1440x900-apify-ready.png](../../evidence/p0-prospecting-a/desktop-1440x900-apify-ready.png) | PASS |
+| Desktop 1440×900 | Credencial ausente; busca desabilitada | [desktop-1440x900-missing-credential.png](../../evidence/p0-prospecting-a/desktop-1440x900-missing-credential.png) | PASS |
+| Desktop 1440×900 | Engine local indisponível e sem fallback | [desktop-1440x900-local-http-unavailable.png](../../evidence/p0-prospecting-a/desktop-1440x900-local-http-unavailable.png) | PASS |
+| Desktop 1440×900 | Busca concluída; custo reportado US$ 0,42 | [desktop-1440x900-search-completed-cost.png](../../evidence/p0-prospecting-a/desktop-1440x900-search-completed-cost.png) | PASS |
+| Desktop 1440×900 | Provider salvo inválido; mensagem de configuração | [desktop-1440x900-provider-config-error.png](../../evidence/p0-prospecting-a/desktop-1440x900-provider-config-error.png) | PASS |
+| Desktop 1440×900 | Busca sem confirmação; aviso de possível execução/cobrança remota | [desktop-1440x900-search-uncertain.png](../../evidence/p0-prospecting-a/desktop-1440x900-search-uncertain.png) | PASS |
+| Tablet 768×1024 | Apify configurado; fonte, orçamento e busca habilitada | [tablet-768x1024-apify-ready.png](../../evidence/p0-prospecting-a/tablet-768x1024-apify-ready.png) | PASS |
+| Mobile 390×844 | Apify configurado; fonte, orçamento e busca habilitada | [mobile-390x844-apify-ready.png](../../evidence/p0-prospecting-a/mobile-390x844-apify-ready.png) | PASS |
+
+Nos três viewports não houve overflow horizontal, erro de console, falha de rede ou request externo. A busca, configuração e remoção da credencial foram mockadas; o token não apareceu no DOM.

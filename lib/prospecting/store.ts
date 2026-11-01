@@ -103,11 +103,19 @@ export async function credential(db: pg.Pool | pg.PoolClient, admin: SupabaseCli
   );
   const encrypted = rows[0]?.credential_encrypted;
   if (!encrypted)
-    throw new ProspectingError("Configure a chave de busca antes de extrair empresas.");
+    throw new ProspectingError(
+      "Configure a chave da Apify antes de iniciar uma busca.",
+      409,
+      "campanha",
+      "apify_credential_missing",
+    );
   const key = await decryptWebhookSecret(admin, encrypted.toString("hex"));
   if (!key)
     throw new ProspectingError(
       "Não foi possível abrir a chave de busca. Salve a configuração novamente.",
+      409,
+      "campanha",
+      "apify_credential_unavailable",
     );
   return key;
 }
@@ -126,6 +134,11 @@ export async function configureCredential(
     [org, encrypted],
   );
 }
+
+export async function removeCredential(pool: pg.Pool, org: string): Promise<void> {
+  await pool.query("delete from prospecting_settings where organization_id=$1", [org]);
+}
+
 export async function createSearch(
   pool: pg.Pool,
   admin: SupabaseClient,
@@ -151,7 +164,16 @@ export async function createSearch(
           "campanha",
           "local_http_unavailable",
         );
-      assertProspectingSourceAllowed("google_maps");
+      try {
+        assertProspectingSourceAllowed("google_maps");
+      } catch {
+        throw new ProspectingError(
+          "A fonte local não está aprovada para buscas reais nesta instalação.",
+          403,
+          "campanha",
+          "local_http_unavailable",
+        );
+      }
       return createLocalHttpSearch(db, org, requestId, search);
     }
     const key = await credential(db, admin, org);

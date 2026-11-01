@@ -10,6 +10,26 @@ import type { SearchInput } from "./schema";
 
 export const DEFAULT_PROSPECTING_PROVIDER = "apify" as const;
 export type ProspectingProviderName = "apify" | "local-http";
+export type ProspectingProviderStatus =
+  | "apify_ready"
+  | "apify_missing_credential"
+  | "local_http_ready"
+  | "local_http_unavailable"
+  | "provider_config_invalid";
+
+export function providerStatus(
+  provider: ProspectingProviderName | null,
+  credentialConfigured: boolean,
+  localHttpConfigured: boolean,
+  localHttpSourceApproved: boolean,
+): ProspectingProviderStatus {
+  if (!provider) return "provider_config_invalid";
+  if (provider === "apify")
+    return credentialConfigured ? "apify_ready" : "apify_missing_credential";
+  return localHttpConfigured && localHttpSourceApproved
+    ? "local_http_ready"
+    : "local_http_unavailable";
+}
 
 export interface SearchRun {
   id: string;
@@ -21,7 +41,11 @@ export interface SearchRun {
 export interface SearchProvider {
   startSearch(credential: string, input: SearchInput): Promise<SearchRun>;
   readSearch(credential: string, id: string): Promise<SearchRun>;
-  readResults(credential: string, dataset: string, limit: number): Promise<Record<string, unknown>[]>;
+  readResults(
+    credential: string,
+    dataset: string,
+    limit: number,
+  ): Promise<Record<string, unknown>[]>;
 }
 
 const apifyProvider: SearchProvider = {
@@ -37,19 +61,31 @@ export function providerNameFromSettings(settings: unknown): ProspectingProvider
   if (!Object.hasOwn(root, "prospecting")) return DEFAULT_PROSPECTING_PROVIDER;
   const prospecting = root.prospecting;
   if (prospecting === null || typeof prospecting !== "object" || Array.isArray(prospecting))
-    throw new ProspectingError("A configuração do provedor de prospecção é inválida.", 422);
+    throw new ProspectingError(
+      "A configuração do provedor de prospecção é inválida.",
+      422,
+      "campanha",
+      "provider_config_invalid",
+    );
   const config = prospecting as Record<string, unknown>;
   if (!Object.hasOwn(config, "provider")) return DEFAULT_PROSPECTING_PROVIDER;
   const value = config.provider;
   if (value === "apify" || value === "local-http") return value;
-  throw new ProspectingError("O provedor de prospecção configurado não é reconhecido.", 422);
+  throw new ProspectingError(
+    "O provedor de prospecção configurado não é reconhecido.",
+    422,
+    "campanha",
+    "provider_config_invalid",
+  );
 }
 
 export async function providerNameForOrganization(
   db: { query(sql: string, params?: unknown[]): Promise<{ rows: { settings?: unknown }[] }> },
   organizationId: string,
 ): Promise<ProspectingProviderName> {
-  const { rows } = await db.query("select settings from organizations where id=$1", [organizationId]);
+  const { rows } = await db.query("select settings from organizations where id=$1", [
+    organizationId,
+  ]);
   if (!rows.length) throw new ProspectingError("Organização não encontrada.", 404);
   return providerNameFromSettings(rows[0]?.settings);
 }

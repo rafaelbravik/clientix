@@ -46,6 +46,23 @@ describe("native prospecting", () => {
     expect(campaignConfigSchema.safeParse({ daily_limit: 1000, interval_minutes: 0 }).success).toBe(
       false,
     );
+    expect(searchSchema.parse({ name: "test", niche: "test", location: "SP" }).budget_usd).toBe(1);
+    expect(
+      searchSchema.safeParse({ name: "test", niche: "test", location: "SP", budget_usd: 0.49 })
+        .success,
+    ).toBe(false);
+    expect(
+      searchSchema.safeParse({ name: "test", niche: "test", location: "SP", budget_usd: 10.01 })
+        .success,
+    ).toBe(false);
+    expect(
+      searchSchema.safeParse({ name: "test", niche: "test", location: "SP", budget_usd: 0.5 })
+        .success,
+    ).toBe(true);
+    expect(
+      searchSchema.safeParse({ name: "test", niche: "test", location: "SP", budget_usd: 10 })
+        .success,
+    ).toBe(true);
   });
   it("sends the cost ceiling to the provider, with credentials only in the header", async () => {
     const fetch = vi

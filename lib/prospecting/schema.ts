@@ -28,7 +28,10 @@ export const prospectingInputSchema = z.discriminatedUnion("action", [
   z
     .object({ action: z.literal("configure"), api_key: z.string().trim().min(10).max(500) })
     .strict(),
-  z.object({ action: z.literal("select_provider"), provider: z.enum(["apify", "local-http"]) }).strict(),
+  z.object({ action: z.literal("remove_credential") }).strict(),
+  z
+    .object({ action: z.literal("select_provider"), provider: z.enum(["apify", "local-http"]) })
+    .strict(),
   z
     .object({ action: z.literal("search"), search: searchSchema, request_id: z.string().uuid() })
     .strict(),

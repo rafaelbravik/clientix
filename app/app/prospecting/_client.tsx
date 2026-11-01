@@ -11,7 +11,12 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { apiClient } from "@/lib/api/client";
 import { useT } from "@/hooks/i18n/useT";
+import { useActiveOrg } from "@/hooks/auth/AuthProvider";
 import { safePublicLink, type CampaignConfig, type Prospect } from "@/lib/prospecting/schema";
+import type {
+  ProspectingProviderName,
+  ProspectingProviderStatus,
+} from "@/lib/prospecting/dispatcher";
 import { ProspectingAgentBuilder, type CreatedProspectingAgent } from "./_create-agent";
 import type { ProspectingAgentSetupInput } from "@/lib/prospecting/agent-setup-schema";
 
@@ -38,6 +43,8 @@ type Candidate = {
 };
 type State = {
   configured: boolean;
+  provider: ProspectingProviderName | null;
+  provider_status: ProspectingProviderStatus;
   campaigns: Campaign[];
   candidates: Candidate[];
   agents: { id: string; name: string }[];
@@ -81,8 +88,10 @@ const emptyConfig: CampaignConfig = {
 };
 export function ProspectingClient() {
   const t = useT();
+  const activeOrg = useActiveOrg();
   const query = useQuery({
-    queryKey: ["prospecting"],
+    queryKey: ["prospecting", activeOrg?.orgId ?? null],
+    enabled: !!activeOrg?.orgId,
     queryFn: async () => (await apiClient.get<{ data: State }>("/api/v1/prospecting")).data,
     refetchInterval: 10000,
   });
@@ -103,6 +112,7 @@ export function ProspectingClient() {
   const [manualCampaigns, setManualCampaigns] = useState<Record<string, boolean>>({});
   const [createdAgents, setCreatedAgents] = useState<{ id: string; name: string }[]>([]);
   const campaign = data?.campaigns.find((c) => c.id === selected) ?? data?.campaigns[0];
+  const canSearch = data?.provider === "apify" && data.provider_status === "apify_ready";
   // A stored config is frozen by activation; unsaved choices belong to one campaign.
   const config = campaign?.config ?? (campaign && campaignDrafts[campaign.id]) ?? emptyConfig;
   const funil = config.pipeline_id;
@@ -182,7 +192,7 @@ export function ProspectingClient() {
           </p>
         </div>
         <Button variant="outline" onClick={() => setSettings((s) => !s)}>
-          {t("Configurar busca")}
+          {data?.configured ? t("Editar chave da Apify") : t("Configurar chave da Apify")}
         </Button>
       </header>
       {(error || query.error) && (
@@ -202,6 +212,78 @@ export function ProspectingClient() {
         </div>
       )}
       {!data && !query.error && <p role="status">{t("Carregando campanhas…")}</p>}
+      {data && (
+        <Card className="space-y-4 p-5">
+          <div>
+            <h2 className="text-lg font-semibold">{t("Fonte da busca")}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {t("Escolha a fonte que será usada nas próximas buscas desta organização.")}
+            </p>
+          </div>
+          <fieldset className="grid gap-3 sm:grid-cols-2">
+            <legend className="sr-only">{t("Fonte da busca")}</legend>
+            <label className="flex min-w-0 items-start gap-3 rounded-lg border p-4">
+              <input
+                type="radio"
+                name="prospecting-provider"
+                value="apify"
+                checked={data.provider === "apify"}
+                disabled={busy}
+                onChange={() =>
+                  void perform(
+                    { action: "select_provider", provider: "apify" },
+                    t("Fonte da busca atualizada."),
+                  )
+                }
+                className="mt-1"
+              />
+              <span className="min-w-0">
+                <span className="block font-medium">{t("Google Maps / Places via Apify")}</span>
+                <span className="mt-1 block text-xs text-muted-foreground">
+                  {t("Usa a conta Apify configurada para esta organização.")}
+                </span>
+              </span>
+            </label>
+            <label className="flex min-w-0 items-start gap-3 rounded-lg border bg-muted/30 p-4 text-muted-foreground">
+              <input
+                type="radio"
+                name="prospecting-provider"
+                value="local-http"
+                checked={data.provider === "local-http"}
+                disabled
+                readOnly
+                className="mt-1"
+              />
+              <span className="min-w-0">
+                <span className="block font-medium">{t("Engine local")}</span>
+                <span className="mt-1 block text-xs">
+                  {t("Indisponível para buscas reais nesta instalação.")}
+                </span>
+              </span>
+            </label>
+          </fieldset>
+          <p role="status" className="text-sm text-muted-foreground">
+            {data.provider_status === "apify_ready" &&
+              t("Chave da Apify configurada para esta organização.")}
+            {data.provider_status === "apify_missing_credential" &&
+              t("Configure a chave da Apify para iniciar uma busca.")}
+            {data.provider_status === "local_http_unavailable" &&
+              t(
+                "O engine local não está configurado ou não foi aprovado para fontes reais. Nenhuma troca automática será feita.",
+              )}
+            {data.provider_status === "provider_config_invalid" &&
+              t(
+                "A fonte salva é inválida. Selecione Google Maps / Places via Apify para corrigir.",
+              )}
+            {data.provider_status === "local_http_ready" && t("Engine local disponível.")}
+          </p>
+          <p className="rounded-md bg-muted/40 p-3 text-xs text-muted-foreground">
+            {t(
+              "A busca usa Google Maps / Places via Apify. O custo é cobrado pela própria Apify na conta associada à chave; o Clientix não cobra esse valor. O teto informado limita o valor máximo desta busca.",
+            )}
+          </p>
+        </Card>
+      )}
       {(settings || data?.configured === false) && (
         <Card className="p-5">
           <form
@@ -229,12 +311,31 @@ export function ProspectingClient() {
                 className="mt-2"
               />
               <p className="mt-2 text-xs text-muted-foreground">
-                {t("A chave fica cifrada no servidor. Cada busca tem seu próprio limite de gasto.")}
+                {t(
+                  "A chave fica cifrada no servidor, vinculada à organização e não volta a ser exibida depois de salva.",
+                )}
               </p>
             </div>
             <Button disabled={busy || !key} type="submit">
               {t("Salvar chave")}
             </Button>
+            {data?.configured && (
+              <Button
+                variant="outline"
+                disabled={busy}
+                type="button"
+                onClick={async () => {
+                  if (
+                    await perform({ action: "remove_credential" }, t("Chave da Apify removida."))
+                  ) {
+                    setSettings(false);
+                    setKey("");
+                  }
+                }}
+              >
+                {t("Remover chave")}
+              </Button>
+            )}
           </form>
         </Card>
       )}
@@ -246,7 +347,14 @@ export function ProspectingClient() {
               className="mt-4 space-y-4"
               onSubmit={async (e) => {
                 e.preventDefault();
-                const fingerprint = JSON.stringify([niche, location, limit, budget, enrich]);
+                const fingerprint = JSON.stringify([
+                  data?.provider,
+                  niche,
+                  location,
+                  limit,
+                  budget,
+                  enrich,
+                ]);
                 if (searchAttempt.current?.fingerprint !== fingerprint)
                   searchAttempt.current = { fingerprint, id: randomId() };
                 const success = await perform(
@@ -336,10 +444,10 @@ export function ProspectingClient() {
               </label>
               <p className="text-xs text-muted-foreground">
                 {t(
-                  "A pesquisa usa seu saldo da Apify. A quantidade encontrada pode ser menor que o limite. Nenhuma abordagem começa nesta etapa.",
+                  "O teto por busca deve ficar entre US$ 0,50 e US$ 10; o padrão é US$ 1. A cobrança é feita na conta Apify associada à chave. A quantidade encontrada pode ser menor que o limite e nenhuma abordagem começa nesta etapa.",
                 )}
               </p>
-              <Button className="w-full" type="submit" disabled={busy || !data?.configured}>
+              <Button className="w-full" type="submit" disabled={busy || !canSearch}>
                 {busy ? t("Aguarde…") : t("Buscar empresas")}
               </Button>
             </form>
@@ -386,8 +494,10 @@ export function ProspectingClient() {
                     <p className="mt-1 text-sm text-muted-foreground">
                       {t(labels[campaign.search_status] ?? campaign.search_status)}
                       {campaign.cost_usd !== null
-                        ? ` · US$ ${Number(campaign.cost_usd).toFixed(2)}`
-                        : ""}
+                        ? ` · ${t("Custo informado pelo provedor")}: US$ ${Number(campaign.cost_usd).toFixed(2)}`
+                        : campaign.search_status === "succeeded"
+                          ? ` · ${t("O provedor não informou o custo desta busca.")}`
+                          : ""}
                     </p>
                   </div>
                   <Badge variant="outline">{t(labels[campaign.status] ?? campaign.status)}</Badge>
@@ -395,6 +505,13 @@ export function ProspectingClient() {
                 {campaign.error && (
                   <p role="alert" className="mt-4 rounded-md bg-destructive/10 p-3 text-sm">
                     {campaign.error}
+                  </p>
+                )}
+                {["starting", "running", "unknown"].includes(campaign.search_status) && (
+                  <p className="mt-3 rounded-md bg-muted/40 p-3 text-xs text-muted-foreground">
+                    {t(
+                      "Pausar abordagens interrompe apenas o processamento local. Uma busca já aceita pela Apify pode continuar e gerar cobrança.",
+                    )}
                   </p>
                 )}
                 <div className="mt-5 grid grid-cols-2 gap-4 md:grid-cols-4">

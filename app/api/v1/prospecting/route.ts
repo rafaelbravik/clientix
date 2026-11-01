@@ -5,18 +5,24 @@ import { ok, fail } from "@/lib/api/wrappers";
 import { audit } from "@/lib/audit";
 import { getRequestPool } from "@/lib/agent-engine/db/request-pool";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { env } from "@/lib/env";
 import { capabilitiesOf } from "@/lib/channels/capabilities";
 import type { ChannelProvider } from "@/lib/channels/types";
 import { ProspectingError } from "@/lib/prospecting/provider";
 import { prospectingInputSchema } from "@/lib/prospecting/schema";
 import {
+  providerStatus,
   providerNameForOrganization,
+  type ProspectingProviderName,
+  type ProspectingProviderStatus,
   updateProspectingProvider,
 } from "@/lib/prospecting/dispatcher";
+import { isProspectingSourceAllowed } from "@/lib/prospecting/source-policy";
 import {
   activateCampaign,
   configureCredential,
   createSearch,
+  removeCredential,
   validateConfig,
   withProspectingLock,
   type Campaign,
@@ -65,11 +71,26 @@ export async function GET() {
         [org],
       ),
     ]);
-    const provider = await providerNameForOrganization(db, org);
+    let provider: ProspectingProviderName | null = null;
+    let providerStatusValue: ProspectingProviderStatus;
+    try {
+      provider = await providerNameForOrganization(db, org);
+      providerStatusValue = providerStatus(
+        provider,
+        !!settings.rows.length,
+        !!env.PROSPECTING_LOCAL_HTTP_URL.trim(),
+        isProspectingSourceAllowed("google_maps"),
+      );
+    } catch (error) {
+      if (!(error instanceof ProspectingError) || error.code !== "provider_config_invalid")
+        throw error;
+      providerStatusValue = "provider_config_invalid";
+    }
     return ok(
       {
         configured: !!settings.rows.length,
         provider,
+        provider_status: providerStatusValue,
         campaigns: campaigns.rows,
         candidates: candidates.rows,
         agents: agents.rows,
@@ -111,6 +132,9 @@ export async function POST(req: Request) {
     if (body.action === "configure") {
       await configureCredential(pool, admin, org, body.api_key);
       result = { configured: true };
+    } else if (body.action === "remove_credential") {
+      await removeCredential(pool, org);
+      result = { configured: false };
     } else if (body.action === "select_provider") {
       await updateProspectingProvider(pool, org, body.provider);
       result = { provider: body.provider };

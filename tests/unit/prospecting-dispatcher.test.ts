@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_PROSPECTING_PROVIDER,
+  providerStatus,
   providerNameForOrganization,
   providerNameFromSettings,
   updateProspectingProvider,
@@ -18,32 +19,55 @@ describe("prospecting provider selection", () => {
 
   it("accepts only supported providers and fails closed on malformed configuration", () => {
     expect(providerNameFromSettings({ prospecting: { provider: "apify" } })).toBe("apify");
-    expect(providerNameFromSettings({ prospecting: { provider: "local-http" } })).toBe("local-http");
+    expect(providerNameFromSettings({ prospecting: { provider: "local-http" } })).toBe(
+      "local-http",
+    );
     expect(() => providerNameFromSettings({ prospecting: { provider: "unknown" } })).toThrowError(
       expect.objectContaining({ status: 422 }),
     );
-    expect(() => providerNameFromSettings({ prospecting: "local-http" })).toThrowError(ProspectingError);
+    expect(() => providerNameFromSettings({ prospecting: "local-http" })).toThrowError(
+      ProspectingError,
+    );
+  });
+
+  it("reports whether the selected provider can run without implying a fallback", () => {
+    expect(providerStatus("apify", false, false, false)).toBe("apify_missing_credential");
+    expect(providerStatus("apify", true, false, false)).toBe("apify_ready");
+    expect(providerStatus("local-http", true, true, false)).toBe("local_http_unavailable");
+    expect(providerStatus("local-http", true, true, true)).toBe("local_http_ready");
+    expect(providerStatus(null, false, false, false)).toBe("provider_config_invalid");
   });
 
   it("derives the setting from an explicit organization-scoped query", async () => {
-    const query = vi.fn().mockResolvedValue({ rows: [{ settings: { prospecting: { provider: "local-http" } } }] });
+    const query = vi
+      .fn()
+      .mockResolvedValue({ rows: [{ settings: { prospecting: { provider: "local-http" } } }] });
     await expect(providerNameForOrganization({ query }, "org-a")).resolves.toBe("local-http");
     expect(query).toHaveBeenCalledWith("select settings from organizations where id=$1", ["org-a"]);
   });
 
   it("writes provider selection through an organization-scoped JSON settings update", async () => {
     const query = vi.fn().mockResolvedValue({ rowCount: 1 });
-    await expect(updateProspectingProvider({ query }, "org-a", "local-http")).resolves.toBeUndefined();
+    await expect(
+      updateProspectingProvider({ query }, "org-a", "local-http"),
+    ).resolves.toBeUndefined();
     expect(query.mock.calls[0]![0]).toContain("update organizations");
     expect(query.mock.calls[0]![0]).toContain("where id = $1");
     expect(query.mock.calls[0]![1]).toEqual(["org-a", "local-http"]);
     await expect(
-      updateProspectingProvider({ query: vi.fn().mockResolvedValue({ rowCount: 0 }) }, "org-a", "apify"),
+      updateProspectingProvider(
+        { query: vi.fn().mockResolvedValue({ rowCount: 0 }) },
+        "org-a",
+        "apify",
+      ),
     ).rejects.toMatchObject({ status: 409 });
   });
 
   it("does not accept a tenant-controlled endpoint or source in the selection action", () => {
-    expect(prospectingInputSchema.safeParse({ action: "select_provider", provider: "local-http" }).success).toBe(true);
+    expect(
+      prospectingInputSchema.safeParse({ action: "select_provider", provider: "local-http" })
+        .success,
+    ).toBe(true);
     expect(
       prospectingInputSchema.safeParse({
         action: "select_provider",
