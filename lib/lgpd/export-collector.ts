@@ -514,6 +514,139 @@ export interface CampaignRecipientRow {
   opted_out_at: string | null;
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function textoExternoPlano(value: unknown, limit: number): string | null {
+  if (typeof value !== "string") return null;
+  const text = value
+    .replace(/<(script|style|iframe|svg|noscript)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, " ")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, limit);
+  return text || null;
+}
+
+function copiarCamposJson(value: unknown, fields: readonly string[]): Record<string, Json> {
+  const source = asRecord(value);
+  if (!source) return {};
+  const result: Record<string, Json> = {};
+  for (const field of fields) {
+    const item = source[field];
+    if (
+      item === null ||
+      typeof item === "boolean" ||
+      typeof item === "number" ||
+      typeof item === "string" ||
+      Array.isArray(item)
+    ) {
+      result[field] = item as Json;
+    }
+  }
+  return result;
+}
+
+function projetarFatosDoSite(value: unknown): Json | null {
+  const source = asRecord(value);
+  if (!source) return null;
+  const headings = Array.isArray(source.headings)
+    ? source.headings
+        .slice(0, 6)
+        .map((item) => textoExternoPlano(item, 160))
+        .filter((item): item is string => item !== null)
+    : [];
+  return {
+    trust: "UNTRUSTED_EXTERNAL_CONTENT",
+    title: textoExternoPlano(source.title, 200),
+    description: textoExternoPlano(source.description, 300),
+    headings,
+    visible_text_length:
+      typeof source.visible_text_length === "number" && Number.isSafeInteger(source.visible_text_length)
+        ? Math.max(0, Math.min(source.visible_text_length, 2_000_000))
+        : null,
+  };
+}
+
+function projetarAuditoriaDoSite(value: unknown, includeAttempt = true): Json | null {
+  const source = asRecord(value);
+  if (!source) return null;
+  const result: Record<string, Json> = {};
+  for (const field of [
+    "ver", "classe", "status", "provisorio", "citavel", "external_content_trust",
+    "verificado_em", "url", "final_url", "http_status", "tempo_ms", "https_disponivel",
+    "tls_valido", "mobile_hint", "empty_hint", "builder_hint", "motivo",
+  ]) {
+    const item = source[field];
+    if (item === null || typeof item === "boolean" || typeof item === "number") result[field] = item;
+    else if (typeof item === "string") result[field] = textoExternoPlano(item, 500);
+  }
+  result.facts = projetarFatosDoSite(source.facts);
+  result.resumo = textoExternoPlano(source.resumo, 1_200);
+  if (includeAttempt && source.ultima_tentativa) {
+    result.ultima_tentativa = projetarAuditoriaDoSite(source.ultima_tentativa, false);
+  }
+  return result;
+}
+
+/** Candidate JSON is extensible. The LGPD export includes known business data,
+ * site findings, deterministic strategy and preview, while dropping worker
+ * internals, raw provider payloads, HTML, credentials and future unknown keys. */
+function projetarDadosDeProspeccao(value: Json): Json {
+  const source = asRecord(value);
+  if (!source) return value;
+  const result = copiarCamposJson(source, [
+    "key", "name", "phone", "website", "category", "address", "maps_url", "rating", "reviews",
+  ]);
+  for (const field of ["emails", "socials"] as const) {
+    if (Array.isArray(source[field])) {
+      result[field] = (source[field] as unknown[])
+        .filter((item): item is string => typeof item === "string")
+        .slice(0, field === "emails" ? 5 : 15)
+        .map((item) => textoExternoPlano(item, 500) ?? "");
+    }
+  }
+  if (source.site) result.site = projetarAuditoriaDoSite(source.site);
+  const strategy = asRecord(source.estrategia);
+  if (strategy) {
+    const projected = copiarCamposJson(strategy, ["classe", "verificacaoPendente"]);
+    for (const field of ["cenario", "angulo", "proximoPasso", "dataVerificacao"] as const) {
+      const text = textoExternoPlano(strategy[field], 500);
+      if (text !== null) projected[field] = text;
+    }
+    for (const field of ["ganchos"] as const) {
+      if (Array.isArray(strategy[field])) {
+        projected[field] = (strategy[field] as unknown[])
+          .filter((item): item is string => typeof item === "string")
+          .slice(0, 5)
+          .map((item) => textoExternoPlano(item, 500) ?? "");
+      }
+    }
+    if (Array.isArray(strategy.objecoes)) {
+      projected.objecoes = strategy.objecoes.slice(0, 3).flatMap((item) => {
+        const objection = asRecord(item);
+        if (!objection) return [];
+        return [{
+          objecao: textoExternoPlano(objection.objecao, 500),
+          resposta: textoExternoPlano(objection.resposta, 500),
+        }];
+      });
+    }
+    result.estrategia = projected;
+  }
+  const preview = asRecord(source.previa);
+  if (preview) {
+    const text = textoExternoPlano(preview.texto, 1_200);
+    const generatedAt = textoExternoPlano(preview.gerada_em, 80);
+    result.previa = { texto: text, gerada_em: generatedAt };
+  }
+  return result;
+}
+
 /**
  * Uma linha da lista de exclusão de campanhas que aponta para este titular
  * (migration 0375).
@@ -1672,7 +1805,12 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
         .range(offset, offset + 499);
       // Uma falha não pode virar um relatório que diz que não guardamos dados.
       if (error) throw error;
-      prospecting_candidates.push(...(data ?? []));
+      prospecting_candidates.push(
+        ...(data ?? []).map((row) => ({
+          ...row,
+          data: projetarDadosDeProspeccao(row.data),
+        })),
+      );
       if (!data || data.length < 500) break;
     }
   }

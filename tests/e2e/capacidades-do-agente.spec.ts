@@ -91,7 +91,7 @@ const TOOLS_DO_SEED = [
   // As escolhidas ficam FORA do pacote "Atender" de propósito — se alguma
   // estivesse dentro, a união seria menor que a soma e a conta acima não valeria.
   // Quatro são a família de agenda, que é o assunto do defeito que subiu o teto
-  // pela primeira vez; as quatro últimas são leitura pura de outros pacotes,
+  // pela primeira vez; as três últimas são leitura pura de outros pacotes,
   // para a aritmética continuar estourando a cada subida.
   "crm_find_free_slots",
   "crm_list_appointments",
@@ -100,7 +100,6 @@ const TOOLS_DO_SEED = [
   "crm_list_pipelines",
   "crm_list_event_types",
   "crm_list_human_cases",
-  "crm_list_knowledge_sources",
 ];
 
 /**

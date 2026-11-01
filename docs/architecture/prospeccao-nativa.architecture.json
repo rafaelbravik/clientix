@@ -148,6 +148,13 @@
       "label": "Estratégia determinística por classe e códigos fechados da auditoria"
     },
     {
+      "id": "prospecting-audit-mcp",
+      "lane": "engine",
+      "col": 4,
+      "type": "component",
+      "label": "MCP: contato do turno + filtro tenant; projeção segura de auditoria e estratégia"
+    },
+    {
       "id": "site-preview-action",
       "lane": "app",
       "col": 4,
@@ -362,6 +369,26 @@
       "from": "site-strategy",
       "to": "site-preview-action",
       "label": "estratégia determinística separada de fatos externos"
+    },
+    {
+      "from": "inbox",
+      "to": "prospecting-audit-mcp",
+      "label": "contato confiável do turno; sem IDs arbitrários do modelo"
+    },
+    {
+      "from": "prospecting-audit-mcp",
+      "to": "site-audit-jsonb",
+      "label": "consultar por organization_id + contact_id; ignorar tombstones e supressão"
+    },
+    {
+      "from": "prospecting-audit-mcp",
+      "to": "site-strategy",
+      "label": "recalcular estratégia determinística; omitir preview sem versão atual comprovada"
+    },
+    {
+      "from": "prospecting-audit-mcp",
+      "to": "inbox",
+      "label": "fatos externos marcados UNTRUSTED_EXTERNAL_CONTENT; sem HTML bruto, segredos ou IDs internos"
     },
     {
       "from": "operator",
