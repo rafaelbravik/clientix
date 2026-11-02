@@ -24,3 +24,6 @@ export const TIPOS_DERIVAVEIS: ReadonlySet<string> = new Set([
  * segurava a resposta do texto seguinte até o teto.
  */
 export const DERIVACAO_TERMINADA: ReadonlySet<string> = new Set(["ready", "failed", "skipped"]);
+
+/** Teto compartilhado entre o despacho e o turno que aguarda mídia tardia. */
+export const TETO_DA_ESPERA_DA_DERIVACAO_MS = 120_000;

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { casePromiseGate, type GateContext } from "@/lib/agent-engine/guardrails/before-send";
 import { detectHumanPromise } from "@/lib/agent-engine/guardrails/human-promise";
+import { detectarPromessaDeRetornoDoAssistente } from "@/lib/agent-engine/guardrails/retorno-do-assistente";
 import { PACING_DEFAULTS } from "@/lib/agent-engine/pacing/defaults";
 import { SPINNING_DEFAULTS } from "@/lib/agent-engine/spinning/defaults";
 
@@ -119,6 +120,76 @@ describe("Wave 8R — casePromiseGate e fail-safe", () => {
     expect(
       casePromiseGate.evaluate(
         baseCtx({ casesEnabled: true, openedCaseThisTurn: true, body: "Vou encaminhar para o setor." }),
+      ),
+    ).toEqual({ pass: true });
+  });
+});
+
+describe("retorno do assistente exige follow-up no mesmo turno", () => {
+  it.each([
+    "Combinado, retomamos daqui a duas horas.",
+    "Amanhã eu volto a falar com você.",
+    "Te chamo amanhã de manhã.",
+    "A gente se fala mais tarde.",
+  ])("detecta promessa clara de retorno: %s", (body) => {
+    expect(detectarPromessaDeRetornoDoAssistente(body)).toBe(true);
+  });
+
+  it.each(["Retomando o que conversamos, seguem os detalhes.", "O sistema retoma automaticamente."])(
+    "não confunde descrição/gerúndio com compromisso: %s",
+    (body) => expect(detectarPromessaDeRetornoDoAssistente(body)).toBe(false),
+  );
+
+  it("veta retorno sem agendamento quando a feature de casos está desligada", () => {
+    const verdict = casePromiseGate.evaluate(
+      baseCtx({
+        body: "Combinado, retomamos daqui a duas horas.",
+        casesEnabled: false,
+        followup: { disponivel: true, agendadoNesteTurno: false },
+      }),
+    );
+    expect(verdict.pass).toBe(false);
+    if (!verdict.pass) expect(verdict.code).toBe("followup_promise_without_followup");
+  });
+
+  it("libera retorno efetivamente agendado no turno", () => {
+    expect(
+      casePromiseGate.evaluate(
+        baseCtx({
+          body: "Combinado, retomamos daqui a duas horas.",
+          followup: { disponivel: true, agendadoNesteTurno: true },
+        }),
+      ),
+    ).toEqual({ pass: true });
+  });
+
+  it("explica quando a ferramenta de retorno não está disponível", () => {
+    const verdict = casePromiseGate.evaluate(
+      baseCtx({
+        body: "Combinado, retomamos daqui a duas horas.",
+        followup: { disponivel: false, agendadoNesteTurno: false },
+      }),
+    );
+    expect(verdict.pass).toBe(false);
+    if (!verdict.pass) expect(verdict.reason).toContain("não tem a ferramenta de retorno");
+  });
+
+  it("mantém caller sem contexto de follow-up retrocompatível", () => {
+    expect(
+      casePromiseGate.evaluate(
+        baseCtx({ body: "Combinado, retomamos daqui a duas horas.", casesEnabled: false }),
+      ),
+    ).toEqual({ pass: true });
+  });
+
+  it("não reclassifica promessa de humano como retorno do assistente", () => {
+    expect(
+      casePromiseGate.evaluate(
+        baseCtx({
+          body: "Nossa equipe vai retornar hoje.",
+          casesEnabled: false,
+          followup: { disponivel: true, agendadoNesteTurno: false },
+        }),
       ),
     ).toEqual({ pass: true });
   });

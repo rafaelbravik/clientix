@@ -21,7 +21,8 @@ import type { Logger } from '../../obs/logger';
 import { enqueueJob } from '../../queue/queue';
 import { decidirRajada, debounceEfetivo } from './debounce';
 import { avisoDeEventoMorto, IA_QUE_NAO_RESPONDEU } from '@/lib/event-log/aviso-de-evento-morto';
-import { TIPOS_DERIVAVEIS, DERIVACAO_TERMINADA } from '@/lib/messaging/media/derivable';
+import { TETO_DA_ESPERA_DA_DERIVACAO_MS } from '@/lib/messaging/media/derivable';
+import { midiaDerivavelPendente } from './midia-derivavel';
 import { haQuemAtendaASessao } from '@/lib/ai/agents/quem-atende-a-sessao';
 import { decidirElegibilidadeDaConversa } from '@/lib/ai/elegibilidade/consulta-pg';
 import { deveCederTurnoAoRetorno } from '@/lib/followup/ceder-turno-ao-retorno';
@@ -196,7 +197,6 @@ const ESPERA_DERIVACAO_MS = 4_000;
  * o cliente esperando minutos pela primeira resposta. 120s cobre o caso comum
  * de transcrição lenta (como o do Alfran) sem impor essa espera longa.
  */
-const TETO_ESPERA_DERIVACAO_MS = 120_000;
 
 type DesfechoEvento = 'processado' | 'adiar';
 
@@ -452,27 +452,13 @@ async function processEvent(
   // `media_url is not null` é a pré-condição de TODA a esteira: sem ela o
   // `media.persist_requested` nem é emitido, a derivação nunca é pedida e o
   // status fica null para sempre — esperar por ela só atrasaria a resposta.
-  const { rows: midias } = await pool.query<{
-    type: string;
-    media_derived_status: string | null;
-    quando: string;
-  }>(
-    `select type, media_derived_status, created_at as quando
-       from messages
-      where organization_id = $1
-        and conversation_id = $2
-        and direction = 'inbound'
-        and type = any($3::text[])
-        and media_url is not null
-      order by created_at desc
-      limit 20`,
-    [event.organization_id, p.conversation_id, [...TIPOS_DERIVAVEIS]],
-  );
-  // A mais RECENTE que ainda não terminou: é ela que o turno não pode perder.
-  const midia = midias.find((m) => !DERIVACAO_TERMINADA.has(m.media_derived_status ?? ''));
-  if (midia !== undefined) {
+  const midia = await midiaDerivavelPendente(pool, {
+    organizationId: event.organization_id,
+    conversationId: p.conversation_id,
+  });
+  if (midia !== null) {
     const esperandoHa = Date.now() - new Date(midia.quando).getTime();
-    if (esperandoHa < TETO_ESPERA_DERIVACAO_MS) {
+    if (esperandoHa < TETO_DA_ESPERA_DA_DERIVACAO_MS) {
       log.info('drain: mídia ainda sendo transcrita — turno adiado', {
         event_id: event.id,
         tipo: midia.type,

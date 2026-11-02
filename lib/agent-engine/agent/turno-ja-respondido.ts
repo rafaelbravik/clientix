@@ -32,6 +32,7 @@
  * follow-up de retomada não é resposta à pergunta do cliente.
  */
 import type pg from 'pg';
+import { TIPOS_DERIVAVEIS } from '@/lib/messaging/media/derivable';
 
 type Queryable = Pick<pg.Pool, 'query'>;
 
@@ -42,20 +43,36 @@ export interface AlvoDoTurno {
   jobId: string;
 }
 
+export interface OpcoesDaAnotacao {
+  /** Após esperar a derivação, não afirmar que o turno viu mídia sem texto. */
+  apenasMidiaComTexto?: boolean;
+}
+
 /**
  * Anota no job a inbound mais nova visível AGORA — chamar antes de o turno ler
  * a conversa. Um statement: o `||` do jsonb não pisa em chave alheia do payload
  * (`held_run_after` do session-watchdog, por exemplo).
  */
-export async function anotarUltimaInboundVista(db: Queryable, alvo: AlvoDoTurno): Promise<void> {
+export async function anotarUltimaInboundVista(
+  db: Queryable,
+  alvo: AlvoDoTurno,
+  opcoes: OpcoesDaAnotacao = {},
+): Promise<void> {
   await db.query(
     `update job_queue
         set payload = payload || jsonb_build_object(
           'ultima_inbound_vista_em',
           (select max(m.created_at) from messages m
-            where m.organization_id = $1 and m.conversation_id = $2 and m.direction = 'inbound'))
+            where m.organization_id = $1 and m.conversation_id = $2 and m.direction = 'inbound'
+              and ($4::boolean is not true or m.type <> all($5::text[]) or m.media_derived_text is not null)))
       where organization_id = $1 and id = $3`,
-    [alvo.organizationId, alvo.conversationId, alvo.jobId],
+    [
+      alvo.organizationId,
+      alvo.conversationId,
+      alvo.jobId,
+      opcoes.apenasMidiaComTexto === true,
+      [...TIPOS_DERIVAVEIS],
+    ],
   );
 }
 

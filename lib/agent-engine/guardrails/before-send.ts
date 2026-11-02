@@ -68,6 +68,7 @@ import type { DisclosureMode } from './disclosure/template';
 import { escalateLgpdVeto, isLegalBasisValid } from './lgpd/legal-basis';
 import type { LgpdInput } from './lgpd/legal-basis';
 import { detectHumanPromise } from './human-promise';
+import { detectarPromessaDeRetornoDoAssistente } from './retorno-do-assistente';
 import { detectarVazamentoInterno, renderVetoDeVazamento } from './vazamento-interno';
 // Módulo PURO de propósito (`capabilities`, não `index`): o seam não arrasta o
 // adapter — e com ele o cliente HTTP do canal — para dentro do worker.
@@ -192,6 +193,8 @@ export interface GateContext {
   casesEnabled: boolean;
   hasOpenCase: boolean;
   openedCaseThisTurn: boolean;
+  /** Estado da tool schedule_followup do turno atual. Ausente = envio sem esse contexto. */
+  followup?: { disponivel: boolean; agendadoNesteTurno: boolean };
   /**
    * Nome(s) próprio(s) que o PROMPT do tenant usa para a retaguarda humana (ex.:
    * "Fulano"), somados ao vocabulário genérico do `casePromiseGate`
@@ -412,15 +415,37 @@ export const semanticPromiseGate: Gate = {
 export const casePromiseGate: Gate = {
   name: 'case_promise',
   evaluate: (ctx) => {
+    const promessaHumana = detectHumanPromise(ctx.body, ctx.humanPromiseExtraTargets);
+    const promessaDeRetorno =
+      ctx.followup !== undefined &&
+      !promessaHumana &&
+      detectarPromessaDeRetornoDoAssistente(ctx.body);
+
+    if (promessaDeRetorno && ctx.followup?.agendadoNesteTurno === true) return { pass: true };
+    if (promessaDeRetorno && !ctx.casesEnabled) {
+      return {
+        pass: false,
+        code: 'followup_promise_without_followup',
+        reason:
+          ctx.followup?.disponivel === true
+            ? 'Você prometeu voltar a falar com o cliente, mas não deixou o retorno marcado. ' +
+              'Chame a tool schedule_followup antes de confirmar ou reformule a mensagem sem prometer retorno.'
+            : 'Você prometeu voltar a falar com o cliente, mas este agente não tem a ferramenta de retorno. ' +
+              'Reformule a mensagem sem prometer voltar.',
+      };
+    }
     if (!ctx.casesEnabled) return { pass: true };
     if (ctx.hasOpenCase || ctx.openedCaseThisTurn) return { pass: true };
-    if (!detectHumanPromise(ctx.body, ctx.humanPromiseExtraTargets)) return { pass: true };
+    if (!promessaHumana && !promessaDeRetorno) return { pass: true };
     return {
       pass: false,
       code: 'case_promise_without_case',
       reason:
-        'Você prometeu envolver um humano mas não abriu um caso. Chame a tool ' +
-        'open_human_case (descrevendo o que precisa) OU reformule a mensagem sem prometer humano.',
+        promessaDeRetorno
+          ? 'Você prometeu voltar a falar com o cliente, mas não deixou o retorno marcado. ' +
+            'Chame schedule_followup ou open_human_case, ou reformule a mensagem sem prometer retorno.'
+          : 'Você prometeu envolver um humano mas não abriu um caso. Chame a tool ' +
+            'open_human_case (descrevendo o que precisa) OU reformule a mensagem sem prometer humano.',
     };
   },
 };
@@ -948,6 +973,7 @@ export interface RunBeforeSendArgs {
   casesEnabled?: boolean;
   hasOpenCase?: boolean;
   openedCaseThisTurn?: boolean;
+  followup?: { disponivel: boolean; agendadoNesteTurno: boolean };
   /** Ver `GateContext.humanPromiseExtraTargets`. Ausente = só cargos genéricos. */
   humanPromiseExtraTargets?: readonly string[];
   /**
@@ -1243,6 +1269,7 @@ export async function runBeforeSend(args: RunBeforeSendArgs): Promise<BeforeSend
       casesEnabled: args.casesEnabled ?? false,
       hasOpenCase: args.hasOpenCase ?? false,
       openedCaseThisTurn: args.openedCaseThisTurn ?? false,
+      ...(args.followup !== undefined ? { followup: args.followup } : {}),
       ...(args.humanPromiseExtraTargets !== undefined
         ? { humanPromiseExtraTargets: args.humanPromiseExtraTargets }
         : {}),

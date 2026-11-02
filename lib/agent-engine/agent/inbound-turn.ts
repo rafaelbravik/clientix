@@ -218,6 +218,8 @@ import type { DependenciasDoPonto } from '@/lib/ai/decisao/ponto';
 import { fusoDaOrganizacao } from './fuso-da-org';
 import { renderAgora } from '@/lib/tempo/agora';
 import { decidirElegibilidadeDaConversa } from '@/lib/ai/elegibilidade/consulta-pg';
+import { TETO_DA_ESPERA_DA_DERIVACAO_MS } from '@/lib/messaging/media/derivable';
+import { esperarMidiaDerivavel } from './espera-da-midia';
 import {
   anotarUltimaInboundVista,
   respostaFicouObsoleta,
@@ -2239,6 +2241,43 @@ async function executarTurnoDoAgente(
         }
       : contextKnobs;
 
+  let prazoDaEsperaDaMidiaMs: number | undefined;
+  const lerContextoDaConversa = async (): Promise<LeadContextResult> => {
+    if (!preview && liveJob().kind === 'inbound_turn') {
+      prazoDaEsperaDaMidiaMs ??= Date.now() + TETO_DA_ESPERA_DA_DERIVACAO_MS;
+      const resultado = await esperarMidiaDerivavel(pool, {
+        organizationId: tenantId,
+        conversationId: input.conversationId,
+        prazoAteMs: prazoDaEsperaDaMidiaMs,
+        ...(deps.sleep !== undefined ? { dormir: deps.sleep } : {}),
+      });
+      if (resultado === 'teto_da_espera') {
+        runLog.warn('mídia derivável não concluiu no teto do turno — seguindo sem novo texto', {
+          resultado,
+        });
+      }
+      // O job pode ter começado antes da derivação, enquanto novas mensagens
+      // chegaram. Atualizar a régua imediatamente antes da leitura do contexto;
+      // mídia sem texto derivado não conta como algo que o turno viu.
+      await anotarUltimaInboundVista(
+        pool,
+        {
+          organizationId: tenantId,
+          contactId: leadId,
+          conversationId: input.conversationId,
+          jobId: liveJob().id,
+        },
+        { apenasMidiaComTexto: true },
+      );
+    }
+    return getLeadContext(
+      pool,
+      deps.crmCfg,
+      { tenantId, leadId, conversationId: input.conversationId, fuso: fusoDaOrg },
+      turnContextKnobs,
+    );
+  };
+
   // Ritual de abertura: playbook por ponteiro + checkpoint + contexto curado.
   // Com agente publicado, o system_prompt DELE é a camada tenant (platform de
   // compliance continua à frente, sempre).
@@ -2286,12 +2325,7 @@ async function executarTurnoDoAgente(
   const leadState = preview?.kind === 'sandbox' ? null : await getLeadState(pool, tenantId, leadId);
   const openingContext = preview
     ? preview.context
-    : await getLeadContext(
-        pool,
-        deps.crmCfg,
-        { tenantId, leadId, conversationId: input.conversationId, fuso: fusoDaOrg },
-        turnContextKnobs,
-      );
+    : await lerContextoDaConversa();
   if (!openingContext.ok) {
     // Sem contexto não há turno: transiente (CRM fora) OU permanente (lead
     // sumiu) — ambos re-tentam pela fila e morrem em 'dead' se persistirem.
@@ -2652,6 +2686,9 @@ async function executarTurnoDoAgente(
   // Spec 15 (Wave 4 lê este flag): true quando open_human_case abriu um caso NESTE
   // turno — aqui só declara e seta; o consumo (ex.: guardrail de promessa) é da Wave 4.
   let openedCaseThisTurn = false;
+  const followupKnobs = deps.knobs.followup;
+  const followupDisponivelNesteTurno = podeExporScheduleFollowup(agentConfig?.followup, followupKnobs);
+  let followupAgendadoNesteTurno = false;
   // Wave 4 — contador do fail-safe do guardrail anti-alucinação (case_promise_without_case):
   // 1º veto no turno é erro-de-ensino (o modelo re-tenta); persistir uma 2ª vez aciona o
   // auto-abre-caso (ver send_message.execute). Por turno (closure), nunca cross-turno.
@@ -2826,12 +2863,7 @@ async function executarTurnoDoAgente(
         try {
           const releitura = preview
             ? preview.context
-            : await getLeadContext(
-                pool,
-                deps.crmCfg,
-                { tenantId, leadId, conversationId: input.conversationId, fuso: fusoDaOrg },
-                turnContextKnobs,
-              );
+            : await lerContextoDaConversa();
           // Sem esta linha a projeção da abertura seria decorativa: bastaria o
           // modelo chamar esta ferramenta para receber o contexto CRU de volta,
           // com `lead_id`, `conversation_id` e caminho de mídia. A releitura é a
@@ -3170,6 +3202,10 @@ async function executarTurnoDoAgente(
             casesEnabled: agentConfig?.casesEnabled ?? false,
             hasOpenCase,
             openedCaseThisTurn,
+            followup: {
+              disponivel: followupDisponivelNesteTurno,
+              agendadoNesteTurno: followupAgendadoNesteTurno,
+            },
             // Nome(s) próprio(s) que o prompt do tenant usa pra retaguarda humana (ex.:
             // "Fulano") — o mesmo vocabulário que `matchesHandoffKeyword` já usa do lado
             // do CLIENTE, agora somado ao alvo genérico do `casePromiseGate` do lado do
@@ -3691,8 +3727,7 @@ async function executarTurnoDoAgente(
   // na versão publicada. Tenant/lead vêm da ROW do job (closure), nunca do
   // payload do modelo. É MUTANTE (cria cron_job), por isso fica fora de
   // READ_ONLY_TOOLS.
-  const followupKnobs = deps.knobs.followup;
-  if (podeExporScheduleFollowup(agentConfig?.followup, followupKnobs)) {
+  if (followupDisponivelNesteTurno) {
     rawTools.schedule_followup = tool({
       ...AGENT_TOOL_DEFS.schedule_followup,
       execute: async (raw) => {
@@ -3709,6 +3744,7 @@ async function executarTurnoDoAgente(
           if (!res.ok) {
             return res; // erro de ensino (payload / data no passado / fora da janela)
           }
+          followupAgendadoNesteTurno = true;
           return {
             ok: true,
             status: 'agendado',
