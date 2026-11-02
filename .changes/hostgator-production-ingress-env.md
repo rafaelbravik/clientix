@@ -1,1 +1,6 @@
-O instalador HostGator grava a política de ingress de produção no ambiente compartilhado por worker e agente de voz, mantendo HTTP inseguro desativado nesses runtimes.
+---
+impacto: nada_mudou
+secao: corrigido
+titulo: O instalador fixa a política de ingress de produção
+---
+O instalador HostGator grava no ambiente compartilhado a política de ingress de produção e mantém o uso de HTTP inseguro desativado.
