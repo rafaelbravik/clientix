@@ -49417,3 +49417,12 @@ comment on column public.campaign_recipients.split_bubble_count is
   'Quantidade fixa de mensagens na sequência WhatsApp deste destinatário; NULL quando não há sequência em andamento.';
 comment on column public.campaign_recipients.next_bubble_index is
   'Índice zero-based do próximo balão; avanço atômico após cada mensagem para evitar reenvio após retomada.';
+
+-- ---- pacing_ledger.resposta (migration 9061) ----
+-- Respostas não consomem o teto diário de disparos; linhas antigas seguem false.
+alter table public.pacing_ledger
+  add column if not exists resposta boolean not null default false;
+comment on column public.pacing_ledger.resposta is
+  'true = resposta a quem escreveu: vale para espaçamento, mas não consome o teto diário de disparos (9061).';
+
+notify pgrst, 'reload schema';

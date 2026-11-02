@@ -163,7 +163,7 @@ export async function loadPacingState(
   const dayStart = dayStartInTz(input.now, input.timezone);
   const { rows } = await db.query<{ last_sent_at: Date | null; sent_today: string }>(
     `select max(sent_at) as last_sent_at,
-            count(*) filter (where sent_at >= $3) as sent_today
+            count(*) filter (where sent_at >= $3 and not resposta) as sent_today
      from pacing_ledger
      where organization_id = $1 and channel_session_id = $2`,
     [tenantId, channelSessionId, dayStart],
@@ -182,10 +182,11 @@ export async function recordSend(
   tenantId: string,
   channelSessionId: string,
   sentAt: Date = new Date(),
+  opts: { resposta?: boolean } = {},
 ): Promise<void> {
   await db.query(
-    `insert into pacing_ledger (organization_id, channel_session_id, sent_at)
-     values ($1, $2, $3)`,
-    [tenantId, channelSessionId, sentAt],
+    `insert into pacing_ledger (organization_id, channel_session_id, sent_at, resposta)
+     values ($1, $2, $3, $4)`,
+    [tenantId, channelSessionId, sentAt, opts.resposta === true],
   );
 }

@@ -133,14 +133,22 @@ describe('janela de resposta separada da janela de disparo (0495)', () => {
     }
   });
 
-  it('cap diário continua valendo na RESPOSTA — 24h não é sem limite', () => {
-    // A janela é cortesia; o anti-ban (cap, warm-up, throttle) não abre junto.
+  it('cap diário mede disparos, mas não bloqueia resposta na janela permitida', () => {
     const k = knobs({ respostaStartHour: 0, respostaEndHour: 24 });
-    const d = decidePacing({
-      now: AS_3H, knobs: k, state: { ...estado, sentToday: 999 }, crmDailyLimit: null, resposta: true,
+    const resposta = decidePacing({
+      now: AS_10H, knobs: k, state: { ...estado, sentToday: 999 }, crmDailyLimit: null, resposta: true,
     });
-    expect(d.allow).toBe(false);
-    if (!d.allow) expect(d.code).not.toBe('outside_window');
+    expect(resposta).toEqual({ allow: true, waitMs: 0 });
+
+    const disparo = decidePacing({
+      now: AS_10H,
+      knobs: k,
+      state: { ...estado, sentToday: 999 },
+      crmDailyLimit: null,
+      rng: () => 0,
+    });
+    expect(disparo.allow).toBe(false);
+    if (!disparo.allow) expect(disparo.code).toBe('warmup_cap');
   });
 
   it('domingo desligado cala a resposta também (knob único, sem par)', () => {

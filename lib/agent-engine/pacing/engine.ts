@@ -14,7 +14,7 @@ import type { PacingKnobs, WarmupStep } from './defaults';
 export interface PacingState {
   /** Último envio deste número (qualquer dia) — base do throttle. */
   lastSentAt: Date | null;
-  /** Envios deste número desde a meia-noite LOCAL do tenant. */
+  /** Disparos deste número desde a meia-noite LOCAL do tenant; respostas não entram. */
   sentToday: number;
   /** Ativação do número (channel_knobs.number_activated_at); null = idade 0 (conservador). */
   numberActivatedAt: Date | null;
@@ -96,6 +96,15 @@ export function decidePacing(input: PacingInput): PacingDecision {
   // SEMPRE — desarmar as duas juntas acordaria cliente às 3h (invariante 3).
   if (!banRisk) return { allow: true, waitMs: 0 };
 
+  // O teto diário mede disparos iniciados pelo negócio. Quem escreveu aguarda
+  // uma resposta; ainda aplicamos espaçamento, janela e eventual piso do provider.
+  if (resposta) {
+    return {
+      allow: true,
+      waitMs: throttleWaitMs(now, state, knobs, rng, input.minimumIntervalMs),
+    };
+  }
+
   // Clamp em >= 0: number_activated_at no futuro (typo do admin / clock skew
   // daemon↔DB) cai no degrau MAIS conservador — warm-up falha FECHADO, nunca
   // vira "número formado" por idade negativa.
@@ -119,12 +128,22 @@ export function decidePacing(input: PacingInput): PacingDecision {
     };
   }
 
-  let waitMs = 0;
-  if (state.lastSentAt) {
-    const requiredGapMs = Math.max(knobs.throttleMs, input.minimumIntervalMs ?? 0) + jitterOf(rng, knobs);
-    waitMs = Math.max(0, requiredGapMs - (now.getTime() - state.lastSentAt.getTime()));
-  }
-  return { allow: true, waitMs };
+  return {
+    allow: true,
+    waitMs: throttleWaitMs(now, state, knobs, rng, input.minimumIntervalMs),
+  };
+}
+
+function throttleWaitMs(
+  now: Date,
+  state: PacingState,
+  knobs: PacingKnobs,
+  rng: () => number,
+  minimumIntervalMs?: number,
+): number {
+  if (!state.lastSentAt) return 0;
+  const requiredGapMs = Math.max(knobs.throttleMs, minimumIntervalMs ?? 0) + jitterOf(rng, knobs);
+  return Math.max(0, requiredGapMs - (now.getTime() - state.lastSentAt.getTime()));
 }
 
 /**

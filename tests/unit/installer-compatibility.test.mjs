@@ -82,8 +82,9 @@ describe("signed installer compatibility contract", () => {
     const campaignSplitMessagesMigration = schemaManifest.migrations.find((entry) => entry.sequence === 525);
     const lgpdIdentitySuppressionMigration = schemaManifest.migrations.find((entry) => entry.sequence === 541);
     const chatgptSubscriptionPublicationMigration = schemaManifest.migrations.find((entry) => entry.sequence === 9059);
-    expect(schemaManifest.schema_target).toBe("9059");
-    expect(schemaManifest.baseline.incorporated_through_sequence).toBe(9059);
+    const pacingReplyDailyCapMigration = schemaManifest.migrations.find((entry) => entry.sequence === 9061);
+    expect(schemaManifest.schema_target).toBe("9061");
+    expect(schemaManifest.baseline.incorporated_through_sequence).toBe(9061);
     expect(webchatMigration).toMatchObject({
       file: "20261010120000_0511_webchat_widget_bootstrap.sql",
       version: "20261010120000",
@@ -168,6 +169,12 @@ describe("signed installer compatibility contract", () => {
       version: "20261031202143",
       sequence: 9059,
       slug: "publish_chatgpt_subscription",
+    });
+    expect(pacingReplyDailyCapMigration).toMatchObject({
+      file: "20261102153625_9061_pacing_reply_daily_cap.sql",
+      version: "20261102153625",
+      sequence: 9061,
+      slug: "pacing_reply_daily_cap",
     });
 
     const baseline510Checksum = "a".repeat(64);
@@ -298,8 +305,9 @@ describe("signed installer compatibility contract", () => {
         { version: campaignSplitMessagesMigration.version, checksum: campaignSplitMessagesMigration.checksum },
         { version: lgpdIdentitySuppressionMigration.version, checksum: lgpdIdentitySuppressionMigration.checksum },
         { version: chatgptSubscriptionPublicationMigration.version, checksum: chatgptSubscriptionPublicationMigration.checksum },
+        { version: pacingReplyDailyCapMigration.version, checksum: pacingReplyDailyCapMigration.checksum },
       ],
-    }, schemaManifest)).toMatchObject({ valid: true, currentSchema: "9059" });
+    }, schemaManifest)).toMatchObject({ valid: true, currentSchema: "9061" });
     expect(deriveCurrentSchema({ type: "FRESH_DATABASE" }, schemaManifest)).toMatchObject({ valid: true, currentSchema: null });
     expect(deriveCurrentSchema({ type: "EXISTING_UNTRACKED_INSTALLATION" }, schemaManifest).valid).toBe(false);
     expect(deriveCurrentSchema({ type: "TRACKED_INSTALLATION", applied: [] }, schemaManifest).valid).toBe(false);

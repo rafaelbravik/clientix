@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "generated_at": "2026-10-31T20:26:20.859Z",
-  "schema_target": "9059",
+  "generated_at": "2026-11-02T15:38:26.285Z",
+  "schema_target": "9061",
   "baseline": {
     "file": "baseline.sql",
-    "checksum": "6d7755fd7399792f8e2561708021999c625f523d7b5f616abd0e8a01c7fd4768",
-    "size_bytes": 2527477,
-    "incorporated_through_sequence": 9059
+    "checksum": "c8795ca36ff59f8e1406408b0253d26790127cb86828e1db7fa86d405e790fae",
+    "size_bytes": 2527913,
+    "incorporated_through_sequence": 9061
   },
   "migrations": [
     {
@@ -3456,7 +3456,15 @@
       "slug": "publish_chatgpt_subscription",
       "checksum": "bb90da28e1db549dd3d68e7843670416cf16007f8e137327187e124bceecc65a",
       "transactional": true
+    },
+    {
+      "file": "20261102153625_9061_pacing_reply_daily_cap.sql",
+      "version": "20261102153625",
+      "sequence": 9061,
+      "slug": "pacing_reply_daily_cap",
+      "checksum": "a833c230cbf69580c6c9c8dd051aa3a94c82aaf5736a577f1247167a2ceccf25",
+      "transactional": true
     }
   ],
-  "updated_at": "2026-10-31T20:26:20.859Z"
+  "updated_at": "2026-11-02T15:38:26.285Z"
 }
