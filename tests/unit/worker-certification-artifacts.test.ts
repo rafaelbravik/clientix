@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 const dockerfile = readFileSync("Dockerfile.worker", "utf8");
 const trustBuild = readFileSync("scripts/build-worker-certification.ts", "utf8");
 const releaseGuard = readFileSync("scripts/assert-worker-release-image.mjs", "utf8");
+const releaseMetadata = readFileSync("scripts/lib/release-image-metadata.mjs", "utf8");
 const publishWorkflow = readFileSync(".github/workflows/publish-image.yml", "utf8");
 
 describe("worker-certification e barreira de publicação", () => {
@@ -45,13 +46,14 @@ describe("worker-certification e barreira de publicação", () => {
     for (const marker of [
       'spawnSync("docker", ["image", "inspect", imageRef]',
       '"com.clientix.artifact": "worker-production"',
-      '"com.clientix.release-eligible": "true"',
       '"com.clientix.test-trust-root": "false"',
-      '"com.clientix.source-head": expectedHead',
-      '"com.clientix.source-dirty": "false"',
+      "releaseImageMetadataMismatches(labels, expectedHead)",
     ]) {
       expect(releaseGuard).toContain(marker);
     }
+    expect(releaseMetadata).toContain('"com.clientix.release-eligible"');
+    expect(releaseMetadata).toContain('"com.clientix.source-head"');
+    expect(releaseMetadata).toContain('"com.clientix.source-dirty"');
 
     expect(publishWorkflow).toContain("worker-release-guard:");
     expect(publishWorkflow).toContain("scripts/assert-worker-release-image.mjs");

@@ -179,8 +179,12 @@ CMD ["node", "server.js"]
 
 # ---- runner: imagem padrão do cliente self-host ----
 FROM runtime-base AS runner
+ARG SOURCE_HEAD=unknown
+ARG SOURCE_DIRTY=true
 LABEL com.clientix.artifact="customer-production" \
       com.clientix.release-eligible="true" \
+      com.clientix.source-head="$SOURCE_HEAD" \
+      com.clientix.source-dirty="$SOURCE_DIRTY" \
       com.clientix.test-trust-root="false"
 # O output standalone NÃO inclui public/ nem .next/static — copiar explicitamente,
 # senão CSS/JS/assets retornam 404 (app "sem estilo").

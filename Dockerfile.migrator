@@ -59,3 +59,13 @@ COPY supabase/manifest.json ./manifest/manifest.json
 FROM runtime-base AS customer
 COPY --from=customer-schema /build/baseline.customer.sql ./sql/baseline.sql
 COPY --from=customer-schema /build/manifest.customer.json ./manifest/manifest.json
+
+ARG SOURCE_HEAD=unknown
+ARG SOURCE_DIRTY=true
+LABEL org.opencontainers.image.source="https://github.com/rafaelbravik/clientix-agencia" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.title="Clientix database migrator" \
+      com.clientix.artifact="migrator-customer" \
+      com.clientix.release-eligible="true" \
+      com.clientix.source-head="$SOURCE_HEAD" \
+      com.clientix.source-dirty="$SOURCE_DIRTY"

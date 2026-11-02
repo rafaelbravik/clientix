@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { releaseImageMetadataMismatches } from "./lib/release-image-metadata.mjs";
 
 const [imageRef, expectedHead] = process.argv.slice(2);
 if (!imageRef || !expectedHead || !/^[0-9a-f]{40}$/i.test(expectedHead)) {
@@ -24,17 +25,19 @@ try {
 }
 
 const labels = image?.Config?.Labels ?? {};
-const expected = {
+const expectedImageLabels = {
   "com.clientix.artifact": "worker-production",
-  "com.clientix.release-eligible": "true",
   "com.clientix.test-trust-root": "false",
-  "com.clientix.source-head": expectedHead,
-  "com.clientix.source-dirty": "false",
 };
-const mismatches = Object.entries(expected).filter(([key, value]) => labels[key] !== value);
+const mismatches = [
+  ...releaseImageMetadataMismatches(labels, expectedHead),
+  ...Object.entries(expectedImageLabels)
+    .filter(([key, value]) => labels[key] !== value)
+    .map(([key]) => key),
+];
 if (mismatches.length) {
   process.stderr.write(
-    `Publicação do worker recusada: labels OCI não elegíveis para release (${mismatches.map(([key]) => key).join(", ")}).\n`,
+    `Publicação do worker recusada: labels OCI não elegíveis para release (${mismatches.join(", ")}).\n`,
   );
   process.exit(1);
 }
