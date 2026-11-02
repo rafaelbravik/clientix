@@ -21,6 +21,7 @@ import { verificarTetoMcp } from "./rate-limit";
 import { allTools } from "./tools";
 import { deCapacidadeDesligada, deModuloDesligado } from "./tools/catalog";
 import { higienizarUuidsDeAterro } from "./uuid-de-aterro";
+import { LIMITE_ELEMENTOS_INPUT_MCP } from "./limites";
 import type { McpContext } from "./types";
 
 const SERVER_NAME = "deskcomm-crm";
@@ -48,10 +49,15 @@ export function createMcpServer(
   capacidadesLigadas: readonly CapacidadeDaOrganizacao[] = [],
   idempotencyKey?: string,
 ): McpServer {
-  const server = new McpServer({
-    name: SERVER_NAME,
-    version: SERVER_VERSION,
-  });
+  const server = new McpServer(
+    {
+      name: SERVER_NAME,
+      version: SERVER_VERSION,
+    },
+    {
+      maxToolInputElements: LIMITE_ELEMENTOS_INPUT_MCP,
+    },
+  );
 
   const supabase = createAdminClient();
 
