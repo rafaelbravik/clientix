@@ -143,6 +143,8 @@ export const AUTH_LIMITS = {
   // usado UMA vez na vida de uma conta — 3 por hora por identidade já é
   // folga para quem errou o nome duas vezes.
   org_recovery: { ip: 5, id: 3, windowSec: 3600 },
+  // O limite diário de MFA é por usuário; a janela curta também limita a origem.
+  mfa: { ip: 30, id: 3, windowSec: 60 },
 } satisfies Record<string, AuthRateLimits>;
 
 export const __LOGIN_IP_DEFAULT_PARA_TESTE = LOGIN_IP_DEFAULT;
@@ -283,4 +285,46 @@ export async function registrarFalhaDeToken(
       err instanceof Error ? err.message : err,
     );
   }
+}
+
+/** Janela longa do segundo fator: só por usuário; o teto por IP é o da janela curta. */
+const MFA_DIARIO = { id: 15, windowSec: 86400 } as const;
+
+/**
+ * Bloqueia tentativas de segundo fator no servidor, compartilhadas entre
+ * login e recuperação de senha. O cookie mfa_attempts continua sendo apenas
+ * uma proteção adicional; ele não é a autoridade do limite.
+ */
+export async function mfaBloqueadoPorFalhas(
+  userId: string,
+  limits: AuthRateLimits = AUTH_LIMITS.mfa,
+  diario: { id: number; windowSec: number } = MFA_DIARIO,
+): Promise<boolean> {
+  const ip = await clientIp();
+  if (ip !== null) {
+    const atualIp = await peekRateLimit(`auth:mfa_fail:ip:${opaque(ip)}`, limits.windowSec);
+    if (atualIp >= limits.ip) return true;
+  }
+  if (limits.id !== undefined) {
+    const atualId = await peekRateLimit(`auth:mfa_fail:id:${opaque(userId)}`, limits.windowSec);
+    if (atualId >= limits.id) return true;
+  }
+  const atualDia = await peekRateLimit(`auth:mfa_fail_daily:id:${opaque(userId)}`, diario.windowSec);
+  return atualDia >= diario.id;
+}
+
+/** Registra no servidor uma tentativa de segundo fator que falhou. */
+export async function registrarFalhaDeMfa(
+  userId: string,
+  limits: AuthRateLimits = AUTH_LIMITS.mfa,
+  diario: { id: number; windowSec: number } = MFA_DIARIO,
+): Promise<void> {
+  const ip = await clientIp();
+  if (ip !== null) {
+    await checkRateLimit(`auth:mfa_fail:ip:${opaque(ip)}`, limits.ip, limits.windowSec);
+  }
+  if (limits.id !== undefined) {
+    await checkRateLimit(`auth:mfa_fail:id:${opaque(userId)}`, limits.id, limits.windowSec);
+  }
+  await checkRateLimit(`auth:mfa_fail_daily:id:${opaque(userId)}`, diario.id, diario.windowSec);
 }
