@@ -49425,4 +49425,33 @@ alter table public.pacing_ledger
 comment on column public.pacing_ledger.resposta is
   'true = resposta a quem escreveu: vale para espaçamento, mas não consome o teto diário de disparos (9061).';
 
+-- ---- índices de atrito da migration 0133 também no caminho de instalação nova ----
+-- As migrations já criavam estes índices; o baseline precisa reproduzir o mesmo
+-- plano para os painéis não caírem em varredura por janela numa instalação limpa.
+create index if not exists idx_agent_cases_org_closed
+  on public.agent_cases (organization_id, closed_at)
+  where closed_at is not null;
+
+create index if not exists idx_messages_org_direction_sent
+  on public.messages (organization_id, direction, sent_at);
+
+create index if not exists idx_contacts_org_blocked_at
+  on public.contacts (organization_id, blocked_at)
+  where blocked_at is not null;
+
+create index if not exists idx_crm_lead_activities_org_type_performed
+  on public.crm_lead_activities (organization_id, type, performed_at);
+
+create index if not exists idx_before_send_traces_org_created
+  on public.before_send_traces (organization_id, created_at);
+
+-- ---- revogações de anon das migrations 0018/0023 no baseline ----
+-- O ALTER DEFAULT PRIVILEGES concede acesso a tabelas novas; repetir as
+-- revogações aqui mantém o banco recém-instalado igual ao banco migrado.
+revoke all on public.storage_redaction_queue from anon;
+revoke all on public.ai_provider_credentials from anon;
+revoke all on public.ai_provider_credentials_safe from anon;
+revoke all on public.ai_agent_versions from anon;
+revoke all on public.ai_agent_runs from anon;
+
 notify pgrst, 'reload schema';
