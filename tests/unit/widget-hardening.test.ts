@@ -5,6 +5,9 @@ import { POST } from "@/app/api/v1/widget/chat/messages/route";
 import { gerarTokenDeAcessoWidget } from "@/lib/chat-widget/token";
 import { __limparMemoriaRateLimitParaTeste } from "@/lib/ai/dispatcher/rate-limit";
 
+const cookieSecurity = vi.hoisted(() => ({ fn: vi.fn(() => false) }));
+vi.mock("@/lib/supabase/cookie-secure", () => ({ cookieSecure: cookieSecurity.fn }));
+
 const ORG_A = "org-aaaa-1111-2222-333333333333";
 const ORG_B = "org-bbbb-1111-2222-333333333333";
 const CONV_A = "conv-aaaa-1111-2222-333333333333";
@@ -171,6 +174,8 @@ describe("AUD-02: Web Widget Hardening & RLS Cross-Tenant Suite", () => {
     mockedProvider = "waha";
     mockedWidgetPublicId = null;
     mockedSessionStatus = "WORKING";
+    cookieSecurity.fn.mockReset();
+    cookieSecurity.fn.mockReturnValue(false);
     __limparMemoriaRateLimitParaTeste();
   });
 
@@ -197,6 +202,23 @@ describe("AUD-02: Web Widget Hardening & RLS Cross-Tenant Suite", () => {
     expect(setCookie).toContain("__clientix_widget=");
     expect(setCookie?.toLowerCase()).toContain("httponly");
     expect(setCookie?.toLowerCase()).toContain("samesite=lax");
+    expect(setCookie?.toLowerCase()).not.toContain("; secure");
+    expect(cookieSecurity.fn).toHaveBeenCalledOnce();
+  });
+
+  it("configura Secure no cookie do widget conforme o ingress HTTPS canônico", async () => {
+    cookieSecurity.fn.mockReturnValue(true);
+    const token = gerarTokenDeAcessoWidget(CONV_A, ORG_A);
+    const req = new NextRequest("https://clientix.example/api/v1/widget/chat", {
+      method: "GET",
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    const res = await GET(req);
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("set-cookie")?.toLowerCase()).toContain("; secure");
+    expect(cookieSecurity.fn).toHaveBeenCalledOnce();
   });
 
   it("2. GET /api/v1/widget/chat aceita autenticação via cookie HttpOnly (após limpeza de URL)", async () => {

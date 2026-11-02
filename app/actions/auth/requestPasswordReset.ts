@@ -34,7 +34,6 @@ export async function requestPasswordReset(
   }
 
   const hdrs = await headers();
-  const origin = hdrs.get("origin") ?? env.NEXT_PUBLIC_APP_URL;
   const requestId = hdrs.get("x-request-id");
   const ip = hdrs.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
   const userAgent = hdrs.get("user-agent") ?? null;
@@ -51,7 +50,7 @@ export async function requestPasswordReset(
     // existente ao anexar `code=`/`token_hash=`) — sem SMTP customizado o
     // Supabase usa o template padrão dele, que só devolve `code` (PKCE), sem
     // `type`; /auth/confirm depende deste param pra saber que é recovery.
-    redirectTo: `${origin}/auth/confirm?type=recovery`,
+    redirectTo: `${env.NEXT_PUBLIC_APP_URL}/auth/confirm?type=recovery`,
   });
 
   if (error) {

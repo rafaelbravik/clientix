@@ -92,7 +92,6 @@ export async function signUp(
   }
 
   const hdrs = await headers();
-  const origin = hdrs.get("origin") ?? env.NEXT_PUBLIC_APP_URL;
   const requestId = hdrs.get("x-request-id");
   const ip = hdrs.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
   const userAgent = hdrs.get("user-agent") ?? null;
@@ -152,7 +151,7 @@ export async function signUp(
       password: parsed.data.password,
       inviteToken: convite,
       fullName: (parsed.data as SignupComConviteInput).full_name,
-      emailRedirectTo: `${origin}/auth/confirm?type=signup`,
+      emailRedirectTo: `${env.NEXT_PUBLIC_APP_URL}/auth/confirm?type=signup`,
     });
 
     if (!criada.ok) {
@@ -194,7 +193,7 @@ export async function signUp(
       // Ver comentário equivalente em requestPasswordReset.ts: ?type=signup
       // sobrevive ao redirect do GoTrue e é o que distingue este fluxo do de
       // recovery quando a verificação chega via `code` (PKCE), não `token_hash`.
-      emailRedirectTo: `${origin}/auth/confirm?type=signup`,
+      emailRedirectTo: `${env.NEXT_PUBLIC_APP_URL}/auth/confirm?type=signup`,
       // O convite é revalidado no servidor mesmo tendo sido validado ao montar
       // a tela: o campo de e-mail do formulário é adulterável no cliente, e a
       // decisão que importa acontece com o e-mail JÁ confirmado pelo provedor.

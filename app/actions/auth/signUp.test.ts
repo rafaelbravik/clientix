@@ -75,6 +75,9 @@ describe("signUp — a tela precisa saber se a sessão já veio aberta", () => {
     } as never);
     vi.mocked(modoDeCadastro).mockResolvedValue("aberto");
   });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
 
   it('"Confirm email" DESLIGADO: o provedor devolve sessão → sessao_ativa', async () => {
     // A forma exata que o GoTrue devolve com MAILER_AUTOCONFIRM=true.
@@ -113,6 +116,34 @@ describe("signUp — a tela precisa saber se a sessão já veio aberta", () => {
     const res = await signUp(entrada());
 
     expect(res).toEqual({ ok: false, error: "signup_failed" });
+  });
+
+  it("usa a origem configurada, ignorando Origin enviado pelo cliente", async () => {
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://clientix.example");
+    vi.mocked(headers).mockResolvedValue({
+      get: (key: string) =>
+        key === "origin"
+          ? "https://attacker.example"
+          : key === "x-forwarded-for"
+            ? `198.51.100.${n % 250}`
+            : null,
+    } as never);
+    signUpDoProvedor.mockResolvedValue({
+      data: { user: { id: "u-origin" }, session: null },
+      error: null,
+    });
+
+    const { signUp } = await import("./signUp");
+    const res = await signUp(entrada());
+
+    expect(res).toEqual({ ok: true, sessao_ativa: false });
+    expect(signUpDoProvedor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        options: expect.objectContaining({
+          emailRedirectTo: "https://clientix.example/auth/confirm?type=signup",
+        }),
+      }),
+    );
   });
 });
 
@@ -240,6 +271,7 @@ describe("signUp — convite com o cadastro público do GoTrue fechado (#1653)",
   });
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
   });
 
   it("com convite: cria a conta pela ADMIN API e manda o e-mail de confirmação", async () => {
@@ -265,6 +297,32 @@ describe("signUp — convite com o cadastro público do GoTrue fechado (#1653)",
     // O caminho que o GoTrue recusa quando `disable_signup` está ligado não é
     // nem chamado — quem cria a conta é o client admin.
     expect(signUpDoProvedor).not.toHaveBeenCalled();
+  });
+
+  it("convite usa a origem configurada, ignorando Origin enviado pelo cliente", async () => {
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://clientix.example");
+    vi.mocked(headers).mockResolvedValue({
+      get: (key: string) =>
+        key === "origin"
+          ? "https://attacker.example"
+          : key === "x-forwarded-for"
+            ? `192.0.2.${(n % 250) + 1}`
+            : null,
+    } as never);
+    goTrueCom(true);
+    admin.createUser.mockResolvedValue({ data: { user: { id: "u-origin-invite" } }, error: null });
+    resend.mockResolvedValue({ error: null });
+    const { token, entrada: corpo } = await conviteValido();
+
+    const { signUp } = await import("./signUp");
+    const res = await signUp(corpo, token);
+
+    expect(res).toEqual({ ok: true, sessao_ativa: false });
+    expect(resend).toHaveBeenCalledWith({
+      type: "signup",
+      email: corpo.email,
+      options: { emailRedirectTo: "https://clientix.example/auth/confirm?type=signup" },
+    });
   });
 
   it("CONTROLE — GoTrue aberto: o convite continua no signUp de sempre", async () => {

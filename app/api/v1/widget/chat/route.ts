@@ -6,6 +6,7 @@ import { fail, ok } from "@/lib/api/wrappers";
 import { CHANNEL_PROVIDER_WEBCHAT } from "@/lib/channels/capabilities";
 import { resolveClientIp } from "@/lib/channels/webhook-ip";
 import { validarTokenDeAcessoWidget } from "@/lib/chat-widget/token";
+import { cookieSecure } from "@/lib/supabase/cookie-secure";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -172,7 +173,7 @@ export async function GET(req: NextRequest): Promise<Response> {
   if (!validacao.payload.widgetPublicId) {
     response.cookies.set("__clientix_widget", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: cookieSecure(),
       sameSite: "lax",
       path: "/api/v1/widget",
       maxAge: 30 * 24 * 60 * 60,
