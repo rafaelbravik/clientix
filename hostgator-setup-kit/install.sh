@@ -1626,6 +1626,10 @@ esac
   # a versão: gravar não liga nada, e no dia em que ligarem ela sobe casada.
   envq VOICE_AGENT_IMAGE "${IMG_VOICE_AGENT}:${TAG_ALVO}"
   envq VOICE_AGENT_PULL_POLICY "$PULL_POLICY_ALVO"
+  # Worker e agente de voz também carregam lib/env.ts em produção pelo env_file.
+  # Persista a política estrita no arquivo, além do override explícito do app.
+  envq CLIENTIX_INGRESS_MODE "production"
+  envq CLIENTIX_ALLOW_INSECURE_HTTP "false"
   envq DOMAIN "$DOMAIN"
   envq ACME_EMAIL "$ACME_EMAIL"
   printf '# Proxy reverso: "caddy" (o kit sobe o dele nas portas 80/443), "traefik"\n'

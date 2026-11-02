@@ -16,6 +16,16 @@ async function readInstallerTemplateKeys() {
 }
 
 describe("commercial installer runtime environment contract", () => {
+  it("persists the strict ingress policy in the HostGator-generated environment", async () => {
+    const installer = await fs.readFile(path.resolve("hostgator-setup-kit/install.sh"), "utf8");
+    const start = installer.indexOf("  printf '# Gerado por install.sh");
+    const end = installer.indexOf("} > .env", start);
+    const generatedEnvBlock = start >= 0 && end > start ? installer.slice(start, end) : "";
+
+    expect(generatedEnvBlock).toContain('envq CLIENTIX_INGRESS_MODE "production"');
+    expect(generatedEnvBlock).toContain('envq CLIENTIX_ALLOW_INSECURE_HTTP "false"');
+  });
+
   it("declares app, worker, scheduler, voice, and migration inputs in the distribution template", async () => {
     const keys = await readInstallerTemplateKeys();
     const required = [
