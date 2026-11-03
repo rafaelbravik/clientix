@@ -11,7 +11,8 @@ import {
 } from "@/lib/auth/requirePlatformAdmin";
 import { requireSupportWrite } from "@/lib/impersonate/support";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { resolveTenantPlanLimits } from "@/lib/tenant/plan-limits";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { resolveTenantPlanLimitsFromCatalog } from "@/lib/tenant/plan-limits";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -60,7 +61,10 @@ export async function GET(
   }
 
   const settings = (org.settings as Record<string, unknown>) || {};
-  const limits = resolveTenantPlanLimits(settings);
+  const limits = await resolveTenantPlanLimitsFromCatalog(admin as unknown as SupabaseClient, settings);
+  if (!limits) {
+    return fail("upstream_unavailable", "Não foi possível validar o catálogo de planos da instalação.", 503, { requestId });
+  }
 
   const [usersRes, channelsRes] = await Promise.all([
     admin
@@ -119,6 +123,21 @@ export async function PATCH(
 
   const { plan, plan_limits } = parsed.data;
   const admin = createAdminClient();
+  const planClient = admin as unknown as SupabaseClient;
+
+  if (plan) {
+    const { data: planRow, error: planError } = await planClient
+      .from("platform_plan_catalog")
+      .select("slug, active")
+      .eq("slug", plan)
+      .maybeSingle();
+    if (planError || !planRow) {
+      return fail("upstream_unavailable", "Não foi possível validar o plano selecionado.", 503, { requestId });
+    }
+    if (planRow.active !== true) {
+      return fail("validation_error", "Este plano não está disponível para atribuição.", 422, { requestId });
+    }
+  }
 
   const { data: org, error: fetchErr } = await admin
     .from("organizations")
@@ -144,6 +163,11 @@ export async function PATCH(
       : {}),
   };
 
+  const resolvedLimits = await resolveTenantPlanLimitsFromCatalog(planClient, newSettings);
+  if (!resolvedLimits) {
+    return fail("upstream_unavailable", "Não foi possível validar os limites finais do plano.", 503, { requestId });
+  }
+
   const { error: updateErr } = await admin
     .from("organizations")
     .update({
@@ -157,8 +181,6 @@ export async function PATCH(
       requestId,
     });
   }
-
-  const resolvedLimits = resolveTenantPlanLimits(newSettings);
 
   await audit({
     action: "platform_admin.tenant_limits_updated",

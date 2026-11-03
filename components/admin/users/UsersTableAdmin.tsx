@@ -19,6 +19,13 @@ import {
 import { Users } from "@/lib/ui/icons";
 import type { AdminUserRow } from "@/hooks/useAdminUsers";
 import { useT } from "@/hooks/i18n/useT";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 // ---------------------------------------------------------------------------
 // Role badge
@@ -106,6 +113,13 @@ export function UsersTableAdminSkeleton() {
 
 interface UsersTableAdminProps {
   data: AdminUserRow[];
+  canManage: boolean;
+  canGrantGlobalAdmin?: boolean;
+  busyMembership: string | null;
+  busyGlobalAdmin?: string | null;
+  onChangeRole: (row: AdminUserRow, role: AdminUserRow["role"]) => void;
+  onToggleMembership: (row: AdminUserRow) => void;
+  onGrantGlobalAdmin?: (row: AdminUserRow) => void;
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
   onLoadMore: () => void;
@@ -113,6 +127,13 @@ interface UsersTableAdminProps {
 
 export function UsersTableAdmin({
   data,
+  canManage,
+  canGrantGlobalAdmin = false,
+  busyMembership,
+  busyGlobalAdmin,
+  onChangeRole,
+  onToggleMembership,
+  onGrantGlobalAdmin,
   hasNextPage,
   isFetchingNextPage,
   onLoadMore,
@@ -143,7 +164,7 @@ export function UsersTableAdmin({
               <TableHead className="w-[100px]">Role</TableHead>
               <TableHead className="w-[160px]">{t("Último acesso")}</TableHead>
               <TableHead className="w-[100px]">{t("Status")}</TableHead>
-              <TableHead className="w-[60px]" />
+              <TableHead className={canManage || canGrantGlobalAdmin ? "w-[280px]" : "w-[60px]"}>{canManage || canGrantGlobalAdmin ? t("Ações") : ""}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -164,7 +185,19 @@ export function UsersTableAdmin({
                   </div>
                 </TableCell>
                 <TableCell>
-                  <RoleBadge role={row.role} />
+                  {canManage && !row.revoked_at ? (
+                    <Select value={row.role} onValueChange={(value) => onChangeRole(row, value as AdminUserRow["role"])}>
+                      <SelectTrigger className="h-8 w-32" aria-label={`${t("Papel de")} ${row.email ?? row.user_id}`}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="admin">{t("Admin")}</SelectItem>
+                        <SelectItem value="manager">{t("Manager")}</SelectItem>
+                        <SelectItem value="agent">{t("Agente")}</SelectItem>
+                        <SelectItem value="viewer">{t("Viewer")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : <RoleBadge role={row.role} />}
                 </TableCell>
                 <TableCell className="text-xs text-muted-foreground">
                   {relativeDate(row.last_sign_in_at, localeDaData)}
@@ -177,12 +210,43 @@ export function UsersTableAdmin({
                   )}
                 </TableCell>
                 <TableCell>
-                  <Link
-                    href={`/admin/users/${row.user_id}`}
-                    className="text-xs font-medium text-accent hover:underline"
-                  >
-                    {t("Ver")}
-                  </Link>
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href={`/admin/users/${row.user_id}`}
+                      className="text-xs font-medium text-accent hover:underline"
+                    >
+                      {t("Ver")}
+                    </Link>
+                    {canManage && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={row.revoked_at ? "secondary" : "destructive"}
+                        disabled={busyMembership === `${row.user_id}:${row.organization_id}`}
+                        onClick={() => onToggleMembership(row)}
+                      >
+                        {busyMembership === `${row.user_id}:${row.organization_id}`
+                          ? t("Salvando…")
+                          : row.revoked_at ? t("Reativar") : t("Revogar acesso")}
+                      </Button>
+                    )}
+                    {canGrantGlobalAdmin && row.platform_role === null && onGrantGlobalAdmin && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={busyGlobalAdmin === row.user_id}
+                        onClick={() => onGrantGlobalAdmin(row)}
+                      >
+                        {busyGlobalAdmin === row.user_id ? t("Salvando…") : t("Tornar admin global")}
+                      </Button>
+                    )}
+                    {canGrantGlobalAdmin && row.platform_role && (
+                      <Badge variant={row.platform_role === "owner" ? "default" : "secondary"}>
+                        {row.platform_role === "owner" ? t("Proprietário global") : t("Admin global")}
+                      </Badge>
+                    )}
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

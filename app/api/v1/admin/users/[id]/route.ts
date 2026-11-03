@@ -4,6 +4,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { ok, fail } from "@/lib/api/wrappers";
 import { audit } from "@/lib/audit";
 import { randomUUID } from "node:crypto";
+import { z } from "zod";
+import { requireSupportWrite } from "@/lib/impersonate/support";
+import { falhaDaEscritaDePlatformAdmin, requirePlatformAdminEscrita } from "@/lib/auth/requirePlatformAdmin";
 
 // ---------------------------------------------------------------------------
 // GET /api/v1/admin/users/[id]
@@ -131,4 +134,70 @@ export async function GET(
     },
     { requestId },
   );
+}
+
+const membershipMutationSchema = z.object({
+  organization_id: z.string().uuid(),
+  action: z.enum(["change_role", "revoke", "reactivate"]),
+  role: z.enum(["viewer", "agent", "manager", "admin"]).optional(),
+}).strict().superRefine((value, ctx) => {
+  if (value.action === "change_role" && !value.role) {
+    ctx.addIssue({ code: "custom", path: ["role"], message: "Selecione o papel da empresa." });
+  }
+  if (value.action !== "change_role" && value.role !== undefined) {
+    ctx.addIssue({ code: "custom", path: ["role"], message: "O papel não se aplica a esta ação." });
+  }
+});
+
+/** Escrita global de vínculo sempre carrega org, alvo e ação explicitamente. */
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const supportDenied = await requireSupportWrite();
+  if (supportDenied) return supportDenied;
+
+  const requestId = randomUUID();
+  const { id: targetUserId } = await params;
+  if (!z.string().uuid().safeParse(targetUserId).success) {
+    return fail("validation_error", "Identificador de usuário inválido.", 400, { requestId });
+  }
+
+  let adminCtx: Awaited<ReturnType<typeof requirePlatformAdminEscrita>>;
+  try {
+    adminCtx = await requirePlatformAdminEscrita();
+  } catch (err) {
+    return falhaDaEscritaDePlatformAdmin(err, requestId);
+  }
+
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return fail("validation_error", "Payload inválido.", 400, { requestId });
+  }
+  const parsed = membershipMutationSchema.safeParse(body);
+  if (!parsed.success) {
+    return fail("validation_error", "Revise a alteração de acesso.", 422, {
+      requestId,
+      details: parsed.error.flatten(),
+    });
+  }
+
+  const { data, error } = await createAdminClient().rpc("fn_platform_manage_org_member", {
+    p_actor: adminCtx.user.id,
+    p_organization_id: parsed.data.organization_id,
+    p_target_user_id: targetUserId,
+    p_action: parsed.data.action,
+    p_role: parsed.data.role ?? null,
+    p_request_id: requestId,
+  });
+  if (error) {
+    if (error.code === "P0002") return fail("not_found", "Vínculo da empresa não encontrado.", 404, { requestId });
+    if (error.code === "42501") return fail("forbidden", "Ação global não autorizada.", 403, { requestId });
+    if (error.code === "23514") return fail("conflict", error.message, 409, { requestId });
+    if (error.code === "22023") return fail("validation_error", "Ação ou papel inválido.", 422, { requestId });
+    return fail("upstream_unavailable", "Não foi possível atualizar o acesso do usuário.", 503, { requestId });
+  }
+  return ok(data, { requestId });
 }

@@ -55,6 +55,7 @@ function uoRow(userId: string) {
 interface Cfg {
   uoRows?: unknown[];
   uoError?: { message: string } | null;
+  platformRows?: Array<{ user_id: string; platform_role?: "owner" | "admin" }>;
   /** Páginas devolvidas por listUsers, na ordem. Página ausente = vazia. */
   authPages?: AuthUserStub[][];
   listError?: { message: string; status?: number; code?: string } | null;
@@ -83,26 +84,24 @@ function makeAdminStub(cfg: Cfg) {
       : { data: { user: null }, error: { message: "not found", status: 404 } };
   });
 
-  const builder = {
-    select: () => builder,
-    order: () => builder,
-    eq: () => builder,
-    then(
-      resolve: (v: { data: unknown[] | null; error: unknown }) => unknown,
-    ) {
-      return Promise.resolve({
-        data: cfg.uoError ? null : (cfg.uoRows ?? []),
-        error: cfg.uoError ?? null,
-      }).then(resolve);
-    },
-  };
-
   return {
     stub: {
       from: (table: string) => {
-        if (table !== "user_organizations") {
+        if (table !== "user_organizations" && table !== "platform_admins") {
           throw new Error(`unexpected table ${table}`);
         }
+        const builder = {
+          select: () => builder,
+          order: () => builder,
+          eq: () => builder,
+          in: () => builder,
+          is: () => builder,
+          then(resolve: (v: { data: unknown[] | null; error: unknown }) => unknown) {
+            return Promise.resolve(table === "user_organizations"
+              ? { data: cfg.uoError ? null : (cfg.uoRows ?? []), error: cfg.uoError ?? null }
+              : { data: cfg.platformRows ?? [], error: null }).then(resolve);
+          },
+        };
         return builder;
       },
       auth: { admin: { listUsers, getUserById } },

@@ -289,9 +289,9 @@ export function NewTenantForm() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="standard">Standard</SelectItem>
-                  <SelectItem value="pro">Pro</SelectItem>
-                  <SelectItem value="enterprise">Enterprise</SelectItem>
+                  <SelectItem value="standard">Essencial</SelectItem>
+                  <SelectItem value="pro">Profissional</SelectItem>
+                  <SelectItem value="enterprise">Escala</SelectItem>
                 </SelectContent>
               </Select>
               {errors.plan && (

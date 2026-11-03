@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-import { requirePlatformAdmin } from "@/lib/auth/requirePlatformAdmin";
+import {
+  falhaDaEscritaDePlatformAdmin,
+  requirePlatformAdmin,
+  requirePlatformOwnerEscrita,
+} from "@/lib/auth/requirePlatformAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -16,7 +20,13 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 vi.mock("@/lib/auth/requirePlatformAdmin", () => ({
   requirePlatformAdmin: vi.fn(),
+  requirePlatformOwnerEscrita: vi.fn(),
+  falhaDaEscritaDePlatformAdmin: vi.fn(() => new Response(
+    JSON.stringify({ error: { code: "forbidden", message: "owner required" } }),
+    { status: 403, headers: { "content-type": "application/json" } },
+  )),
 }));
+vi.mock("@/lib/impersonate/support", () => ({ requireSupportWrite: vi.fn(async () => null) }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
 vi.mock("@/lib/audit", () => ({ audit: vi.fn(async () => undefined) }));
 
@@ -85,8 +95,11 @@ function makeAdminStub(cfg: Cfg) {
   };
 }
 
-function req() {
-  return new NextRequest("http://localhost/api/v1/admin/platform-admins");
+function req(method = "GET", body?: unknown) {
+  return new NextRequest("http://localhost/api/v1/admin/platform-admins", {
+    method,
+    ...(body === undefined ? {} : { headers: { "content-type": "application/json" }, body: JSON.stringify(body) }),
+  });
 }
 
 beforeEach(() => {
@@ -95,6 +108,51 @@ beforeEach(() => {
     user: { id: ADMIN_ID },
     platformAdmin: { user_id: ADMIN_ID, scope: "full", mfa_required: true },
   } as never);
+  vi.mocked(requirePlatformOwnerEscrita).mockResolvedValue({
+    user: { id: ADMIN_ID },
+    platformAdmin: { user_id: ADMIN_ID, scope: "full", mfa_required: true, platform_role: "owner" },
+  } as never);
+});
+
+describe("mutations de administradores globais", () => {
+  it("somente owner pode conceder grant; a rota usa o RPC transacional", async () => {
+    const rpc = vi.fn(async () => ({
+      data: { user_id: GRANTER_ID, platform_role: "admin", scope: "support_readonly", mfa_required: true },
+      error: null,
+    }));
+    vi.mocked(createAdminClient).mockReturnValue({ rpc } as never);
+    const { POST } = await import("./route");
+    const res = await POST(req("POST", {
+      user_id: GRANTER_ID,
+      scope: "support_readonly",
+      mfa_required: true,
+      reason: "Apoio operacional",
+    }));
+    expect(res.status).toBe(201);
+    expect(rpc).toHaveBeenCalledWith("fn_platform_manage_global_admin", expect.objectContaining({
+      p_actor: ADMIN_ID,
+      p_target_user_id: GRANTER_ID,
+      p_action: "grant",
+      p_scope: "support_readonly",
+      p_mfa_required: true,
+    }));
+  });
+
+  it.each(["platform_admin delegado", "admin de organização"])("bloqueia %s antes do RPC", async () => {
+    vi.mocked(requirePlatformOwnerEscrita).mockRejectedValue(new Error("owner required"));
+    const rpc = vi.fn();
+    vi.mocked(createAdminClient).mockReturnValue({ rpc } as never);
+    const { POST } = await import("./route");
+    const res = await POST(req("POST", {
+      user_id: GRANTER_ID,
+      scope: "full",
+      mfa_required: true,
+      reason: "Apoio operacional",
+    }));
+    expect(res.status).toBe(403);
+    expect(rpc).not.toHaveBeenCalled();
+    expect(falhaDaEscritaDePlatformAdmin).toHaveBeenCalled();
+  });
 });
 
 describe("GET /api/v1/admin/platform-admins", () => {

@@ -13,6 +13,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { ok, fail } from "@/lib/api/wrappers";
 import { audit } from "@/lib/audit";
 import { createHash, randomUUID } from "node:crypto";
+import { env } from "@/lib/env";
 
 // ---------------------------------------------------------------------------
 // Schemas
@@ -200,7 +201,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const request = { ...parsed.data, owner_email: parsed.data.owner_email.trim().toLowerCase() };
+  const request = {
+    ...parsed.data,
+    owner_email: parsed.data.owner_email.trim().toLowerCase(),
+    // This comes from the server's installation config, never from the request
+    // body. The SQL RPC applies it in the same transaction as organization creation.
+    default_llm_provider: env.AI_PROVIDER || "anthropic",
+  };
   const { data: org, error } = await admin.rpc("fn_create_tenant_with_owner_limited", {
     p_actor: adminCtx.user.id,
     p_key: key,
@@ -210,6 +217,9 @@ export async function POST(req: NextRequest) {
     p_max_tenants: tenantLimit.max_tenants,
   });
   if (error) {
+    if (error.code === "22023" && error.message === "plan_unavailable") {
+      return fail("validation_error", "Este plano não está disponível para novas empresas.", 422, { requestId });
+    }
     if (isInstallationTenantLimitError(error)) {
       return fail(
         "GLOBAL_TENANT_LIMIT_REACHED",

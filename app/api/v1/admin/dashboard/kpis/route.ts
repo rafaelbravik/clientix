@@ -23,7 +23,12 @@ export interface AlertItem {
 }
 
 export interface DashboardKPIs {
+  organizations_total: number;
   tenants_active: number;
+  organizations_suspended: number;
+  users_total: number;
+  plans_total: number;
+  plan_distribution: Record<string, number>;
   conv_pending_10min: number;
   waha_ban_alerts: number;
   lgpd_at_risk: number;
@@ -312,8 +317,33 @@ export async function GET(_req: NextRequest) {
     return a.severity === "critical" ? -1 : 1;
   });
 
+  const { data: rawPlatformMetrics, error: platformMetricsError } = await admin.rpc("fn_platform_dashboard_metrics");
+  if (
+    platformMetricsError ||
+    !rawPlatformMetrics ||
+    typeof rawPlatformMetrics !== "object" ||
+    Array.isArray(rawPlatformMetrics)
+  ) {
+    return fail("upstream_unavailable", "Não foi possível carregar as métricas globais da instalação.", 503);
+  }
+  const platformMetrics = rawPlatformMetrics as Record<string, unknown>;
+  const planDistribution = platformMetrics.plan_distribution;
+  const metricNames = ["organizations_total", "organizations_active", "organizations_suspended", "users_total", "plans_total"] as const;
+  if (
+    metricNames.some((name) => typeof platformMetrics[name] !== "number" || !Number.isSafeInteger(platformMetrics[name])) ||
+    !planDistribution || typeof planDistribution !== "object" || Array.isArray(planDistribution) ||
+    Object.values(planDistribution).some((count) => typeof count !== "number" || !Number.isSafeInteger(count))
+  ) {
+    return fail("upstream_unavailable", "As métricas globais da instalação estão inválidas.", 503);
+  }
+
   const kpis: DashboardKPIs = {
-    tenants_active: tenantsRes.count ?? 0,
+    organizations_total: platformMetrics.organizations_total as number,
+    tenants_active: platformMetrics.organizations_active as number,
+    organizations_suspended: platformMetrics.organizations_suspended as number,
+    users_total: platformMetrics.users_total as number,
+    plans_total: platformMetrics.plans_total as number,
+    plan_distribution: planDistribution as Record<string, number>,
     conv_pending_10min: convPendingRes.count ?? 0,
     waha_ban_alerts: wahaBanRes.count ?? 0,
     lgpd_at_risk: lgpdRiskRes.count ?? 0,

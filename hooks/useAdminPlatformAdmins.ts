@@ -11,6 +11,7 @@ export interface PlatformAdminEntry {
   granted_by_email: string | null;
   granted_at: string;
   scope: string | null;
+  platform_role: "owner" | "admin";
   mfa_required: boolean;
   reason: string | null;
   revoked_at: string | null;
@@ -30,6 +31,6 @@ export function useAdminPlatformAdmins() {
       apiClient
         .get<PlatformAdminsResponse>("/api/v1/admin/platform-admins")
         .then((r) => r.data),
-    staleTime: 5 * 60 * 1000, // 5 min — changes are rare (DBA-only mutations)
+    staleTime: 5 * 60 * 1000, // grants mudam raramente; mutations invalidam a query explicitamente
   });
 }

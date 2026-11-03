@@ -11,7 +11,20 @@ vi.mock("@/lib/auth/requirePlatformAdmin", async (importOriginal) => ({
   requirePlatformAdminEscrita: h.escrita,
 }));
 vi.mock("@/lib/auth/server", () => ({ mfaEmDivida: h.mfa, loadAuthUser: h.user }));
-vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ rpc: h.rpc }) }));
+vi.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: () => ({
+    rpc: h.rpc,
+    from: (table: string) => {
+      if (table !== "platform_plan_catalog") throw new Error("unexpected table " + table);
+      const query = {
+        select: vi.fn(() => query),
+        eq: vi.fn(() => query),
+        maybeSingle: vi.fn(async () => ({ data: { slug: "standard", active: true }, error: null })),
+      };
+      return query;
+    },
+  }),
+}));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ from: h.query }) }));
 vi.mock("@/lib/audit", () => ({ audit: h.audit }));
 vi.mock("@/lib/auth/issue-invite", () => ({ issueInvite: h.invite }));
@@ -63,7 +76,11 @@ describe("criação administrativa", () => {
       p_actor: actor,
       p_installation_id: "inst_00000000-0000-4000-8000-000000000001",
       p_max_tenants: 3,
+      p_request: expect.objectContaining({ default_llm_provider: expect.any(String) }),
     }));
+    expect(["anthropic", "openai", "openrouter"]).toContain(
+      h.rpc.mock.calls[0]?.[1]?.p_request?.default_llm_provider,
+    );
     expect(h.invite).not.toHaveBeenCalled();
     expect(h.audit).toHaveBeenCalledWith(expect.objectContaining({ organizationId: org, metadata: expect.objectContaining({ creator_role: "admin" }) }));
   });

@@ -5,6 +5,7 @@ import { useLocaleDeData } from "@/hooks/i18n/useLocaleDeData";
 import type { Locale } from "date-fns";
 import { formatDistanceToNow } from "date-fns";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -54,7 +55,7 @@ export function PlatformAdminsTableSkeleton() {
       <Table>
         <TableHeader>
           <TableRow>
-            {[t("Usuário"), t("Concedido em"), t("Concedido por"), "Scope", "MFA", t("Status"), t("Motivo")].map(
+            {[t("Usuário"), t("Papel global"), t("Concedido em"), t("Concedido por"), "Scope", "MFA", t("Status"), t("Motivo")].map(
               (h) => (
                 <TableHead key={h}>{h}</TableHead>
               ),
@@ -64,7 +65,7 @@ export function PlatformAdminsTableSkeleton() {
         <TableBody>
           {Array.from({ length: 4 }).map((_, i) => (
             <TableRow key={i}>
-              {Array.from({ length: 7 }).map((__, j) => (
+              {Array.from({ length: 8 }).map((__, j) => (
                 <TableCell key={j}>
                   <Skeleton className="h-4 w-full" />
                 </TableCell>
@@ -89,7 +90,7 @@ function EmptyState() {
         {t("Nenhum platform admin encontrado")}
       </p>
       <p className="mt-1 text-xs text-muted-foreground">
-        {t("Platform admins são configurados exclusivamente via DBA.")}
+        {t("Nenhum administrador global delegado está cadastrado.")}
       </p>
     </div>
   );
@@ -125,9 +126,12 @@ function ReasonCell({ reason }: { reason: string | null }) {
 
 interface PlatformAdminsTableProps {
   data: PlatformAdminEntry[];
+  canManage?: boolean;
+  busyUserId?: string | null;
+  onToggleAdmin?: (row: PlatformAdminEntry) => void;
 }
 
-export function PlatformAdminsTable({ data }: PlatformAdminsTableProps) {
+export function PlatformAdminsTable({ data, canManage = false, busyUserId, onToggleAdmin }: PlatformAdminsTableProps) {
   const localeDaData = useLocaleDeData();
   const t = useT();
   if (data.length === 0) return <EmptyState />;
@@ -138,12 +142,14 @@ export function PlatformAdminsTable({ data }: PlatformAdminsTableProps) {
         <TableHeader>
           <TableRow>
             <TableHead className="min-w-[200px]">{t("Usuário")}</TableHead>
+            <TableHead className="w-[130px]">{t("Papel global")}</TableHead>
             <TableHead className="w-[140px]">{t("Concedido em")}</TableHead>
             <TableHead className="w-[160px]">{t("Concedido por")}</TableHead>
             <TableHead className="w-[120px]">Scope</TableHead>
             <TableHead className="w-[60px]">MFA</TableHead>
             <TableHead className="w-[90px]">{t("Status")}</TableHead>
             <TableHead>{t("Motivo")}</TableHead>
+            {canManage && <TableHead>{t("Ações")}</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -165,6 +171,12 @@ export function PlatformAdminsTable({ data }: PlatformAdminsTableProps) {
                       <span className="text-xs text-muted-foreground">{row.user_name}</span>
                     )}
                   </div>
+                </TableCell>
+
+                <TableCell>
+                  <Badge variant={row.platform_role === "owner" ? "default" : "secondary"} className="text-[10px]">
+                    {row.platform_role === "owner" ? t("Proprietário") : t("Administrador")}
+                  </Badge>
                 </TableCell>
 
                 {/* Granted At */}
@@ -217,6 +229,21 @@ export function PlatformAdminsTable({ data }: PlatformAdminsTableProps) {
                 <TableCell className="max-w-[200px]">
                   <ReasonCell reason={row.reason} />
                 </TableCell>
+                {canManage && (
+                  <TableCell>
+                    {row.platform_role === "admin" && onToggleAdmin ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={isRevoked ? "secondary" : "destructive"}
+                        disabled={busyUserId === row.user_id}
+                        onClick={() => onToggleAdmin(row)}
+                      >
+                        {busyUserId === row.user_id ? t("Salvando…") : isRevoked ? t("Reativar") : t("Revogar")}
+                      </Button>
+                    ) : <span className="text-xs text-muted-foreground">{t("Protegido")}</span>}
+                  </TableCell>
+                )}
               </TableRow>
             );
           })}

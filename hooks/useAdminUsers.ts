@@ -10,6 +10,7 @@ export interface AdminUserRow {
   user_id: string;
   organization_id: string;
   role: string;
+  platform_role?: "owner" | "admin" | null;
   accepted_at: string | null;
   revoked_at: string | null;
   tenant_name: string;

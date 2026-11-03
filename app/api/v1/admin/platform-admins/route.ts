@@ -1,17 +1,31 @@
 import { type NextRequest } from "next/server";
-import { requirePlatformAdmin } from "@/lib/auth/requirePlatformAdmin";
+import { z } from "zod";
+import {
+  falhaDaEscritaDePlatformAdmin,
+  requirePlatformAdmin,
+  requirePlatformOwnerEscrita,
+} from "@/lib/auth/requirePlatformAdmin";
+import { requireSupportWrite } from "@/lib/impersonate/support";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { ok, fail } from "@/lib/api/wrappers";
 import { audit } from "@/lib/audit";
 import { randomUUID } from "node:crypto";
 
 // ---------------------------------------------------------------------------
-// T-04 (Spec 01 §3.4): platform_admins is managed exclusively by DBA via SQL.
-// This route is strictly READ-ONLY. POST/PATCH/DELETE return 405 explicitly.
+// T-04: no direct table DML. Delegation uses an owner-only, audited transaction.
 // ---------------------------------------------------------------------------
+const grantSchema = z.object({
+  user_id: z.string().uuid(),
+  scope: z.enum(["full", "support_readonly"]),
+  mfa_required: z.boolean().default(true),
+  reason: z.string().trim().min(3).max(300),
+}).strict();
 
-const T04_MESSAGE =
-  "platform_admins é gerenciado exclusivamente via DBA (Spec 01 §3.4 T-04)";
+const revokeSchema = z.object({
+  user_id: z.string().uuid(),
+  reason: z.string().trim().max(300).optional(),
+}).strict();
 
 // ---------------------------------------------------------------------------
 // GET /api/v1/admin/platform-admins
@@ -39,7 +53,7 @@ export async function GET(_req: NextRequest) {
   const { data: paRows, error: paError } = await admin
     .from("platform_admins")
     .select(
-      "user_id, granted_by, granted_at, scope, mfa_required, reason, revoked_at, revoked_by, revoke_reason",
+      "user_id, granted_by, granted_at, scope, mfa_required, reason, revoked_at, revoked_by, revoke_reason, platform_role",
     )
     .order("granted_at", { ascending: false });
 
@@ -150,6 +164,7 @@ export async function GET(_req: NextRequest) {
       granted_at: pa.granted_at,
       scope: pa.scope,
       mfa_required: pa.mfa_required,
+      platform_role: (pa as typeof pa & { platform_role?: "owner" | "admin" }).platform_role ?? "admin",
       reason: pa.reason,
       revoked_at: pa.revoked_at,
       revoked_by: pa.revoked_by,
@@ -171,40 +186,82 @@ export async function GET(_req: NextRequest) {
 }
 
 // ---------------------------------------------------------------------------
-// T-04 enforcement: POST / PATCH / DELETE return 405 explicitly
+// Concessão/revogação de platform_admin: somente owner com MFA da sessão em dia.
 // ---------------------------------------------------------------------------
-
-function methodNotAllowed() {
-  return new Response(
-    JSON.stringify({
-      error: {
-        code: "method_not_allowed",
-        message: T04_MESSAGE,
-      },
-    }),
-    {
-      status: 405,
-      headers: {
-        "Content-Type": "application/json",
-        Allow: "GET",
-      },
-    },
-  );
+function mutationAdmin(): SupabaseClient {
+  return createAdminClient() as unknown as SupabaseClient;
 }
 
-export function POST() {
-
-  return methodNotAllowed();
+export async function POST(request: NextRequest) {
+  const supportDenied = await requireSupportWrite();
+  if (supportDenied) return supportDenied;
+  const requestId = randomUUID();
+  let owner: Awaited<ReturnType<typeof requirePlatformOwnerEscrita>>;
+  try {
+    owner = await requirePlatformOwnerEscrita();
+  } catch (error) {
+    return falhaDaEscritaDePlatformAdmin(error, requestId, "Somente o proprietário global pode delegar administração.");
+  }
+  let body: unknown;
+  try { body = await request.json(); } catch {
+    return fail("validation_error", "Payload inválido.", 400, { requestId });
+  }
+  const parsed = grantSchema.safeParse(body);
+  if (!parsed.success) {
+    return fail("validation_error", "Revise o usuário e o escopo do acesso.", 422, { requestId, details: parsed.error.flatten() });
+  }
+  const { data, error } = await mutationAdmin().rpc("fn_platform_manage_global_admin", {
+    p_actor: owner.user.id,
+    p_target_user_id: parsed.data.user_id,
+    p_action: "grant",
+    p_scope: parsed.data.scope,
+    p_mfa_required: parsed.data.mfa_required,
+    p_reason: parsed.data.reason,
+    p_request_id: requestId,
+  });
+  if (error) {
+    if (error.code === "P0002") return fail("not_found", "Usuário não encontrado.", 404, { requestId });
+    if (error.code === "42501") return fail("forbidden", "Ação global não autorizada.", 403, { requestId });
+    if (error.code === "23514") return fail("conflict", "A delegação de proprietário é protegida e não pode ser alterada por esta ação.", 409, { requestId });
+    return fail("upstream_unavailable", "Não foi possível conceder o acesso global.", 503, { requestId });
+  }
+  return ok(data, { status: 201, requestId });
 }
 
-export function PATCH() {
-
-  return methodNotAllowed();
-}
-
-export function DELETE() {
-
-  return methodNotAllowed();
+export async function PATCH(request: NextRequest) {
+  const supportDenied = await requireSupportWrite();
+  if (supportDenied) return supportDenied;
+  const requestId = randomUUID();
+  let owner: Awaited<ReturnType<typeof requirePlatformOwnerEscrita>>;
+  try {
+    owner = await requirePlatformOwnerEscrita();
+  } catch (error) {
+    return falhaDaEscritaDePlatformAdmin(error, requestId, "Somente o proprietário global pode revogar administração.");
+  }
+  let body: unknown;
+  try { body = await request.json(); } catch {
+    return fail("validation_error", "Payload inválido.", 400, { requestId });
+  }
+  const parsed = revokeSchema.safeParse(body);
+  if (!parsed.success) {
+    return fail("validation_error", "Revise o usuário que deseja revogar.", 422, { requestId, details: parsed.error.flatten() });
+  }
+  const { data, error } = await mutationAdmin().rpc("fn_platform_manage_global_admin", {
+    p_actor: owner.user.id,
+    p_target_user_id: parsed.data.user_id,
+    p_action: "revoke",
+    p_scope: null,
+    p_mfa_required: true,
+    p_reason: parsed.data.reason ?? null,
+    p_request_id: requestId,
+  });
+  if (error) {
+    if (error.code === "P0002") return fail("not_found", "Administrador global não encontrado.", 404, { requestId });
+    if (error.code === "42501") return fail("forbidden", "Ação global não autorizada.", 403, { requestId });
+    if (error.code === "23514") return fail("conflict", "A delegação de proprietário é protegida e não pode ser alterada por esta ação.", 409, { requestId });
+    return fail("upstream_unavailable", "Não foi possível revogar o acesso global.", 503, { requestId });
+  }
+  return ok(data, { requestId });
 }
 
 export type PlatformAdminRow = Awaited<

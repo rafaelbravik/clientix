@@ -1,10 +1,16 @@
 import { type NextRequest } from "next/server";
 import { z } from "zod";
 import { requirePlatformAdmin } from "@/lib/auth/requirePlatformAdmin";
+import { falhaDaEscritaDePlatformAdmin, requirePlatformAdminEscrita } from "@/lib/auth/requirePlatformAdmin";
+import { requireSupportWrite } from "@/lib/impersonate/support";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ok, fail } from "@/lib/api/wrappers";
 import { audit } from "@/lib/audit";
 import { randomUUID } from "node:crypto";
+import { emitirConvite } from "@/lib/team/convites";
+import { checkUserQuota } from "@/lib/tenant/plan-limits";
+import { interfaceSettingsSchema } from "@/lib/navigation/interface";
+import { ROLES } from "@/lib/schemas/team";
 
 // ---------------------------------------------------------------------------
 // Schemas
@@ -134,6 +140,21 @@ export async function GET(req: NextRequest) {
   // Step 2: get unique user IDs
   const userIds = [...new Set((uoRows as unknown as UoRow[]).map((r) => r.user_id))];
 
+  const { data: globalAdminRows, error: globalAdminError } = await admin
+    .from("platform_admins")
+    .select("user_id, platform_role")
+    .in("user_id", userIds)
+    .is("revoked_at", null);
+  if (globalAdminError || !globalAdminRows) {
+    return fail("upstream_unavailable", "Não foi possível validar os papéis globais.", 503, { requestId });
+  }
+  const platformRoleByUser = new Map(
+    (globalAdminRows as Array<{ user_id: string; platform_role?: "owner" | "admin" }>).map((row) => [
+      row.user_id,
+      row.platform_role ?? "admin",
+    ]),
+  );
+
   // Step 3: fetch auth users via the Auth Admin API.
   //
   // Varredura paginada do diretório, NÃO um `getUserById` por vínculo. O
@@ -244,6 +265,7 @@ export async function GET(req: NextRequest) {
     user_id: string;
     organization_id: string;
     role: string;
+    platform_role: "owner" | "admin" | null;
     accepted_at: string | null;
     revoked_at: string | null;
     tenant_name: string;
@@ -267,6 +289,7 @@ export async function GET(req: NextRequest) {
         user_id: uo.user_id,
         organization_id: uo.organization_id,
         role: uo.role,
+        platform_role: platformRoleByUser.get(uo.user_id) ?? null,
         accepted_at: uo.accepted_at,
         revoked_at: uo.revoked_at,
         tenant_name: org.display_name,
@@ -347,4 +370,122 @@ export async function GET(req: NextRequest) {
   });
 
   return ok(page, { requestId, meta: { has_more, cursor: nextCursor } });
+}
+
+const inviteSchema = z.object({
+  organization_id: z.string().uuid(),
+  email: z.string().trim().email().max(254),
+  role: z.enum(ROLES),
+  interface_settings: interfaceSettingsSchema.optional(),
+}).strict();
+
+/** Convida uma pessoa para uma organização específica sem ampliar seu escopo global. */
+export async function POST(req: NextRequest) {
+  const requestId = randomUUID();
+  let adminCtx: Awaited<ReturnType<typeof requirePlatformAdminEscrita>>;
+  try {
+    adminCtx = await requirePlatformAdminEscrita();
+  } catch (err) {
+    return falhaDaEscritaDePlatformAdmin(err, requestId);
+  }
+  const supportFailure = await requireSupportWrite();
+  if (supportFailure) return supportFailure;
+
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return fail("validation_error", "Payload inválido.", 400, { requestId });
+  }
+  const parsed = inviteSchema.safeParse(body);
+  if (!parsed.success) {
+    return fail("validation_error", "Revise os dados do convite.", 422, {
+      requestId,
+      details: parsed.error.flatten(),
+    });
+  }
+
+  const admin = createAdminClient();
+  const { data: organization, error: organizationError } = await admin
+    .from("organizations")
+    .select("id, display_name, status")
+    .eq("id", parsed.data.organization_id)
+    .maybeSingle();
+  if (organizationError) {
+    return fail("upstream_unavailable", "Não foi possível validar a empresa selecionada.", 503, { requestId });
+  }
+  if (!organization) return fail("not_found", "Empresa não encontrada.", 404, { requestId });
+  if (organization.status !== "active") {
+    return fail("conflict", "Reative a empresa antes de convidar usuários.", 409, { requestId });
+  }
+
+  const email = parsed.data.email.toLowerCase();
+  const { data: memberships, error: membershipsError } = await admin
+    .from("user_organizations")
+    .select("user_id")
+    .eq("organization_id", organization.id)
+    .is("revoked_at", null);
+  if (membershipsError || !memberships) {
+    return fail("upstream_unavailable", "Não foi possível validar os membros da empresa.", 503, { requestId });
+  }
+  const authUsers = await Promise.all(memberships.map(async ({ user_id }) => {
+    const result = await admin.auth.admin.getUserById(user_id);
+    if (result.error && result.error.status !== 404 && result.error.code !== "user_not_found") {
+      return { unavailable: true as const };
+    }
+    return { email: result.data?.user?.email?.trim().toLowerCase() ?? null };
+  }));
+  if (authUsers.some((user) => "unavailable" in user)) {
+    return fail("upstream_unavailable", "Não foi possível validar as contas vinculadas à empresa.", 503, { requestId });
+  }
+  if (authUsers.some((user) => "email" in user && user.email === email)) {
+    return fail("conflict", "Este usuário já possui acesso ativo à empresa.", 409, { requestId });
+  }
+
+  const quota = await checkUserQuota(admin, organization.id, 1);
+  if (!quota.allowed) {
+    return fail("quota_exceeded", quota.reason ?? "Limite de usuários do plano atingido.", 403, {
+      requestId,
+      details: { current: quota.current, max: quota.max },
+    });
+  }
+
+  try {
+    const invitation = await emitirConvite(admin, {
+      email,
+      role: parsed.data.role,
+      interfaceSettings: parsed.data.interface_settings,
+      organizationId: organization.id,
+      orgName: organization.display_name,
+      inviterId: adminCtx.user.id,
+      inviterName: adminCtx.user.user_metadata?.full_name ?? adminCtx.user.email ?? "Administrador global",
+      requestId,
+    });
+    await audit({
+      action: "platform_admin.member_invited",
+      actorUserId: adminCtx.user.id,
+      actingAsPlatformAdmin: true,
+      bypassedRls: true,
+      organizationId: organization.id,
+      resourceType: "membership",
+      resourceId: invitation.convite.id,
+      requestId,
+      metadata: {
+        role: parsed.data.role,
+        email_dispatched: invitation.email_dispatched,
+      },
+    });
+    return ok({
+      invitation: {
+        id: invitation.convite.id,
+        organization_id: organization.id,
+        role: parsed.data.role,
+        expires_at: invitation.convite.expires_at,
+        email_dispatched: invitation.email_dispatched,
+        accept_url: invitation.accept_url,
+      },
+    }, { status: 201, requestId, headers: { "Cache-Control": "no-store" } });
+  } catch {
+    return fail("upstream_unavailable", "Não foi possível emitir o convite.", 503, { requestId });
+  }
 }

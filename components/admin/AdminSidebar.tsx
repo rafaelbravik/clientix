@@ -40,16 +40,17 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { href: "/admin/dashboard", label: "Dashboard", icon: Gauge },
   { href: "/admin/inbox", label: "Inbox", icon: ChatsCircle },
-  { href: "/admin/tenants", label: "Tenants", icon: Buildings },
+  { href: "/admin/tenants", label: "Empresas", icon: Buildings },
+  { href: "/admin/plans", label: "Planos", icon: Stack },
   ...(process.env.NEXT_PUBLIC_CLIENTIX_BUILD_TARGET === "customer"
     ? []
-    : [{ href: "/admin/licensing", label: "Licenciamento", icon: Certificate }]),
-  { href: "/admin/audit", label: "Audit", icon: ClipboardText },
+    : [{ href: "/admin/licensing", label: "Licenças", icon: Certificate }]),
+  { href: "/admin/audit", label: "Auditoria", icon: ClipboardText },
   { href: "/admin/lgpd", label: "LGPD", icon: Scales },
   { href: "/admin/incidents", label: "Incidents", icon: Warning },
   { href: "/admin/usage", label: "Usage", icon: ChartBar },
-  { href: "/admin/users", label: "Users", icon: Users },
-  { href: "/admin/platform-admins", label: "Platform Admins", icon: ShieldCheck },
+  { href: "/admin/users", label: "Usuários", icon: Users },
+  { href: "/admin/platform-admins", label: "Administradores globais", icon: ShieldCheck },
   // A porta da tela de marca. Ela NÃO entra em `lib/navigation/registry.ts`:
   // aquele registro descreve a navegação do tenant (`app/app/**`) e o teste de
   // completude que o vigia varre só aquela raiz. O admin de plataforma tem
@@ -116,12 +117,13 @@ const NAV_ITEMS: NavItem[] = [
 
 interface AdminSidebarProps {
   userEmail: string;
+  platformRole?: "owner" | "admin";
   /** "mobile" = conteúdo desta MESMA navegação dentro do drawer que `AdminShell`
    * abre abaixo de `lg` — mesmo padrão de `components/shell/Sidebar.tsx`. */
   variant?: "desktop" | "mobile";
 }
 
-export function AdminSidebar({ userEmail, variant = "desktop" }: AdminSidebarProps) {
+export function AdminSidebar({ userEmail, platformRole = "admin", variant = "desktop" }: AdminSidebarProps) {
   const t = useT();
   const isMobile = variant === "mobile";
   const pathname = usePathname();
@@ -184,6 +186,9 @@ export function AdminSidebar({ userEmail, variant = "desktop" }: AdminSidebarPro
         </Link>
         <p className="truncate px-2 text-xs text-muted-foreground" title={userEmail}>
           {userEmail}
+        </p>
+        <p className="truncate px-2 text-[11px] font-medium text-muted-foreground">
+          {platformRole === "owner" ? t("Proprietário da plataforma") : t("Administrador global")}
         </p>
       </div>
     </aside>

@@ -1,6 +1,6 @@
 "use client";
 import { Card, CardContent } from "@/components/ui/card";
-import { Buildings, Clock, WifiSlash, Scales, ChartBar } from "@/lib/ui/icons";
+import { Buildings, Clock, WifiSlash, Scales, ChartBar, Users, Stack } from "@/lib/ui/icons";
 import type { DashboardKPIs } from "@/app/api/v1/admin/dashboard/kpis/route";
 import type { ElementType } from "react";
 import { useT } from "@/hooks/i18n/useT";
@@ -51,14 +51,46 @@ interface KPICardsProps {
 
 export function KPICards({ kpis }: KPICardsProps) {
   const t = useT();
+  const planLabels = [
+    ["standard", "Essencial"],
+    ["pro", "Profissional"],
+    ["enterprise", "Escala"],
+  ] as const;
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+    <div className="space-y-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
       <KPICard
-        label={t("Tenants Ativos")}
+        label={t("Empresas")}
+        value={kpis.organizations_total}
+        subtitle={t("empresas cadastradas")}
+        Icon={Buildings}
+      />
+      <KPICard
+        label={t("Empresas ativas")}
         value={kpis.tenants_active}
         subtitle={t("organizações ativas")}
         Icon={Buildings}
       />
+      <KPICard
+        label={t("Empresas suspensas")}
+        value={kpis.organizations_suspended}
+        subtitle={t("suspensas nesta instalação")}
+        Icon={Buildings}
+      />
+      <KPICard
+        label={t("Usuários")}
+        value={kpis.users_total}
+        subtitle={t("com vínculo ativo em uma empresa")}
+        Icon={Users}
+      />
+      <KPICard
+        label={t("Planos ativos")}
+        value={kpis.plans_total}
+        subtitle={planLabels.map(([slug, name]) => `${name}: ${kpis.plan_distribution[slug] ?? 0}`).join(" · ")}
+        Icon={Stack}
+      />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
       <KPICard
         label={t("Pendentes >10min")}
         value={kpis.conv_pending_10min}
@@ -102,6 +134,7 @@ export function KPICards({ kpis }: KPICardsProps) {
         Icon={ChartBar}
         accent={kpis.ai_budget_warnings > 0}
       />
+      </div>
     </div>
   );
 }
