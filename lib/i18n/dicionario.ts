@@ -14568,6 +14568,126 @@ export const DICIONARIO: Traducoes = {
   "Aplica-se somente ao Quadro. A Lista continua mostrando o histórico permitido. Use de 1 a 3650 dias; ao desligar, todos os negócios encerrados voltam ao Quadro.": {
     es: "Solo se aplica al tablero. La lista sigue mostrando el historial permitido. Usa de 1 a 3650 días; al desactivarlo, todos los negocios cerrados vuelven al tablero.",
   },
+  "Configuração inicial": { es: "Configuración inicial" },
+  "Configurar Clientix": { es: "Configurar Clientix" },
+  "Esta instalação ainda não possui um proprietário configurado. Use o token entregue pelo operador do servidor.": {
+    es: "Esta instalación todavía no tiene un propietario configurado. Usa el token que te entregó el operador del servidor.",
+  },
+  "Crie o proprietário da plataforma. Este usuário terá acesso administrativo global.": {
+    es: "Crea el propietario de la plataforma. Este usuario tendrá acceso administrativo global.",
+  },
+  "Defina o nome exibido para esta instalação. Você poderá ajustar a identidade visual depois.": {
+    es: "Define el nombre que se mostrará para esta instalación. Después podrás ajustar su identidad visual.",
+  },
+  "Confira os dados antes de finalizar. A senha não aparece nesta revisão.": {
+    es: "Revisa los datos antes de finalizar. La contraseña no aparece en este resumen.",
+  },
+  "Progresso da configuração": { es: "Progreso de la configuración" },
+  "Etapas da configuração": { es: "Etapas de la configuración" },
+  "Boas-vindas": { es: "Bienvenida" },
+  "Proprietário": { es: "Propietario" },
+  "Token de configuração": { es: "Token de configuración" },
+  "O token é validado no servidor e não é armazenado no navegador.": {
+    es: "El token se valida en el servidor y no se almacena en el navegador.",
+  },
+  "Use 8 ou mais caracteres, com letra, número e símbolo.": {
+    es: "Usa 8 caracteres o más, con letras, números y símbolos.",
+  },
+  "Nome da instalação": { es: "Nombre de la instalación" },
+  "Esse nome será usado na identidade global da plataforma.": {
+    es: "Este nombre se usará en la identidad global de la plataforma.",
+  },
+  "O usuário será proprietário global e não receberá papel de administrador de empresa. A configuração inicial só poderá ser concluída uma vez.": {
+    es: "El usuario será propietario global y no tendrá el rol de administrador de empresa. La configuración inicial solo podrá completarse una vez.",
+  },
+  "Começar configuração": { es: "Comenzar configuración" },
+  "Finalizar configuração": { es: "Finalizar configuración" },
+  "Finalizando…": { es: "Finalizando…" },
+  "As senhas não coincidem.": { es: "Las contraseñas no coinciden." },
+  "Informe o token fornecido pelo operador desta instalação.": {
+    es: "Introduce el token que te proporcionó el operador de esta instalación.",
+  },
+  "Configuração concluída": { es: "Configuración completada" },
+  "A plataforma está pronta": { es: "La plataforma está lista" },
+  "O bootstrap foi encerrado. Entre com o e-mail e a senha do proprietário para administrar a instalação.": {
+    es: "La configuración inicial terminó. Inicia sesión con el correo y la contraseña del propietario para administrar la instalación.",
+  },
+  "O proprietário tem acesso global. A conta não foi vinculada a uma empresa; você poderá criar empresas e escolher o plano no painel.": {
+    es: "El propietario tiene acceso global. La cuenta no está vinculada a una empresa; podrás crear empresas y elegir el plan desde el panel.",
+  },
+  "Entrar no painel global": { es: "Entrar al panel global" },
+  "Planos": { es: "Planes" },
+  "Planos indisponíveis": { es: "Planes no disponibles" },
+  "Não foi possível carregar o catálogo de planos. Verifique a migration 9062 e tente novamente.": {
+    es: "No se pudo cargar el catálogo de planes. Comprueba la migración 9062 e inténtalo de nuevo.",
+  },
+  "Os slugs existentes permanecem estáveis. Atribuição, limites e recursos usam o mesmo catálogo consultado por checkFeatureQuota.": {
+    es: "Los slugs existentes permanecen estables. La asignación, los límites y las funciones usan el mismo catálogo que consulta checkFeatureQuota.",
+  },
+  "Seu papel de administrador global permite consultar os planos. Alterações são restritas ao proprietário.": {
+    es: "Tu rol de administrador global permite consultar los planes. Solo el propietario puede modificarlos.",
+  },
+  "Limites e recursos efetivos deste nível para novas e atuais empresas.": {
+    es: "Límites y funciones efectivos de este nivel para empresas nuevas y actuales.",
+  },
+  "Plano disponível para atribuição": { es: "Plan disponible para asignar" },
+  "Informe um limite inteiro positivo ou deixe vazio para ilimitado.": {
+    es: "Introduce un límite entero positivo o déjalo vacío para que sea ilimitado.",
+  },
+  "Não foi possível salvar o plano.": { es: "No se pudo guardar el plan." },
+  "Plano salvo. As verificações de quota passam a usar estes valores.": {
+    es: "Plan guardado. Las comprobaciones de cuota usarán estos valores.",
+  },
+  "Convidar usuário para uma empresa": { es: "Invitar a un usuario a una empresa" },
+  "O convite concede acesso somente à empresa selecionada. Para trocar alguém de empresa, conclua a revogação antes de convidá-lo novamente.": {
+    es: "La invitación concede acceso solo a la empresa seleccionada. Para cambiar a alguien de empresa, revoca su acceso antes de invitarlo de nuevo.",
+  },
+  "Delegar administração global": { es: "Delegar la administración global" },
+  "Escolha um usuário existente na lista abaixo. O grant será auditado e exigirá MFA. Proprietários não podem ser alterados por esta tela.": {
+    es: "Elige un usuario existente en la lista. El permiso quedará auditado y requerirá MFA. Esta pantalla no permite modificar a los propietarios.",
+  },
+  "Administração global completa": { es: "Administración global completa" },
+  "Tornar admin global": { es: "Convertir en administrador global" },
+  "Proprietário global": { es: "Propietario global" },
+  "Admin global": { es: "Administrador global" },
+  "Proprietário da plataforma": { es: "Propietario de la plataforma" },
+  "Administrador global": { es: "Administrador global" },
+  "empresas cadastradas": { es: "empresas registradas" },
+  "Empresas ativas": { es: "Empresas activas" },
+  "Empresas suspensas": { es: "Empresas suspendidas" },
+  "suspensas nesta instalação": { es: "suspendidas en esta instalación" },
+  "com vínculo ativo em uma empresa": { es: "con un vínculo activo en una empresa" },
+  "Planos ativos": { es: "Planes activos" },
+  "Papel global": { es: "Rol global" },
+  "Nenhum administrador global delegado está cadastrado.": {
+    es: "No hay administradores globales delegados registrados.",
+  },
+  "Protegido": { es: "Protegido" },
+  "O proprietário global pode conceder ou revogar grants de administrador por operação auditada. Criar, recuperar ou transferir a propriedade global continua sujeito ao procedimento administrativo documentado.": {
+    es: "El propietario global puede conceder o revocar permisos de administrador mediante operaciones auditadas. Crear, recuperar o transferir la propiedad global sigue sujeto al procedimiento administrativo documentado.",
+  },
+  "Não foi possível verificar a instalação": { es: "No se pudo verificar la instalación" },
+  "O banco não respondeu à consulta de segurança. Tente novamente quando a instalação estiver disponível.": {
+    es: "La base de datos no respondió a la consulta de seguridad. Inténtalo de nuevo cuando la instalación esté disponible.",
+  },
+  "Nome exibido": { es: "Nombre mostrado" },
+  "Canais permitidos": { es: "Canales permitidos" },
+  "Recursos": { es: "Funciones" },
+  "Salvar plano": { es: "Guardar plan" },
+  "Não foi possível conceder o acesso global.": { es: "No se pudo conceder el acceso global." },
+  "Empresa do convite": { es: "Empresa de la invitación" },
+  "Selecione uma empresa": { es: "Selecciona una empresa" },
+  "Papel na empresa": { es: "Rol en la empresa" },
+  "Visualizador": { es: "Lector" },
+  "Emitindo convite…": { es: "Enviando invitación…" },
+  "Convidar": { es: "Invitar" },
+  "Link de aceite do convite": { es: "Enlace para aceptar la invitación" },
+  "Link de aceite": { es: "Enlace de aceptación" },
+  "Não foi possível copiar o link.": { es: "No se pudo copiar el enlace." },
+  "Escopo do novo administrador": { es: "Alcance del nuevo administrador" },
+  "Escopo do administrador global": { es: "Alcance del administrador global" },
+  "Chamadas de voz": { es: "Llamadas de voz" },
+  "Comentário para mensagem": { es: "Comentario para mensaje" },
 };
 
 /**
