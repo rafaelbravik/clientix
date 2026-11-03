@@ -1922,7 +1922,7 @@ STUB
   # não a mensagem de erro: `set -u` fala na língua do shell de quem roda
   # ("unbound variable" aqui, "variável sem associação" num shell em pt-BR), e
   # teste preso a texto de sistema passa em silêncio na máquina errada.
-  if ! grep -qE '^OWNER_PASSWORD="' "$VPS_PROJ/.env"; then
+  if ! grep -qE '^CLIENTIX_BOOTSTRAP_TOKEN="' "$VPS_PROJ/.env"; then
     printf '  ✗ o .env saiu pela metade (parou antes da última linha do bloco)\n'
     printf '     últimas chaves gravadas: %s\n' \
       "$(grep -oE '^[A-Z_]+=' "$VPS_PROJ/.env" | tail -3 | tr '\n' ' ')"; exit 1
@@ -2287,7 +2287,7 @@ STUB
       printf '%s\n' "$saida" | grep 'comando não encontrado\|command not found' | head -2 | sed 's/^/       /'
       exit 1
     fi
-    if ! grep -qE '^OWNER_PASSWORD="' "$raiz/crmia/.env"; then
+    if ! grep -qE '^CLIENTIX_BOOTSTRAP_TOKEN="' "$raiz/crmia/.env"; then
       printf '  ✗ %s — o .env saiu pela metade (parou antes da última linha do bloco)\n' "$desc"
       printf '     últimas chaves gravadas: %s\n' \
         "$(grep -oE '^[A-Z_]+=' "$raiz/crmia/.env" | tail -3 | tr '\n' ' ')"
@@ -2376,7 +2376,7 @@ STUB
   fi
   # O .env sai INTEIRO: sem chave, a última linha do bloco continua presente —
   # a mesma régua dos cenários de provedor acima.
-  if ! grep -qE '^OWNER_PASSWORD="' "$VPS_PROJ/.env"; then
+  if ! grep -qE '^CLIENTIX_BOOTSTRAP_TOKEN="' "$VPS_PROJ/.env"; then
     printf '  ✗ o .env saiu pela metade na instalação sem chave de IA\n'
     printf '     últimas chaves gravadas: %s\n' \
       "$(grep -oE '^[A-Z_]+=' "$VPS_PROJ/.env" | tail -3 | tr '\n' ' ')"
@@ -2465,7 +2465,7 @@ STUB
       # CONTROLE POSITIVO: a régua dos cenários de provedor acima. Se o `.env`
       # saiu pela metade, a ausência da linha esperada não mede consentimento
       # nenhum — mede um install que morreu.
-      if ! grep -qE '^OWNER_PASSWORD="' "$VPS_PROJ/.env"; then
+      if ! grep -qE '^CLIENTIX_BOOTSTRAP_TOKEN="' "$VPS_PROJ/.env"; then
         printf '  ✗ %s — o .env saiu pela metade (parou antes da última linha do bloco)\n' "$desc"
         printf '     última linha da saída: %s\n' "$(printf '%s' "$saida" | grep -v '^$' | tail -1)"
         exit 1
@@ -3594,23 +3594,14 @@ else
   printf '  ✓ a tela de retomada avisa que o token de conta é perguntado de novo\n'
 fi
 
-echo "bootstrap do dono: o heredoc do SQL não pode conter crase"
-# O `<<SQL` da etapa 8 NÃO é citado — de propósito, porque o bloco interpola
-# OWNER_EMAIL, APP_LOCALE e AI_PROVIDER. O preço é que o bash também executa
-# substituição de comando lá dentro, comentário incluído. Medido numa instalação
-# real: um comentário escrito `-- \`locale\` aqui` fez o bash rodar o comando
-# `locale` e injetar a saída dele no meio do bloco, e o psql morreu com
-#   ERROR:  "language" is not a known variable
-#   LINE 11: LANGUAGE=
-# com o banco já provisionado e o .env já escrito — a instalação parava no passo
-# mais tarde de todos. O próprio install.sh avisa sobre isso 60 linhas abaixo do
-# ponto onde a crase entrou; o aviso não impediu, o teste impede.
-crases_no_sql="$(awk '/<<SQL/{dentro=1; next} /^SQL$/{dentro=0} dentro' ./install.sh | grep -n '`' || true)"
-if [ -n "$crases_no_sql" ]; then
-  printf '  ✗ crase dentro do heredoc <<SQL — o bash vai EXECUTAR isso e quebrar a criação do dono:\n'
-  printf '%s\n' "$crases_no_sql" | sed 's/^/       /'; fail=1
+echo "first-run: instalador entrega token protegido e deixa a criação do owner ao assistente"
+if ! grep -q 'envq CLIENTIX_BOOTSTRAP_TOKEN' ./install.sh \
+  || ! grep -q 'chmod 600 "$BOOTSTRAP_TOKEN_TMP"' ./install.sh \
+  || ! grep -q 'https://${DOMAIN}/setup' ./install.sh \
+  || grep -q 'fn_bootstrap_first_tenant' ./install.sh; then
+  printf '  ✗ o instalador não protegeu o token ou ainda cria o owner fora do assistente\n'; fail=1
 else
-  printf '  ✓ o heredoc do bootstrap do dono está livre de crase\n'
+  printf '  ✓ token protegido; owner criado somente pelo fluxo transacional /setup\n'
 fi
 
 echo "política TLS PostgreSQL: URI remota sempre valida CA/hostname; exceção local explícita"

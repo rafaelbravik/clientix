@@ -42,10 +42,6 @@ export async function proxy(request: NextRequest) {
   const host = request.headers.get("host") ?? "";
   const isAdminSurface = host.startsWith("admin.") || pathname.startsWith("/admin");
 
-  if (isPublicPath(pathname)) {
-    return response;
-  }
-
   const supabase = createServerClient(
     // #1082: base na URL pública, endereço interno só no transporte (ver
     // `lib/supabase/fetch-do-servidor.ts`). O middleware não gera link, mas
@@ -79,6 +75,40 @@ export async function proxy(request: NextRequest) {
       },
     },
   );
+
+  // Primeira navegação de documento: o estado é lido por uma RPC que retorna
+  // apenas boolean e pode ser executada pelo papel anon. A rota /setup e as
+  // APIs do próprio setup ficam fora deste gate para permitir concluir o fluxo.
+  const isDocumentNavigation =
+    request.method === "GET" &&
+    request.headers.get("accept")?.includes("text/html") === true &&
+    !pathname.startsWith("/api/") &&
+    pathname !== "/setup" &&
+    !pathname.startsWith("/legal/") &&
+    !pathname.startsWith("/chat/") &&
+    !pathname.startsWith("/email-templates/");
+  if (isDocumentNavigation) {
+    const { data: initialized, error } = await supabase.rpc("fn_platform_initialized");
+    if (error || typeof initialized !== "boolean") {
+      return new NextResponse(
+        JSON.stringify({ error: { code: "setup_state_unavailable", message: "Não foi possível validar a instalação." } }),
+        {
+          status: 503,
+          headers: { "content-type": "application/json", "cache-control": "no-store", "x-request-id": requestId },
+        },
+      );
+    }
+    if (!initialized) {
+      const setup = NextResponse.redirect(new URL("/setup", request.url));
+      setup.headers.set("Cache-Control", "no-store");
+      setup.headers.set("X-Request-Id", requestId);
+      return setup;
+    }
+  }
+
+  if (isPublicPath(pathname)) {
+    return response;
+  }
 
   // Validate JWT server-side (NEVER use getSession on backend per CLAUDE.md).
   const {

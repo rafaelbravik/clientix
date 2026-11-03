@@ -32,6 +32,7 @@ export default defineConfig({
     // import de @playwright/test derrubaria a suíte unitária.
     exclude: [
       "**/node_modules/**",
+      "**/.clientix-local/**",
       ".next",
       "dist",
       ".claude/**",

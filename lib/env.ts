@@ -108,6 +108,8 @@ const schema = z
     NEXT_PUBLIC_SUPABASE_URL: requiredAlways("NEXT_PUBLIC_SUPABASE_URL").url(),
     NEXT_PUBLIC_SUPABASE_ANON_KEY: requiredAlways("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
     SUPABASE_SERVICE_ROLE_KEY: requiredAlways("SUPABASE_SERVICE_ROLE_KEY"),
+    /** Token temporário do first-run setup; server-only e nunca incluído em respostas. */
+    CLIENTIX_BOOTSTRAP_TOKEN: z.string().optional().default(""),
     /**
      * Endereço do Supabase PARA O SERVIDOR, e só para ele (issue #1082).
      *
@@ -298,6 +300,9 @@ const schema = z
 
     // AI providers — env-gated. Worker no-ops with skip="ai_gateway_key_missing"
     // when AI_GATEWAY_API_KEY is absent, so production boot must not be fatal.
+    // The installer-selected provider is applied to organizations created by
+    // platform administration; the browser never supplies this value.
+    AI_PROVIDER: z.enum(["", "anthropic", "openai", "openrouter"]).optional().default("anthropic"),
     AI_GATEWAY_API_KEY: z.string().optional().default(""),
     AI_GATEWAY_BASE_URL: z.string().optional().default(""),
     // OpenRouter: alternativa ao gateway da Vercel, compatível com a API da

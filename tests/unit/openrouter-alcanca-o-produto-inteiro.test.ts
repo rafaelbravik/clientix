@@ -115,13 +115,24 @@ describe("o worker de mídia obedece ao painel", () => {
   });
 });
 
-describe("o instalador grava o provedor escolhido no banco", () => {
-  it("o install.sh atualiza settings.llm.provider quando não é anthropic", () => {
-    // `fn_seed_org_llm_defaults` semeia 'anthropic' fixo. Sem esta atualização,
-    // a pergunta "qual IA vai atender" não muda nada para o agent-engine.
-    const fonte = readFileSync("hostgator-setup-kit/install.sh", "utf8");
-    expect(fonte).toMatch(/jsonb_set\(\s*\n?\s*coalesce\(settings, '\{\}'::jsonb\), '\{llm,provider\}'/);
-    expect(fonte).toContain("${AI_PROVIDER}");
+describe("o provedor escolhido no instalador chega à primeira organização", () => {
+  it("preserva o padrão no ambiente e só a rota server-side o injeta na RPC", () => {
+    const instalador = readFileSync("hostgator-setup-kit/install.sh", "utf8");
+    const envExample = readFileSync(".env.example", "utf8");
+    const rota = readFileSync("app/api/v1/admin/tenants/route.ts", "utf8");
+    expect(instalador).toMatch(/envq AI_PROVIDER \"\$\{AI_PROVIDER:-anthropic\}\"/);
+    expect(envExample).toContain("AI_PROVIDER=anthropic");
+    expect(rota).toMatch(/default_llm_provider: env\.AI_PROVIDER \|\| \"anthropic\"/);
+    expect(rota).toMatch(/admin\.rpc\(\"fn_create_tenant_with_owner_limited\"/);
+  });
+
+  it("a RPC aplica provider e modelo dentro da criação atômica da organização", () => {
+    const migration = readFileSync("supabase/migrations/20261103121717_9062_platform_owner_first_run_setup.sql", "utf8");
+    expect(migration).toContain("CREATE OR REPLACE FUNCTION public.fn_create_tenant_with_owner_limited(");
+    expect(migration).toContain("v_default_llm_provider text := NULLIF(p_request->>'default_llm_provider', '')");
+    expect(migration).toContain("'{llm,provider}'");
+    expect(migration).toContain("'{llm,default_model}'");
+    expect(migration).toMatch(/GRANT EXECUTE ON FUNCTION public\.fn_create_tenant_with_owner_limited[\s\S]*?TO service_role;/);
   });
 
   it("o bootstrap-owner faz o mesmo (é o caminho do e2e e da doc)", () => {
@@ -130,14 +141,11 @@ describe("o instalador grava o provedor escolhido no banco", () => {
     expect(fonte).toMatch(/process\.env\.AI_PROVIDER/);
   });
 
-  it("e os dois gravam o MODELO do provedor escolhido, não só o provedor", () => {
-    // Trocar só o provider deixava `{openai, claude-sonnet-5}`: o gatilho semeia
-    // o par da Anthropic, e o id dela ia à OpenAI. A escolha em si é provada em
-    // `lib/ai/agents/escolher-modelo.test.ts`; aqui, que os dois a usam.
+  it("o bootstrap de testes também mantém o MODELO do provedor escolhido", () => {
+    // Trocar só o provider deixava `{openai, claude-sonnet-5}`. A escolha em si
+    // é provada em `lib/ai/agents/escolher-modelo.test.ts`.
     const bootstrap = readFileSync("scripts/bootstrap-owner.ts", "utf8");
     expect(bootstrap).toMatch(/escolherModeloNoCatalogo\(admin, escolhido\)/);
     expect(bootstrap).toMatch(/default_model: modelo/);
-    const instalador = readFileSync("hostgator-setup-kit/install.sh", "utf8");
-    expect(instalador).toMatch(/'\{llm,default_model\}'/);
   });
 });

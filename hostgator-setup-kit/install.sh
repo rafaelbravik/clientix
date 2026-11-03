@@ -1305,9 +1305,7 @@ FIELDS=(
   "SUPABASE_ACCESS_TOKEN|Token de acesso do Supabase — configura os links de e-mail (supabase.com/dashboard/account/tokens). NÃO fica salvo. Enter pula|||secret|opcional"
   "$CAMPO_IA"
   ${CAMPO_OPENAI_EXTRA:+"$CAMPO_OPENAI_EXTRA"}
-  "OWNER_EMAIL|E-mail do primeiro admin (dono)||v_email||"
-  "OWNER_PASSWORD|Senha do primeiro admin (mínimo 8 caracteres)||v_password|secret|"
-  "APP_NAME|Nome que aparece na interface (Enter para o padrão)|DeskcommCRM|||"
+  "APP_NAME|Nome que aparece na interface (Enter para o padrão)|Clientix|||"
   # Idioma da instalação. Fica JUNTO do nome do produto de propósito: as duas
   # perguntas são "como o sistema se apresenta", e separá-las faria a segunda
   # parecer configuração técnica.
@@ -1405,6 +1403,7 @@ gen_b64() { openssl rand -base64 32; }
 : "${WAHA_HMAC_SECRET:=$(gen_hex)}"
 : "${SRH_TOKEN:=$(gen_hex)}"
 : "${WAHA_API_KEY:=$(gen_hex)}"
+: "${CLIENTIX_BOOTSTRAP_TOKEN:=$(gen_hex)}"
 # Chamada de voz (spec 18). Gerados SEMPRE, mesmo com a feature desligada: o
 # serviço não sobe sem admin, e pedir ao dono que invente três segredos no dia
 # em que ele quiser ligar a voz é o "edite o .env à mão" que a doutrina de
@@ -1559,7 +1558,7 @@ if [ -f .env ]; then
   # grep procura o arquivo no diretório errado e morre com "No such file or
   # directory" — matando a 2ª execução, que o README:126/:138 documentam como
   # suportada. `KIT_DIR` (linha 16) é absoluto e imune ao `cd`.
-  CONHECIDAS="$(grep -oE "^\s*envq [A-Z_][A-Z0-9_]*" "$KIT_DIR/install.sh" | awk '{print $2}' | sort -u)"
+  CONHECIDAS="$(grep -oE "^\s*envq [A-Z_][A-Z0-9_]*" "$KIT_DIR/install.sh" | awk '{print $2}' | sort -u; printf '%s\n' OWNER_EMAIL OWNER_PASSWORD)"
   while IFS= read -r linha; do
     case "$linha" in
       ''|'#'*) continue;;
@@ -1820,8 +1819,7 @@ esac
   envq NODE_ENV "production"
   envq NUVEMSHOP_ENABLED "false"
   envq INTERNAL_AGENT_RUN_STUB "false"
-  envq OWNER_EMAIL "$OWNER_EMAIL"
-  envq OWNER_PASSWORD "$OWNER_PASSWORD"
+  envq CLIENTIX_BOOTSTRAP_TOKEN "$CLIENTIX_BOOTSTRAP_TOKEN"
   # As variáveis que você acrescentou à mão, de volta — já no formato em que
   # estavam, sem passar por envq (o valor original já vem com as aspas dele).
   if [ -n "$PRESERVADAS" ]; then
@@ -1830,6 +1828,15 @@ esac
   fi
 } > .env
 chmod 600 .env
+# Token de bootstrap: fica disponível ao operador fora do navegador e não aparece
+# no terminal, em logs, no HTML ou no Git. A API também exige origem same-origin,
+# rate limit persistente e reserva transacional; após o owner ser criado o token
+# deixa de autorizar qualquer operação.
+BOOTSTRAP_TOKEN_FILE=".clientix-bootstrap-token"
+BOOTSTRAP_TOKEN_TMP="${BOOTSTRAP_TOKEN_FILE}.tmp.$$"
+printf '%s\n' "$CLIENTIX_BOOTSTRAP_TOKEN" > "$BOOTSTRAP_TOKEN_TMP"
+chmod 600 "$BOOTSTRAP_TOKEN_TMP"
+mv -f "$BOOTSTRAP_TOKEN_TMP" "$BOOTSTRAP_TOKEN_FILE"
 # O .env definitivo existe: o rascunho cumpriu o papel e some — deixá-lo no
 # disco seria uma segunda cópia dos segredos, e desatualizada na primeira
 # correção que alguém fizer no .env.
@@ -2088,120 +2095,9 @@ PENDENCIA_ARQUIVO="$PENDENCIA_EMAIL" \
   SUPABASE_ACCESS_TOKEN="${SUPABASE_ACCESS_TOKEN:-}" \
   bash "$KIT_DIR/marca-emails.sh" --projeto "$PROJECT_DIR" || true
 
-# ── 8. Bootstrap do 1º dono (cria no Auth + promove via psql) ───────────────
-step "$(t "Criando o primeiro admin ({1})" "$OWNER_EMAIL")"
-# 1) Cria o usuário no Supabase Auth. Se já existe, a API responde 422 — ignoramos
-#    (|| true): a re-execução é idempotente, o passo seguinte encontra o usuário.
-# No single-server o Caddy pode ainda estar emitindo o certificado: fala com o
-# gateway local, que já respondeu ao validador.
-curl -fsS -X POST "${SUPABASE_INTERNAL_URL:-${NEXT_PUBLIC_SUPABASE_URL}}/auth/v1/admin/users" \
-  -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-  -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
-  -H "Content-Type: application/json" \
-  -d "{\"email\":\"${OWNER_EMAIL}\",\"password\":\"${OWNER_PASSWORD}\",\"email_confirm\":true,\"user_metadata\":{\"locale\":\"${APP_LOCALE:-pt-BR}\"}}" \
-  >/dev/null 2>&1 || true
-
-# 2) Resolve o id direto do auth.users e cria org + membership + platform_admin.
-#    Resolver o uid DENTRO do SQL evita parsing frágil de JSON e funciona tanto para
-#    usuário recém-criado quanto para um que já existia (re-execução).
-pg_container -i postgres:17-alpine psql "$(url_do_schema)" -v ON_ERROR_STOP=1 <<SQL \
-  && c_grn "$(t "✓ dono criado e promovido a super-admin")" \
-  || die "$(t "Não consegui promover o admin. Confira a service_role key, a URL e a connection string do Supabase.
-     Este passo lê auth.users e escreve em public: num Supabase próprio ele precisa do dono do
-     banco — declare SUPABASE_DB_ADMIN_URL e rode de novo.")"
-do \$\$
-declare v_org uuid; v_uid uuid; v_bootstrap jsonb;
-begin
-  select id into v_uid from auth.users where email = '${OWNER_EMAIL}';
-  if v_uid is null then
-    raise exception 'usuário % não encontrado no auth.users (a criação no Auth falhou?)', '${OWNER_EMAIL}';
-  end if;
-  v_bootstrap := public.fn_bootstrap_first_tenant(
-    '${INSTALLATION_ID}', v_uid, 'minha-empresa', 'Minha Empresa', 'Minha Empresa', '${APP_LOCALE:-pt-BR}'
-  );
-  v_org := (v_bootstrap->>'id')::uuid;
-  if not (v_bootstrap->>'created')::boolean then
-    -- Re-execução do instalador com outra resposta: quem rodou de novo para
-    -- trocar o idioma esperaria que trocasse. Só mexe se a organização ainda
-    -- estiver no padrão — se alguém já escolheu pela tela, a escolha dela vale
-    -- mais que uma resposta repetida no terminal.
-    update public.organizations
-       set locale = '${APP_LOCALE:-pt-BR}'
-     where id = v_org and coalesce(locale, 'pt-BR') = 'pt-BR';
-  end if;
-  -- O provedor que a pessoa ESCOLHEU passa a valer no banco. O trigger
-  -- fn_seed_org_llm_defaults semeia 'anthropic' fixo — o que estava certo
-  -- enquanto a Anthropic era a única chave que este script pedia. Desde que
-  -- ele pergunta qual IA vai atender, ignorar a resposta significava: quem
-  -- escolhe OpenRouter instala, cadastra a chave, e todo caminho que passa
-  -- pelo agent-engine resolve 'anthropic' — sem chave da Anthropic, erro de
-  -- "IA não configurada" em tudo, mandando cadastrar a chave que ele decidiu
-  -- não usar.
-  --
-  -- O par vai INTEIRO: o trigger semeia provider E default_model da Anthropic
-  -- juntos, e trocar só o provider deixava openai com claude-sonnet-5, um id
-  -- que a OpenAI não conhece, pedido por todo ponto que cai no padrão da
-  -- empresa. O modelo é o curado do provedor escolhido no catálogo (a mesma
-  -- régua de escolherModeloDoProvedor para os provedores que o baseline semeia
-  -- com curado), e só entra quando o modelo gravado NÃO é desse provedor: quem
-  -- re-roda o instalador não perde o modelo escolhido pela tela. Sem curado (a
-  -- OpenRouter chega com o catálogo vazio até o primeiro sync) fica só o
-  -- provider, e lib/ai/gateway-binding.ts resolve o par na leitura.
-  if '${AI_PROVIDER}' not in ('', 'anthropic') then
-    update public.organizations
-       set settings = jsonb_set(
-             coalesce(settings, '{}'::jsonb), '{llm,provider}',
-             to_jsonb('${AI_PROVIDER}'::text), true)
-     where id = v_org;
-    update public.organizations o
-       set settings = jsonb_set(o.settings, '{llm,default_model}', to_jsonb(c.model_id), true)
-      from (select m.model_id from public.ai_models m
-             where m.provider = '${AI_PROVIDER}' and m.is_default_for_provider
-               and m.supports_tools and m.deprecated_at is null
-             limit 1) c
-     where o.id = v_org
-       and not exists (select 1 from public.ai_models a
-                        where a.provider = '${AI_PROVIDER}'
-                          and a.model_id = o.settings->'llm'->>'default_model');
-  end if;
-  insert into public.user_organizations (user_id, organization_id, role, accepted_at)
-  values (v_uid, v_org, 'admin', now())
-  on conflict (user_id, organization_id) do update set role='admin', revoked_at=null;
-  if not exists (select 1 from public.platform_admins where user_id=v_uid and revoked_at is null) then
-    -- ⚠️ ATENÇÃO: este heredoc NÃO é citado, então o bash expande crase aqui
-    -- dentro. Crase em volta de nome de coluna vira substituição de comando e o
-    -- instalador morre com "command not found" no meio da criação do dono.
-    -- Medido: a primeira versão deste comentário usava crase e a suíte do kit
-    -- reprovou em três casos. Nome de coluna aqui vai sem crase.
-    --
-    -- mfa_required EXPLÍCITO, contra o default "true" da coluna — a MESMA razão
-    -- que scripts/bootstrap-owner.ts:201 já documenta, e que este INSERT não
-    -- acompanhou.
-    --
-    -- Medido numa instalação self-host recém-feita por este script:
-    --
-    --   select column_default from information_schema.columns
-    --    where table_name='platform_admins' and column_name='mfa_required';
-    --   -> true
-    --
-    -- Como o INSERT abaixo não informava a coluna, TODA instalação nascia
-    -- exigindo TOTP do dono. lib/auth/politica-mfa.ts passou a LER essa coluna
-    -- (antes o gate olhava só is_platform_admin), e o cabeçalho dele registra
-    -- que o cadastro virou opcional exatamente para acabar com o bloqueador de
-    -- tela cheia logo depois do onboarding — "segurança que expulsa o usuário na
-    -- primeira tela não protege ninguém".
-    --
-    -- Ou seja: o defeito que a mudança de doutrina eliminou continuava vivo pelo
-    -- caminho do instalador, que é justamente o caminho de TODO self-hoster. O
-    -- bootstrap-owner.ts estava certo; este INSERT é que ficou para trás.
-    --
-    -- false e não omitir: quem quiser exigir liga em Configurações › Segurança,
-    -- e a decisão fica visível na linha em vez de herdada de um default.
-    insert into public.platform_admins (user_id, granted_by, scope, mfa_required, reason)
-    values (v_uid, v_uid, 'full', false, 'Bootstrap inicial do self-host');
-  end if;
-end \$\$;
-SQL
+# ── 8. Primeiro acesso ──────────────────────────────────────────────────────
+step "$(t "Token de configuração inicial protegido em {1}" ".clientix-bootstrap-token")
+c_dim "$(t "A criação do proprietário e da primeira empresa acontece no assistente /setup.")"
 
 # ── 9. Sobe a stack ─────────────────────────────────────────────────────────
 fase 4 "$(t "Colocando o CRM no ar")"
@@ -2378,21 +2274,21 @@ $(c_grn "═══════════════════════�
 
 $(pendencia_dos_emails)
 $(pendencia_da_ia)
-  1. $(t "Acesse:")  https://${DOMAIN}
+  1. $(t "Acesse:")  https://${DOMAIN}/setup
      $(t "(o SSL leva ~1min pra emitir no primeiro acesso)")
 
-  2. $(t "Faça login com:")
-       $(t "e-mail:") ${OWNER_EMAIL}
-       $(t "senha:")  $(t "(a que você definiu)")
+  2. $(t "Informe o token protegido em:") .clientix-bootstrap-token
+     $(t "O valor não foi exibido no terminal. Consulte o arquivo somente no servidor.")
 
-  3. $(t "Conecte o WhatsApp (2º passo do onboarding):")
+  3. $(t "Crie o proprietário global e a primeira empresa pelo assistente.")
+
+  4. $(t "Conecte o WhatsApp:")
        $(t "Deixe o WhatsApp JÁ ABERTO em Configurações → Aparelhos conectados")
        $(t "antes de abrir a tela — o QR code vale só uns minutos. Se expirar,")
        $(t "o próprio CRM tem o botão \"Gerar novo QR Code\".")
 
-  4. $(t "A verificação em duas etapas é OPCIONAL: quem quiser liga em")
-       $(t "Configurações → Segurança (guarde os códigos de recuperação).")
-       $(t "Perdeu o celular?") bash hostgator-setup-kit/reset-mfa.sh ${OWNER_EMAIL}
+  5. $(t "Recomendamos ativar MFA nas configurações do proprietário e guardar")
+     $(t "os códigos de recuperação em local protegido.")
 
 $(c_grn "  ─── $(t "A comunidade") ──────────────────────────────────────")
 

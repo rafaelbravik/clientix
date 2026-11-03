@@ -184,3 +184,5 @@ __pycache__/
 
 # Dados locais operacionais do Clientix; nunca versionar secrets, runtime ou backups.
 .clientix-local/
+.clientix-bootstrap-token
+.clientix-bootstrap-token.tmp.*

@@ -8,7 +8,6 @@ readonly ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 readonly KIT_DIR="$ROOT_DIR/hostgator-setup-kit"
 readonly RUNTIME_DIR="$ROOT_DIR/.runtime"
 readonly SUPABASE_DIR="$RUNTIME_DIR/supabase"
-readonly CREDENTIALS_FILE="$RUNTIME_DIR/admin-credentials"
 # O mesmo piso do install.sh (RAM_MINIMA_KB, lá explicado): uma VPS de "4 GB"
 # reporta ~3.735.000 KB e não pode ser recusada. 8 GB seguem RECOMENDADOS.
 # Vigiado por tests/shell/single-server-installer.test.sh.
@@ -35,9 +34,9 @@ Instala na mesma VPS:
   - app, worker, scheduler, WAHA, Redis/SRH e Caddy;
   - HTTPS e roteamento por um unico dominio.
 
-Sem --domain, pergunta somente o dominio. Administrador, senha e todos os
-segredos sao gerados automaticamente. A IA nasce desativada e pode ser
-configurada depois pela interface.
+Sem --domain, pergunta somente o dominio. O token de bootstrap e os demais
+segredos sao gerados localmente. A IA nasce desativada e pode ser configurada
+depois pela interface.
 EOF
 }
 
@@ -151,22 +150,10 @@ agent_worker_password_uri="$(jq -rn --arg value "$agent_worker_password" '$value
 } | dc_supabase exec -T db psql -U postgres -d postgres -v ON_ERROR_STOP=1 -q >/dev/null \
   || die "Nao consegui provisionar a role dedicada do worker no Supabase local."
 
-if [[ -f "$CREDENTIALS_FILE" ]]; then
-  owner_email="$(ler_env "$CREDENTIALS_FILE" OWNER_EMAIL)"
-  owner_password="$(ler_env "$CREDENTIALS_FILE" OWNER_PASSWORD)"
-else
-  owner_email="admin@${domain}"
-  owner_password="$(openssl rand -hex 16)"
-  umask 077
-  {
-    printf 'OWNER_EMAIL=%s\n' "$owner_email"
-    printf 'OWNER_PASSWORD=%s\n' "$owner_password"
-  } > "$CREDENTIALS_FILE"
-  chmod 600 "$CREDENTIALS_FILE"
-fi
-
 [[ -f "$ROOT_DIR/.env" ]] || { umask 077; : > "$ROOT_DIR/.env"; chmod 600 "$ROOT_DIR/.env"; }
 app_env="$ROOT_DIR/.env"
+bootstrap_token="$(ler_env "$app_env" CLIENTIX_BOOTSTRAP_TOKEN)"
+[[ -n "$bootstrap_token" ]] || bootstrap_token="$(openssl rand -hex 32)"
 set_env_var "$app_env" DOMAIN "$domain"
 set_env_var "$app_env" ACME_EMAIL "admin@${domain}"
 set_env_var "$app_env" REVERSE_PROXY caddy
@@ -182,9 +169,8 @@ unset agent_worker_password agent_worker_password_uri
 export SUPABASE_DB_ADMIN_URL="postgresql://postgres:${postgres_password_uri}@supabase-db:5432/postgres"
 # Imagens: nao se grava nada aqui. O install.sh resolve a ultima versao
 # publicada das TRES imagens e grava numero de versao (nunca tag movel).
-set_env_var "$app_env" OWNER_EMAIL "$owner_email"
-set_env_var "$app_env" OWNER_PASSWORD "$owner_password"
-set_env_var "$app_env" APP_NAME DeskcommCRM
+set_env_var "$app_env" CLIENTIX_BOOTSTRAP_TOKEN "$bootstrap_token"
+set_env_var "$app_env" APP_NAME Clientix
 set_env_var "$app_env" APP_LOCALE pt-BR
 # IA: nenhuma chave e gravada, entao ela nasce sem credencial (desligada) e o
 # fim do install.sh aponta o caminho em IA > Credenciais. Chaves NAO sao
@@ -219,10 +205,10 @@ fi
 
 cat <<EOF
 
-Credenciais iniciais (arquivo protegido com permissao 600):
-  usuario: ${owner_email}
-  senha:   ${owner_password}
-  arquivo: ${CREDENTIALS_FILE}
+Primeiro acesso:
+  endereco: https://${domain}/setup
+  token: consulte localmente o arquivo protegido .clientix-bootstrap-token
+  O valor do token nao e exibido no terminal.
 
 Supabase, banco, Auth, APIs, CRM, WhatsApp, Redis e proxy estao nesta VPS.
 A IA inicia desativada; configure um provedor depois em Agente de IA.
