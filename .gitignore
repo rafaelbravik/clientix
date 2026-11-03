@@ -181,3 +181,6 @@ __pycache__/
 
 # Runtime do instalador single-server: Supabase self-hosted, credenciais e dados.
 .runtime/
+
+# Dados locais operacionais do Clientix; nunca versionar secrets, runtime ou backups.
+.clientix-local/
