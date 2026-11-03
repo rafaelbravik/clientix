@@ -134,6 +134,7 @@ acessibilidade).
 | Doc | Conteúdo |
 |---|---|
 | [`SETUP.md`](SETUP.md) | Guia completo de env vars e setup local |
+| [`self-hosted/first-run-setup.md`](self-hosted/first-run-setup.md) | Primeiro acesso, token de bootstrap, proprietário global, empresas e recuperação administrativa |
 | [`deploy-selfhost/README.md`](deploy-selfhost/README.md) | Self-host genérico |
 | [`deploy-hostgator/README.md`](deploy-hostgator/README.md) | VPS HostGator (`install.sh`, `backup.sh`, `reset-mfa.sh`) |
 | [`DEPLOY-CHECKLIST.md`](DEPLOY-CHECKLIST.md) | Checklist de deploy |

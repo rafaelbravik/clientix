@@ -176,10 +176,12 @@ create table public.platform_admins (
   revoke_reason   text
 );
 
-comment on table public.platform_admins is 'Administração transversal da instalação. Acompanhamento de dados tenant usa sessão temporária; modificação da autoridade não é exposta pela API.';
+comment on table public.platform_admins is 'Grants globais sem DML direto por papéis da aplicação; delegação/revogação por RPC owner-only, auditada e transacional. Recuperação de owner é DBA-only.';
 ```
 
 > **Contrato vigente (2026-09):** `platform_admins` define autoridade e escopo máximos; não materializa acesso operacional permanente a toda organização. `platform_support_sessions` liga alvo, ator real e `auth.session_id`, escolhe `full` ou `support_readonly`, limita o prazo a uma hora e preserva saída explícita. Não cria membership nem confina globalmente o JWT. A política de cadastro de MFA tem default desligado; quem já possui fator verificado continua obrigado a provar `aal2` nas rotas protegidas. Detalhes e limites de auditoria/OAuth: [`docs/support-sessions.md`](../support-sessions.md).
+
+**Atualização 9062 — primeira inicialização:** `platform_admins.platform_role` separa `owner` de `admin`; a autoridade global continua fora de `user_organizations.role`. `platform_settings` é singleton da inicialização. A migration sela instalações operacionais existentes sem promover ninguém; uma instalação vazia conclui o primeiro owner por token fornecido pelo instalador e RPC transacional. O owner não é vinculado automaticamente a uma empresa. A função global de autorização continua sendo `fn_is_platform_admin()`, e as rotas de administração validam o grant no servidor. O primeiro owner não pode ser rebaixado, revogado, banido ou excluído enquanto não houver outro owner ativo. O owner pode delegar/revogar papéis `platform_admin` existentes por RPC server-side, com escopo e auditoria; DML direto continua bloqueado e recuperação de owner permanece DBA-only. O detalhe operacional vive em [`docs/self-hosted/first-run-setup.md`](../self-hosted/first-run-setup.md).
 
 ### 2.4 `api_tokens` (Bearer server-to-server)
 
@@ -520,10 +522,10 @@ create policy "api_tokens_admin_only" on public.api_tokens
     or public.fn_is_platform_admin()
   );
 
--- platform_admins: apenas platform admins veem; modificação NÃO via API (T-04)
+-- platform_admins: apenas platform admins leem; nenhuma escrita direta via RLS.
 create policy "platform_admins_self" on public.platform_admins
   for select using (public.fn_is_platform_admin());
--- Nenhuma policy de INSERT/UPDATE/DELETE — bloqueio total via API
+-- Grants passam somente por RPC SECURITY DEFINER service_role, que exige owner ativo.
 
 -- api_audit_log: usar Template D (já aplicado em §3.4)
 ```
@@ -831,7 +833,8 @@ create unique index idx_recovery_unique on public.user_recovery_codes(user_id, c
 | **lgpd.redact** | execute | ❌ | ❌ | ❌ | ✅ | ✅ |
 | **webhooks** (Spec 06) | manage | ❌ | ❌ | ❌ | ✅ | ✅ |
 | **platform_admins** | read | ❌ | ❌ | ❌ | ❌ | ✅ |
-| platform_admins | mutate | ❌ | ❌ | ❌ | ❌ | ❌ (DBA only) |
+| platform_admins | delegate/revoke platform_admin | ❌ | ❌ | ❌ | ❌ | ✅ (owner-only RPC; no direct DML) |
+| platform_owner | create/recover owner | ❌ | ❌ | ❌ | ❌ | ❌ (DBA recovery only) |
 
 **Implementação**: middleware `requirePermission(resource, action)` checa role via `fn_user_role_in_org(orgId)` + `fn_is_platform_admin()`. Falha → 403 com `error.code='forbidden_role'`.
 

@@ -19,6 +19,8 @@ exposes_contracts:
   - "route./admin/usage"
   - "route./admin/users"
   - "route./admin/platform-admins"
+  - "api.POST /api/v1/admin/platform-admins (owner-only grant)"
+  - "api.PATCH /api/v1/admin/platform-admins (owner-only revoke)"
   - "api.POST /api/v1/admin/tenants/[id]/impersonate"
   - "api.POST /api/v1/admin/tenants/[id]/suspend"
   - "api.POST /api/v1/admin/tenants/[id]/reactivate"
@@ -46,7 +48,7 @@ owner: Rafael Melgaço
 
 ## 1. Objetivo
 
-Entregar o Super-Admin Platform completo: 14 rotas cross-tenant em `admin.deskcomm.com` que permitem ao operador BPO P2 (Spec 01 §3.4) triagem, observabilidade, impersonate, suspensão de tenants, audit cross-tenant, gestão de LGPD/incidents/usage cross-tenant e visibilidade read-only dos `platform_admins`. Inclui inbox unificada cross-tenant via `fn_is_platform_admin()` bypass de RLS e 3 canais realtime dedicados (`admin-inbox-{platform_admin_id}`, `tenant-health-{tenant_id}`, `alerts-platform`).
+Entregar o Super-Admin Platform completo: 14 rotas cross-tenant em `admin.deskcomm.com` que permitem ao operador BPO P2 (Spec 01 §3.4) triagem, observabilidade, impersonate, suspensão de tenants, audit cross-tenant, gestão de LGPD/incidents/usage cross-tenant e visibilidade global de `platform_admins`; somente owner delega ou revoga admins globais por RPC auditada. Inclui inbox unificada cross-tenant via `fn_is_platform_admin()` bypass de RLS e 3 canais realtime dedicados (`admin-inbox-{platform_admin_id}`, `tenant-health-{tenant_id}`, `alerts-platform`).
 
 ## 2. Resultado esperado (Definition of Done do Epic)
 
@@ -63,7 +65,7 @@ Entregar o Super-Admin Platform completo: 14 rotas cross-tenant em `admin.deskco
 - [ ] Incidents page lista incidents (banimento WAHA, falhas webhook); `useResolveIncident` move pra `resolved` + audit
 - [ ] Usage page mostra mensagens/dia, AI tokens, storage GB por tenant com gráficos
 - [ ] Users page lista TODOS users cross-tenant com filtros tenant + role
-- [ ] Platform-admins page exibe lista read-only com nota "Modificação SOMENTE via DBA — vide Spec 01 §3.4 T-04"
+- [ ] Platform-admins page exibe grants; somente owner pode delegar/revogar admins, e criação/recuperação de owner segue DBA-only
 - [ ] Mobile entrega read-only intencional: composer/mutations escondidos < `md`; só visualização permitida (decisão UX herdada — Anexo §9)
 
 ## 3. Pré-requisitos
@@ -72,7 +74,7 @@ Entregar o Super-Admin Platform completo: 14 rotas cross-tenant em `admin.deskco
 - Migrations 0001-0007 aplicadas (incluindo `platform_admins`, `fn_is_platform_admin()`, RLS policies cross-tabela com bypass)
 - Variáveis de env: `NEXT_PUBLIC_ADMIN_HOST=admin.deskcomm.com`, `INTERNAL_SECRET`, `IMPERSONATE_COOKIE_SECRET`
 - Pelo menos 2 tenants seedados pra testar cross-tenant
-- Pelo menos 1 user em `platform_admins` (seed manual via DBA)
+- Pelo menos 1 owner em `platform_admins` criado pelo fluxo first-run
 - Dev server rodando em `localhost:3001` com hosts file alias `admin.localhost`
 - Playwright MCP conectado pra QA
 
@@ -1070,25 +1072,25 @@ exposes:
 
 ---
 
-### S-11.14 — Page `/admin/platform-admins` (read-only)
+### S-11.14 — Page `/admin/platform-admins` (owner-managed grants)
 
 **Points**: 2 | **Priority**: P2 | **Deps**: S-11.01 | **FR refs**: Spec 01 §3.4 T-04, Sitemap §4
 
 #### Contexto
-Última story do epic. Página estritamente read-only que lista platform_admins ativos. **Modificação NÃO via UI** — apenas via DBA com double-confirmation, conforme Spec 01 §3.4 T-04. A página tem aviso destacado: "Adição/remoção de platform_admins é feita exclusivamente pelo DBA via SQL com nota explicativa em `audit_log`. Esta página é informativa."
+Última story do epic. A listagem continua legível para admins globais; grants de `platform_admin` podem ser concedidos/revogados somente pelo `platform_owner` autenticado por RPC transacional e auditado. Promoção, remoção ou recuperação de `platform_owner` permanece DBA-only. A tabela não recebe DML direto e admin de organização não acessa a área.
 
 #### Files to create
 - `app/admin/platform-admins/page.tsx`
 - `components/admin/platform-admins/PlatformAdminsTable.tsx`
-- `components/admin/platform-admins/DBAOnlyNotice.tsx`
+- `components/admin/platform-admins/PlatformAdminDelegationNotice.tsx`
 - `hooks/useAdminPlatformAdmins.ts`
-- `app/api/v1/admin/platform-admins/route.ts` — GET only
+- `app/api/v1/admin/platform-admins/route.ts` — GET + owner-only POST/PATCH via RPC
 
 #### Implementation steps
 1. `GET /api/v1/admin/platform-admins` retorna lista com `granted_by`, `granted_at`, `scope`, `mfa_required`, `revoked_at`
-2. `<DBAOnlyNotice>` banner azul claro no topo com texto sobre T-04
+2. Notice informa que grants admin são owner-only e owners seguem procedimento DBA
 3. `<PlatformAdminsTable>` colunas (email, granted_by, granted_at, scope, status)
-4. **NENHUM** botão de criar/revogar
+4. Ações de delegar/revogar disponíveis somente ao owner; não permitem criar, rebaixar ou remover owners.
 5. Documentação: link pra runbook `/runbook/platform-admin-management.md` (placeholder se não existir)
 
 #### Acceptance Criteria
@@ -1096,15 +1098,16 @@ exposes:
 ```gherkin
 Given 2 platform_admins ativos
 When admin abre /admin/platform-admins
-Then tabela read-only renderiza com 2 entries
-And notice "Modificação somente via DBA" está visível e proeminente
-And NÃO existem botões de adicionar/remover/editar
+Then tabela renderiza com 2 entries
+And somente o owner vê controles para delegar/revogar `platform_admin`
+And nenhum controle permite alterar um `platform_owner`
 ```
 
 ```gherkin
-Given API GET /admin/platform-admins
-When chamado
-Then retorna apenas SELECT — POST/PATCH/DELETE retornam 405
+Given API de concessão/revogação de `platform_admin`
+When chamada por owner autenticado
+Then usa RPC owner-only que grava o grant e a auditoria na mesma transação
+And chamada por platform_admin delegado ou admin de organização retorna 403
 ```
 
 #### QA test cases
@@ -1112,9 +1115,9 @@ Then retorna apenas SELECT — POST/PATCH/DELETE retornam 405
 | ID | Tipo | Descrição | Como testar |
 |---|---|---|---|
 | t1 | api | GET retorna lista | curl |
-| t2 | api | POST → 405 Method Not Allowed | curl |
-| t3 | ui | Sem botões de mutation | Playwright: query buttons → 0 |
-| t4 | ui | DBAOnlyNotice visível | Playwright snapshot |
+| t2 | api | concessão por admin delegado → 403 | teste de rota + invariante DB |
+| t3 | ui | controles visíveis só para owner | Playwright: sessão owner/admin |
+| t4 | db | owner ativo não pode ser removido pelo RPC de delegação | teste de invariante |
 
 #### Architecture contracts emitted
 
@@ -1123,12 +1126,12 @@ exposes:
   - type: route
     id: "/admin/platform-admins"
   - type: api_route
-    id: "GET /api/v1/admin/platform-admins"
-    notes: "READ-ONLY — POST/PATCH/DELETE return 405"
+    id: "/api/v1/admin/platform-admins"
+    notes: "GET global-admin list; POST/PATCH use owner-only audited RPCs; no direct table DML"
 ```
 
 #### Decisões a registrar
-- T-04 enforcement: nenhuma rota API ou UI permite mutation de `platform_admins`. Confirmar policy SQL `for all using (false) with check (false)` na tabela (já existe em migration 0001) — apenas DBA com `service_role` consegue modificar.
+- T-04 enforcement: sem DML direto de papéis da aplicação; apenas RPC `SECURITY DEFINER` executável por `service_role` verifica `platform_role='owner'`, transaciona e audita grants `admin`. Owners continuam fora do RPC e sob recuperação DBA.
 
 #### Definition of Done
 - [ ] ACs passam
@@ -1170,13 +1173,13 @@ Ao terminar o epic, a regression suite deve cobrir, no mínimo:
 - **ADR-EPIC-11-02**: Cookie de impersonate é separado do `sb-deskcomm-auth` (HMAC, expiry 1h, no auto-renew). Razão: auditabilidade explícita + fail-safe.
 - **ADR-EPIC-11-03**: Mobile no `/admin` é deliberadamente read-only — composer e mutations escondidos < `md`. Razão: cross-tenant action em mobile é alto-risco; obriga uso em desktop.
 - **ADR-EPIC-11-04**: 3 canais realtime dedicados (`admin-inbox-{platform_admin_id}`, `tenant-health-{tenant_id}`, `alerts-platform`) em vez de subscribe de N `inbox-{org_id}`. Razão: escala e simplicidade de hooks no front; fanout via edge function server-side.
-- **ADR-EPIC-11-05**: `platform_admins` é write-only-via-DBA (T-04 reforçado). Página `/admin/platform-admins` é UI informativa; nenhuma rota API expõe mutation.
+- **ADR-EPIC-11-05**: grants `platform_admins` não aceitam DML direto; `platform_owner` pode delegar/revogar apenas `platform_admin` por RPC server-side auditado. Criar/remover owner segue DBA-only.
 - **ADR-EPIC-11-06**: Tabela `incidents` é nova source-of-truth pra falhas operacionais cross-tenant; workers (WAHA monitor, Nuvemshop webhook) escrevem nela; também broadcastam em `alerts-platform`.
 
 ## 9. Anexos
 
 - Screen flow refs: `docs/design-system/screen-flow/01-sitemap.md` §4 (rotas /admin/*); `docs/design-system/screen-flow/02-journeys.md` Jornada 2 (super-admin BPO triagem).
-- Specs refs: `docs/specs/01-spec-platform-base.md` §3.4 platform_admins, §3.6 RLS policies com bypass `fn_is_platform_admin()`, T-04 (DBA-only mutation).
-- Business rules: T-04 (platform_admins DBA-only), AT-XX (audit cross-tenant com `acting_as_platform_admin`).
+- Specs refs: `docs/specs/01-spec-platform-base.md` §3.4 platform_admins, §3.6 RLS policies com bypass `fn_is_platform_admin()`, T-04 (delegação owner-only).
+- Business rules: T-04 (owner-only delegated grants), AT-XX (audit cross-tenant com `acting_as_platform_admin`).
 - Reconciliation: nenhuma pendência cross-spec — epic apenas consome contracts existentes + adiciona camada cross-tenant.
 - Decisão UX herdada (mobile read-only): vide Spec 09 §responsive-strategy + design-system `07-responsive-strategy.md`.

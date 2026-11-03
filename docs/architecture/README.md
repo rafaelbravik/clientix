@@ -45,6 +45,7 @@ ser fonte sem ninguém decidir isso.
 | `lgpd-operational-receipt.architecture.json` | recibo operacional após cascade concluída, download autenticado pelo proxy privado e reutilização dos tombstones HMAC para impedir recriação do titular |
 | `control-plane-customer-boundary.architecture.json` | build self-host sem rotas/licença global; trust root local, suporte por instalação e pool vendor separado |
 | `chatgpt-subscription-login.architecture.json` | vínculo SIWC por organização: state/PKCE, nonce único, ID token validado, envelope cifrado e revogação; publicação e runtime de agentes continuam desligados nesta etapa |
+| `first-run-platform-owner.architecture.json` | first-run com token do instalador, status booleano, reserva atômica, owner global e fronteira entre papel de plataforma e papel de organização |
 
 > **Esta tabela já apodreceu uma vez:** ela listava 8 mapas quando o disco tinha 9 — faltava
 > `indice-de-atrito`. Nenhum teste lê este README (o gate lê os `.json`), então mapa novo que

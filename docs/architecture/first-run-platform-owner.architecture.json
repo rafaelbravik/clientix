@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Primeira inicialização e autoridade global",
+    "subtitle": "Token de bootstrap, claim transacional, proprietário global e isolamento tenant",
+    "quality_profile": "standard"
+  },
+  "lanes": [
+    { "id": "operador", "label": "Operador" },
+    { "id": "app", "label": "Aplicação" },
+    { "id": "banco", "label": "Persistência" },
+    { "id": "empresa", "label": "Organização" }
+  ],
+  "mainPath": ["install", "status", "wizard", "initialize", "claim", "auth", "owner", "admin", "tenantRole"],
+  "nodes": [
+    { "id": "install", "lane": "operador", "col": 1, "type": "service", "label": "Installer / CLIENTIX_BOOTSTRAP_TOKEN protegido" },
+    { "id": "status", "lane": "app", "col": 2, "type": "route", "label": "proxy.ts / fn_platform_initialized boolean" },
+    { "id": "wizard", "lane": "operador", "col": 3, "type": "frontend", "label": "/setup — proprietário, nome da instalação e revisão" },
+    { "id": "initialize", "lane": "app", "col": 4, "type": "route", "label": "POST /api/setup/initialize — origem, token, Zod, rate limit" },
+    { "id": "claim", "lane": "banco", "col": 5, "type": "database", "label": "platform_settings singleton / reserve + finalize transacionais" },
+    { "id": "auth", "lane": "banco", "col": 6, "type": "database", "label": "Supabase Auth / usuário confirmado e compensação em falha" },
+    { "id": "owner", "lane": "banco", "col": 7, "type": "database", "label": "platform_admins.owner + platform_initialized audit" },
+    { "id": "admin", "lane": "operador", "col": 8, "type": "frontend", "label": "/admin — empresas, planos, usuários, licenças e auditoria" },
+    { "id": "tenantRole", "lane": "empresa", "col": 8, "type": "database", "label": "user_organizations.role — escopo restrito à própria organização" }
+  ],
+  "edges": [
+    { "id": "e1", "from": "install", "to": "wizard", "label": "operador entrega segredo fora do navegador" },
+    { "id": "e2", "from": "status", "to": "wizard", "label": "somente false redireciona para first-run" },
+    { "id": "e3", "from": "wizard", "to": "initialize", "label": "envia dados uma vez por HTTPS e mesma origem" },
+    { "id": "e4", "from": "initialize", "to": "claim", "label": "rate limit + reserva serializada + RPC final de serviço" },
+    { "id": "e5", "from": "claim", "to": "auth", "label": "Auth Admin server-side antes de concluir owner" },
+    { "id": "e6", "from": "auth", "to": "owner", "label": "owner, initialized_at, branding e auditoria na transação" },
+    { "id": "e7", "from": "owner", "to": "admin", "label": "owner ativo acessa rotas globais protegidas" },
+    { "id": "e8", "from": "tenantRole", "to": "admin", "label": "sem grants globais; admin de empresa é barrado" },
+    { "id": "e9", "from": "admin", "to": "tenantRole", "label": "cria empresa e convida seu admin inicial" }
+  ]
+}

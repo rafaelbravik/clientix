@@ -51,7 +51,7 @@ owner: Rafael Melgaço
 - **Tipo**: Hard constraint
 - **Regra**: GIVEN um usuário sem flag `is_platform_admin`; WHEN tenta acessar dado de tenant ao qual não pertence; THEN RLS retorna conjunto vazio (404 ou 403 dependendo do endpoint).
 - **Enforcement**: DB (helper RLS retorna TRUE para platform_admin em qualquer tabela tenant-aware) + audit log com flag `acting_as_platform_admin=true`.
-- **Override**: Nenhum em runtime. Inclusão/remoção em `platform_admins` é processo manual de DBA com double-confirmation.
+- **Override**: Somente um `platform_owner` ativo pode delegar/revogar `platform_admin` por RPC server-side auditado; usuários da aplicação não recebem DML direto na tabela. Criar, remover ou recuperar um `platform_owner` continua sendo procedimento manual de DBA com double-confirmation.
 
 ### T-05 — Roteamento de API usa subdomain OU header `X-Tenant-ID`
 - **Origem**: Sub-PRD 01 §3.2 (decisão deferida na §9 do mesmo)
