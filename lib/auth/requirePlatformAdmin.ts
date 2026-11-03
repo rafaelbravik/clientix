@@ -28,6 +28,8 @@ export interface PlatformAdminInfo {
   user_id: string;
   scope: string;
   mfa_required: boolean;
+  /** Papel global; ausente em tipos gerados por schema anterior até o próximo refresh. */
+  platform_role?: "owner" | "admin";
 }
 
 export interface PlatformAdminContext {
@@ -46,12 +48,16 @@ export async function requirePlatformAdmin(): Promise<PlatformAdminContext> {
   }
 
   // platform_admins RLS: only platform admins read; non-admins get null → forbid.
-  const { data: paRow } = await supabase
+  const { data: paRowData } = await supabase
     .from("platform_admins")
-    .select("user_id, scope, mfa_required, revoked_at")
+    .select("*")
     .eq("user_id", user.id)
     .is("revoked_at", null)
     .maybeSingle();
+
+  const paRow = paRowData as unknown as
+    | { user_id: string; scope: string; mfa_required: boolean; revoked_at: string | null; platform_role?: "owner" | "admin" }
+    | null;
 
   if (!paRow) {
     redirect("/admin/forbidden");
@@ -70,8 +76,16 @@ export async function requirePlatformAdmin(): Promise<PlatformAdminContext> {
       user_id: paRow.user_id,
       scope: paRow.scope,
       mfa_required: paRow.mfa_required,
+      platform_role: paRow.platform_role ?? "admin",
     },
   };
+}
+
+/** Owner é papel global próprio, separado dos papéis de organização. */
+export async function requirePlatformOwner(): Promise<PlatformAdminContext> {
+  const ctx = await requirePlatformAdmin();
+  if (ctx.platformAdmin.platform_role !== "owner") redirect("/admin/forbidden");
+  return ctx;
 }
 
 // A classe mora no módulo sem `next/*` para o formulário ler a mesma frase.
@@ -96,6 +110,15 @@ export async function requirePlatformAdminEscrita(): Promise<PlatformAdminContex
   }
   if (await mfaEmDivida()) {
     throw new EscritaDePlatformAdminNegada("mfa_required");
+  }
+  return ctx;
+}
+
+/** Escrita crítica da instalação fica restrita ao owner global. */
+export async function requirePlatformOwnerEscrita(): Promise<PlatformAdminContext> {
+  const ctx = await requirePlatformAdminEscrita();
+  if (ctx.platformAdmin.platform_role !== "owner") {
+    throw new EscritaDePlatformAdminNegada("forbidden_scope");
   }
   return ctx;
 }

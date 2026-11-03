@@ -8,6 +8,8 @@ const PUBLICATION_MIGRATION = "supabase/migrations/20261031202143_9059_publish_c
 const MARKER = "-- Impede que um titular anonimizado a pedido seja recriado por ingressos que";
 const PUBLICATION_MARKER = "-- P0-1E: publicação da assinatura ChatGPT valida catálogo e credencial no tenant.";
 const ANON_SCAN = "-- ---- VARREDURA anon:";
+const NEXT_MIGRATION = "-- ---- 9062 — first-run initialization and platform owner (migration 9062) ----";
+const PUBLICATION_END = "-- ---- Criador provisório sai na entrega (migration 0237) ----";
 
 describe("migration 0541 — baseline e MANIFEST", () => {
   it("mantém a tripla SQL idêntica entre migration e apêndice final", () => {
@@ -16,12 +18,16 @@ describe("migration 0541 — baseline e MANIFEST", () => {
     const publicationMigration = readFileSync(resolve(ROOT, PUBLICATION_MIGRATION), "utf8").trim();
     const index = baseline.lastIndexOf(MARKER);
     const publicationIndex = baseline.indexOf(PUBLICATION_MARKER, index);
-    const scanIndex = baseline.indexOf(ANON_SCAN, index);
+    const publicationEndIndex = baseline.indexOf(PUBLICATION_END, publicationIndex);
+    const nextMigrationIndex = baseline.indexOf(NEXT_MIGRATION, publicationIndex);
+    const finalScanIndex = baseline.lastIndexOf(ANON_SCAN);
     expect(index, "baseline sem apêndice idempotente da 0541").toBeGreaterThanOrEqual(0);
     expect(publicationIndex, "baseline sem apêndice idempotente da 9059").toBeGreaterThan(index);
-    expect(scanIndex, "apêndice 0541 precisa preceder a varredura anon").toBeGreaterThan(index);
+    expect(publicationEndIndex, "apêndice 9059 precisa terminar antes da seção histórica seguinte").toBeGreaterThan(publicationIndex);
+    expect(nextMigrationIndex, "a migration 9062 precisa estar no baseline").toBeGreaterThan(publicationEndIndex);
+    expect(finalScanIndex, "a varredura anon deve continuar sendo o último bloco").toBeGreaterThan(nextMigrationIndex);
     expect(baseline.slice(index, publicationIndex).trim()).toBe(migration);
-    expect(baseline.slice(publicationIndex, scanIndex).trim()).toBe(publicationMigration);
+    expect(baseline.slice(publicationIndex, publicationEndIndex).trim()).toBe(publicationMigration);
   });
 
   it("declara a reserva usada no MANIFEST", () => {

@@ -136,6 +136,19 @@ function makeDb(opts: { sessions?: Linha[]; recusaColunaDoDesfecho?: boolean } =
     private executar(): { data: unknown; error: unknown } {
       const ausente = this.semColuna();
 
+      if (this.table === "platform_plan_catalog" && this.op === "select") {
+        const planos: Linha[] = [{
+          slug: "standard",
+          active: true,
+          max_users: 3,
+          max_channels: 1,
+          allowed_channels: ["whatsapp", "email"],
+          features: { campaigns: false, ai_agent: true, voice_calls: false, comment_to_dm: false },
+        }];
+        const achados = planos.filter((plano) => this.filtros.every(([coluna, valor]) => plano[coluna] === valor));
+        return { data: this.unica ? (achados[0] ?? null) : achados, error: null };
+      }
+
       if (this.op === "select") {
         if (ausente) return { data: null, error: ausente };
         const achadas = this.casam();

@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "generated_at": "2026-11-02T19:28:26.357Z",
-  "schema_target": "9061",
+  "generated_at": "2026-11-03T13:37:28Z",
+  "schema_target": "9062",
   "baseline": {
     "file": "baseline.sql",
-    "checksum": "5b04087aa97e584bda58c28947804cd7a8ae51812538915a588ad7a591933904",
-    "size_bytes": 2529331,
-    "incorporated_through_sequence": 9061
+    "checksum": "2f6e0f8566287832e088c80d15f389f17ba34e864fec0a24250399167db2203b",
+    "size_bytes": 2567495,
+    "incorporated_through_sequence": 9062
   },
   "migrations": [
     {
@@ -3464,7 +3464,16 @@
       "slug": "pacing_reply_daily_cap",
       "checksum": "a833c230cbf69580c6c9c8dd051aa3a94c82aaf5736a577f1247167a2ceccf25",
       "transactional": true
+    },
+    {
+      "file": "20261103121717_9062_platform_owner_first_run_setup.sql",
+      "version": "20261103121717",
+      "sequence": 9062,
+      "slug": "platform_owner_first_run_setup",
+      "checksum": "0d4d2d2490090601ce5fe9231b29194cb20a0ef7778ecaaea47d8e5ccf1b479a",
+      "transactional": true,
+      "size_bytes": 37885
     }
   ],
-  "updated_at": "2026-11-02T15:38:26.285Z"
+  "updated_at": "2026-11-03T15:45:14.063Z"
 }

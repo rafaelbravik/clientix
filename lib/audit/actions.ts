@@ -1016,6 +1016,15 @@ export const AUDIT_ACTIONS = [
   // Alteração administrativa de uma fonte RAG; registra somente campos e
   // contagem, nunca perguntas, respostas ou conteúdo do acervo.
   "ai.knowledge_source_updated",
+  "platform_admin.plans_listed",
+  "platform_plan.updated",
+  "platform_initialized",
+  "platform_admin.member_invited",
+  "platform_admin.member_role_changed",
+  "platform_admin.member_revoked",
+  "platform_admin.member_reactivated",
+  "platform_admin.global_admin_granted",
+  "platform_admin.global_admin_revoked",
 ] as const;
 
 /** Um código de auditoria. Derivado de `AUDIT_ACTIONS` — não redigite a lista. */

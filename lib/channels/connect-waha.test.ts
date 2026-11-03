@@ -26,7 +26,23 @@ function fixture(linha: Partial<typeof channel> & { phone_number?: string | null
     // Simula o WHERE de verdade: cada filtro é conferido contra `noBanco`, e a
     // linha só é atualizada se TODOS casarem. Sem isso o teste não distingue
     // "a guarda está no UPDATE" de "a guarda sumiu do UPDATE".
-    from: vi.fn(() => {
+    from: vi.fn((table: string) => {
+      if (table === "platform_plan_catalog") {
+        const row = {
+          slug: "standard",
+          active: true,
+          max_users: 3,
+          max_channels: 1,
+          allowed_channels: ["whatsapp", "email"],
+          features: { campaigns: false, ai_agent: true, voice_calls: false, comment_to_dm: false },
+        };
+        const query = {
+          select: () => query,
+          eq: () => query,
+          maybeSingle: async () => ({ data: row, error: null }),
+        };
+        return query;
+      }
       let casa = true;
       let pendente: Record<string, unknown> | null = null;
       const builder = {

@@ -61,14 +61,15 @@ export const DEFAULT_PLAN_LIMITS: Record<TenantPlan, PlanLimits> = {
  * Resolve os limites efetivos de uma organização com base no plano contratado e
  * possíveis overrides específicos configurados em `organizations.settings.plan_limits`.
  */
-export function resolveTenantPlanLimits(
-  settings: Record<string, unknown> | null | undefined,
-): PlanLimits {
+function tenantPlanFromSettings(settings: Record<string, unknown> | null | undefined): TenantPlan {
   const planRaw = typeof settings?.plan === "string" ? settings.plan.toLowerCase().trim() : "standard";
-  const plan: TenantPlan =
-    planRaw === "pro" || planRaw === "enterprise" ? planRaw : "standard";
+  return planRaw === "pro" || planRaw === "enterprise" ? planRaw : "standard";
+}
 
-  const base = DEFAULT_PLAN_LIMITS[plan];
+function mergePlanOverrides(
+  settings: Record<string, unknown> | null | undefined,
+  base: PlanLimits,
+): PlanLimits {
   const overridesRaw = settings?.plan_limits;
   const overrides = (typeof overridesRaw === "object" && overridesRaw !== null && !Array.isArray(overridesRaw))
     ? (overridesRaw as Record<string, unknown>)
@@ -116,12 +117,85 @@ export function resolveTenantPlanLimits(
   }
 
   return {
-    plan,
+    plan: base.plan,
     max_users: maxUsers,
     max_channels: maxChannels,
     allowed_channels: allowedChannels,
     features: sanitizedFeatures,
   };
+}
+
+export function resolveTenantPlanLimits(
+  settings: Record<string, unknown> | null | undefined,
+): PlanLimits {
+  return mergePlanOverrides(settings, DEFAULT_PLAN_LIMITS[tenantPlanFromSettings(settings)]);
+}
+
+/**
+ * Runtime entitlements come from the platform catalog edited by the global
+ * owner. The constant catalog remains the migration seed and a compatibility
+ * fallback for partial unit-test doubles that do not implement PostgREST.
+ */
+export async function resolveTenantPlanLimitsFromCatalog(
+  admin: SupabaseClient,
+  settings: Record<string, unknown> | null | undefined,
+): Promise<PlanLimits | null> {
+  const slug = tenantPlanFromSettings(settings);
+  const query = admin.from("platform_plan_catalog");
+  if (typeof query?.select !== "function") {
+    return resolveTenantPlanLimits(settings);
+  }
+  const selected = query.select("slug, active, max_users, max_channels, allowed_channels, features");
+  const filtered = selected.eq("slug", slug);
+  if (typeof filtered?.maybeSingle !== "function") {
+    return resolveTenantPlanLimits(settings);
+  }
+
+  const { data, error } = await filtered.maybeSingle();
+  if (error || !data || typeof data !== "object") return null;
+  const row = data as {
+    slug?: unknown;
+    active?: unknown;
+    max_users?: unknown;
+    max_channels?: unknown;
+    allowed_channels?: unknown;
+    features?: unknown;
+  };
+  if (
+    row.slug !== slug ||
+    row.active !== true ||
+    !(row.max_users === null || (typeof row.max_users === "number" && Number.isInteger(row.max_users) && row.max_users > 0)) ||
+    !(row.max_channels === null || (typeof row.max_channels === "number" && Number.isInteger(row.max_channels) && row.max_channels > 0)) ||
+    !(row.allowed_channels === null || (Array.isArray(row.allowed_channels) && row.allowed_channels.every((item) => typeof item === "string"))) ||
+    typeof row.features !== "object" || row.features === null || Array.isArray(row.features)
+  ) {
+    return null;
+  }
+  const featureValues = row.features as Record<string, unknown>;
+  if (!("campaigns" in featureValues && "ai_agent" in featureValues && "voice_calls" in featureValues && "comment_to_dm" in featureValues)) {
+    return null;
+  }
+  if (![featureValues.campaigns, featureValues.ai_agent, featureValues.voice_calls, featureValues.comment_to_dm].every((value) => typeof value === "boolean")) {
+    return null;
+  }
+  const campaigns = featureValues.campaigns as boolean;
+  const aiAgent = featureValues.ai_agent as boolean;
+  const voiceCalls = featureValues.voice_calls as boolean;
+  const commentToDm = featureValues.comment_to_dm as boolean;
+
+  const catalogPlan: PlanLimits = {
+    plan: slug,
+    max_users: row.max_users,
+    max_channels: row.max_channels,
+    allowed_channels: row.allowed_channels,
+    features: {
+      campaigns,
+      ai_agent: aiAgent,
+      voice_calls: voiceCalls,
+      comment_to_dm: commentToDm,
+    },
+  };
+  return mergePlanOverrides(settings, catalogPlan);
 }
 
 export interface QuotaCheckResult {
@@ -150,7 +224,10 @@ export async function checkUserQuota(
       return { allowed: false, reason: "Falha ao carregar configurações do plano da organização." };
     }
 
-    const limits = resolveTenantPlanLimits(org.settings as Record<string, unknown>);
+    const limits = await resolveTenantPlanLimitsFromCatalog(admin, org.settings as Record<string, unknown>);
+    if (!limits) {
+      return { allowed: false, reason: "Não foi possível validar o catálogo de planos da instalação." };
+    }
     if (limits.max_users === null) {
       return { allowed: true, max: null };
     }
@@ -228,7 +305,10 @@ export async function checkChannelQuota(
   // Se a organização não tiver linha retornada (ex: dublê de teste sem tabela organizations),
   // assume settings vazias (que resolve para plano standard), garantindo segurança fail-closed sem quebrar dublês parciais.
   const settings = org ? (org.settings as Record<string, unknown>) : {};
-  const limits = resolveTenantPlanLimits(settings);
+  const limits = await resolveTenantPlanLimitsFromCatalog(admin, settings);
+  if (!limits) {
+    return { allowed: false, reason: "Não foi possível validar o catálogo de planos da instalação." };
+  }
 
   // 1. Verifica se o canal está permitido no plano
   if (limits.allowed_channels !== null) {
@@ -298,7 +378,10 @@ export async function checkFeatureQuota(
       return { allowed: false, reason: "Falha ao carregar configurações do plano da organização." };
     }
 
-    const limits = resolveTenantPlanLimits(org.settings as Record<string, unknown>);
+    const limits = await resolveTenantPlanLimitsFromCatalog(admin, org.settings as Record<string, unknown>);
+    if (!limits) {
+      return { allowed: false, reason: "Não foi possível validar o catálogo de planos da instalação." };
+    }
     const isEnabled = limits.features[feature] ?? true;
 
     if (!isEnabled) {

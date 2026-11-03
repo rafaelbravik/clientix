@@ -161,6 +161,17 @@ beforeEach(() => {
   // `tests/unit/voz-consentimento-e-portao-de-verdade.test.ts`.
   respostas["org_voice_calls"] = { data: { enabled: true, risco_aceito_em: null }, error: null };
   respostas["organizations"] = { data: { settings: { plan: "pro" } }, error: null };
+  respostas["platform_plan_catalog"] = {
+    data: {
+      slug: "pro",
+      active: true,
+      max_users: 10,
+      max_channels: 5,
+      allowed_channels: ["whatsapp", "telegram", "telegram_user", "email", "instagram", "tiktok"],
+      features: { campaigns: true, ai_agent: true, voice_calls: true, comment_to_dm: true },
+    },
+    error: null,
+  };
   vi.mocked(createClient).mockResolvedValue(dubleSupabase() as never);
   vi.mocked(getWacallsClient).mockReturnValue(wacalls as never);
 });
