@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import {
   cpSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -299,6 +300,29 @@ function removeCustomerSourceMaps(): void {
   }
 }
 
+function assertStandaloneHasNoSymlinks(): void {
+  const standaloneRoot = path.join(artifactRoot, "standalone");
+  const symlinkPaths: string[] = [];
+
+  function visit(directory: string): void {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const entryPath = path.join(directory, entry.name);
+      if (entry.isSymbolicLink() || lstatSync(entryPath).isSymbolicLink()) {
+        symlinkPaths.push(path.relative(standaloneRoot, entryPath).split(sep).join("/"));
+      } else if (entry.isDirectory()) {
+        visit(entryPath);
+      }
+    }
+  }
+
+  visit(standaloneRoot);
+  if (symlinkPaths.length > 0) {
+    throw new Error(
+      `O standalone customer contém symlinks que podem depender do staging: ${symlinkPaths.slice(0, 10).join(", ")}.`,
+    );
+  }
+}
+
 function copyArtifact(): void {
   if (existsSync(artifactRoot) && !artifactWasCreatedHere) {
     throw new Error(
@@ -315,11 +339,9 @@ function copyArtifact(): void {
           ? path.join(stagedProject, ".next", "static")
           : path.join(stagedProject, "public");
     const destination = path.join(artifactRoot, directory);
-    // On Windows pnpm creates junctions from standalone/node_modules back into
-    // the staged project's node_modules. Moving the standalone tree preserves
-    // those absolute junction targets, and the staging cleanup then leaves the
-    // customer artifact with a broken `require("next")`. Materialize links
-    // while copying so the delivered standalone is self-contained on every OS.
+    // O Next standalone pode conter links absolutos para a árvore staged do pnpm.
+    // O materializador abaixo copia os pacotes para aliases convencionais e remove
+    // o grafo .pnpm antes de o staging ser apagado.
     cpSync(source, destination, { recursive: true, dereference: true });
   }
 
@@ -327,6 +349,7 @@ function copyArtifact(): void {
     artifactRoot,
     stagedProjectRoot: stagedProject,
   });
+  assertStandaloneHasNoSymlinks();
   const requiredPaths = [
     path.join("standalone", "server.js"),
     path.join("standalone", "node_modules", "next", "package.json"),

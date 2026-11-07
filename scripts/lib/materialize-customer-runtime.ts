@@ -1,4 +1,13 @@
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+} from "node:fs";
 import path from "node:path";
 
 interface PackageManifest {
@@ -31,12 +40,14 @@ export function materializeCustomerRuntimeDependencies({
   const standaloneRoot = path.join(artifactRoot, "standalone");
   const standaloneModules = path.join(standaloneRoot, "node_modules");
   const pnpmModules = path.join(standaloneModules, ".pnpm");
-  const nextEntry = readdirDirectories(pnpmModules).find((name) => name.startsWith("next@"));
-  if (!nextEntry) throw new Error("O standalone customer não contém Next.js traceado.");
-
   const customerManifest = readManifest(path.join(stagedProjectRoot, "package.json"));
-  const nextManifest = readManifest(path.join(standaloneModules, "next", "package.json"));
-  const nextPackageModules = path.join(pnpmModules, nextEntry, "node_modules");
+  const stagedModules = path.join(stagedProjectRoot, "node_modules");
+  const nextSource = resolvePackageSource("next", stagedModules);
+  if (!nextSource)
+    throw new Error("O standalone customer não contém Next.js nas dependências staged.");
+  const canonicalNextRoot = canonicalPackageRoot(realpathSync(nextSource), stagedProjectRoot);
+  const nextManifest = readManifest(path.join(canonicalNextRoot, "package.json"));
+  const nextPackageModules = nearestNodeModules(canonicalNextRoot);
   const runtimeNames = [
     ...new Set([
       ...Object.keys(customerManifest.dependencies ?? {}),
@@ -46,11 +57,7 @@ export function materializeCustomerRuntimeDependencies({
 
   const queue: RuntimePackage[] = [];
   for (const name of runtimeNames) {
-    const source = resolvePackageSource(
-      name,
-      path.join(stagedProjectRoot, "node_modules"),
-      nextPackageModules,
-    );
+    const source = resolvePackageSource(name, stagedModules, nextPackageModules);
     if (!source) throw new Error(`Dependência runtime do Customer não foi traceada: ${name}.`);
     const destination = path.join(standaloneModules, ...name.split("/"));
     ensurePackageCopy(source, destination);
@@ -80,7 +87,7 @@ export function materializeCustomerRuntimeDependencies({
       const source = resolvePackageSource(
         dependencyName,
         sourceNodeModules,
-        path.join(stagedProjectRoot, "node_modules"),
+        stagedModules,
         nextPackageModules,
       );
       if (!source) {
@@ -107,16 +114,16 @@ export function materializeCustomerRuntimeDependencies({
         readManifest(path.join(destination, "package.json")).version !== sourceManifest.version
       ) {
         destination = path.join(current.destination, "node_modules", ...dependencyName.split("/"));
-        if (existsSync(path.join(destination, "package.json"))) {
-          const presentVersion = readManifest(path.join(destination, "package.json")).version;
+        const presentManifest = readMaterializedPackageManifest(destination);
+        if (presentManifest) {
+          const presentVersion = presentManifest.version;
           if (presentVersion !== sourceManifest.version) {
             throw new Error(
               `Versões runtime incompatíveis para ${dependencyName}: ${presentVersion ?? "desconhecida"} e ${sourceManifest.version ?? "desconhecida"}.`,
             );
           }
-        } else {
-          ensurePackageCopy(source, destination);
         }
+        ensurePackageCopy(source, destination);
       }
       queue.push({ source, destination });
     }
@@ -124,17 +131,21 @@ export function materializeCustomerRuntimeDependencies({
 
   for (const name of runtimeNames) {
     const destination = path.join(standaloneModules, ...name.split("/"));
-    if (!existsSync(path.join(destination, "package.json"))) {
+    if (!readMaterializedPackageManifest(destination)) {
       throw new Error(`Alias runtime do Customer incompleto: ${name}.`);
     }
   }
+
+  // O .pnpm do output standalone contém aliases absolutos para a árvore staged.
+  // Os pacotes necessários já foram materializados nos aliases convencionais acima.
+  rmSync(pnpmModules, { recursive: true, force: true });
   return runtimeNames;
 }
 
 function resolvePackageSource(name: string, ...nodeModulesRoots: string[]): string | null {
   for (const root of nodeModulesRoots) {
     const candidate = path.join(root, ...name.split("/"));
-    if (existsSync(path.join(candidate, "package.json"))) return candidate;
+    if (existsSync(path.join(candidate, "package.json"))) return realpathSync(candidate);
   }
   return null;
 }
@@ -148,7 +159,7 @@ function resolvePackageDestination(
   let directory = packageDestination;
   while (directory === standaloneRoot || directory.startsWith(`${standaloneRoot}${path.sep}`)) {
     const candidate = path.join(directory, "node_modules", ...parts);
-    if (existsSync(path.join(candidate, "package.json"))) return candidate;
+    if (readMaterializedPackageManifest(candidate)) return candidate;
     if (directory === standaloneRoot) break;
     directory = path.dirname(directory);
   }
@@ -182,9 +193,38 @@ function canonicalPackageRoot(packageRoot: string, stagedProjectRoot: string): s
 }
 
 function ensurePackageCopy(source: string, destination: string): void {
-  if (existsSync(path.join(destination, "package.json"))) return;
+  const sourceManifest = readManifest(path.join(source, "package.json"));
+  const destinationManifest = readMaterializedPackageManifest(destination);
+  if (destinationManifest?.version === sourceManifest.version) return;
+
+  if (existsSync(destination) || isSymbolicLink(destination)) {
+    rmSync(destination, { recursive: true, force: true });
+  }
   mkdirSync(path.dirname(destination), { recursive: true });
-  cpSync(source, destination, { recursive: true, dereference: true });
+  cpSync(realpathSync(source), destination, { recursive: true, dereference: true });
+}
+
+function readMaterializedPackageManifest(directory: string): PackageManifest | null {
+  if (!isMaterializedDirectory(directory)) return null;
+  const manifestPath = path.join(directory, "package.json");
+  if (!existsSync(manifestPath)) return null;
+  return readManifest(manifestPath);
+}
+
+function isMaterializedDirectory(directory: string): boolean {
+  try {
+    return lstatSync(directory).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+function isSymbolicLink(pathname: string): boolean {
+  try {
+    return lstatSync(pathname).isSymbolicLink();
+  } catch {
+    return false;
+  }
 }
 
 function readManifest(pathname: string): PackageManifest {

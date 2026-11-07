@@ -20,11 +20,11 @@
 with dona as (
   select u.id as user_id, uo.organization_id
     from auth.users u join public.user_organizations uo on uo.user_id = u.id
-   where u.email = 'dona.l11@qa.local' and uo.role = 'admin'
+   where u.email = 'dona.l11@example.test' and uo.role = 'admin'
 ), conexao as (
   insert into public.calendar_connections
     (organization_id, user_id, provider, account_email, status, last_sync_at, scopes)
-  select organization_id, user_id, 'google_calendar', 'dona.pessoal@gmail.test',
+  select organization_id, user_id, 'google_calendar', 'dona.pessoal@example.test',
          'healthy', now(), array['https://www.googleapis.com/auth/calendar']
     from dona
   returning id, organization_id
@@ -33,7 +33,7 @@ with dona as (
     (organization_id, connection_id, external_calendar_id, name, is_primary,
      counts_for_conflicts, is_destination, access_role, available, time_zone,
      last_sync_at, sync_error, sync_coverage)
-  select organization_id, id, 'dona.pessoal@gmail.test', 'Pessoal', true,
+  select organization_id, id, 'dona.pessoal@example.test', 'Pessoal', true,
          true, false, 'owner', true, 'America/Sao_Paulo',
          now(), null,
          jsonb_build_object('window_start', '2026-09-01T00:00:00Z', 'window_end', '2026-12-31T00:00:00Z')
