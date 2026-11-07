@@ -9,14 +9,17 @@ import {
 
 class MockDatabaseClient implements DatabaseClient {
   public executedQueries: { sql: string; params?: unknown[] }[] = [];
-  public migrationsTable = new Map<string, { version: string; checksum: string; applied_at: string }>();
+  public migrationsTable = new Map<
+    string,
+    { version: string; checksum: string; applied_at: string }
+  >();
   public locks = new Set<string>();
   public inTransaction = false;
   public failOnSqlPattern?: RegExp;
 
   async query<R = Record<string, unknown>>(
     sql: string,
-    params?: unknown[]
+    params?: unknown[],
   ): Promise<{ rows: R[]; rowCount?: number }> {
     this.executedQueries.push({ sql, params });
 
@@ -51,7 +54,11 @@ class MockDatabaseClient implements DatabaseClient {
       return { rows: [] };
     }
 
-    if (trimmed.startsWith("select version, checksum, applied_at from control_plane.schema_migrations")) {
+    if (
+      trimmed.startsWith(
+        "select version, checksum, applied_at from control_plane.schema_migrations",
+      )
+    ) {
       const rows = Array.from(this.migrationsTable.values()) as unknown as R[];
       return { rows, rowCount: rows.length };
     }
@@ -91,11 +98,17 @@ describe("L8.1E Control Plane Migration Runner & Schema Certification", () => {
   it("applies migration on first run and is idempotent on second run (0 pending)", async () => {
     const db = new MockDatabaseClient();
 
-    // First run: applies 0001
+    // First run applies the schema, lifecycle, clone protection and commercial admin migrations.
     const res1 = await runControlPlaneMigrations(db, realMigrationsDir);
-    expect(res1.appliedCount).toBe(1);
+    expect(res1.appliedCount).toBe(4);
     expect(res1.appliedVersions).toContain("0001_initial_control_plane");
+    expect(res1.appliedVersions).toContain("0002_commercial_license_lifecycle");
+    expect(res1.appliedVersions).toContain("0003_installation_clone_attestation");
+    expect(res1.appliedVersions).toContain("0004_vendor_commercial_admin");
     expect(db.migrationsTable.has("0001_initial_control_plane")).toBe(true);
+    expect(db.migrationsTable.has("0002_commercial_license_lifecycle")).toBe(true);
+    expect(db.migrationsTable.has("0003_installation_clone_attestation")).toBe(true);
+    expect(db.migrationsTable.has("0004_vendor_commercial_admin")).toBe(true);
 
     // Second run: 0 migrations pending
     const res2 = await runControlPlaneMigrations(db, realMigrationsDir);
@@ -114,7 +127,7 @@ describe("L8.1E Control Plane Migration Runner & Schema Certification", () => {
     });
 
     await expect(runControlPlaneMigrations(db, realMigrationsDir)).rejects.toThrow(
-      /checksum mismatch detected/i
+      /checksum mismatch detected/i,
     );
   });
 
@@ -123,7 +136,7 @@ describe("L8.1E Control Plane Migration Runner & Schema Certification", () => {
     db.failOnSqlPattern = /licensing_customers/i;
 
     await expect(runControlPlaneMigrations(db, realMigrationsDir)).rejects.toThrow(
-      /failed applying control plane migration/i
+      /failed applying control plane migration/i,
     );
 
     // Database state should NOT record the migration as applied

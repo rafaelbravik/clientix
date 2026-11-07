@@ -147,7 +147,7 @@ agent_worker_password_uri="$(jq -rn --arg value "$agent_worker_password" '$value
 {
   printf "SELECT format(CASE WHEN to_regrole('agent_worker') IS NULL THEN 'CREATE ROLE agent_worker LOGIN NOINHERIT BYPASSRLS PASSWORD %%L' ELSE 'ALTER ROLE agent_worker LOGIN NOINHERIT BYPASSRLS PASSWORD %%L' END, '%s')\\gexec\\n" "$agent_worker_password"
   printf 'GRANT CONNECT ON DATABASE postgres TO agent_worker;\n'
-} | dc_supabase exec -T db psql -U postgres -d postgres -v ON_ERROR_STOP=1 -q >/dev/null \
+} | dc_supabase exec -T db psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1 -q >/dev/null \
   || die "Nao consegui provisionar a role dedicada do worker no Supabase local."
 
 [[ -f "$ROOT_DIR/.env" ]] || { umask 077; : > "$ROOT_DIR/.env"; chmod 600 "$ROOT_DIR/.env"; }

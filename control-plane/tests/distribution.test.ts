@@ -36,20 +36,20 @@ class InProcessDatabaseClient implements DatabaseClient {
 
   async query<R = Record<string, unknown>>(
     sql: string,
-    params: unknown[] = []
+    params: unknown[] = [],
   ): Promise<{ rows: R[]; rowCount?: number }> {
     const trimmed = sql.trim();
 
     if (trimmed.includes("from control_plane.licensing_installations where id = $1")) {
       const id = params[0] as string;
       const inst = this.installations.get(id);
-      return { rows: inst ? ([inst as unknown as R]) : [] };
+      return { rows: inst ? [inst as unknown as R] : [] };
     }
 
     if (trimmed.includes("from control_plane.licensing_licenses where id = $1")) {
       const id = params[0] as string;
       const lic = this.licenses.get(id);
-      return { rows: lic ? ([lic as unknown as R]) : [] };
+      return { rows: lic ? [lic as unknown as R] : [] };
     }
 
     if (trimmed.startsWith("insert into control_plane.licensing_events")) {
@@ -91,7 +91,10 @@ describe("L8.1G Distribution Engine & Artifact Gateway Lifecycle", () => {
     db = new InProcessDatabaseClient();
     manifestKeyId = "manifest_vendor_key_2026";
     manifestSignerKeyPair = generateInstallationKeyPair();
-    manifestSigner = new LocalReleaseManifestSigner(manifestKeyId, manifestSignerKeyPair.privateKeyPem);
+    manifestSigner = new LocalReleaseManifestSigner(
+      manifestKeyId,
+      manifestSignerKeyPair.privateKeyPem,
+    );
     provider = new LocalFakeDistributionProvider(manifestSigner);
     grantStore = new MemoryGrantStore();
     nonceStore = new MemoryNonceStore();
@@ -132,8 +135,10 @@ describe("L8.1G Distribution Engine & Artifact Gateway Lifecycle", () => {
     sampleAmd64Payload = Buffer.from("CLIENTIX_DOCKER_IMAGE_AMD64_COMPILED_BINARY_CONTENT");
     sampleArm64Payload = Buffer.from("CLIENTIX_DOCKER_IMAGE_ARM64_COMPILED_BINARY_CONTENT");
 
-    const digestAmd64 = `sha256:${crypto.createHash("sha256").update(sampleAmd64Payload).digest("hex")}` as const;
-    const digestArm64 = `sha256:${crypto.createHash("sha256").update(sampleArm64Payload).digest("hex")}` as const;
+    const digestAmd64 =
+      `sha256:${crypto.createHash("sha256").update(sampleAmd64Payload).digest("hex")}` as const;
+    const digestArm64 =
+      `sha256:${crypto.createHash("sha256").update(sampleArm64Payload).digest("hex")}` as const;
 
     testReleaseStable = {
       releaseId: "rel_stable_2026.10.1",
@@ -782,8 +787,12 @@ describe("L8.1G Distribution Engine & Artifact Gateway Lifecycle", () => {
 
       const successCount = (resA.ok ? 1 : 0) + (resB.ok ? 1 : 0);
       const exhaustedCount =
-        (!resA.ok && resA.error?.code === "ARTIFACT_GRANT_EXHAUSTED" && resA.status === 403 ? 1 : 0) +
-        (!resB.ok && resB.error?.code === "ARTIFACT_GRANT_EXHAUSTED" && resB.status === 403 ? 1 : 0);
+        (!resA.ok && resA.error?.code === "ARTIFACT_GRANT_EXHAUSTED" && resA.status === 403
+          ? 1
+          : 0) +
+        (!resB.ok && resB.error?.code === "ARTIFACT_GRANT_EXHAUSTED" && resB.status === 403
+          ? 1
+          : 0);
 
       expect(successCount).toBe(1);
       expect(exhaustedCount).toBe(1);

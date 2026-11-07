@@ -1018,6 +1018,7 @@ export const AUDIT_ACTIONS = [
   "ai.knowledge_source_updated",
   "platform_admin.plans_listed",
   "platform_plan.updated",
+  "platform_license.updated",
   "platform_initialized",
   "platform_admin.member_invited",
   "platform_admin.member_role_changed",

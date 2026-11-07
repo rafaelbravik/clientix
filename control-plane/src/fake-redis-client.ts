@@ -87,7 +87,9 @@ export class FakeInMemoryRedisClient implements IRedisClient {
       return 2 as unknown as T; // 2: GRANT_EXPIRED
     }
 
-    const allowedArtifactIds = Array.isArray(grant.allowedArtifactIds) ? grant.allowedArtifactIds : [];
+    const allowedArtifactIds = Array.isArray(grant.allowedArtifactIds)
+      ? grant.allowedArtifactIds
+      : [];
     if (!allowedArtifactIds.includes(artifactId)) {
       return 4 as unknown as T; // 4: ARTIFACT_NOT_ALLOWED
     }

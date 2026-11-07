@@ -4,10 +4,7 @@ import { ok, fail } from "@/lib/api/wrappers";
 import { requirePlatformAdmin } from "@/lib/auth/requirePlatformAdmin";
 import { getControlPlaneAdminService } from "@/control-plane/src/admin-service-provider";
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = randomUUID();
   try {
     await requirePlatformAdmin();
@@ -22,7 +19,7 @@ export async function GET(
     if (!result) {
       return fail("not_found", "License not found", 404, { requestId });
     }
-    return ok(result, { requestId });
+    return ok(result, { requestId, headers: { "Cache-Control": "no-store" } });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Error retrieving license detail";
     return fail("database_error", message, 500, { requestId });

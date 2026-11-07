@@ -9,11 +9,15 @@ import {
   falhaDaEscritaDePlatformAdmin,
 } from "@/lib/auth/requirePlatformAdmin";
 import { getControlPlaneAdminService } from "@/control-plane/src/admin-service-provider";
+import { hasSameOrigin, readJsonBodyLimited } from "@/control-plane/src/http-input";
 
 const updateCustomerSchema = z.object({
-  name: z.string().min(1).optional(),
-  legal_name: z.string().optional().nullable(),
-  billing_email: z.string().email().optional(),
+  name: z.string().trim().min(1).max(200).optional(),
+  legal_name: z.string().trim().max(240).optional().nullable(),
+  billing_email: z.string().trim().email().max(254).optional(),
+  document: z.string().trim().max(64).optional().nullable(),
+  phone: z.string().trim().max(40).optional().nullable(),
+  internal_notes: z.string().trim().max(2000).optional().nullable(),
   country: z
     .string()
     .length(2, "Country must be a 2-letter uppercase ISO code")
@@ -22,10 +26,7 @@ const updateCustomerSchema = z.object({
     .nullable(),
 });
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = randomUUID();
   try {
     await requirePlatformAdmin();
@@ -40,18 +41,17 @@ export async function GET(
     if (!result) {
       return fail("not_found", "Customer not found", 404, { requestId });
     }
-    return ok(result, { requestId });
+    return ok(result, { requestId, headers: { "Cache-Control": "no-store" } });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Error retrieving customer";
     return fail("database_error", message, 500, { requestId });
   }
 }
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = randomUUID();
+  if (!hasSameOrigin(req))
+    return fail("forbidden", "Same-origin request required.", 403, { requestId });
   let adminCtx: Awaited<ReturnType<typeof requirePlatformAdminEscrita>>;
   try {
     adminCtx = await requirePlatformAdminEscrita();
@@ -62,10 +62,12 @@ export async function PATCH(
   if (supportDenied) return supportDenied;
 
   const { id } = await params;
+  if (!z.string().uuid().safeParse(id).success)
+    return fail("invalid_request", "Invalid customer identifier.", 400, { requestId });
 
   let body: unknown;
   try {
-    body = await req.json();
+    body = await readJsonBodyLimited(req, 8_192);
   } catch {
     return fail("invalid_request", "Invalid JSON payload", 400, { requestId });
   }
@@ -80,8 +82,12 @@ export async function PATCH(
 
   try {
     const adminService = getControlPlaneAdminService();
-    const actor = adminCtx.user.email || adminCtx.user.id;
-    const customer = await adminService.updateCustomer(id, parsed.data, actor);
+    const customer = await adminService.updateCustomer(
+      id,
+      parsed.data,
+      adminCtx.user.id,
+      requestId,
+    );
     return ok(customer, { requestId });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Error updating customer";

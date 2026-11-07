@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "titulo": "Fronteira do Control Plane e runtime do cliente",
-  "descricao": "O artefato customer mantém licenciamento local e remove administração global e impersonação; o build vendor preserva o Control Plane completo.",
+  "descricao": "O customer mantém verificação local, chave privada de instalação e atestação de sessão; o Control Plane vendor assina licenças, detecta sessões simultâneas e autoriza recuperação em banco separado.",
   "lanes": [
     { "id": "contrato", "label": "Contrato e classificação" },
     { "id": "build", "label": "Build de cliente/vendor" },
@@ -9,38 +9,461 @@
     { "id": "vendor", "label": "Control Plane vendor" },
     { "id": "guards", "label": "Provas e retorno" }
   ],
-  "mainPath": ["policy", "customerbuild", "supportprovider", "customerartifact", "locallicense", "tests"],
+  "mainPath": [
+    "policy",
+    "customerbuild",
+    "supportprovider",
+    "customerartifact",
+    "licenseui",
+    "licenseapi",
+    "locallicense",
+    "instanceSession",
+    "cloneApi",
+    "cloneMigration",
+    "commercialAdmin",
+    "commercialMigration",
+    "billingAdmin",
+    "billingMigration",
+    "billingWorker",
+    "tests"
+  ],
   "nodes": [
-    { "id": "policy", "lane": "contrato", "label": "customer-build-policy.ts", "sublabel": "Admin global, suporte e serviço central excluídos por caminhos explícitos", "type": "config", "dot": "blue" },
-    { "id": "customerbuild", "lane": "build", "label": "build-customer.ts", "sublabel": "Cópia temporária, ambiente allowlist e build Next isolado", "type": "service", "dot": "violet" },
-    { "id": "supportprovider", "lane": "build", "label": "support-context-provider.ts", "sublabel": "Vendor usa persistência; customer substitui por provider nulo antes de compilar", "type": "service", "dot": "violet" },
-    { "id": "customerartifact", "lane": "build", "label": "Docker alvo runner", "sublabel": "Standalone sem admin global, impersonação ou Control Plane", "type": "backend", "dot": "emerald" },
-    { "id": "locallicense", "lane": "cliente", "label": "/api/v1/system/license + lib/licensing", "sublabel": "Verifica trust root pública e aplica entitlements locais", "type": "api", "dot": "green" },
-    { "id": "localsupport", "lane": "cliente", "label": "Impersonação ausente", "sublabel": "Rotas ausentes e leitor de contexto sem acesso ao banco", "type": "security", "dot": "blue" },
-    { "id": "health", "lane": "cliente", "label": "/api/v1/health", "sublabel": "Sonda Supabase, Redis e WAHA; sem dependência central", "type": "api", "dot": "green" },
-    { "id": "vendorui", "lane": "vendor", "label": "/admin/licensing", "sublabel": "Telas Gemini de clientes, licenças, instalações e auditoria", "type": "frontend", "dot": "violet" },
-    { "id": "vendorroutes", "lane": "vendor", "label": "/api/v1/admin/licensing", "sublabel": "Leituras e mutações de autoridade global", "type": "api", "dot": "red" },
-    { "id": "provider", "lane": "vendor", "label": "admin-service-provider.ts", "sublabel": "CONTROL_PLANE_DATABASE_URL + CONTROL_PLANE_PEPPER; sem fallback customer", "type": "service", "dot": "red" },
-    { "id": "cpdb", "lane": "vendor", "label": "control_plane.*", "sublabel": "Schema central; migration proíbe aplicação no banco do cliente", "type": "database", "dot": "red" },
-    { "id": "tests", "lane": "guards", "label": "Boundary tests + route manifest scan", "sublabel": "Admin/suporte ausentes; licença local preservada", "type": "test", "dot": "amber" },
-    { "id": "providerTest", "lane": "guards", "label": "admin-service-provider.test.ts", "sublabel": "Recusa banco customer e configuração de pepper ausente", "type": "test", "dot": "amber" }
+    {
+      "id": "policy",
+      "lane": "contrato",
+      "label": "customer-build-policy.ts",
+      "sublabel": "Control Plane e admin global excluídos; só a licença local tem exceção explícita",
+      "type": "config",
+      "dot": "blue"
+    },
+    {
+      "id": "customerbuild",
+      "lane": "build",
+      "label": "build-customer.ts",
+      "sublabel": "Cópia temporária, ambiente allowlist e build Next isolado",
+      "type": "service",
+      "dot": "violet"
+    },
+    {
+      "id": "supportprovider",
+      "lane": "build",
+      "label": "support-context-provider.ts",
+      "sublabel": "Vendor usa persistência; customer substitui por provider nulo antes de compilar",
+      "type": "service",
+      "dot": "violet"
+    },
+    {
+      "id": "customerartifact",
+      "lane": "build",
+      "label": "Docker alvo runner",
+      "sublabel": "Standalone sem admin global, impersonação ou Control Plane",
+      "type": "backend",
+      "dot": "emerald"
+    },
+    {
+      "id": "licenseui",
+      "lane": "cliente",
+      "label": "/admin/license",
+      "sublabel": "Platform Admin consulta status mascarado, valida e substitui arquivo local assinado",
+      "type": "frontend",
+      "dot": "green"
+    },
+    {
+      "id": "licenseapi",
+      "lane": "cliente",
+      "label": "/api/v1/admin/license + system/license",
+      "sublabel": "Guard Platform Admin; atualização valida antes de substituir atomicamente",
+      "type": "api",
+      "dot": "green"
+    },
+    {
+      "id": "locallicense",
+      "lane": "cliente",
+      "label": "lib/licensing",
+      "sublabel": "Installation ID persistente, trust root pública, estados, carência e guarda central",
+      "type": "service",
+      "dot": "green"
+    },
+    {
+      "id": "localsupport",
+      "lane": "cliente",
+      "label": "Impersonação ausente",
+      "sublabel": "Rotas ausentes e leitor de contexto sem acesso ao banco",
+      "type": "security",
+      "dot": "blue"
+    },
+    {
+      "id": "health",
+      "lane": "cliente",
+      "label": "/api/v1/health",
+      "sublabel": "Sonda Supabase, Redis e WAHA; sem dependência central",
+      "type": "api",
+      "dot": "green"
+    },
+    {
+      "id": "vendorui",
+      "lane": "vendor",
+      "label": "/admin/licenses",
+      "sublabel": "Operação vendor de clientes, licenças, instalações e eventos",
+      "type": "frontend",
+      "dot": "violet"
+    },
+    {
+      "id": "vendorroutes",
+      "lane": "vendor",
+      "label": "/api/v1/admin/licenses + /api/v1/licensing",
+      "sublabel": "Administração global, ativação e validação online assinada",
+      "type": "api",
+      "dot": "red"
+    },
+    {
+      "id": "provider",
+      "lane": "vendor",
+      "label": "admin-service-provider.ts",
+      "sublabel": "CONTROL_PLANE_DATABASE_URL + CONTROL_PLANE_PEPPER; sem fallback customer",
+      "type": "service",
+      "dot": "red"
+    },
+    {
+      "id": "cpdb",
+      "lane": "vendor",
+      "label": "control_plane.*",
+      "sublabel": "Schema central; migration proíbe aplicação no banco do cliente",
+      "type": "database",
+      "dot": "red"
+    },
+    {
+      "id": "tests",
+      "lane": "guards",
+      "label": "Boundary tests + route manifest scan",
+      "sublabel": "Control Plane/admin global ausentes; rotas locais da licença explícitas",
+      "type": "test",
+      "dot": "amber"
+    },
+    {
+      "id": "providerTest",
+      "lane": "guards",
+      "label": "admin-service-provider.test.ts",
+      "sublabel": "Recusa banco customer e configuração de pepper ausente",
+      "type": "test",
+      "dot": "amber"
+    },
+    {
+      "id": "issuer",
+      "lane": "vendor",
+      "label": "LicenseIssuer + Ed25519",
+      "sublabel": "JCS, key_id ativo e verificação do documento emitido; privada só no runtime vendor",
+      "type": "security",
+      "dot": "red"
+    },
+    {
+      "id": "lifecycle",
+      "lane": "vendor",
+      "label": "0002_commercial_license_lifecycle.sql",
+      "sublabel": "Serial único, estados, idempotência e transações de renovação/transferência",
+      "type": "database",
+      "dot": "red"
+    },
+    {
+      "id": "onlineclient",
+      "lane": "cliente",
+      "label": "license-server-client.ts + online-validation.json",
+      "sublabel": "HTTPS, PoP, nonce, resposta assinada e tolerância offline sem chamada por request",
+      "type": "service",
+      "dot": "green"
+    },
+    {
+      "id": "instanceSession",
+      "lane": "cliente",
+      "label": "instance-session.ts + chave local Ed25519",
+      "sublabel": "Sessão efêmera por boot; heartbeat configurável; chave privada nunca sai da instalação",
+      "type": "security",
+      "dot": "green"
+    },
+    {
+      "id": "cloneApi",
+      "lane": "vendor",
+      "label": "challenge / validate-attestation / recover-installation",
+      "sublabel": "Desafio de 60s single-use, janela de 15min, clone suspect/confirmed e recuperação vendor",
+      "type": "api",
+      "dot": "red"
+    },
+    {
+      "id": "cloneMigration",
+      "lane": "vendor",
+      "label": "0003_installation_clone_attestation.sql",
+      "sublabel": "Sessões, digests de desafios e recuperação HMAC; somente banco Control Plane",
+      "type": "database",
+      "dot": "red"
+    },
+    {
+      "id": "commercialAdmin",
+      "lane": "vendor",
+      "label": "/admin/licenses + /admin/customers + /admin/installations",
+      "sublabel": "Dashboard, operações comerciais, filtros e auditoria; escrita exige scope full e MFA",
+      "type": "frontend",
+      "dot": "violet"
+    },
+    {
+      "id": "commercialMigration",
+      "lane": "vendor",
+      "label": "0004_vendor_commercial_admin.sql",
+      "sublabel": "Criação idempotente, renovação sob lock, request ids e dados comerciais no Control Plane",
+      "type": "database",
+      "dot": "red"
+    },
+    {
+      "id": "billingAdmin",
+      "lane": "vendor",
+      "label": "/admin/billing + faturas",
+      "sublabel": "Pagamento MANUAL explícito, renovação, inadimplência, alertas e reconciliação",
+      "type": "frontend",
+      "dot": "violet"
+    },
+    {
+      "id": "billingMigration",
+      "lane": "vendor",
+      "label": "0005_billing_automation.sql",
+      "sublabel": "Transações financeiras e renovação no banco Control Plane; ausente do baseline self-host",
+      "type": "database",
+      "dot": "red"
+    },
+    {
+      "id": "billingWorker",
+      "lane": "vendor",
+      "label": "pnpm control-plane:billing-scheduler",
+      "sublabel": "Processo Vendor privado, intervalo configurável e advisory lock PostgreSQL",
+      "type": "service",
+      "dot": "red"
+    },
+    {
+      "id": "billingArtifacts",
+      "lane": "vendor",
+      "label": "0006_signed_license_artifact_versions.sql + LicenseArtifactService",
+      "sublabel": "Outbox por revisão, assinatura Vendor, hashes e documento imutável por instalação",
+      "type": "service",
+      "dot": "red"
+    }
   ],
   "edges": [
     { "id": "e1", "from": "policy", "to": "customerbuild", "label": "define os caminhos omitidos" },
-    { "id": "e2", "from": "customerbuild", "to": "customerartifact", "label": "compila e verifica manifesto/strings" },
-    { "id": "e15", "from": "customerbuild", "to": "supportprovider", "label": "injeta provider conforme o alvo" },
-    { "id": "e16", "from": "supportprovider", "to": "customerartifact", "label": "customer não executa RPC de suporte" },
+    {
+      "id": "e2",
+      "from": "customerbuild",
+      "to": "customerartifact",
+      "label": "compila e verifica manifesto/strings"
+    },
+    {
+      "id": "e15",
+      "from": "customerbuild",
+      "to": "supportprovider",
+      "label": "injeta provider conforme o alvo"
+    },
+    {
+      "id": "e16",
+      "from": "supportprovider",
+      "to": "customerartifact",
+      "label": "customer não executa RPC de suporte"
+    },
     { "id": "e3", "from": "customerartifact", "to": "locallicense", "label": "preserva API local" },
-    { "id": "e4", "from": "customerartifact", "to": "localsupport", "label": "remove contexto de suporte" },
+    {
+      "id": "e4",
+      "from": "customerartifact",
+      "to": "localsupport",
+      "label": "remove contexto de suporte"
+    },
     { "id": "e5", "from": "customerartifact", "to": "health", "label": "health sem banco central" },
     { "id": "e6", "from": "policy", "to": "vendorui", "label": "exclusão só no alvo customer" },
     { "id": "e7", "from": "vendorui", "to": "vendorroutes", "label": "usa rotas globais" },
     { "id": "e8", "from": "vendorroutes", "to": "provider", "label": "obtém serviço central" },
     { "id": "e9", "from": "provider", "to": "cpdb", "label": "pool separado obrigatório" },
     { "id": "e10", "from": "tests", "to": "policy", "label": "cobre inclusão/exclusão" },
-    { "id": "e11", "from": "tests", "to": "customerartifact", "label": "prova ausência no manifesto" },
-    { "id": "e12", "from": "providerTest", "to": "provider", "label": "falha fechado sem config própria" },
-    { "id": "e13", "from": "locallicense", "to": "tests", "label": "regressão de verificação e entitlement" },
-    { "id": "e14", "from": "health", "to": "tests", "label": "prova independência do vendor" }
+    {
+      "id": "e11",
+      "from": "tests",
+      "to": "customerartifact",
+      "label": "prova ausência no manifesto"
+    },
+    {
+      "id": "e12",
+      "from": "providerTest",
+      "to": "provider",
+      "label": "falha fechado sem config própria"
+    },
+    {
+      "id": "e13",
+      "from": "locallicense",
+      "to": "tests",
+      "label": "regressão de verificação e entitlement"
+    },
+    { "id": "e14", "from": "health", "to": "tests", "label": "prova independência do vendor" },
+    {
+      "id": "e17",
+      "from": "customerartifact",
+      "to": "licenseui",
+      "label": "preserva apenas a superfície local de licença"
+    },
+    {
+      "id": "e18",
+      "from": "licenseui",
+      "to": "licenseapi",
+      "label": "consulta, valida e atualiza pela sessão autenticada"
+    },
+    {
+      "id": "e19",
+      "from": "licenseapi",
+      "to": "locallicense",
+      "label": "verifica assinatura e faz troca atômica"
+    },
+    {
+      "id": "e20",
+      "from": "locallicense",
+      "to": "tests",
+      "label": "prova assinatura, relógio, estados e enforcement"
+    },
+    {
+      "id": "e21",
+      "from": "provider",
+      "to": "issuer",
+      "label": "carrega chave privada apenas por configuração protegida e confere o par público"
+    },
+    {
+      "id": "e22",
+      "from": "vendorroutes",
+      "to": "lifecycle",
+      "label": "opera modelo central sem aplicar migration no banco customer"
+    },
+    {
+      "id": "e23",
+      "from": "issuer",
+      "to": "vendorroutes",
+      "label": "assina licença e resposta online com key_id"
+    },
+    {
+      "id": "e24",
+      "from": "locallicense",
+      "to": "onlineclient",
+      "label": "mantém a decisão local e aplica o estado online assinado"
+    },
+    {
+      "id": "e25",
+      "from": "onlineclient",
+      "to": "vendorroutes",
+      "label": "ativa ou valida com prova de posse, nonce e HTTPS"
+    },
+    {
+      "id": "e26",
+      "from": "lifecycle",
+      "to": "provider",
+      "label": "migração central fica fora do schema/baseline do cliente"
+    },
+    {
+      "id": "e27",
+      "from": "onlineclient",
+      "to": "instanceSession",
+      "label": "assina cada boot e heartbeat com chave local"
+    },
+    {
+      "id": "e28",
+      "from": "instanceSession",
+      "to": "cloneApi",
+      "label": "challenge assinado prova posse sem enviar chave privada"
+    },
+    {
+      "id": "e29",
+      "from": "cloneApi",
+      "to": "cloneMigration",
+      "label": "persiste desafio single-use e sessões concorrentes"
+    },
+    {
+      "id": "e30",
+      "from": "vendorui",
+      "to": "cloneApi",
+      "label": "autoriza recuperação e encerra sessões com auditoria"
+    },
+    {
+      "id": "e31",
+      "from": "commercialAdmin",
+      "to": "vendorroutes",
+      "label": "usa APIs globais somente dentro do build Vendor"
+    },
+    {
+      "id": "e32",
+      "from": "commercialAdmin",
+      "to": "commercialMigration",
+      "label": "administra clientes, licenças, instalações e eventos"
+    },
+    {
+      "id": "e33",
+      "from": "commercialMigration",
+      "to": "cpdb",
+      "label": "evolui exclusivamente o schema central, sem tocar self-hosted"
+    },
+    {
+      "id": "e34",
+      "from": "tests",
+      "to": "commercialAdmin",
+      "label": "valida autorização, idempotência, paginação e boundary customer"
+    },
+    {
+      "id": "e35",
+      "from": "billingAdmin",
+      "to": "vendorroutes",
+      "label": "usa apenas rotas Vendor com MFA, scope full e same-origin"
+    },
+    {
+      "id": "e36",
+      "from": "billingAdmin",
+      "to": "billingMigration",
+      "label": "registra faturas, pagamentos, renovação e auditoria em transação"
+    },
+    {
+      "id": "e37",
+      "from": "billingWorker",
+      "to": "billingMigration",
+      "label": "executa vencimentos, alertas, reconciliação e retry sob advisory lock"
+    },
+    {
+      "id": "e38",
+      "from": "billingMigration",
+      "to": "cpdb",
+      "label": "persiste billing só no banco Vendor"
+    },
+    {
+      "id": "e39",
+      "from": "policy",
+      "to": "billingAdmin",
+      "label": "remove telas, APIs, webhook e cron do artifact customer"
+    },
+    {
+      "id": "e40",
+      "from": "tests",
+      "to": "billingAdmin",
+      "label": "valida provider MANUAL, autorização, idempotência e fronteira customer"
+    },
+    {
+      "id": "e41",
+      "from": "billingMigration",
+      "to": "billingArtifacts",
+      "label": "pagamento e renovação enfileiram uma revisão por instalação na mesma transação"
+    },
+    {
+      "id": "e42",
+      "from": "billingArtifacts",
+      "to": "issuer",
+      "label": "issuer assina no Vendor; chave privada não entra no banco nem no customer"
+    },
+    {
+      "id": "e43",
+      "from": "billingArtifacts",
+      "to": "onlineclient",
+      "label": "validação online entrega revisão persistida para verificação e replace atômico LIC-01"
+    },
+    {
+      "id": "e44",
+      "from": "billingArtifacts",
+      "to": "billingMigration",
+      "label": "falha mantém outbox retryable com lease e sem duplicar revisão"
+    }
   ]
 }

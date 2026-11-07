@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { ControlPlaneConfigurationError, resolveControlPlaneConfig } from "./admin-service-provider";
+import {
+  ControlPlaneConfigurationError,
+  resolveControlPlaneConfig,
+} from "./admin-service-provider";
 
 describe("provider do Control Plane", () => {
   it("requires a dedicated database and a non-fallback pepper", () => {

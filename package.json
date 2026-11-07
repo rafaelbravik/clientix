@@ -8,6 +8,9 @@
   },
   "scripts": {
     "dev": "next dev",
+    "control-plane:migrate": "tsx control-plane/scripts/apply-migrations.ts",
+    "control-plane:billing-maintenance": "tsx --env-file-if-exists=control-plane/.env control-plane/scripts/run-billing-maintenance.ts",
+    "control-plane:billing-scheduler": "tsx --env-file-if-exists=control-plane/.env control-plane/scripts/run-billing-scheduler.ts",
     "dev:webpack": "next dev",
     "build": "next build",
     "build:customer": "tsx scripts/build-customer.ts",

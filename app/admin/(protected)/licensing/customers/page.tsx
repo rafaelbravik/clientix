@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { useT } from "@/lib/i18n/IdiomaProvider";
 import Link from "next/link";
 import { LicensingNav } from "@/components/admin/licensing/LicensingNav";
@@ -14,14 +15,20 @@ interface CustomerItem {
   legal_name: string | null;
   billing_email: string;
   country: string | null;
+  phone: string | null;
+  status: "ACTIVE" | "DISABLED";
   created_at: string;
 }
 
 export default function AdminCustomersPage() {
   const t = useT();
   const tag = useTagDeIdioma();
+  const pathname = usePathname();
   const [customers, setCustomers] = useState<CustomerItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [search, setSearch] = useState("");
 
   // Modal create
@@ -30,30 +37,44 @@ export default function AdminCustomersPage() {
   const [legalName, setLegalName] = useState("");
   const [billingEmail, setBillingEmail] = useState("");
   const [country, setCountry] = useState("BR");
+  const [document, setDocument] = useState("");
+  const [phone, setPhone] = useState("");
+  const [internalNotes, setInternalNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
-  const fetchCustomers = async () => {
+  const fetchCustomers = async (nextOffset = 0) => {
     setLoading(true);
+    setLoadError("");
     try {
       const params = new URLSearchParams();
       if (search) params.set("search", search);
+      params.set("limit", "25");
+      params.set("offset", String(nextOffset));
 
       const res = await fetch(`/api/v1/admin/licensing/customers?${params.toString()}`);
       if (res.ok) {
         const json = await res.json();
         setCustomers(json.data || []);
-      }
+        setTotal(json.meta?.total ?? 0);
+        setOffset(nextOffset);
+      } else setLoadError("Não foi possível carregar a lista de clientes.");
     } catch (err) {
-      console.error(err);
+      setLoadError(
+        err instanceof Error ? err.message : "Não foi possível carregar a lista de clientes.",
+      );
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchCustomers();
+    void fetchCustomers(0);
   }, []);
+
+  useEffect(() => {
+    if (pathname.endsWith("/new")) setShowCreateModal(true);
+  }, [pathname]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,6 +93,9 @@ export default function AdminCustomersPage() {
           name,
           legal_name: legalName || null,
           billing_email: billingEmail,
+          document: document || null,
+          phone: phone || null,
+          internal_notes: internalNotes || null,
           country: country ? country.toUpperCase() : null,
         }),
       });
@@ -81,7 +105,10 @@ export default function AdminCustomersPage() {
         setName("");
         setLegalName("");
         setBillingEmail("");
-        await fetchCustomers();
+        setDocument("");
+        setPhone("");
+        setInternalNotes("");
+        await fetchCustomers(0);
       } else {
         setCreateError(json.error?.message || "Erro ao cadastrar cliente.");
       }
@@ -101,12 +128,33 @@ export default function AdminCustomersPage() {
             {t("Entidades contratantes de licenças comerciais.")}
           </p>
         </div>
-        <Button size="sm" onClick={() => setShowCreateModal(true)}>
-          <Plus className="mr-1.5 h-4 w-4" /> Novo Cliente
-        </Button>
+        <div className="flex gap-2">
+          <Button asChild variant="outline" size="sm">
+            <button
+              type="button"
+              onClick={() => window.location.assign("/api/v1/admin/licensing/customers/export")}
+            >
+              Exportar CSV
+            </button>
+          </Button>
+          <Button asChild size="sm">
+            <Link href="/admin/customers/new">
+              <Plus className="mr-1.5 h-4 w-4" /> Novo Cliente
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <LicensingNav />
+
+      {loadError && (
+        <div
+          role="alert"
+          className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+        >
+          {loadError}
+        </div>
+      )}
 
       {/* Search */}
       <form onSubmit={handleSearchSubmit} className="flex max-w-sm gap-2">
@@ -131,48 +179,88 @@ export default function AdminCustomersPage() {
             {t("Nenhum cliente cadastrado.")}
           </div>
         ) : (
-          <table className="w-full text-left text-sm">
-            <thead className="border-b bg-muted/40 text-xs font-medium tracking-wider text-muted-foreground uppercase">
-              <tr>
-                <th className="px-4 py-3">{t("Nome / Razão Social")}</th>
-                <th className="px-4 py-3">E-mail Financeiro</th>
-                <th className="px-4 py-3">{t("País")}</th>
-                <th className="px-4 py-3">Cadastrado em</th>
-                <th className="px-4 py-3 text-right">{t("Ação")}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {customers.map((c) => (
-                <tr key={c.id} className="hover:bg-muted/20">
-                  <td className="px-4 py-3">
-                    <div className="font-medium text-foreground">{c.name}</div>
-                    {c.legal_name && (
-                      <div className="text-xs text-muted-foreground">{c.legal_name}</div>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-foreground">{c.billing_email}</td>
-                  <td className="px-4 py-3 font-mono text-xs">{c.country || "—"}</td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground">
-                    {new Date(c.created_at).toLocaleDateString(tag)}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <Button asChild variant="outline" size="sm">
-                      <Link href={`/admin/licensing/customers/${c.id}`}>{t("Detalhes")}</Link>
-                    </Button>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] text-left text-sm">
+              <thead className="border-b bg-muted/40 text-xs font-medium tracking-wider text-muted-foreground uppercase">
+                <tr>
+                  <th className="px-4 py-3">{t("Nome / Razão Social")}</th>
+                  <th className="px-4 py-3">E-mail Financeiro</th>
+                  <th className="px-4 py-3">Contato</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">{t("País")}</th>
+                  <th className="px-4 py-3">Cadastrado em</th>
+                  <th className="px-4 py-3 text-right">{t("Ação")}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {customers.map((c) => (
+                  <tr key={c.id} className="hover:bg-muted/20">
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-foreground">{c.name}</div>
+                      {c.legal_name && (
+                        <div className="text-xs text-muted-foreground">{c.legal_name}</div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-foreground">{c.billing_email}</td>
+                    <td className="px-4 py-3 text-xs">{c.phone || "—"}</td>
+                    <td className="px-4 py-3 text-xs">{c.status}</td>
+                    <td className="px-4 py-3 font-mono text-xs">{c.country || "—"}</td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">
+                      {new Date(c.created_at).toLocaleDateString(tag)}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Button asChild variant="outline" size="sm">
+                        <Link href={`/admin/licensing/customers/${c.id}`}>{t("Detalhes")}</Link>
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {!loading && (
+          <footer className="flex items-center justify-between gap-3 border-t px-4 py-3 text-xs text-muted-foreground">
+            <span>
+              {total
+                ? `${offset + 1}–${Math.min(offset + customers.length, total)} de ${total}`
+                : "0 resultados"}
+            </span>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={offset === 0}
+                onClick={() => void fetchCustomers(Math.max(0, offset - 25))}
+              >
+                Anterior
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={offset + 25 >= total}
+                onClick={() => void fetchCustomers(offset + 25)}
+              >
+                Próxima
+              </Button>
+            </div>
+          </footer>
         )}
       </div>
 
       {/* Create Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md space-y-4 rounded-lg border bg-card p-6 shadow-xl">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="new-customer-title"
+            className="max-h-[90vh] w-full max-w-md space-y-4 overflow-y-auto rounded-lg border bg-card p-6 shadow-xl"
+          >
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold">Cadastrar Cliente Comercial</h3>
+              <h3 id="new-customer-title" className="text-lg font-bold">
+                Cadastrar Cliente Comercial
+              </h3>
               <Button variant="ghost" size="icon" onClick={() => setShowCreateModal(false)}>
                 <X className="h-4 w-4" />
               </Button>
@@ -194,6 +282,43 @@ export default function AdminCustomersPage() {
                   onChange={(e) => setName(e.target.value)}
                   placeholder={t("Ex: Agência Alfa")}
                   required
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium tracking-wider text-muted-foreground uppercase">
+                  Documento (armazenado somente como hash)
+                </label>
+                <Input
+                  value={document}
+                  onChange={(e) => setDocument(e.target.value)}
+                  maxLength={64}
+                  autoComplete="off"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium tracking-wider text-muted-foreground uppercase">
+                  Telefone opcional
+                </label>
+                <Input
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  maxLength={40}
+                  autoComplete="tel"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium tracking-wider text-muted-foreground uppercase">
+                  Observações internas
+                </label>
+                <textarea
+                  value={internalNotes}
+                  onChange={(e) => setInternalNotes(e.target.value)}
+                  maxLength={2000}
+                  rows={3}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 />
               </div>
 

@@ -24,7 +24,11 @@ interface MockCustomer {
 
 interface MockLicense {
   id: string;
+  serial: string;
   customer_id: string;
+  product: string;
+  deployment: string;
+  plan: "standard" | "pro" | "enterprise";
   license_type: string;
   status: string;
   signing_key_id: string;
@@ -55,6 +59,7 @@ interface MockInstallation {
   license_id: string;
   public_key: string;
   public_key_fingerprint: string;
+  activation_code_id?: string | null;
   status: string;
   environment: string;
   app_version?: string;
@@ -76,7 +81,7 @@ class InProcessDatabaseClient implements DatabaseClient {
 
   async query<R = Record<string, unknown>>(
     sql: string,
-    params: unknown[] = []
+    params: unknown[] = [],
   ): Promise<{ rows: R[]; rowCount?: number }> {
     const trimmed = sql.trim();
 
@@ -123,7 +128,11 @@ class InProcessDatabaseClient implements DatabaseClient {
       const id = crypto.randomUUID();
       const lic: MockLicense = {
         id,
+        serial: `CLX-2026-${id.replace(/-/g, "").slice(0, 4).toUpperCase()}-${id.replace(/-/g, "").slice(4, 8).toUpperCase()}`,
         customer_id: params[0] as string,
+        product: "clientix",
+        deployment: "self-hosted",
+        plan: "pro",
         license_type: params[1] as string,
         status: "ACTIVE",
         signing_key_id: params[2] as string,
@@ -143,7 +152,10 @@ class InProcessDatabaseClient implements DatabaseClient {
     }
 
     // Licenses SELECT
-    if (trimmed.includes("from control_plane.licensing_licenses l") && trimmed.includes("where l.id = $1")) {
+    if (
+      trimmed.includes("from control_plane.licensing_licenses l") &&
+      trimmed.includes("where l.id = $1")
+    ) {
       const licId = params[0] as string;
       const lic = this.licenses.get(licId);
       if (!lic) return { rows: [] };
@@ -159,14 +171,19 @@ class InProcessDatabaseClient implements DatabaseClient {
         cust_name: cust.name,
         cust_email: cust.billing_email,
         cust_country: cust.country,
+        cust_status: "ACTIVE",
       };
       return { rows: [row as unknown as R] };
     }
 
-    if (trimmed.startsWith("select id, status, valid_from, expires_at, grace_days from control_plane.licensing_licenses")) {
+    if (
+      trimmed.startsWith(
+        "select id, status, valid_from, expires_at, grace_days from control_plane.licensing_licenses",
+      )
+    ) {
       const licId = params[0] as string;
       const lic = this.licenses.get(licId);
-      return { rows: lic ? ([lic as unknown as R]) : [] };
+      return { rows: lic ? [lic as unknown as R] : [] };
     }
 
     // Licenses UPDATE status
@@ -198,7 +215,10 @@ class InProcessDatabaseClient implements DatabaseClient {
     }
 
     // Activation Codes SELECT for update
-    if (trimmed.includes("from control_plane.licensing_activation_codes") && trimmed.includes("where code_hash = $1")) {
+    if (
+      trimmed.includes("from control_plane.licensing_activation_codes") &&
+      trimmed.includes("where code_hash = $1")
+    ) {
       const hash = params[0] as string;
       for (const c of this.activationCodes.values()) {
         if (c.code_hash === hash) {
@@ -219,7 +239,10 @@ class InProcessDatabaseClient implements DatabaseClient {
     }
 
     // Installations SELECT count
-    if (trimmed.includes("count(*)::text as count from control_plane.licensing_installations")) {
+    if (
+      trimmed.includes("count(*)") &&
+      trimmed.includes("from control_plane.licensing_installations")
+    ) {
       const licId = params[0] as string;
       let count = 0;
       for (const inst of this.installations.values()) {
@@ -231,7 +254,11 @@ class InProcessDatabaseClient implements DatabaseClient {
     }
 
     // Installations SELECT by fingerprint
-    if (trimmed.includes("from control_plane.licensing_installations where public_key_fingerprint = $1")) {
+    if (
+      trimmed.includes(
+        "from control_plane.licensing_installations where public_key_fingerprint = $1",
+      )
+    ) {
       const fp = params[0] as string;
       for (const inst of this.installations.values()) {
         if (inst.public_key_fingerprint === fp) {
@@ -245,7 +272,7 @@ class InProcessDatabaseClient implements DatabaseClient {
     if (trimmed.includes("from control_plane.licensing_installations where id = $1")) {
       const id = params[0] as string;
       const inst = this.installations.get(id);
-      return { rows: inst ? ([inst as unknown as R]) : [] };
+      return { rows: inst ? [inst as unknown as R] : [] };
     }
 
     // Installations INSERT
@@ -256,9 +283,10 @@ class InProcessDatabaseClient implements DatabaseClient {
         license_id: params[1] as string,
         public_key: params[2] as string,
         public_key_fingerprint: params[3] as string,
+        activation_code_id: params[4] as string,
         status: "ACTIVE",
         environment: "production",
-        app_version: params[4] as string | undefined,
+        app_version: params[5] as string | undefined,
         last_heartbeat_at: new Date().toISOString(),
       };
       this.installations.set(id, inst);
@@ -281,7 +309,7 @@ class InProcessDatabaseClient implements DatabaseClient {
           }
         }
       }
-      return { rows: inst ? ([{ license_id: inst.license_id } as unknown as R]) : [] };
+      return { rows: inst ? [{ license_id: inst.license_id } as unknown as R] : [] };
     }
 
     // Nonces
@@ -903,7 +931,7 @@ describe("L8.1F Control Plane Core Endpoints & Licensing Lifecycle", () => {
       const eventTypes = db.events.map((e) => e.event_type);
       expect(eventTypes).toContain("LICENSE_CREATED");
       expect(eventTypes).toContain("CODE_CREATED");
-      expect(eventTypes).toContain("INSTALLATION_ACTIVATED");
+      expect(eventTypes).toContain("LICENSE_ACTIVATED");
     });
   });
 
@@ -1132,7 +1160,9 @@ describe("L8.1F Control Plane Core Endpoints & Licensing Lifecycle", () => {
         { keyId: "key_1", privateKeyPem: key1.privateKeyPem, isActive: true },
         { keyId: "key_2", privateKeyPem: key2.privateKeyPem, isActive: true },
       ]);
-      await expect(ambiguousProvider.getSigningKey()).rejects.toThrow("Ambiguous active vendor signing keys");
+      await expect(ambiguousProvider.getSigningKey()).rejects.toThrow(
+        "Ambiguous active vendor signing keys",
+      );
 
       // 3. Explicit keyId specified -> ALLOWS correct active key
       const explicit = await ambiguousProvider.getSigningKey("key_2");
@@ -1143,7 +1173,9 @@ describe("L8.1F Control Plane Core Endpoints & Licensing Lifecycle", () => {
       const inactiveProvider = new KeySelectionVendorSignerProvider([
         { keyId: "retired_1", privateKeyPem: key1.privateKeyPem, isActive: false },
       ]);
-      await expect(inactiveProvider.getSigningKey("retired_1")).rejects.toThrow("is inactive/retired");
+      await expect(inactiveProvider.getSigningKey("retired_1")).rejects.toThrow(
+        "is inactive/retired",
+      );
     });
 
     it("enforces issuer/verifier parity with wrong key_id, tampered payload, and tampered signature", async () => {
@@ -1453,17 +1485,33 @@ describe("L8.1F Control Plane Core Endpoints & Licensing Lifecycle", () => {
         isPlatformAdmin: boolean;
       }
 
-      const authorizeAdminAction = async (user: AdminContext, action: () => Promise<unknown>): Promise<{ ok: boolean; status: number; error?: { code: string; message: string } }> => {
+      const authorizeAdminAction = async (
+        user: AdminContext,
+        action: () => Promise<unknown>,
+      ): Promise<{ ok: boolean; status: number; error?: { code: string; message: string } }> => {
         if (!user.isPlatformAdmin || user.role !== "platform_admin") {
-          return { ok: false, status: 403, error: { code: "UNAUTHORIZED", message: "Only platform administrators can manage vendor licenses." } };
+          return {
+            ok: false,
+            status: 403,
+            error: {
+              code: "UNAUTHORIZED",
+              message: "Only platform administrators can manage vendor licenses.",
+            },
+          };
         }
         await action();
         return { ok: true, status: 200 };
       };
 
       const tenantAdminUser: AdminContext = { role: "tenant_admin", isPlatformAdmin: false };
-      const unauthorizedPlatformUser: AdminContext = { role: "tenant_user", isPlatformAdmin: false };
-      const authorizedPlatformAdmin: AdminContext = { role: "platform_admin", isPlatformAdmin: true };
+      const unauthorizedPlatformUser: AdminContext = {
+        role: "tenant_user",
+        isPlatformAdmin: false,
+      };
+      const authorizedPlatformAdmin: AdminContext = {
+        role: "platform_admin",
+        isPlatformAdmin: true,
+      };
 
       // 1. Tenant admin -> DENY
       const tenantRes = await authorizeAdminAction(tenantAdminUser, async () => {
@@ -1490,4 +1538,3 @@ describe("L8.1F Control Plane Core Endpoints & Licensing Lifecycle", () => {
     });
   });
 });
-

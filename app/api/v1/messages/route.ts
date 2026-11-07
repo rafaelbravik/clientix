@@ -11,7 +11,11 @@ import { checkRateLimit } from "@/lib/ai/dispatcher/rate-limit";
 import { audit } from "@/lib/audit";
 import { registrarTrocaDeComando } from "@/lib/inbox/atividade-de-comando";
 import { resolveAuthDual } from "@/lib/api/auth-dual";
-import { chaveDaRequisicao, comIdempotencia, type DesfechoIdempotente } from "@/lib/api/idempotency";
+import {
+  chaveDaRequisicao,
+  comIdempotencia,
+  type DesfechoIdempotente,
+} from "@/lib/api/idempotency";
 import type { HandlerCtx } from "@/lib/api/handlers/types";
 import { ApiError } from "@/lib/api/types";
 import { fail, ok } from "@/lib/api/wrappers";
@@ -200,9 +204,19 @@ export async function POST(req: NextRequest): Promise<Response> {
     // Pela sessão do navegador não há teto: quem digita é uma pessoa.
     if (authz.via === "token") {
       const tokenId = actor.type === "ai_agent" ? (actor.api_token_id ?? actor.id) : actor.id;
-      const teto = await checkRateLimit(`messages:tok:${tokenId}`, TETO_DE_ESCRITA, JANELA_SEGUNDOS);
+      const teto = await checkRateLimit(
+        `messages:tok:${tokenId}`,
+        TETO_DE_ESCRITA,
+        JANELA_SEGUNDOS,
+      );
       if (!teto.allowed) {
-        throw new ApiError(429, "rate_limited", { retry_after_seconds: JANELA_SEGUNDOS }, requestId, "Too many requests.");
+        throw new ApiError(
+          429,
+          "rate_limited",
+          { retry_after_seconds: JANELA_SEGUNDOS },
+          requestId,
+          "Too many requests.",
+        );
       }
 
       const tetoOrg = await checkRateLimit(
@@ -261,13 +275,16 @@ export async function POST(req: NextRequest): Promise<Response> {
           .maybeSingle();
         if (orgError) throw orgError;
         if (conversaFicaComQuemAtendeu(org?.settings)) {
-          const { data: claimed, error: claimError } = await supabase.rpc("fn_conversation_assign", {
-            p_organization_id: organizationId,
-            p_conversation_id: message.conversation_id,
-            p_to_user_id: actor.id,
-            p_reason: "claim",
-            p_enforce_expected: true,
-          });
+          const { data: claimed, error: claimError } = await supabase.rpc(
+            "fn_conversation_assign",
+            {
+              p_organization_id: organizationId,
+              p_conversation_id: message.conversation_id,
+              p_to_user_id: actor.id,
+              p_reason: "claim",
+              p_enforce_expected: true,
+            },
+          );
           if (claimError) throw claimError;
           if (claimed?.[0]) {
             await audit({
@@ -366,9 +383,7 @@ export async function POST(req: NextRequest): Promise<Response> {
         // são a resposta inteira para quem integra. Repassar o que existe não
         // muda resposta nenhuma anterior — os outros `ApiError` desta rota
         // chamam o construtor com `details: undefined`.
-        ...(err.details !== undefined
-          ? { details: err.details as Record<string, unknown> }
-          : {}),
+        ...(err.details !== undefined ? { details: err.details as Record<string, unknown> } : {}),
         ...(err.status === 429 && retryAfter
           ? {
               headers: { "Retry-After": String(retryAfter) },

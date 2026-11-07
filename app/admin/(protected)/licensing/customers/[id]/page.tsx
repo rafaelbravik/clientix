@@ -4,6 +4,7 @@ import { useT } from "@/lib/i18n/IdiomaProvider";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { LicensingNav } from "@/components/admin/licensing/LicensingNav";
+import { BillingSummary } from "@/components/admin/billing/BillingSummary";
 import { StatusBadge, TemporalStateBadge } from "@/components/admin/licensing/Badges";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +27,8 @@ interface CustomerDetailData {
     name: string;
     legal_name: string | null;
     billing_email: string;
+    phone: string | null;
+    internal_notes: string | null;
     country: string | null;
     created_at: string;
     updated_at: string;
@@ -48,6 +51,8 @@ export default function CustomerDetailPage() {
   const [name, setName] = useState("");
   const [legalName, setLegalName] = useState("");
   const [billingEmail, setBillingEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [internalNotes, setInternalNotes] = useState("");
   const [country, setCountry] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
@@ -61,6 +66,8 @@ export default function CustomerDetailPage() {
         setName(json.data.customer.name);
         setLegalName(json.data.customer.legal_name || "");
         setBillingEmail(json.data.customer.billing_email);
+        setPhone(json.data.customer.phone || "");
+        setInternalNotes(json.data.customer.internal_notes || "");
         setCountry(json.data.customer.country || "");
       } else {
         setError(t("Cliente não encontrado."));
@@ -89,6 +96,8 @@ export default function CustomerDetailPage() {
           name,
           legal_name: legalName || null,
           billing_email: billingEmail,
+          phone: phone || null,
+          internal_notes: internalNotes || null,
           country: country ? country.toUpperCase() : null,
         }),
       });
@@ -159,6 +168,7 @@ export default function CustomerDetailPage() {
       </div>
 
       <LicensingNav />
+      <BillingSummary kind="customers" id={id} />
 
       {/* Overview Cards */}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -173,7 +183,19 @@ export default function CustomerDetailPage() {
             </div>
             <div className="flex justify-between border-b border-border/50 py-1">
               <span className="text-muted-foreground">E-mail de Faturamento:</span>
-              <span className="font-medium">{customer.billing_email}</span>
+              <span className="max-w-[65%] text-right font-medium break-all">
+                {customer.billing_email}
+              </span>
+            </div>
+            <div className="flex justify-between border-b border-border/50 py-1">
+              <span className="text-muted-foreground">Telefone:</span>
+              <span>{customer.phone || "—"}</span>
+            </div>
+            <div className="border-b border-border/50 py-2">
+              <span className="text-muted-foreground">Observações internas:</span>
+              <p className="mt-1 break-words whitespace-pre-wrap">
+                {customer.internal_notes || "—"}
+              </p>
             </div>
             <div className="flex justify-between border-b border-border/50 py-1">
               <span className="text-muted-foreground">{t("País (ISO):")}</span>
@@ -271,9 +293,16 @@ export default function CustomerDetailPage() {
       {/* Edit Modal */}
       {showEditModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md space-y-4 rounded-lg border bg-card p-6 shadow-xl">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-customer-title"
+            className="max-h-[90vh] w-full max-w-md space-y-4 overflow-y-auto rounded-lg border bg-card p-6 shadow-xl"
+          >
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold">Editar Dados do Cliente</h3>
+              <h3 id="edit-customer-title" className="text-lg font-bold">
+                Editar Dados do Cliente
+              </h3>
               <Button variant="ghost" size="icon" onClick={() => setShowEditModal(false)}>
                 <X className="h-4 w-4" />
               </Button>
@@ -320,6 +349,31 @@ export default function CustomerDetailPage() {
                   maxLength={2}
                   value={country}
                   onChange={(e) => setCountry(e.target.value.toUpperCase())}
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium tracking-wider text-muted-foreground uppercase">
+                  Telefone
+                </label>
+                <Input
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  maxLength={40}
+                  autoComplete="tel"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium tracking-wider text-muted-foreground uppercase">
+                  Observações internas
+                </label>
+                <textarea
+                  value={internalNotes}
+                  onChange={(e) => setInternalNotes(e.target.value)}
+                  maxLength={2000}
+                  rows={3}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 />
               </div>
 

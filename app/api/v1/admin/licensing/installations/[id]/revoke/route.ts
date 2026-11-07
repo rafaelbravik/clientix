@@ -7,12 +7,12 @@ import {
   falhaDaEscritaDePlatformAdmin,
 } from "@/lib/auth/requirePlatformAdmin";
 import { getControlPlaneAdminService } from "@/control-plane/src/admin-service-provider";
+import { hasSameOrigin } from "@/control-plane/src/http-input";
 
-export async function POST(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = randomUUID();
+  if (!hasSameOrigin(req))
+    return fail("forbidden", "Same-origin request required.", 403, { requestId });
   let adminCtx: Awaited<ReturnType<typeof requirePlatformAdminEscrita>>;
   try {
     adminCtx = await requirePlatformAdminEscrita();
@@ -25,8 +25,8 @@ export async function POST(
   const { id } = await params;
   try {
     const adminService = getControlPlaneAdminService();
-    const actor = adminCtx.user.email || adminCtx.user.id;
-    const inst = await adminService.revokeInstallation(id, actor);
+    const actor = adminCtx.user.id;
+    const inst = await adminService.revokeInstallation(id, actor, requestId);
     return ok(inst, { requestId });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Error revoking installation";

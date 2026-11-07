@@ -194,6 +194,10 @@ const SITES: { arquivo: string; fronteira: string; papel?: "gerador" | "validado
   { arquivo: "app/api/v1/channel-sessions/route.ts", fronteira: "api.idempotency-key", papel: "validador" },
   { arquivo: "app/api/v1/lgpd/requests/[id]/approve/route.ts", fronteira: "api.idempotency-key", papel: "validador" },
   { arquivo: "app/api/v1/onboarding/whatsapp/session/route.ts", fronteira: "api.idempotency-key", papel: "validador" },
+  { arquivo: "app/admin/(protected)/billing/invoices/[id]/page.tsx", fronteira: "api.idempotency-key", papel: "gerador" },
+  { arquivo: "app/admin/(protected)/billing/new/page.tsx", fronteira: "api.idempotency-key", papel: "gerador" },
+  { arquivo: "app/admin/(protected)/licensing/licenses/[id]/page.tsx", fronteira: "api.idempotency-key", papel: "gerador" },
+  { arquivo: "app/admin/(protected)/licensing/licenses/new/page.tsx", fronteira: "api.idempotency-key", papel: "gerador" },
 ];
 
 describe("todo identificador que cruza fronteira cabe no que o terceiro aceita", () => {

@@ -97,7 +97,11 @@ export function verifyOfflineBundle(params: {
 
     // Source code leakage scan: Ensure bundle is compiled container/archive, not source repo
     const bufferStr = rawBuffer.subarray(0, 4096).toString("utf-8");
-    if (bufferStr.includes("import React") || bufferStr.includes(".git/HEAD") || bufferStr.includes("export default function")) {
+    if (
+      bufferStr.includes("import React") ||
+      bufferStr.includes(".git/HEAD") ||
+      bufferStr.includes("export default function")
+    ) {
       return {
         valid: false,
         code: "SOURCE_CODE_DETECTED",

@@ -1,7 +1,8 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useT } from "@/lib/i18n/IdiomaProvider";
 import { useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { LicensingNav } from "@/components/admin/licensing/LicensingNav";
 import { Button } from "@/components/ui/button";
@@ -17,16 +18,20 @@ interface CustomerOption {
 export default function NewLicensePage() {
   const t = useT();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const requestedCustomerId = searchParams.get("customer_id");
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [loadingCustomers, setLoadingCustomers] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const lastSubmission = useRef<{ fingerprint: string; key: string } | null>(null);
 
   // Form states
   const [customerId, setCustomerId] = useState("");
   const [licenseType, setLicenseType] = useState<"enterprise" | "partner" | "internal">(
     "enterprise",
   );
+  const [plan, setPlan] = useState<"standard" | "pro" | "enterprise">("pro");
   const [maxInstallations, setMaxInstallations] = useState(1);
   const [maxTenants, setMaxTenants] = useState<string>("");
   const [validFrom, setValidFrom] = useState(() => new Date().toISOString().slice(0, 10));
@@ -35,20 +40,33 @@ export default function NewLicensePage() {
     d.setFullYear(d.getFullYear() + 1);
     return d.toISOString().slice(0, 10);
   });
+  const [termPreset, setTermPreset] = useState("12");
   const [graceDays, setGraceDays] = useState(7);
   const [resaleAllowed, setResaleAllowed] = useState(false);
   const [whiteLabel, setWhiteLabel] = useState(false);
-  const [features, setFeatures] = useState("ai_agent, analytics, automation");
+  const [features, setFeatures] = useState("");
+
+  const chooseTerm = (term: string) => {
+    setTermPreset(term);
+    if (term === "custom") return;
+    const date = new Date(`${validFrom}T12:00:00.000Z`);
+    if (term.endsWith("d")) date.setUTCDate(date.getUTCDate() + Number(term.slice(0, -1)));
+    else date.setUTCMonth(date.getUTCMonth() + Number(term));
+    setExpiresAt(date.toISOString().slice(0, 10));
+  };
 
   useEffect(() => {
     async function loadCustomers() {
       try {
-        const res = await fetch("/api/v1/admin/licensing/customers?limit=100");
+        const res = await fetch("/api/v1/admin/customers?limit=100");
         if (res.ok) {
           const json = await res.json();
           setCustomers(json.data || []);
-          if (json.data && json.data.length > 0) {
-            setCustomerId(json.data[0].id);
+          if (
+            requestedCustomerId &&
+            json.data?.some((customer: CustomerOption) => customer.id === requestedCustomerId)
+          ) {
+            setCustomerId(requestedCustomerId);
           }
         }
       } catch (err) {
@@ -58,7 +76,7 @@ export default function NewLicensePage() {
       }
     }
     loadCustomers();
-  }, []);
+  }, [requestedCustomerId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,6 +87,7 @@ export default function NewLicensePage() {
       const payload = {
         customer_id: customerId,
         license_type: licenseType,
+        plan,
         max_installations: Number(maxInstallations),
         max_tenants: maxTenants ? Number(maxTenants) : null,
         valid_from: new Date(validFrom).toISOString(),
@@ -82,9 +101,16 @@ export default function NewLicensePage() {
           .filter(Boolean),
       };
 
-      const res = await fetch("/api/v1/admin/licensing/licenses", {
+      const fingerprint = JSON.stringify(payload);
+      if (!lastSubmission.current || lastSubmission.current.fingerprint !== fingerprint) {
+        lastSubmission.current = { fingerprint, key: crypto.randomUUID() };
+      }
+      const res = await fetch("/api/v1/admin/licenses", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": lastSubmission.current.key,
+        },
         body: JSON.stringify(payload),
       });
 
@@ -94,7 +120,7 @@ export default function NewLicensePage() {
         return;
       }
 
-      router.push(`/admin/licensing/licenses/${json.data.id}`);
+      router.push(`/admin/licenses/${json.data.id}`);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : t("Erro desconhecido"));
     } finally {
@@ -134,8 +160,11 @@ export default function NewLicensePage() {
           {loadingCustomers ? (
             <div className="text-sm text-muted-foreground">Carregando clientes...</div>
           ) : customers.length === 0 ? (
-            <div className="text-sm text-amber-500">
-              {t("Nenhum cliente cadastrado. Cadastre um cliente primeiro em Clientes.")}
+            <div className="space-y-2 text-sm text-amber-700">
+              <p>{t("Nenhum cliente cadastrado. Cadastre um cliente primeiro em Clientes.")}</p>
+              <Button asChild variant="outline" size="sm">
+                <Link href="/admin/customers/new">Cadastrar cliente</Link>
+              </Button>
             </div>
           ) : (
             <select
@@ -144,6 +173,9 @@ export default function NewLicensePage() {
               className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground focus:ring-1 focus:ring-ring focus:outline-hidden"
               required
             >
+              <option value="" disabled>
+                Selecione um cliente
+              </option>
               {customers.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name} ({c.billing_email})
@@ -151,6 +183,24 @@ export default function NewLicensePage() {
               ))}
             </select>
           )}
+        </div>
+
+        <div>
+          <label className="mb-1 block text-xs font-medium tracking-wider text-muted-foreground uppercase">
+            Plano comercial da instalação
+          </label>
+          <select
+            value={plan}
+            onChange={(e) => setPlan(e.target.value as "standard" | "pro" | "enterprise")}
+            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground focus:ring-1 focus:ring-ring focus:outline-hidden"
+          >
+            <option value="standard">Essencial</option>
+            <option value="pro">Profissional</option>
+            <option value="enterprise">Escala</option>
+          </select>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Este plano comercial da instalação é independente dos planos dos tenants.
+          </p>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -178,6 +228,7 @@ export default function NewLicensePage() {
             <Input
               type="number"
               min="1"
+              max="10000"
               value={maxInstallations}
               onChange={(e) => setMaxInstallations(Number(e.target.value))}
               required
@@ -202,10 +253,25 @@ export default function NewLicensePage() {
             <label className="mb-1 block text-xs font-medium tracking-wider text-muted-foreground uppercase">
               {t("Data de Expiração")}
             </label>
+            <select
+              value={termPreset}
+              onChange={(event) => chooseTerm(event.target.value)}
+              className="mb-2 h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+            >
+              <option value="30d">30 dias</option>
+              <option value="90d">90 dias</option>
+              <option value="6">6 meses</option>
+              <option value="12">12 meses (padrão)</option>
+              <option value="24">24 meses</option>
+              <option value="custom">Data personalizada</option>
+            </select>
             <Input
               type="date"
               value={expiresAt}
-              onChange={(e) => setExpiresAt(e.target.value)}
+              onChange={(e) => {
+                setTermPreset("custom");
+                setExpiresAt(e.target.value);
+              }}
               required
             />
           </div>
@@ -275,11 +341,11 @@ export default function NewLicensePage() {
 
         <div className="flex justify-end gap-3 border-t pt-4">
           <Button asChild variant="outline" type="button">
-            <Link href="/admin/licensing/licenses">Cancelar</Link>
+            <Link href="/admin/licenses">Cancelar</Link>
           </Button>
           <Button type="submit" disabled={submitting || customers.length === 0}>
             {submitting && <CircleNotch className="mr-1.5 h-4 w-4 animate-spin" />}
-            {t("Emitir Licença")}
+            Criar rascunho
           </Button>
         </div>
       </form>

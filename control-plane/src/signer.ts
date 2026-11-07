@@ -7,11 +7,16 @@ export interface VendorSignerProvider {
 }
 
 export class StaticVendorSignerProvider implements VendorSignerProvider {
-  constructor(private readonly keyId: string, private readonly privateKeyPem: string) {}
+  constructor(
+    private readonly keyId: string,
+    private readonly privateKeyPem: string,
+  ) {}
 
   async getSigningKey(requestedKeyId?: string): Promise<{ keyId: string; privateKeyPem: string }> {
     if (requestedKeyId && requestedKeyId !== this.keyId) {
-      throw new Error(`Requested signing key_id "${requestedKeyId}" does not match configured key "${this.keyId}". Fail closed.`);
+      throw new Error(
+        `Requested signing key_id "${requestedKeyId}" does not match configured key "${this.keyId}". Fail closed.`,
+      );
     }
     return {
       keyId: this.keyId,
@@ -43,7 +48,9 @@ export class KeySelectionVendorSignerProvider implements VendorSignerProvider {
     if (requestedKeyId) {
       const match = this.keys.find((k) => k.keyId === requestedKeyId);
       if (!match) {
-        throw new Error(`Signing key_id "${requestedKeyId}" not found in provider registry. Fail closed.`);
+        throw new Error(
+          `Signing key_id "${requestedKeyId}" not found in provider registry. Fail closed.`,
+        );
       }
       if (!match.isActive) {
         throw new Error(`Signing key_id "${requestedKeyId}" is inactive/retired. Fail closed.`);
@@ -60,7 +67,7 @@ export class KeySelectionVendorSignerProvider implements VendorSignerProvider {
 
     if (activeKeys.length > 1) {
       throw new Error(
-        `Ambiguous active vendor signing keys: ${activeKeys.length} active keys found without explicit key_id specified. Fail closed.`
+        `Ambiguous active vendor signing keys: ${activeKeys.length} active keys found without explicit key_id specified. Fail closed.`,
       );
     }
 
@@ -76,7 +83,7 @@ export class KeySelectionVendorSignerProvider implements VendorSignerProvider {
 export async function signIssuedLicense(
   payload: LicensePayload,
   signerProvider: VendorSignerProvider,
-  requestedKeyId?: string
+  requestedKeyId?: string,
 ): Promise<SignedLicenseDocument> {
   const { keyId, privateKeyPem } = await signerProvider.getSigningKey(requestedKeyId);
 
@@ -90,7 +97,9 @@ export async function signIssuedLicense(
   // 2. Sign canonical bytes with Ed25519 private key
   const privateKey = crypto.createPrivateKey(privateKeyPem);
   if (privateKey.asymmetricKeyType !== "ed25519") {
-    throw new Error(`Algoritmo incompatível: esperado ed25519, recebido ${privateKey.asymmetricKeyType}`);
+    throw new Error(
+      `Algoritmo incompatível: esperado ed25519, recebido ${privateKey.asymmetricKeyType}`,
+    );
   }
 
   const sigBuffer = crypto.sign(null, canonicalBytes, privateKey);

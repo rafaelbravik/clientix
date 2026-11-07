@@ -32,25 +32,28 @@ class MockDatabaseClient implements DatabaseClient {
       grace_days?: number;
     }
   >();
-  public installations = new Map<string, { id: string; license_id: string; public_key: string; status: string }>();
+  public installations = new Map<
+    string,
+    { id: string; license_id: string; public_key: string; status: string }
+  >();
   public events: Record<string, unknown>[] = [];
 
   async query<R = Record<string, unknown>>(
     sql: string,
-    params: unknown[] = []
+    params: unknown[] = [],
   ): Promise<{ rows: R[]; rowCount?: number }> {
     const trimmed = sql.trim();
 
     if (trimmed.includes("from control_plane.licensing_installations where id = $1")) {
       const id = params[0] as string;
       const inst = this.installations.get(id);
-      return { rows: inst ? ([inst as unknown as R]) : [] };
+      return { rows: inst ? [inst as unknown as R] : [] };
     }
 
     if (trimmed.includes("from control_plane.licensing_licenses where id = $1")) {
       const id = params[0] as string;
       const lic = this.licenses.get(id);
-      return { rows: lic ? ([lic as unknown as R]) : [] };
+      return { rows: lic ? [lic as unknown as R] : [] };
     }
 
     if (trimmed.startsWith("insert into control_plane.licensing_events")) {
@@ -77,30 +80,45 @@ function createMockS3HttpServer() {
   let simulateOutage = false;
   let simulateReadOnly403 = false;
 
-  const fetchHandler: typeof fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+  const fetchHandler: typeof fetch = async (
+    input: RequestInfo | URL,
+    init?: RequestInit,
+  ): Promise<Response> => {
     if (simulateOutage) {
       throw new Error("fetch failed: ECONNREFUSED s3.staging.clientix.internal");
     }
 
-    const urlStr = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+    const urlStr =
+      typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
     const url = new URL(urlStr);
     const method = init?.method?.toUpperCase() ?? "GET";
-    const auth = (init?.headers as Record<string, string>)?.["authorization"] ?? (init?.headers as Record<string, string>)?.["Authorization"];
+    const auth =
+      (init?.headers as Record<string, string>)?.["authorization"] ??
+      (init?.headers as Record<string, string>)?.["Authorization"];
 
     // 1. Direct unauthorized request (no SigV4 auth)
     if (!auth || !auth.startsWith("AWS4-HMAC-SHA256")) {
-      return new Response(JSON.stringify({ error: "AccessDenied", message: "Anonymous direct access forbidden" }), {
-        status: 403,
-        headers: { "content-type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: "AccessDenied", message: "Anonymous direct access forbidden" }),
+        {
+          status: 403,
+          headers: { "content-type": "application/json" },
+        },
+      );
     }
 
     // 2. Read-only credential simulation (rejects PUT/DELETE)
     if (simulateReadOnly403 && (method === "PUT" || method === "DELETE")) {
-      return new Response(JSON.stringify({ error: "AccessDenied", message: "User does not have PutObject/DeleteObject permissions" }), {
-        status: 403,
-        headers: { "content-type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({
+          error: "AccessDenied",
+          message: "User does not have PutObject/DeleteObject permissions",
+        }),
+        {
+          status: 403,
+          headers: { "content-type": "application/json" },
+        },
+      );
     }
 
     // Parse bucket and key from path: /bucket/key...
@@ -151,7 +169,8 @@ function createMockS3HttpServer() {
       }
 
       const headers: Record<string, string> = {
-        "content-type": (init?.headers as Record<string, string>)?.["content-type"] ?? "application/octet-stream",
+        "content-type":
+          (init?.headers as Record<string, string>)?.["content-type"] ?? "application/octet-stream",
         "x-amz-meta-sha256": (init?.headers as Record<string, string>)?.["x-amz-meta-sha256"] ?? "",
       };
 
@@ -194,13 +213,18 @@ describe("L9.2 Real Artifact Storage Integration & Remote Distribution Certifica
 
   beforeEach(() => {
     manifestSignerKeyPair = generateInstallationKeyPair();
-    manifestSigner = new LocalReleaseManifestSigner("manifest_signer_l9_2", manifestSignerKeyPair.privateKeyPem);
+    manifestSigner = new LocalReleaseManifestSigner(
+      "manifest_signer_l9_2",
+      manifestSignerKeyPair.privateKeyPem,
+    );
     installationKeypair = generateInstallationKeyPair();
   });
 
   describe("1. AWS SigV4 Request Signer", () => {
     it("generates valid AWS4-HMAC-SHA256 headers for S3 endpoints", () => {
-      const url = new URL("https://staging-r2.clientix.internal/clientix-staging-distribution/releases/manifest.json");
+      const url = new URL(
+        "https://staging-r2.clientix.internal/clientix-staging-distribution/releases/manifest.json",
+      );
       const signed = signS3Request({
         method: "GET",
         url,
@@ -213,9 +237,11 @@ describe("L9.2 Real Artifact Storage Integration & Remote Distribution Certifica
 
       expect(signed["host"]).toBe("staging-r2.clientix.internal");
       expect(signed["x-amz-date"]).toBe("20261008T190000Z");
-      expect(signed["x-amz-content-sha256"]).toBe("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+      expect(signed["x-amz-content-sha256"]).toBe(
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      );
       expect(signed["authorization"]).toMatch(
-        /^AWS4-HMAC-SHA256 Credential=AKIATESTING12345678\/20261008\/auto\/s3\/aws4_request, SignedHeaders=accept;host;x-amz-content-sha256;x-amz-date, Signature=[a-f0-9]{64}$/
+        /^AWS4-HMAC-SHA256 Credential=AKIATESTING12345678\/20261008\/auto\/s3\/aws4_request, SignedHeaders=accept;host;x-amz-content-sha256;x-amz-date, Signature=[a-f0-9]{64}$/,
       );
     });
   });
@@ -246,12 +272,48 @@ describe("L9.2 Real Artifact Storage Integration & Remote Distribution Certifica
         channel: "candidate",
         minSchemaVersion: "1",
         artifacts: [
-          { artifactId: "art_app_amd64", architecture: "amd64", artifactType: "oci-image", filename: "app-amd64.tar", data: appAmd64 },
-          { artifactId: "art_app_arm64", architecture: "arm64", artifactType: "oci-image", filename: "app-arm64.tar", data: appArm64 },
-          { artifactId: "art_worker_amd64", architecture: "amd64", artifactType: "oci-image", filename: "worker-amd64.tar", data: workerAmd64 },
-          { artifactId: "art_scheduler_amd64", architecture: "amd64", artifactType: "oci-image", filename: "scheduler-amd64.tar", data: schedulerAmd64 },
-          { artifactId: "art_voice_amd64", architecture: "amd64", artifactType: "oci-image", filename: "voice-amd64.tar", data: voiceAmd64 },
-          { artifactId: "art_migrator_amd64", architecture: "amd64", artifactType: "oci-image", filename: "migrator-amd64.tar", data: migratorAmd64 },
+          {
+            artifactId: "art_app_amd64",
+            architecture: "amd64",
+            artifactType: "oci-image",
+            filename: "app-amd64.tar",
+            data: appAmd64,
+          },
+          {
+            artifactId: "art_app_arm64",
+            architecture: "arm64",
+            artifactType: "oci-image",
+            filename: "app-arm64.tar",
+            data: appArm64,
+          },
+          {
+            artifactId: "art_worker_amd64",
+            architecture: "amd64",
+            artifactType: "oci-image",
+            filename: "worker-amd64.tar",
+            data: workerAmd64,
+          },
+          {
+            artifactId: "art_scheduler_amd64",
+            architecture: "amd64",
+            artifactType: "oci-image",
+            filename: "scheduler-amd64.tar",
+            data: schedulerAmd64,
+          },
+          {
+            artifactId: "art_voice_amd64",
+            architecture: "amd64",
+            artifactType: "oci-image",
+            filename: "voice-amd64.tar",
+            data: voiceAmd64,
+          },
+          {
+            artifactId: "art_migrator_amd64",
+            architecture: "amd64",
+            artifactType: "oci-image",
+            filename: "migrator-amd64.tar",
+            data: migratorAmd64,
+          },
         ],
       });
 
@@ -301,7 +363,7 @@ describe("L9.2 Real Artifact Storage Integration & Remote Distribution Certifica
       // Different bytes -> Throws IMMUTABLE_OBJECT_CONFLICT
       const tamperedBytes = Buffer.from("TAMPERED_LAYER_BYTES");
       await expect(publisherBackend.putObject(key, tamperedBytes)).rejects.toThrow(
-        /IMMUTABLE_OBJECT_CONFLICT/
+        /IMMUTABLE_OBJECT_CONFLICT/,
       );
     });
   });
@@ -330,11 +392,11 @@ describe("L9.2 Real Artifact Storage Integration & Remote Distribution Certifica
       });
 
       await expect(
-        unauthorizedPublisher.putObject("test/key", Buffer.from("unauthorized"))
+        unauthorizedPublisher.putObject("test/key", Buffer.from("unauthorized")),
       ).rejects.toThrow(/S3_ACCESS_DENIED/);
 
       await expect(unauthorizedPublisher.deleteObject("test/key")).rejects.toThrow(
-        /S3_ACCESS_DENIED/
+        /S3_ACCESS_DENIED/,
       );
     });
 
@@ -344,7 +406,7 @@ describe("L9.2 Real Artifact Storage Integration & Remote Distribution Certifica
       // Direct HTTP fetch without SigV4 headers
       const directRes = await server.fetchHandler(
         "https://staging-r2.clientix.internal/clientix-staging-distribution/releases/secret.tar",
-        { method: "GET" }
+        { method: "GET" },
       );
 
       expect(directRes.status).toBe(403);
@@ -357,8 +419,10 @@ describe("L9.2 Real Artifact Storage Integration & Remote Distribution Certifica
     const releaseId = "2026.10.0-rc-storage-test";
     const appAmd64Payload = Buffer.from("COMPILED_APP_CONTAINER_IMAGE_AMD64");
     const appArm64Payload = Buffer.from("COMPILED_APP_CONTAINER_IMAGE_ARM64");
-    const appAmd64Digest = `sha256:${crypto.createHash("sha256").update(appAmd64Payload).digest("hex")}` as `sha256:${string}`;
-    const appArm64Digest = `sha256:${crypto.createHash("sha256").update(appArm64Payload).digest("hex")}` as `sha256:${string}`;
+    const appAmd64Digest =
+      `sha256:${crypto.createHash("sha256").update(appAmd64Payload).digest("hex")}` as `sha256:${string}`;
+    const appArm64Digest =
+      `sha256:${crypto.createHash("sha256").update(appArm64Payload).digest("hex")}` as `sha256:${string}`;
 
     const testLicId = "lic_123e4567-e89b-42d3-a456-426614174000";
     const testInstId = "inst_123e4567-e89b-42d3-a456-426614174000";
@@ -383,8 +447,20 @@ describe("L9.2 Real Artifact Storage Integration & Remote Distribution Certifica
         channel: "candidate",
         minSchemaVersion: "1",
         artifacts: [
-          { artifactId: "art_app_amd64", architecture: "amd64", artifactType: "oci-image", filename: "app-amd64.tar", data: appAmd64Payload },
-          { artifactId: "art_app_arm64", architecture: "arm64", artifactType: "oci-image", filename: "app-arm64.tar", data: appArm64Payload },
+          {
+            artifactId: "art_app_amd64",
+            architecture: "amd64",
+            artifactType: "oci-image",
+            filename: "app-amd64.tar",
+            data: appAmd64Payload,
+          },
+          {
+            artifactId: "art_app_arm64",
+            architecture: "arm64",
+            artifactType: "oci-image",
+            filename: "app-arm64.tar",
+            data: appArm64Payload,
+          },
         ],
       });
 
@@ -526,7 +602,7 @@ describe("L9.2 Real Artifact Storage Integration & Remote Distribution Certifica
       server.setOutage(true);
 
       await expect(distService.downloadArtifact("art_app_amd64", token)).rejects.toThrow(
-        /STORAGE_UNREACHABLE/
+        /STORAGE_UNREACHABLE/,
       );
     });
 
@@ -535,7 +611,9 @@ describe("L9.2 Real Artifact Storage Integration & Remote Distribution Certifica
       const token = tokenRes.data!.distribution_token;
 
       const manRes = await distService.getReleaseManifest(releaseId, token);
-      const appArtMeta = manRes.data!.payload.artifacts.find((a) => a.artifactId === "art_app_amd64")!;
+      const appArtMeta = manRes.data!.payload.artifacts.find(
+        (a) => a.artifactId === "art_app_amd64",
+      )!;
 
       const dlRes = await distService.downloadArtifact("art_app_amd64", token);
       expect(dlRes.ok).toBe(true);

@@ -11,7 +11,7 @@ export class PostgresNonceStore implements NonceStore {
     installationId: string,
     nonce: string,
     expiresAtUnixSeconds: number,
-    currentUnixSeconds?: number
+    currentUnixSeconds?: number,
   ): Promise<boolean> {
     const now = currentUnixSeconds ?? Math.floor(Date.now() / 1000);
     const expiresAtIso = new Date(expiresAtUnixSeconds * 1000).toISOString();
@@ -20,14 +20,14 @@ export class PostgresNonceStore implements NonceStore {
       // First attempt prune expired nonces for this installation if any (lightweight maintenance)
       await this.client.query(
         `delete from control_plane.licensing_nonces where installation_id = $1 and expires_at <= $2;`,
-        [installationId, new Date(now * 1000).toISOString()]
+        [installationId, new Date(now * 1000).toISOString()],
       );
 
       // Attempt atomic insert
       await this.client.query(
         `insert into control_plane.licensing_nonces (installation_id, nonce, expires_at)
          values ($1, $2, $3);`,
-        [installationId, nonce, expiresAtIso]
+        [installationId, nonce, expiresAtIso],
       );
       return true;
     } catch (err: unknown) {

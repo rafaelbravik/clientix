@@ -6,11 +6,9 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
-  renameSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import path, { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -18,23 +16,30 @@ import {
   CUSTOMER_BUILD_EXCLUDED_PATHS,
   CUSTOMER_BUILD_SOURCE_REPLACEMENTS,
   findCustomerArtifactMarkerHits,
+  findCustomerArtifactPathHits,
+  findCustomerArtifactPrivateMaterialHits,
+  findCustomerArtifactSourceMapHits,
   findCustomerVendorRouteEntries,
   isCustomerBuildExcludedPath,
+  sanitizeCustomerPackageManifest,
 } from "./customer-build-policy";
 import {
   createCustomerCertificationTrustModule,
   parseCustomerBuildArguments,
 } from "./lib/customer-certification-trust";
+import { materializeCustomerRuntimeDependencies } from "./lib/materialize-customer-runtime";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const projectNodeModules = resolve(projectRoot, "node_modules");
 const buildArguments = parseCustomerBuildArguments(process.argv.slice(2));
 const inputOutputPath = buildArguments.outputPath;
-const workRoot = mkdtempSync(path.join(tmpdir(), "clientix-customer-build-source-"));
+const localRuntimeRoot = resolve(projectRoot, ".clientix-local", "runtime");
+mkdirSync(localRuntimeRoot, { recursive: true });
+const workRoot = mkdtempSync(path.join(localRuntimeRoot, "clientix-customer-build-source-"));
 const stagedProject = path.join(workRoot, "project");
 const artifactRoot = inputOutputPath
   ? resolve(inputOutputPath)
-  : mkdtempSync(path.join(tmpdir(), "clientix-customer-artifact-"));
+  : mkdtempSync(path.join(localRuntimeRoot, "clientix-customer-artifact-"));
 const artifactWasCreatedHere = !inputOutputPath;
 
 const environmentAllowlist = new Set([
@@ -62,7 +67,7 @@ function createBuildEnvironment(): NodeJS.ProcessEnv {
   }
 
   result.NODE_ENV = "production";
-  result.NODE_OPTIONS = "--max-old-space-size=4096";
+  result.NODE_OPTIONS = "--max-old-space-size=6144";
   result.NEXT_TELEMETRY_DISABLED = "1";
   result.NEXT_PUBLIC_CLIENTIX_BUILD_TARGET = "customer";
   result.NEXT_PUBLIC_SUPABASE_URL = "https://placeholder.supabase.co";
@@ -105,10 +110,10 @@ function installCustomerRuntimeStubs(): void {
       'import { z } from "zod";',
       'import { createClient } from "@/lib/supabase/server";',
       'export type SupportContext = import("@/lib/auth/support-context").SupportContext;',
-      'export async function readSupportContext(_db?: unknown): Promise<SupportContext | null> { return null; }',
-      'export function supportWriteError(_support?: SupportContext | null, _organizationId?: string): string | null { return null; }',
-      'export async function requireSupportWrite(_targetOrganizationId?: string): Promise<null> { return null; }',
-      'export async function supportCallbackWriteAllowed(_organizationId: string, _actorId?: string, _sessionId?: string): Promise<boolean> { return true; }',
+      "export async function readSupportContext(_db?: unknown): Promise<SupportContext | null> { return null; }",
+      "export function supportWriteError(_support?: SupportContext | null, _organizationId?: string): string | null { return null; }",
+      "export async function requireSupportWrite(_targetOrganizationId?: string): Promise<null> { return null; }",
+      "export async function supportCallbackWriteAllowed(_organizationId: string, _actorId?: string, _sessionId?: string): Promise<boolean> { return true; }",
       'export async function authenticatedSessionId(): Promise<string> { const db = await createClient(); const { data: { user } } = await db.auth.getUser(); if (!user) throw new Error("Sessão ausente."); const { data } = await db.auth.getClaims(); return z.string().uuid().parse(data?.claims.session_id); }',
     ].join("\n"),
     "utf8",
@@ -158,8 +163,16 @@ function installCustomerDependencies(): void {
   });
   if (install.error) throw install.error;
   if (install.status !== 0) {
-    throw new Error(`Instalação offline das dependências staged terminou com código ${install.status ?? "desconhecido"}.`);
+    throw new Error(
+      `Instalação offline das dependências staged terminou com código ${install.status ?? "desconhecido"}.`,
+    );
   }
+}
+
+function removeCustomerOperatorCommands(): void {
+  const manifestPath = path.join(stagedProject, "package.json");
+  const manifest = readFileSync(manifestPath, "utf8");
+  writeFileSync(manifestPath, sanitizeCustomerPackageManifest(manifest), "utf8");
 }
 
 function assertCustomerBuildOutput(): void {
@@ -173,51 +186,93 @@ function assertCustomerBuildOutput(): void {
   const manifest = JSON.parse(readFileSync(routeManifestPath, "utf8")) as Record<string, unknown>;
   const vendorRoutes = findCustomerVendorRouteEntries(Object.keys(manifest));
   if (vendorRoutes.length > 0) {
-    throw new Error(`Rotas administrativas ou de suporte vendor apareceram no build de cliente: ${vendorRoutes.join(", ")}`);
+    throw new Error(
+      `Rotas administrativas ou de suporte vendor apareceram no build de cliente: ${vendorRoutes.join(", ")}`,
+    );
   }
-  if (!Object.keys(manifest).some((routePath) => routePath.includes("/api/v1/system/license/route"))) {
+  if (
+    !Object.keys(manifest).some((routePath) => routePath.includes("/api/v1/system/license/route"))
+  ) {
     throw new Error("A rota de licença local da instalação não apareceu no build de cliente.");
   }
 
   const scannedFiles: string[] = [];
-  const textExtensions = new Set([".cjs", ".html", ".js", ".json", ".map", ".mjs"]);
-  function visit(directory: string): void {
+  const scannedArtifactPaths: string[] = [];
+  const textExtensions = new Set([".cjs", ".html", ".js", ".json", ".map", ".mjs", ".pem"]);
+  function visit(directory: string, root: string): void {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const fullPath = path.join(directory, entry.name);
-      if (entry.isDirectory()) visit(fullPath);
-      else if (entry.isFile() && textExtensions.has(path.extname(entry.name))) scannedFiles.push(fullPath);
+      scannedArtifactPaths.push(path.relative(root, fullPath).split(sep).join("/"));
+      if (entry.isDirectory()) visit(fullPath, root);
+      else if (entry.isFile() && textExtensions.has(path.extname(entry.name).toLowerCase())) {
+        scannedFiles.push(fullPath);
+      }
     }
   }
-  visit(standaloneRoot);
+  visit(standaloneRoot, standaloneRoot);
   const staticRoot = path.join(stagedProject, ".next", "static");
-  if (existsSync(staticRoot)) visit(staticRoot);
+  if (existsSync(staticRoot)) visit(staticRoot, staticRoot);
   const publicRoot = path.join(stagedProject, "public");
-  if (existsSync(publicRoot)) visit(publicRoot);
+  if (existsSync(publicRoot)) visit(publicRoot, publicRoot);
+  const artifactPathHits = findCustomerArtifactPathHits(scannedArtifactPaths);
+  if (artifactPathHits.length > 0) {
+    throw new Error(
+      `O artefato customer contém caminhos de material ou código proibido: ${artifactPathHits.join(", ")}`,
+    );
+  }
+
+  const applicationSourceMaps = findCustomerArtifactSourceMapHits(scannedArtifactPaths);
+  if (applicationSourceMaps.length > 0) {
+    throw new Error(
+      `O artefato customer contém source maps de browser ou servidor: ${applicationSourceMaps.slice(0, 10).join(", ")}`,
+    );
+  }
   console.info(`Verificando referências proibidas em ${scannedFiles.length} arquivos do artefato.`);
 
   const markerHits: string[] = [];
+  const privateMaterialHits: string[] = [];
   let hasCertificationKeyId = false;
   let hasExpectedCertificationKeyId = false;
   let hasOfficialLicenseKeyId = false;
   for (const file of scannedFiles) {
     const contents = readFileSync(file, "utf8");
     if (contents.includes("clientix-certification-test-")) hasCertificationKeyId = true;
-    if (buildArguments.keyId && contents.includes(buildArguments.keyId)) hasExpectedCertificationKeyId = true;
+    if (buildArguments.keyId && contents.includes(buildArguments.keyId))
+      hasExpectedCertificationKeyId = true;
     if (contents.includes("clientix-license-2026-01")) hasOfficialLicenseKeyId = true;
+    for (const category of findCustomerArtifactPrivateMaterialHits(contents)) {
+      privateMaterialHits.push(
+        `${path.relative(stagedProject, file).split(sep).join("/")}: ${category}`,
+      );
+    }
     for (const marker of findCustomerArtifactMarkerHits(contents)) {
       markerHits.push(`${path.relative(stagedProject, file).split(sep).join("/")}: ${marker}`);
     }
   }
+  if (privateMaterialHits.length > 0) {
+    throw new Error(
+      `O artefato customer contém material privado de assinatura: ${privateMaterialHits.join(", ")}`,
+    );
+  }
   if (markerHits.length > 0) {
-    throw new Error(`O artefato de cliente contém referências vendor proibidas: ${markerHits.join(", ")}`);
+    throw new Error(
+      `O artefato de cliente contém referências vendor proibidas: ${markerHits.join(", ")}`,
+    );
   }
 
   if (buildArguments.mode === "production" && hasCertificationKeyId) {
     throw new Error("Build customer de produção contém key ID de trust root de certificação.");
   }
+  if (buildArguments.mode === "production" && !hasOfficialLicenseKeyId) {
+    throw new Error(
+      "Build customer de produção não contém a trust root pública de licença esperada.",
+    );
+  }
   if (buildArguments.mode === "certification") {
     if (!buildArguments.keyId || !hasExpectedCertificationKeyId) {
-      throw new Error("O build customer-certification não incluiu o key ID público de teste esperado.");
+      throw new Error(
+        "O build customer-certification não incluiu o key ID público de teste esperado.",
+      );
     }
     if (hasOfficialLicenseKeyId) {
       throw new Error("Build customer-certification contém o trust root oficial de produção.");
@@ -225,32 +280,75 @@ function assertCustomerBuildOutput(): void {
   }
 }
 
+function removeCustomerSourceMaps(): void {
+  const outputRoots = [
+    path.join(stagedProject, ".next", "standalone"),
+    path.join(stagedProject, ".next", "static"),
+  ];
+
+  for (const outputRoot of outputRoots) {
+    if (!existsSync(outputRoot)) continue;
+    const visit = (directory: string) => {
+      for (const entry of readdirSync(directory, { withFileTypes: true })) {
+        const entryPath = path.join(directory, entry.name);
+        if (entry.isDirectory()) visit(entryPath);
+        else if (entry.isFile() && entry.name.endsWith(".map")) rmSync(entryPath);
+      }
+    };
+    visit(outputRoot);
+  }
+}
+
 function copyArtifact(): void {
   if (existsSync(artifactRoot) && !artifactWasCreatedHere) {
-    throw new Error("O diretório de saída já existe; escolha um destino vazio para não sobrescrever artefatos.");
+    throw new Error(
+      "O diretório de saída já existe; escolha um destino vazio para não sobrescrever artefatos.",
+    );
   }
 
   mkdirSync(artifactRoot, { recursive: true });
   for (const directory of ["standalone", "static", "public"] as const) {
-    const source = directory === "standalone"
-      ? path.join(stagedProject, ".next", "standalone")
-      : directory === "static"
-        ? path.join(stagedProject, ".next", "static")
-        : path.join(stagedProject, "public");
+    const source =
+      directory === "standalone"
+        ? path.join(stagedProject, ".next", "standalone")
+        : directory === "static"
+          ? path.join(stagedProject, ".next", "static")
+          : path.join(stagedProject, "public");
     const destination = path.join(artifactRoot, directory);
-    try {
-      renameSync(source, destination);
-    } catch (error) {
-      if (!(error instanceof Error) || !("code" in error) || error.code !== "EXDEV") throw error;
-      cpSync(source, destination, { recursive: true, verbatimSymlinks: true });
+    // On Windows pnpm creates junctions from standalone/node_modules back into
+    // the staged project's node_modules. Moving the standalone tree preserves
+    // those absolute junction targets, and the staging cleanup then leaves the
+    // customer artifact with a broken `require("next")`. Materialize links
+    // while copying so the delivered standalone is self-contained on every OS.
+    cpSync(source, destination, { recursive: true, dereference: true });
+  }
+
+  const runtimeDependencyNames = materializeCustomerRuntimeDependencies({
+    artifactRoot,
+    stagedProjectRoot: stagedProject,
+  });
+  const requiredPaths = [
+    path.join("standalone", "server.js"),
+    path.join("standalone", "node_modules", "next", "package.json"),
+    path.join("standalone", ".next", "server", "app-paths-manifest.json"),
+    ...runtimeDependencyNames.map((dependencyName) =>
+      path.join("standalone", "node_modules", ...dependencyName.split("/"), "package.json"),
+    ),
+  ];
+  for (const requiredPath of requiredPaths) {
+    if (!existsSync(path.join(artifactRoot, requiredPath))) {
+      throw new Error(`O artefato standalone customer está incompleto: ${requiredPath}`);
     }
   }
 }
 
 try {
-  if (!existsSync(projectNodeModules)) throw new Error("Dependências ausentes; instale o workspace antes do build de cliente.");
+  if (!existsSync(projectNodeModules))
+    throw new Error("Dependências ausentes; instale o workspace antes do build de cliente.");
   if (inputOutputPath && existsSync(artifactRoot)) {
-    throw new Error("O diretório de saída já existe; escolha um destino vazio para não sobrescrever artefatos.");
+    throw new Error(
+      "O diretório de saída já existe; escolha um destino vazio para não sobrescrever artefatos.",
+    );
   }
 
   copyCustomerSource();
@@ -258,23 +356,30 @@ try {
   installCustomerRuntimeStubs();
   installCertificationTrustRoot();
   installCustomerDependencies();
+  removeCustomerOperatorCommands();
   const nextCli = path.join(stagedProject, "node_modules", "next", "dist", "bin", "next");
-  if (!existsSync(nextCli)) throw new Error("Next.js não foi instalado na árvore isolada do cliente.");
-  console.info(`Build de cliente: excluindo ${CUSTOMER_BUILD_EXCLUDED_PATHS.join(", ")}.`);
+  if (!existsSync(nextCli))
+    throw new Error("Next.js não foi instalado na árvore isolada do cliente.");
+  console.info(
+    `Build de cliente: preservando somente /admin/license e suas APIs locais; excluindo ${CUSTOMER_BUILD_EXCLUDED_PATHS.join(", ")}.`,
+  );
 
-  const build = spawnSync(process.execPath, [nextCli, "build"], {
+  const build = spawnSync(process.execPath, [nextCli, "build", "--webpack"], {
     cwd: stagedProject,
     env: createBuildEnvironment(),
     stdio: "inherit",
   });
   if (build.error) throw build.error;
-  if (build.status !== 0) throw new Error(`next build terminou com código ${build.status ?? "desconhecido"}.`);
+  if (build.status !== 0)
+    throw new Error(`next build terminou com código ${build.status ?? "desconhecido"}.`);
 
+  removeCustomerSourceMaps();
   assertCustomerBuildOutput();
   copyArtifact();
   console.info(`Build de cliente verificado. Artefato: ${artifactRoot}`);
 } catch (error) {
-  if (artifactWasCreatedHere && existsSync(artifactRoot)) rmSync(artifactRoot, { recursive: true, force: true });
+  if (artifactWasCreatedHere && existsSync(artifactRoot))
+    rmSync(artifactRoot, { recursive: true, force: true });
   const message = error instanceof Error ? error.message : "falha desconhecida no build de cliente";
   console.error(`Build de cliente recusado: ${message}`);
   process.exitCode = 1;

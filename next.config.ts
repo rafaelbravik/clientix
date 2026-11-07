@@ -1,6 +1,8 @@
 import { withSentryConfig } from "@sentry/nextjs/config";
 import type { NextConfig } from "next";
 
+const isCustomerBuild = process.env.NEXT_PUBLIC_CLIENTIX_BUILD_TARGET === "customer";
+
 /** Performance budget (EPIC-12 §S-12.05):
  *  - LCP < 2.5s p75
  *  - CLS < 0.1 p75
@@ -15,6 +17,12 @@ const nextConfig: NextConfig = {
   // desligado porque Next 16.3 + adapter + standalone quebra o onBuildComplete
   // com ENOENT next-server.js.nft.json (#96646).
   output: process.env.VERCEL ? undefined : "standalone",
+  // Customer builds run from an isolated filtered copy nested below the repo.
+  // Pin Turbopack to that copy instead of inferring the original parent root.
+  turbopack: { root: process.cwd() },
+  // Customer images do not ship application source maps. The vendor build keeps
+  // its existing Sentry/source-map behavior.
+  productionBrowserSourceMaps: isCustomerBuild ? false : undefined,
   /**
    * O `standalone` copia SÓ o que o file tracing detecta — e ele não detecta
    * tudo de `@swc/helpers`.
@@ -77,8 +85,10 @@ const nextConfig: NextConfig = {
   // typedRoutes moved out of experimental in Next 15.5+
   typedRoutes: true,
   experimental: {
+    serverSourceMaps: isCustomerBuild ? false : undefined,
     optimizePackageImports: ["@phosphor-icons/react", "lucide-react", "date-fns"],
   },
+  enablePrerenderSourceMaps: isCustomerBuild ? false : undefined,
   images: {
     // O app não usa next/image de fato (só <img> raw); desligar o otimizador
     // evita exigir o binário `sharp` no runtime do container.

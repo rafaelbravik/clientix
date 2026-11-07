@@ -51,16 +51,9 @@ vi.mock("@/lib/supabase/cookie-secure", () => ({ cookieSecure: () => false }));
 const rpcDoAceite = vi.fn(async () => ({ data: { id: "m1", changed: true }, error: null }));
 
 /**
- * Dublê do admin client. `select` devolve a linha de `team_invites` pedida;
- * `update` (o fechamento do convite) aceita e não diz nada.
+ * Dublê do admin client. `select` devolve a linha de `team_invites` pedida.
  */
 function adminComConvite(linha: { revoked_at: string | null } | null) {
-  const cadeiaDeUpdate = () => {
-    const c: Record<string, unknown> = {};
-    for (const m of ["eq", "is"]) c[m] = () => c;
-    c.then = (r: (v: unknown) => unknown) => r({ data: null, error: null });
-    return c;
-  };
   return {
     from: () => ({
       select: () => {
@@ -69,7 +62,6 @@ function adminComConvite(linha: { revoked_at: string | null } | null) {
         c.maybeSingle = async () => ({ data: linha, error: null });
         return c;
       },
-      update: cadeiaDeUpdate,
     }),
     rpc: rpcDoAceite,
   };
@@ -106,6 +98,9 @@ describe("aplicarConvite consulta a LINHA, não só o token", () => {
       "nem o convite vivo passa: a sonda recusa tudo, e o caso da revogação está verde pelo motivo errado",
     ).toBe(true);
     expect(rpcDoAceite).toHaveBeenCalled();
+    expect(rpcDoAceite).toHaveBeenCalledWith("fn_accept_team_invite_atomic", expect.objectContaining({
+      p_invite_id: CONVITE,
+    }));
   });
 
   it("convite SEM linha segue o fluxo — emitido antes da migration 0238", async () => {

@@ -1,7 +1,6 @@
 import { requireSupportWrite } from "@/lib/impersonate/support";
-import type { NextRequest } from "next/server";
-import { z } from "zod";
 import { randomUUID } from "node:crypto";
+import { z } from "zod";
 import { ok, fail } from "@/lib/api/wrappers";
 import {
   requirePlatformAdmin,
@@ -9,75 +8,89 @@ import {
   falhaDaEscritaDePlatformAdmin,
 } from "@/lib/auth/requirePlatformAdmin";
 import { getControlPlaneAdminService } from "@/control-plane/src/admin-service-provider";
+import { hasSameOrigin, readJsonBodyLimited } from "@/control-plane/src/http-input";
 
-const createCustomerSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  legal_name: z.string().optional().nullable(),
-  billing_email: z.string().email("Invalid billing email"),
-  country: z
-    .string()
-    .length(2, "Country must be a 2-letter uppercase ISO code")
-    .regex(/^[A-Za-z]{2}$/, "Country must be alphabetic")
-    .optional()
-    .nullable(),
+const querySchema = z.object({
+  search: z.string().trim().max(100).optional(),
+  status: z.enum(["ACTIVE", "DISABLED"]).optional(),
+  sort: z.enum(["name", "created_at"]).default("created_at"),
+  direction: z.enum(["asc", "desc"]).default("desc"),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  offset: z.coerce.number().int().min(0).max(100_000).default(0),
 });
+const createCustomerSchema = z
+  .object({
+    name: z.string().trim().min(1).max(200),
+    legal_name: z.string().trim().max(240).optional().nullable(),
+    document: z.string().trim().max(64).optional().nullable(),
+    billing_email: z.string().trim().email().max(254),
+    phone: z.string().trim().max(40).optional().nullable(),
+    internal_notes: z.string().trim().max(2000).optional().nullable(),
+    country: z
+      .string()
+      .length(2)
+      .regex(/^[A-Za-z]{2}$/)
+      .optional()
+      .nullable(),
+  })
+  .strict();
 
-export async function GET(req: NextRequest) {
+export async function GET(request: Request) {
   const requestId = randomUUID();
   try {
     await requirePlatformAdmin();
   } catch {
-    return fail("forbidden", "Platform admin required", 403, { requestId });
+    return fail("forbidden", "Platform admin required.", 403, { requestId });
   }
-
-  const searchParams = req.nextUrl.searchParams;
-  const search = searchParams.get("search") || undefined;
-  const limit = searchParams.get("limit") ? Number(searchParams.get("limit")) : 50;
-  const offset = searchParams.get("offset") ? Number(searchParams.get("offset")) : 0;
-
+  const parsed = querySchema.safeParse(Object.fromEntries(new URL(request.url).searchParams));
+  if (!parsed.success)
+    return fail("invalid_request", "Invalid customer query.", 400, { requestId });
   try {
-    const adminService = getControlPlaneAdminService();
-    const customers = await adminService.listCustomers({ search, limit, offset });
-    return ok(customers, { requestId });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Error listing customers";
-    return fail("database_error", message, 500, { requestId });
+    const result = await getControlPlaneAdminService().listCommercialCustomers(parsed.data);
+    return ok(result.items, {
+      requestId,
+      meta: {
+        total: result.total,
+        limit: result.limit,
+        offset: result.offset,
+        has_more: result.offset + result.items.length < result.total,
+      },
+      headers: { "Cache-Control": "no-store" },
+    });
+  } catch {
+    return fail("database_error", "Customers could not be loaded.", 500, { requestId });
   }
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(request: Request) {
   const requestId = randomUUID();
-  let adminCtx: Awaited<ReturnType<typeof requirePlatformAdminEscrita>>;
+  if (!hasSameOrigin(request))
+    return fail("forbidden", "Same-origin request required.", 403, { requestId });
+  let admin;
   try {
-    adminCtx = await requirePlatformAdminEscrita();
-  } catch (err) {
-    return falhaDaEscritaDePlatformAdmin(err, requestId);
+    admin = await requirePlatformAdminEscrita();
+  } catch (error) {
+    return falhaDaEscritaDePlatformAdmin(error, requestId);
   }
   const supportDenied = await requireSupportWrite();
   if (supportDenied) return supportDenied;
-
   let body: unknown;
   try {
-    body = await req.json();
+    body = await readJsonBodyLimited(request, 8_192);
   } catch {
-    return fail("invalid_request", "Invalid JSON payload", 400, { requestId });
+    return fail("invalid_request", "Invalid customer input.", 400, { requestId });
   }
-
   const parsed = createCustomerSchema.safeParse(body);
-  if (!parsed.success) {
-    return fail("validation_failed", "Validation error", 400, {
-      requestId,
-      details: parsed.error.flatten(),
-    });
-  }
-
+  if (!parsed.success)
+    return fail("validation_failed", "Invalid customer input.", 400, { requestId });
   try {
-    const adminService = getControlPlaneAdminService();
-    const actor = adminCtx.user.email || adminCtx.user.id;
-    const customer = await adminService.createCustomer(parsed.data, actor);
+    const customer = await getControlPlaneAdminService().createCustomer(
+      parsed.data,
+      admin.user.id,
+      requestId,
+    );
     return ok(customer, { status: 201, requestId });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Error creating customer";
-    return fail("invalid_request", message, 400, { requestId });
+  } catch {
+    return fail("invalid_request", "Customer could not be created.", 400, { requestId });
   }
 }

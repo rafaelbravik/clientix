@@ -4,6 +4,7 @@ import { useT } from "@/lib/i18n/IdiomaProvider";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { LicensingNav } from "@/components/admin/licensing/LicensingNav";
+import { BillingSummary } from "@/components/admin/billing/BillingSummary";
 import { StatusBadge, TemporalStateBadge } from "@/components/admin/licensing/Badges";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,10 +37,11 @@ interface ActivationCodeItem {
 interface InstallationItem {
   id: string;
   public_key_fingerprint: string;
-  status: "ACTIVE" | "SUSPENDED" | "REVOKED";
+  status: "ACTIVE" | "SUSPENDED" | "REVOKED" | "DEACTIVATED" | "TRANSFERRED" | "DISABLED";
   app_version: string | null;
   environment: string | null;
   last_heartbeat_at: string | null;
+  last_validation_at?: string | null;
   heartbeat_count: number;
   created_at: string;
 }
@@ -47,12 +49,16 @@ interface InstallationItem {
 interface LicenseDetailData {
   license: {
     id: string;
+    serial: string;
     customer_id: string;
+    product: "clientix";
+    deployment: "self-hosted";
+    plan: "standard" | "pro" | "enterprise";
     license_type: string;
-    status: "ACTIVE" | "SUSPENDED" | "REVOKED";
-    temporal_state: string;
+    status: "DRAFT" | "ACTIVE" | "EXPIRED" | "SUSPENDED" | "REVOKED";
+    temporal_state: "VALID" | "GRACE" | "EXPIRED" | "NOT_YET_VALID";
     signing_key_id: string;
-    issued_at: string;
+    issued_at: string | null;
     valid_from: string;
     expires_at: string;
     maintenance_until: string | null;
@@ -75,8 +81,20 @@ interface LicenseDetailData {
   };
   installations: InstallationItem[];
   activationCodes: ActivationCodeItem[];
-  events: Array<Record<string, unknown>>;
+  events: Array<{
+    id: string;
+    event_type: string;
+    actor_type?: string;
+    actor_id?: string | null;
+    created_at: string;
+  }>;
 }
+
+const commercialPlanLabels = {
+  standard: "Essencial",
+  pro: "Profissional",
+  enterprise: "Escala",
+} as const;
 
 export default function LicenseDetailPage() {
   const t = useT();
@@ -103,10 +121,27 @@ export default function LicenseDetailPage() {
   // Revocation modal
   const [showRevokeModal, setShowRevokeModal] = useState(false);
   const [revokeConfirmText, setRevokeConfirmText] = useState("");
+  const [revokeReason, setRevokeReason] = useState("");
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [showRenewModal, setShowRenewModal] = useState(false);
+  const [renewalTerm, setRenewalTerm] = useState("12m");
+  const [renewalBasis, setRenewalBasis] = useState<"" | "previous_expiration" | "today">("");
+  const [renewalDate, setRenewalDate] = useState("");
+  const [renewalReason, setRenewalReason] = useState("");
+  const [showSuspendModal, setShowSuspendModal] = useState(false);
+  const [suspendReason, setSuspendReason] = useState("");
+  const [suspendNote, setSuspendNote] = useState("");
+  const [transferFrom, setTransferFrom] = useState("");
+  const [transferTo, setTransferTo] = useState("");
+  const [transferPublicKey, setTransferPublicKey] = useState("");
+  const [transferReason, setTransferReason] = useState("");
+  const [renewalIdempotencyKey, setRenewalIdempotencyKey] = useState<string | null>(null);
+  const renewalNeedsBasis =
+    data?.license.temporal_state === "GRACE" || data?.license.temporal_state === "EXPIRED";
 
   const loadData = async () => {
     try {
-      const res = await fetch(`/api/v1/admin/licensing/licenses/${id}`);
+      const res = await fetch(`/api/v1/admin/licenses/${id}`);
       if (res.ok) {
         const json = await res.json();
         setData(json.data);
@@ -126,14 +161,28 @@ export default function LicenseDetailPage() {
   }, [id]);
 
   const handleRenew = async () => {
-    if (!confirm(t("Deseja renovar esta licença por mais 1 ano a partir de hoje/expiração?")))
-      return;
+    if (!data) return;
+    if (!renewalTerm || (renewalNeedsBasis && !renewalBasis)) return;
     setActionLoading(true);
     try {
-      const res = await fetch(`/api/v1/admin/licensing/licenses/${id}/renew`, {
+      const idempotencyKey = renewalIdempotencyKey ?? crypto.randomUUID();
+      setRenewalIdempotencyKey(idempotencyKey);
+      const renewalPayload: Record<string, unknown> = {};
+      if (renewalTerm === "custom")
+        renewalPayload.new_expires_at = new Date(renewalDate).toISOString();
+      else if (renewalTerm.endsWith("d"))
+        renewalPayload.duration_days = Number(renewalTerm.slice(0, -1));
+      else renewalPayload.duration_months = Number(renewalTerm.slice(0, -1));
+      if (renewalNeedsBasis) renewalPayload.renewal_basis = renewalBasis;
+      renewalPayload.reason = renewalReason.trim();
+      const res = await fetch(`/api/v1/admin/licenses/${id}/renew`, {
         method: "POST",
+        headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
+        body: JSON.stringify(renewalPayload),
       });
       if (res.ok) {
+        setRenewalIdempotencyKey(null);
+        setShowRenewModal(false);
         await loadData();
       } else {
         const json = await res.json();
@@ -144,21 +193,39 @@ export default function LicenseDetailPage() {
     }
   };
 
-  const handleSuspend = async () => {
-    if (
-      !confirm(
-        t(
-          "Deseja suspender esta licença? Instalações associadas terão renovação e downloads bloqueados.",
-        ),
-      )
-    )
-      return;
+  const handleIssue = async () => {
+    if (!confirm("Emitir esta licença agora? Ela ficará disponível para ativação.")) return;
     setActionLoading(true);
     try {
-      const res = await fetch(`/api/v1/admin/licensing/licenses/${id}/suspend`, {
-        method: "POST",
-      });
+      const res = await fetch(`/api/v1/admin/licenses/${id}/issue`, { method: "POST" });
       if (res.ok) await loadData();
+      else alert("Não foi possível emitir a licença.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleSuspend = async () => {
+    if (!suspendReason.trim()) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch(`/api/v1/admin/licenses/${id}/suspend`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reason: suspendReason.trim(),
+          note: suspendNote.trim() || undefined,
+        }),
+      });
+      if (res.ok) {
+        setShowSuspendModal(false);
+        setSuspendReason("");
+        setSuspendNote("");
+        await loadData();
+      } else {
+        const json = await res.json();
+        alert(json.error?.message || "Não foi possível suspender a licença.");
+      }
     } finally {
       setActionLoading(false);
     }
@@ -167,21 +234,24 @@ export default function LicenseDetailPage() {
   const handleReactivate = async () => {
     setActionLoading(true);
     try {
-      const res = await fetch(`/api/v1/admin/licensing/licenses/${id}/reactivate`, {
+      const res = await fetch(`/api/v1/admin/licenses/${id}/reactivate`, {
         method: "POST",
       });
       if (res.ok) await loadData();
+      else alert("Não foi possível reativar a licença.");
     } finally {
       setActionLoading(false);
     }
   };
 
   const handleRevoke = async () => {
-    if (revokeConfirmText !== "REVOKE") return;
+    if (revokeConfirmText !== "REVOKE" || !revokeReason.trim()) return;
     setActionLoading(true);
     try {
-      const res = await fetch(`/api/v1/admin/licensing/licenses/${id}/revoke`, {
+      const res = await fetch(`/api/v1/admin/licenses/${id}/revoke`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: revokeReason, confirm: true }),
       });
       if (res.ok) {
         setShowRevokeModal(false);
@@ -192,11 +262,77 @@ export default function LicenseDetailPage() {
     }
   };
 
+  const handleTransfer = async () => {
+    if (
+      !data ||
+      !transferFrom ||
+      !transferTo.trim() ||
+      !transferPublicKey.trim() ||
+      !transferReason.trim()
+    )
+      return;
+    if (
+      !confirm("Transferir esta licença? A instalação atual será desativada e a nova será ativada.")
+    )
+      return;
+    setActionLoading(true);
+    try {
+      const res = await fetch(`/api/v1/admin/licenses/${id}/transfer`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          from_installation_id: transferFrom,
+          to_installation_id: transferTo.trim(),
+          to_public_key: transferPublicKey.trim(),
+          reason: transferReason.trim(),
+          clientix_version: "unknown",
+          confirm: true,
+        }),
+      });
+      if (res.ok) {
+        setShowTransferModal(false);
+        setTransferTo("");
+        setTransferPublicKey("");
+        setTransferReason("");
+        await loadData();
+      } else {
+        alert("Não foi possível transferir a instalação.");
+      }
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDownloadLicense = async (installationId: string) => {
+    setActionLoading(true);
+    try {
+      const response = await fetch(
+        `/api/v1/admin/licenses/${id}/installations/${encodeURIComponent(installationId)}/license`,
+        { method: "POST" },
+      );
+      if (!response.ok) {
+        const json = await response.json();
+        alert(json.error?.message || "Não foi possível gerar o arquivo de licença.");
+        return;
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "license.json";
+      anchor.click();
+      URL.revokeObjectURL(url);
+      await loadData();
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleCreateCode = async (e: React.FormEvent) => {
     e.preventDefault();
     setActionLoading(true);
     try {
-      const res = await fetch(`/api/v1/admin/licensing/licenses/${id}/activation-codes`, {
+      const res = await fetch(`/api/v1/admin/licenses/${id}/activation-codes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -251,7 +387,7 @@ export default function LicenseDetailPage() {
     return (
       <div className="space-y-4">
         <Button asChild variant="outline" size="sm">
-          <Link href="/admin/licensing/licenses">
+          <Link href="/admin/licenses">
             <ArrowLeft className="mr-1.5 h-4 w-4" /> Voltar
           </Link>
         </Button>
@@ -262,7 +398,7 @@ export default function LicenseDetailPage() {
     );
   }
 
-  const { license, customer, installations, activationCodes, events: _events } = data;
+  const { license, customer, installations, activationCodes, events } = data;
 
   return (
     <div className="space-y-6">
@@ -270,7 +406,7 @@ export default function LicenseDetailPage() {
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div className="flex items-center gap-3">
           <Button asChild variant="outline" size="icon">
-            <Link href="/admin/licensing/licenses">
+            <Link href="/admin/licenses">
               <ArrowLeft className="h-4 w-4" />
             </Link>
           </Button>
@@ -280,55 +416,87 @@ export default function LicenseDetailPage() {
               <StatusBadge status={license.status} />
               <TemporalStateBadge state={license.temporal_state} />
             </div>
-            <p className="mt-0.5 font-mono text-xs text-muted-foreground">ID: {license.id}</p>
+            <p className="mt-0.5 font-mono text-xs text-muted-foreground">
+              {license.serial} · {license.id}
+            </p>
           </div>
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-2">
-          {license.status !== "REVOKED" && (
+        <div className="flex flex-wrap items-center gap-2">
+          {license.status === "DRAFT" ? (
+            <Button size="sm" onClick={handleIssue} disabled={actionLoading}>
+              Emitir licença
+            </Button>
+          ) : (
             <>
-              <Button variant="outline" size="sm" onClick={handleRenew} disabled={actionLoading}>
-                <ArrowsClockwise className="mr-1.5 h-3.5 w-3.5" /> Renovar
-              </Button>
-
-              {license.status === "ACTIVE" ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleSuspend}
-                  disabled={actionLoading}
-                >
-                  <Pause className="mr-1.5 h-3.5 w-3.5" /> Suspender
-                </Button>
-              ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleReactivate}
-                  disabled={actionLoading}
-                >
-                  <Play className="mr-1.5 h-3.5 w-3.5" /> Reativar
-                </Button>
+              {license.status !== "REVOKED" && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setRenewalBasis("");
+                      setRenewalReason("");
+                      setRenewalIdempotencyKey(null);
+                      setShowRenewModal(true);
+                    }}
+                    disabled={actionLoading}
+                  >
+                    <ArrowsClockwise className="mr-1.5 h-3.5 w-3.5" /> Renovar
+                  </Button>
+                  {(license.status === "ACTIVE" || license.status === "EXPIRED") && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowSuspendModal(true)}
+                      disabled={actionLoading}
+                    >
+                      <Pause className="mr-1.5 h-3.5 w-3.5" /> Suspender
+                    </Button>
+                  )}
+                  {license.status === "SUSPENDED" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleReactivate}
+                      disabled={actionLoading}
+                    >
+                      <Play className="mr-1.5 h-3.5 w-3.5" /> Reativar
+                    </Button>
+                  )}
+                  {license.status === "ACTIVE" &&
+                    installations.some((installation) => installation.status === "ACTIVE") && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowTransferModal(true)}
+                        disabled={actionLoading}
+                      >
+                        Transferir
+                      </Button>
+                    )}
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => {
+                      setRevokeConfirmText("");
+                      setRevokeReason("");
+                      setShowRevokeModal(true);
+                    }}
+                    disabled={actionLoading}
+                  >
+                    Revogar
+                  </Button>
+                </>
               )}
-
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => {
-                  setRevokeConfirmText("");
-                  setShowRevokeModal(true);
-                }}
-                disabled={actionLoading}
-              >
-                Revogar
-              </Button>
             </>
           )}
         </div>
       </div>
 
       <LicensingNav />
+      <BillingSummary kind="licenses" id={id} />
 
       {/* Grid: Details & Metrics */}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
@@ -338,6 +506,14 @@ export default function LicenseDetailPage() {
             {t("Contrato & Vigência")}
           </h2>
           <div className="space-y-1.5 text-sm">
+            <div className="flex justify-between border-b border-border/50 py-1">
+              <span className="text-muted-foreground">Serial:</span>
+              <span className="font-mono">{license.serial}</span>
+            </div>
+            <div className="flex justify-between border-b border-border/50 py-1">
+              <span className="text-muted-foreground">Plano comercial:</span>
+              <span>{commercialPlanLabels[license.plan]}</span>
+            </div>
             <div className="flex justify-between border-b border-border/50 py-1">
               <span className="text-muted-foreground">{t("Tipo de Licença:")}</span>
               <span className="font-medium capitalize">{license.license_type}</span>
@@ -360,7 +536,9 @@ export default function LicenseDetailPage() {
             </div>
             <div className="flex justify-between py-1">
               <span className="text-muted-foreground">Emitida em:</span>
-              <span>{new Date(license.issued_at).toLocaleString(tag)}</span>
+              <span>
+                {license.issued_at ? new Date(license.issued_at).toLocaleString(tag) : "Rascunho"}
+              </span>
             </div>
           </div>
         </div>
@@ -450,7 +628,7 @@ export default function LicenseDetailPage() {
               )}
             </p>
           </div>
-          {license.status !== "REVOKED" && (
+          {license.status === "ACTIVE" && (
             <Button
               size="sm"
               onClick={() => {
@@ -544,14 +722,18 @@ export default function LicenseDetailPage() {
                   <th className="px-3 py-2">Fingerprint Ed25519</th>
                   <th className="px-3 py-2">Status</th>
                   <th className="px-3 py-2">{t("Versão")}</th>
-                  <th className="px-3 py-2">{t("Último Heartbeat")}</th>
+                  <th className="px-3 py-2">{t("Última validação")}</th>
                   <th className="px-3 py-2 text-right">{t("Ação")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {installations.map((inst) => (
                   <tr key={inst.id} className="hover:bg-muted/10">
-                    <td className="px-3 py-2.5 font-mono text-xs">{inst.id}</td>
+                    <td className="px-3 py-2.5 font-mono text-xs" title={inst.id}>
+                      {inst.id.length > 18
+                        ? `${inst.id.slice(0, 12)}…${inst.id.slice(-4)}`
+                        : inst.id}
+                    </td>
                     <td className="px-3 py-2.5 font-mono text-xs text-muted-foreground">
                       {inst.public_key_fingerprint.slice(0, 16)}...
                     </td>
@@ -560,16 +742,29 @@ export default function LicenseDetailPage() {
                     </td>
                     <td className="px-3 py-2.5 text-xs">{inst.app_version || "—"}</td>
                     <td className="px-3 py-2.5 text-xs text-muted-foreground">
-                      {inst.last_heartbeat_at
-                        ? new Date(inst.last_heartbeat_at).toLocaleString(tag)
+                      {inst.last_validation_at
+                        ? new Date(inst.last_validation_at).toLocaleString(tag)
                         : t("Nunca")}
                     </td>
                     <td className="px-3 py-2.5 text-right">
-                      <Button asChild variant="outline" size="sm" className="h-7 text-xs">
-                        <Link href={`/admin/licensing/installations/${inst.id}`}>
-                          {t("Detalhes")}
-                        </Link>
-                      </Button>
+                      <div className="flex justify-end gap-2">
+                        {inst.status === "ACTIVE" && license.status === "ACTIVE" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs"
+                            disabled={actionLoading}
+                            onClick={() => void handleDownloadLicense(inst.id)}
+                          >
+                            license.json
+                          </Button>
+                        )}
+                        <Button asChild variant="outline" size="sm" className="h-7 text-xs">
+                          <Link href={`/admin/licensing/installations/${inst.id}`}>
+                            {t("Detalhes")}
+                          </Link>
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -578,6 +773,34 @@ export default function LicenseDetailPage() {
           </div>
         )}
       </div>
+
+      <section className="space-y-4 rounded-lg border bg-card p-6">
+        <div>
+          <h2 className="text-base font-semibold">Histórico de eventos</h2>
+          <p className="text-xs text-muted-foreground">
+            Eventos administrativos e validações registradas para esta licença.
+          </p>
+        </div>
+        {events.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhum evento registrado.</p>
+        ) : (
+          <ol className="space-y-3">
+            {events.map((event) => (
+              <li
+                key={event.id}
+                className="flex flex-col gap-1 border-l-2 border-primary/30 pl-3 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <span className="font-mono text-xs">{event.event_type}</span>
+                <span className="text-xs text-muted-foreground">
+                  {event.actor_type || "SYSTEM"}
+                  {event.actor_id ? ` · ${event.actor_id.slice(0, 8)}` : ""} ·{" "}
+                  {new Date(event.created_at).toLocaleString(tag)}
+                </span>
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
 
       {/* Code Generation Modal */}
       {showCodeModal && (
@@ -678,7 +901,258 @@ export default function LicenseDetailPage() {
         </div>
       )}
 
+      {showRenewModal && data && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="renew-license-title"
+            className="max-h-[90vh] w-full max-w-lg space-y-4 overflow-y-auto rounded-lg border bg-card p-6 shadow-xl"
+          >
+            <div>
+              <h3 id="renew-license-title" className="text-lg font-bold">
+                Renovar licença
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                Renovação sem cobrança. A nova licença será assinada novamente. Informe o motivo
+                para auditoria.
+              </p>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">Prazo</label>
+              <select
+                value={renewalTerm}
+                onChange={(event) => {
+                  setRenewalTerm(event.target.value);
+                  setRenewalIdempotencyKey(null);
+                }}
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="30d">+30 dias</option>
+                <option value="90d">+90 dias</option>
+                <option value="6m">+6 meses</option>
+                <option value="12m">+12 meses</option>
+                <option value="24m">+24 meses</option>
+                <option value="custom">Data específica</option>
+              </select>
+            </div>
+            {renewalTerm === "custom" && (
+              <div>
+                <label className="mb-1 block text-sm font-medium">Nova validade</label>
+                <Input
+                  type="date"
+                  value={renewalDate}
+                  onChange={(event) => {
+                    setRenewalDate(event.target.value);
+                    setRenewalIdempotencyKey(null);
+                  }}
+                />
+              </div>
+            )}
+            {renewalNeedsBasis && (
+              <fieldset className="space-y-2 rounded-md border p-3">
+                <legend className="px-1 text-sm font-medium">
+                  Licença vencida: escolha a base do novo prazo
+                </legend>
+                <label className="flex items-start gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name="renewal-basis"
+                    value="previous_expiration"
+                    checked={renewalBasis === "previous_expiration"}
+                    onChange={() => {
+                      setRenewalBasis("previous_expiration");
+                      setRenewalIdempotencyKey(null);
+                    }}
+                  />
+                  <span>
+                    A partir do vencimento anterior (
+                    {new Date(data.license.expires_at).toLocaleDateString(tag)})
+                  </span>
+                </label>
+                <label className="flex items-start gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name="renewal-basis"
+                    value="today"
+                    checked={renewalBasis === "today"}
+                    onChange={() => {
+                      setRenewalBasis("today");
+                      setRenewalIdempotencyKey(null);
+                    }}
+                  />
+                  <span>A partir de hoje</span>
+                </label>
+              </fieldset>
+            )}
+            <div>
+              <label className="mb-1 block text-sm font-medium" htmlFor="renewal-reason">
+                Motivo obrigatório
+              </label>
+              <textarea
+                id="renewal-reason"
+                value={renewalReason}
+                maxLength={500}
+                onChange={(event) => {
+                  setRenewalReason(event.target.value);
+                  setRenewalIdempotencyKey(null);
+                }}
+                rows={3}
+                className="w-full rounded-md border border-input bg-background p-3 text-sm"
+                placeholder="Registre a justificativa comercial"
+              />
+            </div>
+            <div className="flex justify-end gap-2 border-t pt-3">
+              <Button variant="outline" onClick={() => setShowRenewModal(false)}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={() => void handleRenew()}
+                disabled={
+                  actionLoading ||
+                  !renewalReason.trim() ||
+                  (renewalTerm === "custom" && !renewalDate) ||
+                  (renewalNeedsBasis && !renewalBasis)
+                }
+              >
+                {actionLoading ? "Renovando…" : "Confirmar renovação"}
+              </Button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {showSuspendModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="suspend-license-title"
+            className="max-h-[90vh] w-full max-w-md space-y-4 overflow-y-auto rounded-lg border bg-card p-6 shadow-xl"
+          >
+            <h3 id="suspend-license-title" className="text-lg font-bold">
+              Suspender licença
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              A suspensão é reversível e encerra as sessões ativas registradas.
+            </p>
+            <label className="block text-sm font-medium">
+              Motivo obrigatório
+              <Input
+                className="mt-1"
+                value={suspendReason}
+                onChange={(event) => setSuspendReason(event.target.value)}
+                maxLength={500}
+              />
+            </label>
+            <label className="block text-sm font-medium">
+              Observação interna opcional
+              <textarea
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                rows={3}
+                maxLength={1000}
+                value={suspendNote}
+                onChange={(event) => setSuspendNote(event.target.value)}
+              />
+            </label>
+            <div className="flex justify-end gap-2 border-t pt-3">
+              <Button variant="outline" onClick={() => setShowSuspendModal(false)}>
+                Cancelar
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={actionLoading || !suspendReason.trim()}
+                onClick={() => void handleSuspend()}
+              >
+                {actionLoading ? "Suspending…" : "Suspender licença"}
+              </Button>
+            </div>
+          </section>
+        </div>
+      )}
+
       {/* Revocation Modal */}
+      {showTransferModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-xl space-y-4 rounded-lg border bg-card p-6 shadow-xl">
+            <h3 className="text-lg font-bold">Transferir instalação</h3>
+            <p className="text-sm text-muted-foreground">
+              A instalação atual será marcada como transferida e a instalação de destino será
+              ativada na mesma transação. Informe o ID e a chave pública que o novo runtime gerou
+              localmente.
+            </p>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                Instalação atual
+              </label>
+              <select
+                value={transferFrom}
+                onChange={(event) => setTransferFrom(event.target.value)}
+                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="">Selecione</option>
+                {installations
+                  .filter((installation) => installation.status === "ACTIVE")
+                  .map((installation) => (
+                    <option key={installation.id} value={installation.id}>
+                      {installation.id}
+                    </option>
+                  ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                ID da nova instalação
+              </label>
+              <Input
+                value={transferTo}
+                onChange={(event) => setTransferTo(event.target.value)}
+                placeholder="inst_<UUIDv4>"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                Chave pública Ed25519 da nova instalação
+              </label>
+              <textarea
+                value={transferPublicKey}
+                onChange={(event) => setTransferPublicKey(event.target.value)}
+                rows={4}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-xs"
+                autoComplete="off"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                Motivo da transferência
+              </label>
+              <Input
+                value={transferReason}
+                onChange={(event) => setTransferReason(event.target.value)}
+                maxLength={500}
+              />
+            </div>
+            <div className="flex justify-end gap-2 border-t pt-2">
+              <Button variant="outline" onClick={() => setShowTransferModal(false)}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleTransfer}
+                disabled={
+                  actionLoading ||
+                  !transferFrom ||
+                  !transferTo.trim() ||
+                  !transferPublicKey.trim() ||
+                  !transferReason.trim()
+                }
+              >
+                Transferir com confirmação
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showRevokeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="w-full max-w-md space-y-4 rounded-lg border bg-card p-6 shadow-xl">
@@ -691,6 +1165,16 @@ export default function LicenseDetailPage() {
                 ". Todas as instalações perderão autorização de renewal e download de atualizações.",
               )}
             </p>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                Motivo da revogação
+              </label>
+              <Input
+                value={revokeReason}
+                onChange={(e) => setRevokeReason(e.target.value)}
+                maxLength={500}
+              />
+            </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-muted-foreground">
                 Digite <strong>REVOKE</strong> {t("para confirmar:")}
@@ -707,7 +1191,7 @@ export default function LicenseDetailPage() {
               </Button>
               <Button
                 variant="destructive"
-                disabled={revokeConfirmText !== "REVOKE" || actionLoading}
+                disabled={revokeConfirmText !== "REVOKE" || !revokeReason.trim() || actionLoading}
                 onClick={handleRevoke}
               >
                 {actionLoading && <CircleNotch className="mr-1.5 h-4 w-4 animate-spin" />}

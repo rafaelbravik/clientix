@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "generated_at": "2026-11-03T13:37:28Z",
-  "schema_target": "9062",
+  "generated_at": "2026-11-04T19:08:24.200Z",
+  "schema_target": "9063",
   "baseline": {
     "file": "baseline.sql",
-    "checksum": "2f6e0f8566287832e088c80d15f389f17ba34e864fec0a24250399167db2203b",
-    "size_bytes": 2567495,
-    "incorporated_through_sequence": 9062
+    "checksum": "d9f18414a1b63fd4e3a45dfffcbeed9380883e52e4b9761dc3c917058d30907a",
+    "size_bytes": 2572417,
+    "incorporated_through_sequence": 9063
   },
   "migrations": [
     {
@@ -3473,7 +3473,16 @@
       "checksum": "0d4d2d2490090601ce5fe9231b29194cb20a0ef7778ecaaea47d8e5ccf1b479a",
       "transactional": true,
       "size_bytes": 37885
+    },
+    {
+      "file": "20261104190000_9063_atomic_team_invite_seat_consumption.sql",
+      "version": "20261104190000",
+      "sequence": 9063,
+      "slug": "atomic_team_invite_seat_consumption",
+      "checksum": "1d0684d9141339069354a02ef6a393400f08b503934e6c6af91ecd951f452387",
+      "transactional": true,
+      "size_bytes": 4843
     }
   ],
-  "updated_at": "2026-11-03T15:45:14.063Z"
+  "updated_at": "2026-11-04T19:08:24.200Z"
 }

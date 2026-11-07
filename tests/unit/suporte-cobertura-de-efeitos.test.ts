@@ -45,6 +45,15 @@ it("todo handler mutante do app declara guarda de suporte ou é infraestrutura i
  const uncovered:string[]=[];
  for(const path of files("app/api/v1").filter(p=>p.endsWith("/route.ts"))){
   if(/app\/api\/v1\/(cron|webhooks)\//.test(path)||path==="app/api/v1/system/agent/route.ts")continue; // segredo de máquina, sem actor/session cookie
+    // APIs Customer de licenciamento usam assinatura/challenge da installation key; webhook de cobrança Vendor usa HMAC do body cru. Não existe sessão de suporte nessas superfícies e exigir cookie quebraria o contrato de máquina.
+    if(new Set([
+      "app/api/v1/billing/webhooks/[provider]/route.ts",
+      "app/api/v1/licensing/activate/route.ts",
+      "app/api/v1/licensing/challenge/route.ts",
+      "app/api/v1/licensing/recover-installation/route.ts",
+      "app/api/v1/licensing/validate/route.ts",
+      "app/api/v1/licensing/validate-attestation/route.ts",
+    ]).has(path))continue;
   if(path.startsWith("app/api/v1/widget/"))continue; // visitante anônimo de widget web (token de chat de visitante, sem sessão de tenant)
   // Provisionamento por sistema externo: Bearer do segredo da INSTALAÇÃO
   // (TENANT_PROVISIONING_SECRET), sem cookie nem ator — a mesma natureza das

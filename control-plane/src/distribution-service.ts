@@ -33,7 +33,7 @@ export class DistributionService {
     const isTestOnly = (this.ctx.grantStore as { isTestOnly?: boolean }).isTestOnly === true;
     if (isProd && isTestOnly) {
       throw new Error(
-        "CRITICAL: MemoryGrantStore cannot be used in production. A shared RedisGrantStore must be configured."
+        "CRITICAL: MemoryGrantStore cannot be used in production. A shared RedisGrantStore must be configured.",
       );
     }
   }
@@ -56,7 +56,7 @@ export class DistributionService {
         params.installationId ?? null,
         params.eventType,
         JSON.stringify(params.payload ?? {}),
-      ]
+      ],
     );
   }
 
@@ -64,7 +64,7 @@ export class DistributionService {
   // 1. ISSUE DISTRIBUTION TOKEN (POST /api/v1/licensing/distribution-token)
   // =========================================================================
   async issueDistributionToken(
-    params: DistributionTokenRequest
+    params: DistributionTokenRequest,
   ): Promise<DistributionServiceResult<DistributionTokenResponseData>> {
     const serverDate = this.now();
     const serverUnixSeconds = Math.floor(serverDate.getTime() / 1000);
@@ -77,7 +77,10 @@ export class DistributionService {
         return {
           ok: false,
           status: 429,
-          error: { code: "RATE_LIMITED", message: "Too many distribution token requests. Rate limit exceeded." },
+          error: {
+            code: "RATE_LIMITED",
+            message: "Too many distribution token requests. Rate limit exceeded.",
+          },
         };
       }
     }
@@ -90,7 +93,7 @@ export class DistributionService {
       status: "ACTIVE" | "SUSPENDED" | "REVOKED" | "DEACTIVATED";
     }>(
       `select id, license_id, public_key, status from control_plane.licensing_installations where id = $1;`,
-      [params.installation_id]
+      [params.installation_id],
     );
 
     if (instRes.rows.length === 0) {
@@ -115,7 +118,8 @@ export class DistributionService {
       bodyObject.client_schema_version = params.client_schema_version;
     }
 
-    const serializedBody = params.rawBody !== undefined ? params.rawBody : JSON.stringify(bodyObject);
+    const serializedBody =
+      params.rawBody !== undefined ? params.rawBody : JSON.stringify(bodyObject);
 
     const authCheck = await verifyInstallationRequestSignature({
       installationId: params.installation_id,
@@ -132,15 +136,26 @@ export class DistributionService {
 
     if (!authCheck.ok) {
       if (authCheck.code === "REPLAY_DETECTED") {
-        return { ok: false, status: 409, error: { code: "REPLAY_DETECTED", message: "Replay attack detected." } };
+        return {
+          ok: false,
+          status: 409,
+          error: { code: "REPLAY_DETECTED", message: "Replay attack detected." },
+        };
       }
       if (authCheck.code === "INVALID_TIMESTAMP") {
-        return { ok: false, status: 401, error: { code: "CLOCK_SKEW_EXCEEDED", message: "Clock skew exceeded." } };
+        return {
+          ok: false,
+          status: 401,
+          error: { code: "CLOCK_SKEW_EXCEEDED", message: "Clock skew exceeded." },
+        };
       }
       return {
         ok: false,
         status: 401,
-        error: { code: "INVALID_INSTALLATION_SIGNATURE", message: "Invalid cryptographic signature." },
+        error: {
+          code: "INVALID_INSTALLATION_SIGNATURE",
+          message: "Invalid cryptographic signature.",
+        },
       };
     }
 
@@ -181,7 +196,7 @@ export class DistributionService {
       grace_days: number;
     }>(
       `select id, status, valid_from, expires_at, maintenance_until, grace_days from control_plane.licensing_licenses where id = $1;`,
-      [inst.license_id]
+      [inst.license_id],
     );
 
     if (licRes.rows.length === 0) {
@@ -250,7 +265,10 @@ export class DistributionService {
       return {
         ok: false,
         status: 403,
-        error: { code: "DISTRIBUTION_NOT_ALLOWED", message: `License is ${temporalState}. Distribution denied.` },
+        error: {
+          code: "DISTRIBUTION_NOT_ALLOWED",
+          message: `License is ${temporalState}. Distribution denied.`,
+        },
       };
     }
 
@@ -268,7 +286,10 @@ export class DistributionService {
       return {
         ok: false,
         status: 403,
-        error: { code: "RELEASE_RETRACTED", message: `Release "${params.release_id}" has been retracted.` },
+        error: {
+          code: "RELEASE_RETRACTED",
+          message: `Release "${params.release_id}" has been retracted.`,
+        },
       };
     }
 
@@ -297,7 +318,10 @@ export class DistributionService {
         return {
           ok: false,
           status: 403,
-          error: { code: "MAINTENANCE_NOT_ENTITLED", message: "License does not include maintenance entitlement." },
+          error: {
+            code: "MAINTENANCE_NOT_ENTITLED",
+            message: "License does not include maintenance entitlement.",
+          },
         };
       }
       const requiredMs = new Date(release.requiredMaintenanceDate).getTime();
@@ -306,7 +330,10 @@ export class DistributionService {
         return {
           ok: false,
           status: 403,
-          error: { code: "MAINTENANCE_NOT_ENTITLED", message: "Release requires active maintenance entitlement." },
+          error: {
+            code: "MAINTENANCE_NOT_ENTITLED",
+            message: "Release requires active maintenance entitlement.",
+          },
         };
       }
     }
@@ -342,14 +369,17 @@ export class DistributionService {
 
     // 12. Architecture Filter
     const authorizedArtifacts = release.artifacts.filter(
-      (a) => a.architecture === params.architecture
+      (a) => a.architecture === params.architecture,
     );
 
     if (authorizedArtifacts.length === 0) {
       return {
         ok: false,
         status: 404,
-        error: { code: "ARTIFACT_NOT_FOUND", message: `No artifacts found for architecture "${params.architecture}".` },
+        error: {
+          code: "ARTIFACT_NOT_FOUND",
+          message: `No artifacts found for architecture "${params.architecture}".`,
+        },
       };
     }
 
@@ -431,7 +461,7 @@ export class DistributionService {
   // =========================================================================
   async getReleaseManifest(
     releaseId: string,
-    token: string
+    token: string,
   ): Promise<DistributionServiceResult<SignedReleaseManifest>> {
     const tokenHash = crypto.createHash("sha256").update(token, "utf-8").digest("hex");
     let grant: DistributionGrant | null;
@@ -449,21 +479,37 @@ export class DistributionService {
     }
 
     if (!grant) {
-      return { ok: false, status: 401, error: { code: "TOKEN_INVALID", message: "Invalid distribution token." } };
+      return {
+        ok: false,
+        status: 401,
+        error: { code: "TOKEN_INVALID", message: "Invalid distribution token." },
+      };
     }
 
     const serverNow = Math.floor(this.now().getTime() / 1000);
     if (serverNow >= grant.claims.expiresAt) {
-      return { ok: false, status: 401, error: { code: "TOKEN_EXPIRED", message: "Distribution token has expired." } };
+      return {
+        ok: false,
+        status: 401,
+        error: { code: "TOKEN_EXPIRED", message: "Distribution token has expired." },
+      };
     }
 
     if (grant.claims.releaseId !== releaseId) {
-      return { ok: false, status: 403, error: { code: "TOKEN_SCOPE_MISMATCH", message: "Token not scoped for this release." } };
+      return {
+        ok: false,
+        status: 403,
+        error: { code: "TOKEN_SCOPE_MISMATCH", message: "Token not scoped for this release." },
+      };
     }
 
     const manifest = await this.ctx.provider.getManifest(releaseId);
     if (!manifest) {
-      return { ok: false, status: 404, error: { code: "RELEASE_NOT_FOUND", message: "Release manifest not found." } };
+      return {
+        ok: false,
+        status: 404,
+        error: { code: "RELEASE_NOT_FOUND", message: "Release manifest not found." },
+      };
     }
 
     return { ok: true, status: 200, data: manifest };
@@ -474,7 +520,7 @@ export class DistributionService {
   // =========================================================================
   async downloadArtifact(
     artifactId: string,
-    token: string
+    token: string,
   ): Promise<DistributionServiceResult<{ metadata: ArtifactMetadata; stream: Buffer }>> {
     // 1. Path Traversal & Identifier Sanity
     if (
@@ -487,7 +533,10 @@ export class DistributionService {
       return {
         ok: false,
         status: 400,
-        error: { code: "PATH_TRAVERSAL_DETECTED", message: "Invalid characters in artifact identifier." },
+        error: {
+          code: "PATH_TRAVERSAL_DETECTED",
+          message: "Invalid characters in artifact identifier.",
+        },
       };
     }
 
@@ -508,18 +557,26 @@ export class DistributionService {
     }
 
     if (!grant) {
-      return { ok: false, status: 401, error: { code: "TOKEN_INVALID", message: "Invalid distribution token." } };
+      return {
+        ok: false,
+        status: 401,
+        error: { code: "TOKEN_INVALID", message: "Invalid distribution token." },
+      };
     }
 
     const serverNow = Math.floor(this.now().getTime() / 1000);
     if (serverNow >= grant.claims.expiresAt) {
-      return { ok: false, status: 401, error: { code: "TOKEN_EXPIRED", message: "Distribution token has expired." } };
+      return {
+        ok: false,
+        status: 401,
+        error: { code: "TOKEN_EXPIRED", message: "Distribution token has expired." },
+      };
     }
 
     // 3. Re-validate Installation & License Administrative Status (Revocation after issuance check)
     const instRes = await this.ctx.db.query<{ status: string }>(
       `select status from control_plane.licensing_installations where id = $1;`,
-      [grant.claims.installationId]
+      [grant.claims.installationId],
     );
     if (instRes.rows.length === 0 || instRes.rows[0]!.status !== "ACTIVE") {
       await this.recordEvent({
@@ -530,13 +587,16 @@ export class DistributionService {
       return {
         ok: false,
         status: 403,
-        error: { code: "DISTRIBUTION_NOT_ALLOWED", message: "Installation was deactivated or revoked." },
+        error: {
+          code: "DISTRIBUTION_NOT_ALLOWED",
+          message: "Installation was deactivated or revoked.",
+        },
       };
     }
 
     const licRes = await this.ctx.db.query<{ status: string }>(
       `select status from control_plane.licensing_licenses where id = $1;`,
-      [grant.claims.licenseId]
+      [grant.claims.licenseId],
     );
     if (licRes.rows.length === 0 || licRes.rows[0]!.status !== "ACTIVE") {
       await this.recordEvent({
@@ -548,7 +608,10 @@ export class DistributionService {
       return {
         ok: false,
         status: 403,
-        error: { code: "DISTRIBUTION_NOT_ALLOWED", message: "Associated license was suspended or revoked." },
+        error: {
+          code: "DISTRIBUTION_NOT_ALLOWED",
+          message: "Associated license was suspended or revoked.",
+        },
       };
     }
 
@@ -560,7 +623,10 @@ export class DistributionService {
         return {
           ok: false,
           status: 429,
-          error: { code: "RATE_LIMITED", message: "Too many artifact download requests. Rate limit exceeded." },
+          error: {
+            code: "RATE_LIMITED",
+            message: "Too many artifact download requests. Rate limit exceeded.",
+          },
         };
       }
     }
@@ -570,26 +636,40 @@ export class DistributionService {
       return {
         ok: false,
         status: 403,
-        error: { code: "TOKEN_SCOPE_MISMATCH", message: "Artifact is not in the authorized scope of this token." },
+        error: {
+          code: "TOKEN_SCOPE_MISMATCH",
+          message: "Artifact is not in the authorized scope of this token.",
+        },
       };
     }
 
     // 6. Check Release Status (Release retraction after issuance check)
     const release = await this.ctx.provider.getRelease(grant.claims.releaseId);
     if (!release) {
-      return { ok: false, status: 404, error: { code: "RELEASE_NOT_FOUND", message: "Release not found." } };
+      return {
+        ok: false,
+        status: 404,
+        error: { code: "RELEASE_NOT_FOUND", message: "Release not found." },
+      };
     }
     if (release.status === "RETRACTED") {
       await this.recordEvent({
         licenseId: grant.claims.licenseId,
         installationId: grant.claims.installationId,
         eventType: "ARTIFACT_DOWNLOAD_FAILED",
-        payload: { release_id: release.releaseId, artifact_id: artifactId, reason: "RELEASE_RETRACTED" },
+        payload: {
+          release_id: release.releaseId,
+          artifact_id: artifactId,
+          reason: "RELEASE_RETRACTED",
+        },
       });
       return {
         ok: false,
         status: 403,
-        error: { code: "RELEASE_RETRACTED", message: `Release "${release.releaseId}" has been retracted.` },
+        error: {
+          code: "RELEASE_RETRACTED",
+          message: `Release "${release.releaseId}" has been retracted.`,
+        },
       };
     }
 
@@ -632,7 +712,11 @@ export class DistributionService {
     // 8. Get Metadata & Stream from Provider
     const metadata = await this.ctx.provider.getArtifactMetadata(artifactId);
     if (!metadata) {
-      return { ok: false, status: 404, error: { code: "ARTIFACT_NOT_FOUND", message: "Artifact metadata not found." } };
+      return {
+        ok: false,
+        status: 404,
+        error: { code: "ARTIFACT_NOT_FOUND", message: "Artifact metadata not found." },
+      };
     }
 
     // Double check architecture
@@ -640,7 +724,10 @@ export class DistributionService {
       return {
         ok: false,
         status: 403,
-        error: { code: "TOKEN_SCOPE_MISMATCH", message: "Artifact architecture does not match token grant." },
+        error: {
+          code: "TOKEN_SCOPE_MISMATCH",
+          message: "Artifact architecture does not match token grant.",
+        },
       };
     }
 
@@ -659,7 +746,11 @@ export class DistributionService {
         eventType: "ARTIFACT_DOWNLOAD_FAILED",
         payload: { artifact_id: artifactId, reason: "STREAM_NOT_FOUND" },
       });
-      return { ok: false, status: 404, error: { code: "ARTIFACT_NOT_FOUND", message: "Artifact binary not found." } };
+      return {
+        ok: false,
+        status: 404,
+        error: { code: "ARTIFACT_NOT_FOUND", message: "Artifact binary not found." },
+      };
     }
 
     // 8. Digest Verification on Gateway Stream
@@ -674,7 +765,10 @@ export class DistributionService {
       return {
         ok: false,
         status: 500,
-        error: { code: "ARTIFACT_DIGEST_MISMATCH", message: "Artifact payload corrupted. Digest mismatch." },
+        error: {
+          code: "ARTIFACT_DIGEST_MISMATCH",
+          message: "Artifact payload corrupted. Digest mismatch.",
+        },
       };
     }
 

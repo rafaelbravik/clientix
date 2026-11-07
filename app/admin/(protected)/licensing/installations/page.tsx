@@ -1,161 +1,262 @@
 "use client";
-import React, { useState, useEffect } from "react";
-import { useT } from "@/lib/i18n/IdiomaProvider";
+
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { LicensingNav } from "@/components/admin/licensing/LicensingNav";
 import { StatusBadge } from "@/components/admin/licensing/Badges";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MagnifyingGlass, CircleNotch } from "@/lib/ui/icons";
 import { useTagDeIdioma } from "@/hooks/i18n/useLocaleDeData";
+import { CircleNotch, MagnifyingGlass } from "@/lib/ui/icons";
 
 interface InstallationItem {
   id: string;
   license_id: string;
+  serial: string;
   customer_name: string;
   license_type: string;
   license_status: string;
-  public_key_fingerprint: string;
-  status: "ACTIVE" | "SUSPENDED" | "REVOKED" | "DEACTIVATED";
-  environment: string;
-  app_version: string | null;
+  status: string;
+  last_validation_at: string | null;
   last_heartbeat_at: string | null;
-  created_at: string;
+  active_session_id: string | null;
+  clientix_version: string | null;
+  clone_status: "NORMAL" | "SUSPECTED_CLONE" | "CLONE_CONFIRMED" | "TRANSFER_PENDING";
+}
+
+function maskedId(id: string) {
+  return id.length > 18 ? `${id.slice(0, 12)}…${id.slice(-4)}` : id;
 }
 
 export default function AdminInstallationsPage() {
-  const t = useT();
   const tag = useTagDeIdioma();
   const [installations, setInstallations] = useState<InstallationItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [searchDraft, setSearchDraft] = useState("");
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [status, setStatus] = useState("ALL");
+  const [cloneStatus, setCloneStatus] = useState("ALL");
+  const [sort, setSort] = useState("created_at");
+  const [direction, setDirection] = useState<"asc" | "desc">("desc");
+  const limit = 25;
 
-  const fetchInstallations = async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (search) params.set("search", search);
-      if (statusFilter !== "ALL") params.set("status", statusFilter);
-
-      const res = await fetch(`/api/v1/admin/licensing/installations?${params.toString()}`);
-      if (res.ok) {
-        const json = await res.json();
-        setInstallations(json.data || []);
+  const fetchInstallations = useCallback(
+    async (nextOffset = 0) => {
+      setLoading(true);
+      setError("");
+      try {
+        const params = new URLSearchParams({
+          limit: String(limit),
+          offset: String(nextOffset),
+          sort,
+          direction,
+        });
+        if (search) params.set("search", search);
+        if (status !== "ALL") params.set("status", status);
+        if (cloneStatus !== "ALL") params.set("clone_status", cloneStatus);
+        const response = await fetch(`/api/v1/admin/licensing/installations?${params}`);
+        if (!response.ok) throw new Error("Não foi possível carregar instalações.");
+        const result = await response.json();
+        setInstallations(result.data ?? []);
+        setTotal(result.meta?.total ?? 0);
+        setOffset(nextOffset);
+      } catch (caught) {
+        setError(
+          caught instanceof Error ? caught.message : "Não foi possível carregar instalações.",
+        );
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+    [search, status, cloneStatus, sort, direction],
+  );
 
   useEffect(() => {
-    fetchInstallations();
-  }, [statusFilter]);
-
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    fetchInstallations();
-  };
+    void fetchInstallations(0);
+  }, [fetchInstallations]);
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">{t("Instalações Vinculadas")}</h1>
-          <p className="text-sm text-muted-foreground">
-            {t("Instâncias ativas conectadas ao Control Plane com Proof-of-Possession.")}
-          </p>
-        </div>
-      </div>
-
+      <header>
+        <h1 className="text-2xl font-bold tracking-tight">Instalações</h1>
+        <p className="text-sm text-muted-foreground">
+          Identidade, sessão e estado de clone registrados no Control Plane.
+        </p>
+      </header>
       <LicensingNav />
-
-      {/* Filters */}
-      <div className="flex flex-col items-center justify-between gap-3 md:flex-row">
-        <form onSubmit={handleSearchSubmit} className="flex w-full max-w-sm flex-1 gap-2 md:w-auto">
+      <section className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_200px_220px_220px_110px]">
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            setSearch(searchDraft.trim());
+          }}
+          className="flex gap-2"
+        >
           <Input
-            placeholder="Buscar por ID, fingerprint ou cliente..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={searchDraft}
+            onChange={(event) => setSearchDraft(event.target.value)}
+            placeholder="Buscar installation_id, serial ou cliente"
+            aria-label="Buscar instalações"
           />
-          <Button type="submit" variant="secondary" size="icon">
+          <Button type="submit" size="icon" variant="secondary" aria-label="Buscar">
             <MagnifyingGlass className="h-4 w-4" />
           </Button>
         </form>
-
         <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground focus:ring-1 focus:ring-ring focus:outline-hidden"
+          aria-label="Status de instalação"
+          value={status}
+          onChange={(event) => setStatus(event.target.value)}
+          className="h-9 rounded-md border bg-background px-3 text-sm"
         >
-          <option value="ALL">{t("Status: Todos")}</option>
-          <option value="ACTIVE">Ativas</option>
-          <option value="SUSPENDED">Suspensas</option>
-          <option value="DEACTIVATED">Desativadas</option>
-          <option value="REVOKED">Revogadas</option>
+          <option value="ALL">Todos os status</option>
+          {["ACTIVE", "SUSPENDED", "REVOKED", "DEACTIVATED", "TRANSFERRED", "DISABLED"].map(
+            (value) => (
+              <option key={value}>{value}</option>
+            ),
+          )}
         </select>
-      </div>
-
-      {/* Table */}
-      <div className="overflow-hidden rounded-lg border bg-card">
+        <select
+          aria-label="Status de clone"
+          value={cloneStatus}
+          onChange={(event) => setCloneStatus(event.target.value)}
+          className="h-9 rounded-md border bg-background px-3 text-sm"
+        >
+          <option value="ALL">Todos os estados de clone</option>
+          {["NORMAL", "SUSPECTED_CLONE", "CLONE_CONFIRMED", "TRANSFER_PENDING"].map((value) => (
+            <option key={value}>{value}</option>
+          ))}
+        </select>
+        <select
+          aria-label="Ordenar instalações"
+          value={sort}
+          onChange={(event) => setSort(event.target.value)}
+          className="h-9 rounded-md border bg-background px-3 text-sm"
+        >
+          <option value="created_at">Mais recentes</option>
+          <option value="customer">Cliente</option>
+          <option value="status">Status</option>
+          <option value="last_validation">Última validação</option>
+        </select>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setDirection((current) => (current === "asc" ? "desc" : "asc"))}
+        >
+          Ordem {direction === "asc" ? "↑" : "↓"}
+        </Button>
+      </section>
+      {error && (
+        <div
+          role="alert"
+          className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+        >
+          {error}
+        </div>
+      )}
+      <section className="overflow-hidden rounded-lg border bg-card">
         {loading ? (
-          <div className="flex items-center justify-center p-8 text-center text-muted-foreground">
-            <CircleNotch className="mr-2 h-5 w-5 animate-spin" /> {t("Carregando instalações...")}
+          <div className="flex items-center justify-center p-10 text-sm text-muted-foreground">
+            <CircleNotch className="mr-2 h-4 w-4 animate-spin" />
+            Carregando instalações…
           </div>
         ) : installations.length === 0 ? (
-          <div className="p-8 text-center text-sm text-muted-foreground">
-            {t("Nenhuma instalação encontrada com os filtros selecionados.")}
+          <div className="p-10 text-center text-sm text-muted-foreground">
+            Nenhuma instalação corresponde aos filtros.
           </div>
         ) : (
-          <table className="w-full text-left text-sm">
-            <thead className="border-b bg-muted/40 text-xs font-medium tracking-wider text-muted-foreground uppercase">
-              <tr>
-                <th className="px-4 py-3">{t("ID da Instalação")}</th>
-                <th className="px-4 py-3">Cliente / Contrato</th>
-                <th className="px-4 py-3">Fingerprint Ed25519</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">{t("Versão")}</th>
-                <th className="px-4 py-3">{t("Último Heartbeat")}</th>
-                <th className="px-4 py-3 text-right">{t("Ação")}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {installations.map((inst) => (
-                <tr key={inst.id} className="hover:bg-muted/20">
-                  <td className="px-4 py-3 font-mono text-xs text-foreground">{inst.id}</td>
-                  <td className="px-4 py-3">
-                    <div className="font-medium">{inst.customer_name}</div>
-                    <div className="text-xs text-muted-foreground capitalize">
-                      {inst.license_type}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
-                    {inst.public_key_fingerprint.slice(0, 16)}...
-                  </td>
-                  <td className="px-4 py-3">
-                    <StatusBadge status={inst.status} />
-                  </td>
-                  <td className="px-4 py-3 text-xs">{inst.app_version || "—"}</td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground">
-                    {inst.last_heartbeat_at
-                      ? new Date(inst.last_heartbeat_at).toLocaleString(tag)
-                      : t("Nunca")}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <Button asChild variant="outline" size="sm">
-                      <Link href={`/admin/licensing/installations/${inst.id}`}>
-                        {t("Detalhes")}
-                      </Link>
-                    </Button>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1000px] text-left text-sm">
+              <thead className="border-b bg-muted/40 text-xs tracking-wide text-muted-foreground uppercase">
+                <tr>
+                  <th className="px-4 py-3">Instalação</th>
+                  <th className="px-4 py-3">Cliente / licença</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Clone</th>
+                  <th className="px-4 py-3">Última validação</th>
+                  <th className="px-4 py-3">Heartbeat / sessão</th>
+                  <th className="px-4 py-3">Versão</th>
+                  <th className="px-4 py-3 text-right">Ação</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {installations.map((item) => (
+                  <tr key={item.id} className="hover:bg-muted/20">
+                    <td className="px-4 py-3 font-mono text-xs" title={item.id}>
+                      {maskedId(item.id)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="block font-medium">{item.customer_name}</span>
+                      <Link
+                        className="font-mono text-xs text-muted-foreground hover:underline"
+                        href={`/admin/licenses/${item.license_id}`}
+                      >
+                        {item.serial}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status={item.status} />
+                    </td>
+                    <td className="px-4 py-3 text-xs">{item.clone_status}</td>
+                    <td className="px-4 py-3 text-xs">
+                      {item.last_validation_at
+                        ? new Date(item.last_validation_at).toLocaleString(tag)
+                        : "Nunca"}
+                    </td>
+                    <td className="px-4 py-3 text-xs">
+                      <span className="block">
+                        {item.last_heartbeat_at
+                          ? new Date(item.last_heartbeat_at).toLocaleString(tag)
+                          : "Sem heartbeat"}
+                      </span>
+                      <span className="text-muted-foreground">
+                        {item.active_session_id ? "sessão ativa" : "sem sessão ativa"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs">{item.clientix_version ?? "—"}</td>
+                    <td className="px-4 py-3 text-right">
+                      <Button asChild variant="outline" size="sm">
+                        <Link
+                          href={`/admin/licensing/installations/${encodeURIComponent(item.id)}`}
+                        >
+                          Detalhes
+                        </Link>
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
-      </div>
+        <footer className="flex items-center justify-between border-t px-4 py-3 text-xs text-muted-foreground">
+          <span>
+            {total
+              ? `${offset + 1}–${Math.min(offset + installations.length, total)} de ${total}`
+              : "0 resultados"}
+          </span>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={offset === 0 || loading}
+              onClick={() => void fetchInstallations(Math.max(0, offset - limit))}
+            >
+              Anterior
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={offset + limit >= total || loading}
+              onClick={() => void fetchInstallations(offset + limit)}
+            >
+              Próxima
+            </Button>
+          </div>
+        </footer>
+      </section>
     </div>
   );
 }

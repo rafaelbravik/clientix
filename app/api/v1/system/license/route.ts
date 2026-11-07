@@ -2,17 +2,21 @@
  * GET /api/v1/system/license — Inspeciona o estado da licença comercial da instalação.
  * PUT /api/v1/system/license — Atualiza/substitui atomicamente a licença comercial da instalação.
  *
- * Auth: Platform Admin ou Manager da organização com MFA.
- * Permite que administradores visualizem o estado da licença ou façam upload
+ * Auth: somente Platform Admin.
+ * Permite que o administrador da plataforma visualize o estado da licença ou faça upload
  * de uma nova licença MESMO quando a instalação está com a licença expirada
  * ou inválida (Recovery Loop).
  */
 import { randomUUID } from "node:crypto";
 import type { NextRequest } from "next/server";
-import { z } from "zod";
 
 import { fail, ok } from "@/lib/api/wrappers";
-import { requireRole } from "@/lib/auth/require-role";
+import { audit } from "@/lib/audit";
+import {
+  falhaDaEscritaDePlatformAdmin,
+  requirePlatformAdmin,
+  requirePlatformAdminEscrita,
+} from "@/lib/auth/requirePlatformAdmin";
 import { requireSupportWrite } from "@/lib/impersonate/support";
 import {
   getInstallationLicenseStatus,
@@ -22,14 +26,13 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export async function GET(req: NextRequest): Promise<Response> {
+export async function GET(_req: NextRequest): Promise<Response> {
   const requestId = randomUUID();
-  const authz = await requireRole("manager", {
-    requestId,
-    resource: "system_license",
-    allowPlatformAdmin: true,
-  });
-  if (!authz.ok) return authz.response;
+  try {
+    await requirePlatformAdmin();
+  } catch {
+    return fail("forbidden", "Requer administrador da plataforma.", 403, { requestId });
+  }
 
   try {
     const status = await getInstallationLicenseStatus();
@@ -64,18 +67,18 @@ export async function GET(req: NextRequest): Promise<Response> {
             can_white_label: Boolean(status.usable && status.entitlements?.white_label),
             can_manage_multiple_tenants: Boolean(
               status.usable &&
-                (status.entitlements?.max_tenants === null ||
-                  (status.entitlements?.max_tenants ?? 0) > 1)
+              (status.entitlements?.max_tenants === null ||
+                (status.entitlements?.max_tenants ?? 0) > 1),
             ),
             max_tenants: status.usable ? (status.entitlements?.max_tenants ?? null) : 1,
           },
           installation_id_matched: status.installation_id_matched,
         },
       },
-      { requestId }
+      { requestId },
     );
-  } catch (err) {
-    return fail("internal_error", `Falha ao inspecionar licença: ${(err as Error).message}`, 500, {
+  } catch {
+    return fail("internal_error", "Falha ao inspecionar o estado da licença.", 500, {
       requestId,
     });
   }
@@ -86,12 +89,12 @@ export async function PUT(req: NextRequest): Promise<Response> {
   if (supportDenied) return supportDenied;
 
   const requestId = randomUUID();
-  const authz = await requireRole("admin", {
-    requestId,
-    resource: "system_license_install",
-    allowPlatformAdmin: true,
-  });
-  if (!authz.ok) return authz.response;
+  let admin: Awaited<ReturnType<typeof requirePlatformAdminEscrita>>;
+  try {
+    admin = await requirePlatformAdminEscrita();
+  } catch (error) {
+    return falhaDaEscritaDePlatformAdmin(error, requestId, "Requer administrador da plataforma.");
+  }
 
   let body: unknown;
   try {
@@ -104,19 +107,32 @@ export async function PUT(req: NextRequest): Promise<Response> {
 
   try {
     const result = await installLicenseFile(body);
+    await audit({
+      action: "platform_license.updated",
+      actorUserId: admin.user.id,
+      actingAsPlatformAdmin: true,
+      bypassedRls: true,
+      requestId,
+      resourceType: "installation_license",
+      resourceId: result.statusInfo.license_id ?? null,
+      metadata: {
+        status: result.statusInfo.commercial_status,
+        plan: result.statusInfo.plan ?? null,
+      },
+    });
     return ok(
       {
         message: "Licença comercial atualizada com sucesso.",
         status: result.statusInfo,
       },
-      { status: 200, requestId }
+      { status: 200, requestId },
     );
-  } catch (err) {
+  } catch {
     return fail(
       "validation_failed",
-      `Recusa na instalação da licença: ${(err as Error).message}`,
+      "A licença foi recusada. O arquivo válido atual, se houver, foi preservado.",
       422,
-      { requestId }
+      { requestId },
     );
   }
 }

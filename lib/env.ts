@@ -132,6 +132,30 @@ const schema = z
 
     /** Identificador persistente da instalação, compartilhado pelos runtimes para escopar o limite licenciado. */
     INSTALLATION_ID: z.string().optional().default(""),
+    /** Arquivos locais opcionais de licença e estado; vazios usam defaults por ambiente. */
+    CLIENTIX_LICENSE_PATH: z.string().optional().default(""),
+    CLIENTIX_INSTALLATION_ID_PATH: z.string().optional().default(""),
+    CLIENTIX_INSTALLATION_KEY_PATH: z.string().optional().default(""),
+    CLIENTIX_LICENSE_CLOCK_PATH: z.string().optional().default(""),
+    CLIENTIX_LICENSE_ONLINE_CACHE_PATH: z.string().optional().default(""),
+    CLIENTIX_LICENSE_SERVER_URL: z.string().optional().default(""),
+    CLIENTIX_LICENSE_OFFLINE_VALIDATION_TOLERANCE_DAYS: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .max(30)
+      .default(7),
+    CLIENTIX_LICENSE_NEXT_CHECK_HOURS: z.coerce.number().int().min(1).max(720).default(24),
+    CLIENTIX_LICENSE_HEARTBEAT_INTERVAL_SECONDS: z.coerce
+      .number()
+      .int()
+      .min(60)
+      .max(3600)
+      .default(300),
+    /** Warn só é permitido fora de produção e mantém a limitação visível no log/UI local. */
+    CLIENTIX_LICENSE_ENFORCEMENT: z
+      .enum(["enforce", "warn"])
+      .default(isProd || process.env.NODE_ENV === "test" ? "enforce" : "warn"),
 
     // Cron / interno
     INTERNAL_SECRET: required("INTERNAL_SECRET"),
@@ -662,6 +686,14 @@ const schema = z
     VAPID_PRIVATE_KEY: z.string().optional().default(""),
   })
   .superRefine((values, ctx) => {
+    if (values.NODE_ENV === "production" && values.CLIENTIX_LICENSE_ENFORCEMENT !== "enforce") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["CLIENTIX_LICENSE_ENFORCEMENT"],
+        message: "Produção exige CLIENTIX_LICENSE_ENFORCEMENT=enforce.",
+      });
+    }
+
     if (
       values.WAHA_WEBHOOK_REQUIRE_SIGNATURE === "true" &&
       values.WAHA_HMAC_SECRET.trim().length < 16

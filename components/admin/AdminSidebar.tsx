@@ -23,6 +23,7 @@ import {
   Lock,
   PuzzlePiece,
   Stack,
+  Receipt,
 } from "@/lib/ui/icons";
 import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
@@ -44,7 +45,14 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/admin/plans", label: "Planos", icon: Stack },
   ...(process.env.NEXT_PUBLIC_CLIENTIX_BUILD_TARGET === "customer"
     ? []
-    : [{ href: "/admin/licensing", label: "Licenças", icon: Certificate }]),
+    : [
+        { href: "/admin/licensing", label: "Licenciamento Vendor", icon: Certificate },
+        { href: "/admin/licenses", label: "Licenças", icon: Certificate },
+        { href: "/admin/customers", label: "Clientes comerciais", icon: Buildings },
+        { href: "/admin/installations", label: "Instalações", icon: Plugs },
+        { href: "/admin/billing", label: "Cobrança Vendor", icon: Receipt },
+      ]),
+  { href: "/admin/license", label: "Licença da instalação", icon: Certificate },
   { href: "/admin/audit", label: "Auditoria", icon: ClipboardText },
   { href: "/admin/lgpd", label: "LGPD", icon: Scales },
   { href: "/admin/incidents", label: "Incidents", icon: Warning },
@@ -123,7 +131,11 @@ interface AdminSidebarProps {
   variant?: "desktop" | "mobile";
 }
 
-export function AdminSidebar({ userEmail, platformRole = "admin", variant = "desktop" }: AdminSidebarProps) {
+export function AdminSidebar({
+  userEmail,
+  platformRole = "admin",
+  variant = "desktop",
+}: AdminSidebarProps) {
   const t = useT();
   const isMobile = variant === "mobile";
   const pathname = usePathname();
@@ -147,7 +159,7 @@ export function AdminSidebar({ userEmail, platformRole = "admin", variant = "des
           <SimboloDoProduto nome={marca.name} decorativo className="h-8 w-8" />
         )}
         <div className="flex flex-col">
-          <span className="text-xs uppercase tracking-wider text-muted-foreground">
+          <span className="text-xs tracking-wider text-muted-foreground uppercase">
             {marca.name}
           </span>
           <span className="text-sm font-semibold tracking-tight">{t("Admin Plataforma")}</span>
@@ -155,8 +167,7 @@ export function AdminSidebar({ userEmail, platformRole = "admin", variant = "des
       </div>
       <nav className="flex-1 space-y-1 overflow-y-auto p-2" aria-label={t("Navegação plataforma")}>
         {NAV_ITEMS.map((item) => {
-          const isActive =
-            pathname === item.href || pathname.startsWith(item.href + "/");
+          const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
           const Icon = item.icon;
           return (
             <Link

@@ -64,6 +64,7 @@ scratchpad
 .changes
 
 # Artefatos locais de QA não fazem parte do runtime.
+.clientix-local
 evidence
 .superpowers
 *.tsbuildinfo

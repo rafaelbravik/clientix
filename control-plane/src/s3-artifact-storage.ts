@@ -19,7 +19,14 @@ export interface S3ArtifactStorageConfig {
 
 export type S3GatewayCredentials = Pick<
   S3ArtifactStorageConfig,
-  "endpoint" | "region" | "bucket" | "accessKeyId" | "secretAccessKey" | "sessionToken" | "forcePathStyle" | "fetchFn"
+  | "endpoint"
+  | "region"
+  | "bucket"
+  | "accessKeyId"
+  | "secretAccessKey"
+  | "sessionToken"
+  | "forcePathStyle"
+  | "fetchFn"
 >;
 
 export type S3PublisherCredentials = S3ArtifactStorageConfig;
@@ -107,22 +114,28 @@ export function signS3Request(params: {
   ].join("\n");
 
   const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`;
-  const hashedCanonicalRequest = crypto.createHash("sha256").update(canonicalRequest, "utf-8").digest("hex");
+  const hashedCanonicalRequest = crypto
+    .createHash("sha256")
+    .update(canonicalRequest, "utf-8")
+    .digest("hex");
 
-  const stringToSign = [
-    "AWS4-HMAC-SHA256",
-    amzDate,
-    credentialScope,
-    hashedCanonicalRequest,
-  ].join("\n");
+  const stringToSign = ["AWS4-HMAC-SHA256", amzDate, credentialScope, hashedCanonicalRequest].join(
+    "\n",
+  );
 
   // Derive signing key
-  const kDate = crypto.createHmac("sha256", `AWS4${secretAccessKey}`).update(dateStamp, "utf-8").digest();
+  const kDate = crypto
+    .createHmac("sha256", `AWS4${secretAccessKey}`)
+    .update(dateStamp, "utf-8")
+    .digest();
   const kRegion = crypto.createHmac("sha256", kDate).update(region, "utf-8").digest();
   const kService = crypto.createHmac("sha256", kRegion).update(service, "utf-8").digest();
   const kSigning = crypto.createHmac("sha256", kService).update("aws4_request", "utf-8").digest();
 
-  const signature = crypto.createHmac("sha256", kSigning).update(stringToSign, "utf-8").digest("hex");
+  const signature = crypto
+    .createHmac("sha256", kSigning)
+    .update(stringToSign, "utf-8")
+    .digest("hex");
 
   const authorizationHeader = `AWS4-HMAC-SHA256 Credential=${accessKeyId}/${credentialScope}, SignedHeaders=${signedHeadersString}, Signature=${signature}`;
 
@@ -135,7 +148,12 @@ export function signS3Request(params: {
 /**
  * Builds the canonical S3 object URL given bucket and key.
  */
-function buildS3Url(endpoint: string, bucket: string, key: string, forcePathStyle: boolean = true): URL {
+function buildS3Url(
+  endpoint: string,
+  bucket: string,
+  key: string,
+  forcePathStyle: boolean = true,
+): URL {
   const cleanKey = key.replace(/^\/+/, "");
   const base = endpoint.replace(/\/+$/, "");
 
@@ -173,7 +191,12 @@ export class S3ArtifactStorageReader implements ArtifactStorageReader {
   }
 
   async getObjectMetadata(key: string): Promise<StorageObjectMetadata | null> {
-    const url = buildS3Url(this.config.endpoint, this.config.bucket, key, this.config.forcePathStyle);
+    const url = buildS3Url(
+      this.config.endpoint,
+      this.config.bucket,
+      key,
+      this.config.forcePathStyle,
+    );
     const headers = signS3Request({
       method: "HEAD",
       url,
@@ -203,7 +226,9 @@ export class S3ArtifactStorageReader implements ArtifactStorageReader {
       const metaDigest = res.headers.get("x-amz-meta-sha256");
       let digest: `sha256:${string}`;
       if (metaDigest) {
-        digest = metaDigest.startsWith("sha256:") ? (metaDigest as `sha256:${string}`) : `sha256:${metaDigest}`;
+        digest = metaDigest.startsWith("sha256:")
+          ? (metaDigest as `sha256:${string}`)
+          : `sha256:${metaDigest}`;
       } else {
         // Fallback: extract from key if key follows content-addressed pattern releases/.../.../<sha256>
         const parts = key.split("/");
@@ -226,15 +251,25 @@ export class S3ArtifactStorageReader implements ArtifactStorageReader {
         lastModified,
       };
     } catch (err: unknown) {
-      if ((err as Error).message?.includes("ECONNREFUSED") || (err as Error).message?.includes("fetch failed")) {
-        throw new Error(`STORAGE_UNREACHABLE: S3 endpoint is unavailable (${this.config.endpoint})`);
+      if (
+        (err as Error).message?.includes("ECONNREFUSED") ||
+        (err as Error).message?.includes("fetch failed")
+      ) {
+        throw new Error(
+          `STORAGE_UNREACHABLE: S3 endpoint is unavailable (${this.config.endpoint})`,
+        );
       }
       throw err;
     }
   }
 
   async getObjectStream(key: string): Promise<Buffer | null> {
-    const url = buildS3Url(this.config.endpoint, this.config.bucket, key, this.config.forcePathStyle);
+    const url = buildS3Url(
+      this.config.endpoint,
+      this.config.bucket,
+      key,
+      this.config.forcePathStyle,
+    );
     const headers = signS3Request({
       method: "GET",
       url,
@@ -257,8 +292,13 @@ export class S3ArtifactStorageReader implements ArtifactStorageReader {
       const arrayBuffer = await res.arrayBuffer();
       return Buffer.from(arrayBuffer);
     } catch (err: unknown) {
-      if ((err as Error).message?.includes("ECONNREFUSED") || (err as Error).message?.includes("fetch failed")) {
-        throw new Error(`STORAGE_UNREACHABLE: S3 endpoint is unavailable (${this.config.endpoint})`);
+      if (
+        (err as Error).message?.includes("ECONNREFUSED") ||
+        (err as Error).message?.includes("fetch failed")
+      ) {
+        throw new Error(
+          `STORAGE_UNREACHABLE: S3 endpoint is unavailable (${this.config.endpoint})`,
+        );
       }
       throw err;
     }
@@ -305,12 +345,17 @@ export class S3ArtifactStoragePublisher implements ArtifactStoragePublisher {
         return existing;
       }
       throw new Error(
-        `IMMUTABLE_OBJECT_CONFLICT: Object already exists at key "${key}" with digest ${existing.digest}, cannot overwrite with different digest ${newDigest}.`
+        `IMMUTABLE_OBJECT_CONFLICT: Object already exists at key "${key}" with digest ${existing.digest}, cannot overwrite with different digest ${newDigest}.`,
       );
     }
 
     // 2. Perform authenticated PUT to S3
-    const url = buildS3Url(this.config.endpoint, this.config.bucket, key, this.config.forcePathStyle);
+    const url = buildS3Url(
+      this.config.endpoint,
+      this.config.bucket,
+      key,
+      this.config.forcePathStyle,
+    );
     const ct = contentType ?? "application/octet-stream";
     const headers = signS3Request({
       method: "PUT",
@@ -350,7 +395,12 @@ export class S3ArtifactStoragePublisher implements ArtifactStoragePublisher {
   }
 
   async deleteObject(key: string): Promise<boolean> {
-    const url = buildS3Url(this.config.endpoint, this.config.bucket, key, this.config.forcePathStyle);
+    const url = buildS3Url(
+      this.config.endpoint,
+      this.config.bucket,
+      key,
+      this.config.forcePathStyle,
+    );
     const headers = signS3Request({
       method: "DELETE",
       url,
@@ -379,7 +429,10 @@ export class S3ArtifactStoragePublisher implements ArtifactStoragePublisher {
  *
  * Full S3 backend combining reader and publisher for complete backend abstraction.
  */
-export class S3ArtifactStorageBackend extends S3ArtifactStorageReader implements ArtifactStorageBackend {
+export class S3ArtifactStorageBackend
+  extends S3ArtifactStorageReader
+  implements ArtifactStorageBackend
+{
   private readonly publisher: S3ArtifactStoragePublisher;
 
   constructor(config: S3ArtifactStorageConfig) {

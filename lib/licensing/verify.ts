@@ -1,8 +1,4 @@
-import type {
-  SignedLicenseDocument,
-  VerifyLicenseOptions,
-  VerifyLicenseResult,
-} from "./types";
+import type { SignedLicenseDocument, VerifyLicenseOptions, VerifyLicenseResult } from "./types";
 import {
   SignedLicenseDocumentSchema,
   MAX_LICENSE_DOCUMENT_BYTES,
@@ -24,7 +20,9 @@ export { DEFAULT_TRUSTED_KEYS } from "./trusted-keys";
  * is authoritative. Arbitrary environment injection of public keys is restricted to development
  * and test environments, preventing an unauthorized VPS root operator from overriding the trust root.
  */
-function resolveTrustedKeys(optionsTrustedKeys?: Record<string, string>): Record<string, string> {
+export function resolveTrustedKeys(
+  optionsTrustedKeys?: Record<string, string>,
+): Record<string, string> {
   // Explicit programmatic options take precedence (used in testing & unit test suites)
   if (optionsTrustedKeys && Object.keys(optionsTrustedKeys).length > 0) {
     return optionsTrustedKeys;
@@ -56,7 +54,8 @@ function resolveTrustedKeys(optionsTrustedKeys?: Record<string, string>): Record
  * 3. Key ID lookup in trusted registry.
  * 4. Cryptographic Ed25519 signature verification on RFC 8785 canonicalized payload.
  * 5. Installation ID match (if expectedInstallationId option provided).
- * 6. Temporal validity & grace period status.
+ * 6. Product/deployment and signed revocation marker.
+ * 7. Temporal validity & grace period status.
  *
  * @param document Raw unknown object or parsed SignedLicenseDocument
  * @param options Verification options (clock, installation ID, grace period, trusted keys)
@@ -64,7 +63,7 @@ function resolveTrustedKeys(optionsTrustedKeys?: Record<string, string>): Record
  */
 export function verifyLicense(
   document: unknown,
-  options: VerifyLicenseOptions = {}
+  options: VerifyLicenseOptions = {},
 ): VerifyLicenseResult {
   // 1. Size guard if stringified
   try {
@@ -172,7 +171,36 @@ export function verifyLicense(
     };
   }
 
-  // 5. Installation ID validation (if expectedInstallationId provided)
+  // 5. The payload is shared by future product/deployment variants. A signed
+  // mismatch is invalid for this runtime even if its signature is authentic.
+  if (payload.product !== undefined && payload.product !== "clientix") {
+    return {
+      valid: false,
+      usable: false,
+      cryptographic_valid: true,
+      state: "MALFORMED_DOCUMENT",
+      reason: "A licença não pertence a este produto.",
+      errorCode: "LICENSE_PRODUCT_MISMATCH",
+      payload,
+      key_id,
+      license_id: payload.license_id,
+    };
+  }
+  if (payload.deployment !== undefined && payload.deployment !== "self-hosted") {
+    return {
+      valid: false,
+      usable: false,
+      cryptographic_valid: true,
+      state: "MALFORMED_DOCUMENT",
+      reason: "A licença não pertence a este tipo de instalação.",
+      errorCode: "LICENSE_PRODUCT_MISMATCH",
+      payload,
+      key_id,
+      license_id: payload.license_id,
+    };
+  }
+
+  // 6. Installation ID validation (if expectedInstallationId provided)
   if (options.expectedInstallationId) {
     if (payload.installation_id !== options.expectedInstallationId) {
       return {
@@ -180,7 +208,7 @@ export function verifyLicense(
         usable: false,
         cryptographic_valid: true,
         state: "INSTALLATION_MISMATCH",
-        reason: `Installation ID da licença ("${payload.installation_id}") diverge da instalação atual ("${options.expectedInstallationId}")`,
+        reason: "A licença foi emitida para outra instalação.",
         errorCode: "LICENSE_INSTALLATION_MISMATCH",
         payload,
         key_id,
@@ -189,12 +217,48 @@ export function verifyLicense(
     }
   }
 
-  // 6. Temporal validation (valid_from, expires_at, grace_period)
+  if (payload.status === "REVOKED" || payload.status === "SUSPENDED") {
+    const revoked = payload.status === "REVOKED";
+    return {
+      valid: false,
+      usable: false,
+      cryptographic_valid: true,
+      state: revoked ? "REVOKED" : "SUSPENDED",
+      reason: revoked
+        ? "Esta licença foi marcada como revogada."
+        : "Esta licença está suspensa pelo servidor de licenças.",
+      errorCode: revoked ? "LICENSE_REVOKED" : "LICENSE_SUSPENDED",
+      payload,
+      key_id,
+      license_id: payload.license_id,
+      expires_at: payload.expires_at,
+      grace_period_days: payload.grace_period_days ?? DEFAULT_GRACE_PERIOD_DAYS,
+    };
+  }
+
+  if (payload.status === "EXPIRED") {
+    return {
+      valid: false,
+      usable: false,
+      cryptographic_valid: true,
+      state: "EXPIRED",
+      reason: "O License Server marcou esta licença como expirada.",
+      errorCode: "LICENSE_EXPIRED",
+      payload,
+      key_id,
+      license_id: payload.license_id,
+      expires_at: payload.expires_at,
+      grace_period_days: payload.grace_period_days ?? DEFAULT_GRACE_PERIOD_DAYS,
+    };
+  }
+
+  // 7. Temporal validation (valid_from, expires_at, grace_period)
   const temporal = computeTemporalLicenseState({
     validFrom: payload.valid_from,
     expiresAt: payload.expires_at,
     now: options.now,
-    gracePeriodDays: options.gracePeriodDays ?? DEFAULT_GRACE_PERIOD_DAYS,
+    gracePeriodDays:
+      options.gracePeriodDays ?? payload.grace_period_days ?? DEFAULT_GRACE_PERIOD_DAYS,
   });
 
   const isUsableState = temporal.state === "VALID" || temporal.state === "GRACE";
@@ -211,5 +275,7 @@ export function verifyLicense(
     license_id: payload.license_id,
     expires_at: temporal.expires_at,
     grace_until: temporal.grace_until,
+    grace_period_days:
+      options.gracePeriodDays ?? payload.grace_period_days ?? DEFAULT_GRACE_PERIOD_DAYS,
   };
 }

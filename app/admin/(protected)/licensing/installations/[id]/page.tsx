@@ -19,6 +19,17 @@ interface InstallationEvent {
   created_at: string;
 }
 
+interface InstallationSession {
+  session_id: string;
+  status: "ACTIVE" | "ENDED";
+  boot_started_at: string;
+  started_at: string;
+  last_heartbeat_at: string;
+  ended_at: string | null;
+  clientix_version: string | null;
+  heartbeat_fresh: boolean;
+}
+
 interface InstallationDetailData {
   installation: {
     id: string;
@@ -29,6 +40,9 @@ interface InstallationDetailData {
     app_version: string | null;
     environment: string | null;
     last_heartbeat_at: string | null;
+    clone_status: "NORMAL" | "SUSPECTED_CLONE" | "CLONE_CONFIRMED" | "TRANSFER_PENDING";
+    clone_conflict_count: number;
+    last_clone_conflict_at: string | null;
     heartbeat_count: number;
     created_at: string;
     updated_at: string;
@@ -48,6 +62,7 @@ interface InstallationDetailData {
     billing_email: string;
   };
   events: InstallationEvent[];
+  sessions: InstallationSession[];
 }
 
 export default function InstallationDetailPage() {
@@ -65,6 +80,8 @@ export default function InstallationDetailPage() {
   const [showRevokeModal, setShowRevokeModal] = useState(false);
   const [revokeConfirmText, setRevokeConfirmText] = useState("");
   const [copiedKey, setCopiedKey] = useState(false);
+  const [recoveryReason, setRecoveryReason] = useState("");
+  const [recoveryCodeOnce, setRecoveryCodeOnce] = useState<string | null>(null);
 
   const loadInstallation = async () => {
     try {
@@ -154,6 +171,53 @@ export default function InstallationDetailPage() {
     setTimeout(() => setCopiedKey(false), 2000);
   };
 
+  const handleAuthorizeRecovery = async () => {
+    if (recoveryReason.trim().length < 3) return;
+    if (
+      !confirm(
+        t(
+          "Autorizar uma recuperação encerrará as sessões atuais. O código será mostrado uma única vez.",
+        ),
+      )
+    )
+      return;
+    setActionLoading(true);
+    try {
+      const res = await fetch(`/api/v1/admin/licensing/installations/${id}/recovery`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: recoveryReason.trim(), confirm: true }),
+      });
+      const body = await res.json();
+      if (!res.ok)
+        throw new Error(body?.error?.message ?? "Não foi possível autorizar a recuperação.");
+      setRecoveryCodeOnce(body.data.recovery_code as string);
+      setRecoveryReason("");
+      await loadInstallation();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível autorizar a recuperação.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleEndSession = async (sessionId: string) => {
+    if (!confirm(t("Encerrar esta sessão ativa?"))) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch(
+        `/api/v1/admin/licensing/installations/${id}/sessions/${sessionId}/end`,
+        { method: "POST" },
+      );
+      if (!res.ok) throw new Error("Não foi possível encerrar a sessão.");
+      await loadInstallation();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível encerrar a sessão.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8 text-center text-muted-foreground">
@@ -178,7 +242,7 @@ export default function InstallationDetailPage() {
     );
   }
 
-  const { installation, license, customer, events } = data;
+  const { installation, license, customer, events, sessions } = data;
 
   return (
     <div className="space-y-6">
@@ -252,6 +316,122 @@ export default function InstallationDetailPage() {
       </div>
 
       <LicensingNav />
+
+      <section
+        className="space-y-4 rounded-lg border bg-card p-5"
+        aria-labelledby="clone-status-title"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 id="clone-status-title" className="text-base font-semibold">
+              Atestação e sessões
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Estado de sobreposição de sessões recentes:{" "}
+              <strong>{installation.clone_status}</strong>
+            </p>
+          </div>
+          <span className="text-xs text-muted-foreground">
+            Último conflito:{" "}
+            {installation.last_clone_conflict_at
+              ? new Date(installation.last_clone_conflict_at).toLocaleString(tag)
+              : "nenhum"}
+          </span>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Input
+            value={recoveryReason}
+            onChange={(event) => setRecoveryReason(event.target.value)}
+            aria-label="Motivo da recuperação da instalação"
+            placeholder="Motivo para autorizar recuperação"
+            maxLength={500}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            disabled={
+              actionLoading || recoveryReason.trim().length < 3 || installation.status !== "ACTIVE"
+            }
+            onClick={() => void handleAuthorizeRecovery()}
+          >
+            Autorizar recuperação
+          </Button>
+        </div>
+        {recoveryCodeOnce && (
+          <div
+            className="space-y-2 rounded-md border border-amber-500/50 bg-amber-500/5 p-3"
+            role="alert"
+          >
+            <p className="text-sm font-semibold">
+              Código de uso único — entregue ao operador desta instalação.
+            </p>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                readOnly
+                value={recoveryCodeOnce}
+                aria-label="Código de recuperação de uso único"
+                className="font-mono"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void copyPublicKey(recoveryCodeOnce)}
+              >
+                {copiedKey ? "Copiado" : "Copiar código"}
+              </Button>
+              <Button type="button" variant="ghost" onClick={() => setRecoveryCodeOnce(null)}>
+                Ocultar
+              </Button>
+            </div>
+          </div>
+        )}
+        {sessions.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhuma sessão de boot registrada.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b text-xs text-muted-foreground">
+                <tr>
+                  <th className="py-2">Sessão</th>
+                  <th>Estado</th>
+                  <th>Último heartbeat</th>
+                  <th>Versão</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {sessions.map((session) => (
+                  <tr key={session.session_id}>
+                    <td className="py-2 font-mono text-xs">{session.session_id}</td>
+                    <td>
+                      {session.heartbeat_fresh
+                        ? "Ativa"
+                        : session.status === "ENDED"
+                          ? "Encerrada"
+                          : "Sem heartbeat recente"}
+                    </td>
+                    <td>{new Date(session.last_heartbeat_at).toLocaleString(tag)}</td>
+                    <td>{session.clientix_version || "—"}</td>
+                    <td>
+                      {session.heartbeat_fresh && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={actionLoading}
+                          onClick={() => void handleEndSession(session.session_id)}
+                        >
+                          Encerrar sessão
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
 
       {/* Grid: Overview & Crypto Details */}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">

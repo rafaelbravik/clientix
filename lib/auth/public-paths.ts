@@ -33,6 +33,13 @@ export const PUBLIC_PATHS: RegExp[] = [
   /^\/500$/,
   /^\/503$/,
   /^\/api\/v1\/health$/,
+  // License Server endpoints authenticate activation with a one-time code and
+  // validation with installation PoP; both guards run inside the vendor-only routes.
+  /^\/api\/v1\/licensing\/(activate|validate|challenge|validate-attestation|recover-installation)$/,
+  /^\/api\/v1\/licenses\/(activate|validate)$/,
+  // Vendor provider callbacks are authenticated in the route by raw-body HMAC;
+  // their public edge access does not grant access to administrative billing APIs.
+  /^\/api\/v1\/billing\/webhooks\/(stripe|mercado-pago)$/,
   /^\/api\/setup\/status$/,
   /^\/api\/setup\/initialize$/,
   /^\/api\/v1\/webhooks\//,

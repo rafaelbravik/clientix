@@ -167,7 +167,11 @@ export class RealArtifactProvider implements DistributionProvider {
     }
 
     // 2. Fetch using immutable content-addressed storage key
-    const storageKey = this.buildStorageKey(targetReleaseId, targetArtifact.artifactId, targetArtifact.digest);
+    const storageKey = this.buildStorageKey(
+      targetReleaseId,
+      targetArtifact.artifactId,
+      targetArtifact.digest,
+    );
     const buffer = await this.storage.getObjectStream(storageKey);
     if (!buffer) {
       return null;
@@ -177,7 +181,7 @@ export class RealArtifactProvider implements DistributionProvider {
     const computedDigest = `sha256:${crypto.createHash("sha256").update(buffer).digest("hex")}`;
     if (computedDigest !== targetArtifact.digest) {
       throw new Error(
-        `Artifact Storage Corruption: Digest mismatch for artifact "${artifactId}". Expected ${targetArtifact.digest}, got ${computedDigest}.`
+        `Artifact Storage Corruption: Digest mismatch for artifact "${artifactId}". Expected ${targetArtifact.digest}, got ${computedDigest}.`,
       );
     }
 

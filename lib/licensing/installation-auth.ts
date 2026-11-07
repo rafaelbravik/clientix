@@ -102,21 +102,21 @@ export const DEFAULT_INSTALLATION_KEY_PATH = "/opt/clientix/state/installation.k
  * - If file exists but is empty, truncated, or invalid: THROW EXPLICIT ERROR (Fail closed; NEVER regenerate silently).
  */
 export async function getOrCreateInstallationPrivateKey(
-  targetPath: string = DEFAULT_INSTALLATION_KEY_PATH
+  targetPath: string = DEFAULT_INSTALLATION_KEY_PATH,
 ): Promise<string> {
   try {
-    const content = await fs.readFile(targetPath, "utf-8");
+    const content = await fs.readFile(/*turbopackIgnore: true*/ targetPath, "utf-8");
     const trimmed = content.trim();
 
     if (trimmed.length === 0) {
       throw new Error(
-        `Installation private key file exists but is empty or truncated ("${targetPath}"). Fail closed.`
+        `Installation private key file exists but is empty or truncated ("${targetPath}"). Fail closed.`,
       );
     }
 
     if (!isValidInstallationPrivateKey(trimmed)) {
       throw new Error(
-        `Installation private key file exists but is malformed or corrupted ("${targetPath}"). Fail closed.`
+        `Installation private key file exists but is malformed or corrupted ("${targetPath}"). Fail closed.`,
       );
     }
 
@@ -151,6 +151,56 @@ export async function getOrCreateInstallationPrivateKey(
   return privateKeyPem.trim();
 }
 
+/** Creates (or resumes) a protected candidate key for vendor-authorized recovery. */
+export async function getOrCreatePendingInstallationKeyPair(
+  targetPath: string = DEFAULT_INSTALLATION_KEY_PATH,
+): Promise<InstallationKeyPair> {
+  const pendingPath = `${targetPath}.pending`;
+  try {
+    const privateKeyPem = (await fs.readFile(pendingPath, "utf-8")).trim();
+    if (!isValidInstallationPrivateKey(privateKeyPem))
+      throw new Error("Pending installation key is invalid.");
+    return {
+      privateKeyPem,
+      publicKeyPem: deriveInstallationPublicKey(privateKeyPem).trim(),
+    };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+
+  const pair = generateInstallationKeyPair();
+  await fs.mkdir(path.dirname(targetPath), { recursive: true });
+  try {
+    const handle = await fs.open(pendingPath, "wx", 0o600);
+    try {
+      await handle.writeFile(`${pair.privateKeyPem.trim()}\n`, "utf-8");
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+    await fs.chmod(pendingPath, 0o600).catch(() => undefined);
+    return {
+      privateKeyPem: pair.privateKeyPem.trim(),
+      publicKeyPem: pair.publicKeyPem.trim(),
+    };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    return getOrCreatePendingInstallationKeyPair(targetPath);
+  }
+}
+
+/** Atomically makes an already-authorized candidate key the installation key. */
+export async function commitPendingInstallationPrivateKey(
+  targetPath: string = DEFAULT_INSTALLATION_KEY_PATH,
+): Promise<void> {
+  const pendingPath = `${targetPath}.pending`;
+  const candidate = (await fs.readFile(pendingPath, "utf-8")).trim();
+  if (!isValidInstallationPrivateKey(candidate))
+    throw new Error("Pending installation key is invalid.");
+  await fs.rename(pendingPath, targetPath);
+  await fs.chmod(targetPath, 0o600).catch(() => undefined);
+}
+
 /**
  * Activation Code Primitives:
  * Minimum 256 bits of entropy (32 CSPRNG bytes).
@@ -178,10 +228,7 @@ export function deriveActivationCodeDigest(rawCode: string, pepper: string): str
     throw new Error("Pepper must be a non-empty secret string");
   }
 
-  return crypto
-    .createHmac("sha256", pepper)
-    .update(rawCode.trim(), "utf-8")
-    .digest("hex");
+  return crypto.createHmac("sha256", pepper).update(rawCode.trim(), "utf-8").digest("hex");
 }
 
 /**
@@ -318,11 +365,7 @@ export function createInstallationRequestSignature(params: {
   const privateKey = crypto.createPrivateKey(params.privateKeyPem);
   const sigBuffer = crypto.sign(null, Buffer.from(stringToSign, "utf-8"), privateKey);
 
-  return sigBuffer
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
+  return sigBuffer.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
 /**
@@ -336,7 +379,7 @@ export interface NonceStore {
     installationId: string,
     nonce: string,
     expiresAtUnixSeconds: number,
-    currentUnixSeconds?: number
+    currentUnixSeconds?: number,
   ): Promise<boolean>;
 }
 
@@ -350,7 +393,7 @@ export class MemoryNonceStore implements NonceStore {
     installationId: string,
     nonce: string,
     expiresAtUnixSeconds: number,
-    currentUnixSeconds?: number
+    currentUnixSeconds?: number,
   ): Promise<boolean> {
     const now = currentUnixSeconds ?? Math.floor(Date.now() / 1000);
     // Cleanup expired nonces (only delete if expiresAt <= now)
@@ -385,13 +428,21 @@ export interface VerifyRequestParams {
 
 export type VerifyRequestResult =
   | { ok: true; code?: never }
-  | { ok: false; code: "INVALID_INSTALLATION_ID" | "INVALID_TIMESTAMP" | "REPLAY_DETECTED" | "INVALID_SIGNATURE" | "MALFORMED_REQUEST" };
+  | {
+      ok: false;
+      code:
+        | "INVALID_INSTALLATION_ID"
+        | "INVALID_TIMESTAMP"
+        | "REPLAY_DETECTED"
+        | "INVALID_SIGNATURE"
+        | "MALFORMED_REQUEST";
+    };
 
 /**
  * Verifies an incoming installation request signature, clock skew, and nonce.
  */
 export async function verifyInstallationRequestSignature(
-  params: VerifyRequestParams
+  params: VerifyRequestParams,
 ): Promise<VerifyRequestResult> {
   // 1. Validate installation_id format
   if (!isValidCanonicalInstallationId(params.installationId)) {
@@ -413,7 +464,7 @@ export async function verifyInstallationRequestSignature(
       params.installationId,
       params.nonce,
       nonceExpiresAt,
-      now
+      now,
     );
     if (!consumed) {
       return { ok: false, code: "REPLAY_DETECTED" };
@@ -442,12 +493,7 @@ export async function verifyInstallationRequestSignature(
     }
 
     const publicKey = crypto.createPublicKey(params.publicKeyPem);
-    const isValid = crypto.verify(
-      null,
-      Buffer.from(stringToSign, "utf-8"),
-      publicKey,
-      sigBuffer
-    );
+    const isValid = crypto.verify(null, Buffer.from(stringToSign, "utf-8"), publicKey, sigBuffer);
 
     if (!isValid) {
       return { ok: false, code: "INVALID_SIGNATURE" };
@@ -476,7 +522,9 @@ export function resolveTemporalLicenseState(params: {
   const currentMs = currentDate.getTime();
 
   const validFromMs =
-    typeof params.validFrom === "string" ? Date.parse(params.validFrom) : params.validFrom.getTime();
+    typeof params.validFrom === "string"
+      ? Date.parse(params.validFrom)
+      : params.validFrom.getTime();
 
   if (currentMs < validFromMs) {
     return "NOT_YET_VALID";
@@ -488,7 +536,9 @@ export function resolveTemporalLicenseState(params: {
   }
 
   const expiresAtMs =
-    typeof params.expiresAt === "string" ? Date.parse(params.expiresAt) : params.expiresAt.getTime();
+    typeof params.expiresAt === "string"
+      ? Date.parse(params.expiresAt)
+      : params.expiresAt.getTime();
 
   if (currentMs < expiresAtMs) {
     return "VALID";

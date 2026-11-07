@@ -65,7 +65,7 @@ export class ReleasePublisher {
   constructor(
     private readonly storage: ArtifactStoragePublisher & ArtifactStorageReader,
     private readonly manifestSigner: IReleaseManifestSigner,
-    private readonly keyPrefix: string = ""
+    private readonly keyPrefix: string = "",
   ) {
     this.keyPrefix = keyPrefix ? keyPrefix.replace(/\/+$/, "") + "/" : "";
   }
@@ -101,12 +101,16 @@ export class ReleasePublisher {
     for (const artInput of input.artifacts) {
       const digestHex = crypto.createHash("sha256").update(artInput.data).digest("hex");
       const fullDigest = `sha256:${digestHex}` as `sha256:${string}`;
-      const storageKey = this.buildArtifactStorageKey(input.releaseId, artInput.artifactId, digestHex);
+      const storageKey = this.buildArtifactStorageKey(
+        input.releaseId,
+        artInput.artifactId,
+        digestHex,
+      );
 
       await this.storage.putObject(
         storageKey,
         artInput.data,
-        artInput.contentType ?? "application/octet-stream"
+        artInput.contentType ?? "application/octet-stream",
       );
 
       publishedArtifacts.push({
@@ -184,7 +188,7 @@ export class ReleasePublisher {
     await this.storage.putObject(
       indexKey,
       Buffer.from(JSON.stringify(index, null, 2), "utf-8"),
-      "application/json"
+      "application/json",
     );
 
     return true;
@@ -221,7 +225,7 @@ export class ReleasePublisher {
     await this.storage.putObject(
       indexKey,
       Buffer.from(JSON.stringify(index, null, 2), "utf-8"),
-      "application/json"
+      "application/json",
     );
   }
 }

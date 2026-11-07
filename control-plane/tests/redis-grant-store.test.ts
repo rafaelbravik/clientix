@@ -37,20 +37,20 @@ class InProcessDatabaseClient implements DatabaseClient {
 
   async query<R = Record<string, unknown>>(
     sql: string,
-    params: unknown[] = []
+    params: unknown[] = [],
   ): Promise<{ rows: R[]; rowCount?: number }> {
     const trimmed = sql.trim();
 
     if (trimmed.includes("from control_plane.licensing_installations where id = $1")) {
       const id = params[0] as string;
       const inst = this.installations.get(id);
-      return { rows: inst ? ([inst as unknown as R]) : [] };
+      return { rows: inst ? [inst as unknown as R] : [] };
     }
 
     if (trimmed.includes("from control_plane.licensing_licenses where id = $1")) {
       const id = params[0] as string;
       const lic = this.licenses.get(id);
-      return { rows: lic ? ([lic as unknown as R]) : [] };
+      return { rows: lic ? [lic as unknown as R] : [] };
     }
 
     if (trimmed.startsWith("insert into control_plane.licensing_events")) {
@@ -124,7 +124,8 @@ describe("L8.1G.3 Shared Redis Grant Store & Final Closure", () => {
     });
 
     samplePayload = Buffer.from("CLIENTIX_COMPILED_RELEASE_AMD64_BINARY");
-    const digest = `sha256:${crypto.createHash("sha256").update(samplePayload).digest("hex")}` as const;
+    const digest =
+      `sha256:${crypto.createHash("sha256").update(samplePayload).digest("hex")}` as const;
 
     testRelease = {
       releaseId: "rel_redis_2026.10.1",
@@ -282,7 +283,11 @@ describe("L8.1G.3 Shared Redis Grant Store & Final Closure", () => {
     it("validates and parses grant payload strictly, rejecting malformed JSON (fail-closed)", () => {
       expect(validateAndParseGrantPayload("not-json")).toBeNull();
       expect(validateAndParseGrantPayload(JSON.stringify({ grantId: 123 }))).toBeNull();
-      expect(validateAndParseGrantPayload(JSON.stringify({ grantId: "g1", architecture: "invalid_arch" }))).toBeNull();
+      expect(
+        validateAndParseGrantPayload(
+          JSON.stringify({ grantId: "g1", architecture: "invalid_arch" }),
+        ),
+      ).toBeNull();
     });
   });
 
@@ -312,7 +317,11 @@ describe("L8.1G.3 Shared Redis Grant Store & Final Closure", () => {
       await redisStore.createGrant(grant, 900);
 
       // Consume art_app_amd64 once
-      const resA = await redisStore.consumeArtifactUse("hash_multi_art", "art_app_amd64", Math.floor(Date.now() / 1000));
+      const resA = await redisStore.consumeArtifactUse(
+        "hash_multi_art",
+        "art_app_amd64",
+        Math.floor(Date.now() / 1000),
+      );
       expect(resA.allowed).toBe(true);
 
       const updatedGrant = await redisStore.getGrant("hash_multi_art");
@@ -345,8 +354,12 @@ describe("L8.1G.3 Shared Redis Grant Store & Final Closure", () => {
 
       const successCount = (resA.ok ? 1 : 0) + (resB.ok ? 1 : 0);
       const exhaustedCount =
-        (!resA.ok && resA.error?.code === "ARTIFACT_GRANT_EXHAUSTED" && resA.status === 403 ? 1 : 0) +
-        (!resB.ok && resB.error?.code === "ARTIFACT_GRANT_EXHAUSTED" && resB.status === 403 ? 1 : 0);
+        (!resA.ok && resA.error?.code === "ARTIFACT_GRANT_EXHAUSTED" && resA.status === 403
+          ? 1
+          : 0) +
+        (!resB.ok && resB.error?.code === "ARTIFACT_GRANT_EXHAUSTED" && resB.status === 403
+          ? 1
+          : 0);
 
       expect(successCount).toBe(1);
       expect(exhaustedCount).toBe(1);

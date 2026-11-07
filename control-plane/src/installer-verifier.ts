@@ -29,7 +29,7 @@ export interface InstallerVerifyResult {
  */
 export class InstallerArtifactVerifier {
   public static async verifyAndPromote(
-    params: InstallerVerifyParams
+    params: InstallerVerifyParams,
   ): Promise<InstallerVerifyResult> {
     const { tempFilePath, targetFilePath, expectedSizeBytes, expectedDigest } = params;
 

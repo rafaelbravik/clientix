@@ -93,7 +93,7 @@ export class MemoryGrantStore implements DistributionGrantStore {
   async consumeArtifactUse(
     tokenHash: string,
     artifactId: string,
-    currentUnixSeconds: number
+    currentUnixSeconds: number,
   ): Promise<ConsumeArtifactResult> {
     return this.withLock(() => {
       const grant = this.grantsByHash.get(tokenHash);
@@ -110,7 +110,11 @@ export class MemoryGrantStore implements DistributionGrantStore {
       }
 
       if (!grant.claims.allowedArtifactIds.includes(artifactId)) {
-        return { allowed: false, code: "ARTIFACT_NOT_ALLOWED", reason: "Artifact not allowed for this grant." };
+        return {
+          allowed: false,
+          code: "ARTIFACT_NOT_ALLOWED",
+          reason: "Artifact not allowed for this grant.",
+        };
       }
 
       const currentCount = grant.remainingUses.get(artifactId);
@@ -127,7 +131,10 @@ export class MemoryGrantStore implements DistributionGrantStore {
     });
   }
 
-  async consumeArtifactDownload(token: string, artifactId: string): Promise<{ allowed: boolean; reason?: string }> {
+  async consumeArtifactDownload(
+    token: string,
+    artifactId: string,
+  ): Promise<{ allowed: boolean; reason?: string }> {
     const hash = this.hashToken(token);
     const res = await this.consumeArtifactUse(hash, artifactId, Math.floor(Date.now() / 1000));
     return { allowed: res.allowed, reason: res.code ?? res.reason };

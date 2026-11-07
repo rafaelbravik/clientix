@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { NavHub } from "@/components/shell/NavHub";
+import { Card } from "@/components/ui/card";
 import { requireAuth, resolveActiveOrg } from "@/lib/auth/server";
 import { traduzir } from "@/lib/i18n/dicionario";
 import { modulosLigados } from "@/lib/instalacao/modulos";
@@ -31,16 +33,30 @@ export default async function SettingsHubPage() {
   const idioma = user.idioma;
 
   return (
-    <NavHub
-      group="organizacao"
-      isPlatformAdmin={user.is_platform_admin && !user.support}
-      role={activeOrg?.role ?? null}
-      interfaceSettings={activeOrg?.interface_settings}
-      // A porta do banco externo mora neste hub, e só existe com o módulo ligado.
-      modulosLigados={await modulosLigados(createAdminClient())}
-      title={traduzir("Configurações", idioma)}
-      subtitle={traduzir("Sua conta, os dados da empresa e quem tem acesso ao quê.", idioma)}
-      locale={idioma}
-    />
+    <>
+      <NavHub
+        group="organizacao"
+        isPlatformAdmin={user.is_platform_admin && !user.support}
+        role={activeOrg?.role ?? null}
+        interfaceSettings={activeOrg?.interface_settings}
+        // A porta do banco externo mora neste hub, e só existe com o módulo ligado.
+        modulosLigados={await modulosLigados(createAdminClient())}
+        title={traduzir("Configurações", idioma)}
+        subtitle={traduzir("Sua conta, os dados da empresa e quem tem acesso ao quê.", idioma)}
+        locale={idioma}
+      />
+      {user.is_platform_admin && !user.support && (
+        <section className="px-6 pb-6" aria-label={traduzir("Configurações da instalação", idioma)}>
+          <Link href="/admin/license" className="block max-w-3xl">
+            <Card className="p-4 transition-colors hover:border-border-strong">
+              <h2 className="text-sm font-semibold">{traduzir("Licença da instalação", idioma)}</h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {traduzir("Consulte a validade e atualize o arquivo de licença comercial.", idioma)}
+              </p>
+            </Card>
+          </Link>
+        </section>
+      )}
+    </>
   );
 }

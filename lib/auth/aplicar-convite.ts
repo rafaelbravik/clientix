@@ -32,13 +32,13 @@ import type { InvitePayload } from "@/lib/auth/invite-token";
  *   um convite revogado a quem chegasse pelo OUTRO caminho — confirmar o
  *   e-mail —, que é justamente o caminho de quem ainda não tem conta, ou seja,
  *   o caso comum.
- * - **Fechamento.** Sem gravar `accepted_at`, o convite de quem entrou pelo
- *   e-mail fica listado como **Pendente para sempre** na aba Membros, e o
- *   administrador reenvia ou revoga um convite que já foi aceito.
+ * - **Fechamento.** `fn_accept_team_invite_atomic` fecha a linha na MESMA transação
+ *   que cria o vínculo. Além de evitar convites aceitos listados como pendentes,
+ *   isto converte o assento reservado sem contar a mesma pessoa duas vezes.
  *
  * Convite sem linha (emitido antes desta migration, ou instalação cujo envio
  * não tinha service-role) segue o fluxo: a checagem de revogação de MEMBERSHIP
- * dentro de `fn_accept_team_invite` continua valendo.
+ * dentro de `fn_accept_team_invite_atomic` continua valendo.
  */
 
 export type ResultadoDoConvite =
@@ -65,7 +65,7 @@ export async function aplicarConvite(params: {
 
   // Org, papel e convidador vêm EXCLUSIVAMENTE do token assinado; o usuário,
   // de quem chamou. Nada aqui vem de body de requisição.
-  const { data: resultado, error } = await admin.rpc("fn_accept_team_invite", {
+  const { data: resultado, error } = await admin.rpc("fn_accept_team_invite_atomic", {
     p_interface_settings: payload.interface_settings ?? { preset: "completa" },
     p_user: userId,
     p_org: payload.organization_id,
@@ -73,6 +73,7 @@ export async function aplicarConvite(params: {
     p_invited_by: payload.invited_by ?? null,
     p_issued_at: payload.iat ? new Date(payload.iat * 1000).toISOString() : null,
     p_invited_at: new Date((payload.iat ?? payload.exp - 86400) * 1000).toISOString(),
+    p_invite_id: payload.invite_id,
   });
 
   if (error) {
@@ -95,17 +96,6 @@ export async function aplicarConvite(params: {
       requestId: requestId ?? null,
     });
   }
-
-  // Fecha o convite na aba Membros. Idempotente: `is("accepted_at", null)` faz
-  // o replay do mesmo token não mexer em nada, e `is("revoked_at", null)` impede
-  // que uma corrida marque como aceito um convite cancelado no mesmo instante.
-  await admin
-    .from("team_invites")
-    .update({ accepted_at: new Date().toISOString(), accepted_by: userId })
-    .eq("id", payload.invite_id)
-    .eq("organization_id", payload.organization_id)
-    .is("accepted_at", null)
-    .is("revoked_at", null);
 
   // Sem isto a pessoa entra sem organização escolhida e o app não sabe qual
   // mostrar — o mesmo motivo pelo qual o botão de aceite sempre gravou aqui.

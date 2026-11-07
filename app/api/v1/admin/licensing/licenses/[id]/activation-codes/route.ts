@@ -9,16 +9,14 @@ import {
   falhaDaEscritaDePlatformAdmin,
 } from "@/lib/auth/requirePlatformAdmin";
 import { getControlPlaneAdminService } from "@/control-plane/src/admin-service-provider";
+import { hasSameOrigin, readJsonBodyLimited } from "@/control-plane/src/http-input";
 
 const createCodeSchema = z.object({
   max_uses: z.number().int().min(1).default(1),
   expires_at: z.string().datetime("Valid ISO-8601 expiration date required"),
 });
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = randomUUID();
   try {
     await requirePlatformAdmin();
@@ -37,11 +35,10 @@ export async function GET(
   }
 }
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = randomUUID();
+  if (!hasSameOrigin(req))
+    return fail("forbidden", "Same-origin request required.", 403, { requestId });
   let adminCtx: Awaited<ReturnType<typeof requirePlatformAdminEscrita>>;
   try {
     adminCtx = await requirePlatformAdminEscrita();
@@ -55,7 +52,7 @@ export async function POST(
 
   let body: unknown;
   try {
-    body = await req.json();
+    body = await readJsonBodyLimited(req, 4_096);
   } catch {
     return fail("invalid_request", "Invalid JSON payload", 400, { requestId });
   }
@@ -70,12 +67,13 @@ export async function POST(
 
   try {
     const adminService = getControlPlaneAdminService();
-    const actor = adminCtx.user.email || adminCtx.user.id;
+    const actor = adminCtx.user.id;
     const result = await adminService.createActivationCode({
       license_id: id,
       max_uses: parsed.data.max_uses,
       expires_at: parsed.data.expires_at,
       actor,
+      request_id: requestId,
     });
     return ok(result, { status: 201, requestId });
   } catch (err: unknown) {

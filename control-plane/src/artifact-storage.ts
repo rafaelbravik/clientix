@@ -66,7 +66,8 @@ export class FilesystemArtifactStorage implements ArtifactStorageBackend {
 
     const stat = await fs.promises.stat(filePath);
     const content = await fs.promises.readFile(filePath);
-    const digest = `sha256:${crypto.createHash("sha256").update(content).digest("hex")}` as `sha256:${string}`;
+    const digest =
+      `sha256:${crypto.createHash("sha256").update(content).digest("hex")}` as `sha256:${string}`;
 
     return {
       key,
@@ -91,7 +92,8 @@ export class FilesystemArtifactStorage implements ArtifactStorageBackend {
 
   async putObject(key: string, data: Buffer, contentType?: string): Promise<StorageObjectMetadata> {
     const filePath = this.resolveSafePath(key);
-    const newDigest = `sha256:${crypto.createHash("sha256").update(data).digest("hex")}` as `sha256:${string}`;
+    const newDigest =
+      `sha256:${crypto.createHash("sha256").update(data).digest("hex")}` as `sha256:${string}`;
 
     if (fs.existsSync(filePath)) {
       const existing = await fs.promises.readFile(filePath);
@@ -107,7 +109,7 @@ export class FilesystemArtifactStorage implements ArtifactStorageBackend {
         };
       }
       throw new Error(
-        `IMMUTABLE_OBJECT_CONFLICT: Object already exists at key "${key}" with digest ${existingDigest}, cannot overwrite with different digest ${newDigest}.`
+        `IMMUTABLE_OBJECT_CONFLICT: Object already exists at key "${key}" with digest ${existingDigest}, cannot overwrite with different digest ${newDigest}.`,
       );
     }
 
@@ -149,7 +151,8 @@ export class MemoryArtifactStorage implements ArtifactStorageBackend {
     const item = this.objects.get(key);
     if (!item) return null;
 
-    const digest = `sha256:${crypto.createHash("sha256").update(item.data).digest("hex")}` as `sha256:${string}`;
+    const digest =
+      `sha256:${crypto.createHash("sha256").update(item.data).digest("hex")}` as `sha256:${string}`;
     return {
       key,
       sizeBytes: item.data.length,
@@ -170,7 +173,8 @@ export class MemoryArtifactStorage implements ArtifactStorageBackend {
 
   async putObject(key: string, data: Buffer, contentType?: string): Promise<StorageObjectMetadata> {
     const copy = Buffer.from(data);
-    const newDigest = `sha256:${crypto.createHash("sha256").update(copy).digest("hex")}` as `sha256:${string}`;
+    const newDigest =
+      `sha256:${crypto.createHash("sha256").update(copy).digest("hex")}` as `sha256:${string}`;
 
     const existing = this.objects.get(key);
     if (existing) {
@@ -185,7 +189,7 @@ export class MemoryArtifactStorage implements ArtifactStorageBackend {
         };
       }
       throw new Error(
-        `IMMUTABLE_OBJECT_CONFLICT: Object already exists at key "${key}" with digest ${existingDigest}, cannot overwrite with different digest ${newDigest}.`
+        `IMMUTABLE_OBJECT_CONFLICT: Object already exists at key "${key}" with digest ${existingDigest}, cannot overwrite with different digest ${newDigest}.`,
       );
     }
 

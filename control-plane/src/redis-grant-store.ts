@@ -18,14 +18,25 @@ import type { IRedisClient } from "./redis-client-interface";
 
 export interface ConsumeArtifactResult {
   allowed: boolean;
-  code?: "OK" | "GRANT_NOT_FOUND" | "GRANT_REVOKED" | "GRANT_EXPIRED" | "ARTIFACT_NOT_ALLOWED" | "ARTIFACT_GRANT_EXHAUSTED" | "MALFORMED_GRANT";
+  code?:
+    | "OK"
+    | "GRANT_NOT_FOUND"
+    | "GRANT_REVOKED"
+    | "GRANT_EXPIRED"
+    | "ARTIFACT_NOT_ALLOWED"
+    | "ARTIFACT_GRANT_EXHAUSTED"
+    | "MALFORMED_GRANT";
   reason?: string;
 }
 
 export interface DistributionGrantStore {
   createGrant(grant: DistributionGrant, ttlSeconds: number): Promise<void>;
   getGrant(tokenHash: string): Promise<DistributionGrant | null>;
-  consumeArtifactUse(tokenHash: string, artifactId: string, currentUnixSeconds: number): Promise<ConsumeArtifactResult>;
+  consumeArtifactUse(
+    tokenHash: string,
+    artifactId: string,
+    currentUnixSeconds: number,
+  ): Promise<ConsumeArtifactResult>;
   revokeGrant(grantId: string): Promise<void>;
   isRevoked(grantId: string): Promise<boolean>;
 }
@@ -255,14 +266,14 @@ export class RedisGrantStore implements DistributionGrantStore {
   async consumeArtifactUse(
     tokenHash: string,
     artifactId: string,
-    currentUnixSeconds: number
+    currentUnixSeconds: number,
   ): Promise<ConsumeArtifactResult> {
     const grantKey = this.getGrantKey(tokenHash);
 
     const resultCode = await this.redis.eval<number>(
       ATOMIC_CONSUME_LUA_SCRIPT,
       [grantKey],
-      [artifactId, currentUnixSeconds]
+      [artifactId, currentUnixSeconds],
     );
 
     switch (resultCode) {
@@ -275,12 +286,24 @@ export class RedisGrantStore implements DistributionGrantStore {
       case 3:
         return { allowed: false, code: "GRANT_REVOKED", reason: "Distribution grant revoked." };
       case 4:
-        return { allowed: false, code: "ARTIFACT_NOT_ALLOWED", reason: "Artifact not allowed for this grant." };
+        return {
+          allowed: false,
+          code: "ARTIFACT_NOT_ALLOWED",
+          reason: "Artifact not allowed for this grant.",
+        };
       case 5:
-        return { allowed: false, code: "ARTIFACT_GRANT_EXHAUSTED", reason: "Download attempt quota exhausted for this artifact grant." };
+        return {
+          allowed: false,
+          code: "ARTIFACT_GRANT_EXHAUSTED",
+          reason: "Download attempt quota exhausted for this artifact grant.",
+        };
       case 6:
       default:
-        return { allowed: false, code: "MALFORMED_GRANT", reason: "Malformed grant state in store." };
+        return {
+          allowed: false,
+          code: "MALFORMED_GRANT",
+          reason: "Malformed grant state in store.",
+        };
     }
   }
 }

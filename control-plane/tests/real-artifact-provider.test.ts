@@ -3,7 +3,11 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import os from "os";
-import { FilesystemArtifactStorage, MemoryArtifactStorage, type ArtifactStorageReader } from "../src/artifact-storage";
+import {
+  FilesystemArtifactStorage,
+  MemoryArtifactStorage,
+  type ArtifactStorageReader,
+} from "../src/artifact-storage";
 import { RealArtifactProvider } from "../src/real-artifact-provider";
 import { LocalReleaseManifestSigner } from "../src/manifest-signer";
 import { DistributionService } from "../src/distribution-service";
@@ -31,25 +35,28 @@ class MockDatabaseClient implements DatabaseClient {
       grace_days?: number;
     }
   >();
-  public installations = new Map<string, { id: string; license_id: string; public_key: string; status: string }>();
+  public installations = new Map<
+    string,
+    { id: string; license_id: string; public_key: string; status: string }
+  >();
   public events: Record<string, unknown>[] = [];
 
   async query<R = Record<string, unknown>>(
     sql: string,
-    params: unknown[] = []
+    params: unknown[] = [],
   ): Promise<{ rows: R[]; rowCount?: number }> {
     const trimmed = sql.trim();
 
     if (trimmed.includes("from control_plane.licensing_installations where id = $1")) {
       const id = params[0] as string;
       const inst = this.installations.get(id);
-      return { rows: inst ? ([inst as unknown as R]) : [] };
+      return { rows: inst ? [inst as unknown as R] : [] };
     }
 
     if (trimmed.includes("from control_plane.licensing_licenses where id = $1")) {
       const id = params[0] as string;
       const lic = this.licenses.get(id);
-      return { rows: lic ? ([lic as unknown as R]) : [] };
+      return { rows: lic ? [lic as unknown as R] : [] };
     }
 
     if (trimmed.startsWith("insert into control_plane.licensing_events")) {
@@ -94,7 +101,9 @@ describe("L9.1 Real Distribution Adapter & Artifact Storage", () => {
 
       const meta = await storage.putObject("test/key.tar", payload, "application/x-tar");
       expect(meta.sizeBytes).toBe(payload.length);
-      expect(meta.digest).toBe(`sha256:${crypto.createHash("sha256").update(payload).digest("hex")}`);
+      expect(meta.digest).toBe(
+        `sha256:${crypto.createHash("sha256").update(payload).digest("hex")}`,
+      );
 
       const exists = await storage.objectExists("test/key.tar");
       expect(exists).toBe(true);
@@ -118,7 +127,7 @@ describe("L9.1 Real Distribution Adapter & Artifact Storage", () => {
 
       // Traversal protection
       await expect(storage.getObjectStream("../../../etc/passwd")).rejects.toThrow(
-        /Path traversal detected/
+        /Path traversal detected/,
       );
     });
   });
@@ -132,12 +141,18 @@ describe("L9.1 Real Distribution Adapter & Artifact Storage", () => {
     const voiceContent = Buffer.from("OCI_IMAGE_VOICE_PAYLOAD");
     const migratorContent = Buffer.from("OCI_IMAGE_MIGRATOR_PAYLOAD");
 
-    const appAmd64Digest = `sha256:${crypto.createHash("sha256").update(appAmd64Content).digest("hex")}` as `sha256:${string}`;
-    const appArm64Digest = `sha256:${crypto.createHash("sha256").update(appArm64Content).digest("hex")}` as `sha256:${string}`;
-    const workerDigest = `sha256:${crypto.createHash("sha256").update(workerContent).digest("hex")}` as `sha256:${string}`;
-    const schedulerDigest = `sha256:${crypto.createHash("sha256").update(schedulerContent).digest("hex")}` as `sha256:${string}`;
-    const voiceDigest = `sha256:${crypto.createHash("sha256").update(voiceContent).digest("hex")}` as `sha256:${string}`;
-    const migratorDigest = `sha256:${crypto.createHash("sha256").update(migratorContent).digest("hex")}` as `sha256:${string}`;
+    const appAmd64Digest =
+      `sha256:${crypto.createHash("sha256").update(appAmd64Content).digest("hex")}` as `sha256:${string}`;
+    const appArm64Digest =
+      `sha256:${crypto.createHash("sha256").update(appArm64Content).digest("hex")}` as `sha256:${string}`;
+    const workerDigest =
+      `sha256:${crypto.createHash("sha256").update(workerContent).digest("hex")}` as `sha256:${string}`;
+    const schedulerDigest =
+      `sha256:${crypto.createHash("sha256").update(schedulerContent).digest("hex")}` as `sha256:${string}`;
+    const voiceDigest =
+      `sha256:${crypto.createHash("sha256").update(voiceContent).digest("hex")}` as `sha256:${string}`;
+    const migratorDigest =
+      `sha256:${crypto.createHash("sha256").update(migratorContent).digest("hex")}` as `sha256:${string}`;
 
     const artifacts: ArtifactMetadata[] = [
       {
@@ -230,12 +245,30 @@ describe("L9.1 Real Distribution Adapter & Artifact Storage", () => {
       });
 
       // Populate storage with immutable keys
-      await storage.putObject(provider.buildStorageKey(releaseId, "art_app_amd64", appAmd64Digest), appAmd64Content);
-      await storage.putObject(provider.buildStorageKey(releaseId, "art_app_arm64", appArm64Digest), appArm64Content);
-      await storage.putObject(provider.buildStorageKey(releaseId, "art_worker_amd64", workerDigest), workerContent);
-      await storage.putObject(provider.buildStorageKey(releaseId, "art_scheduler_amd64", schedulerDigest), schedulerContent);
-      await storage.putObject(provider.buildStorageKey(releaseId, "art_voice_amd64", voiceDigest), voiceContent);
-      await storage.putObject(provider.buildStorageKey(releaseId, "art_migrator_amd64", migratorDigest), migratorContent);
+      await storage.putObject(
+        provider.buildStorageKey(releaseId, "art_app_amd64", appAmd64Digest),
+        appAmd64Content,
+      );
+      await storage.putObject(
+        provider.buildStorageKey(releaseId, "art_app_arm64", appArm64Digest),
+        appArm64Content,
+      );
+      await storage.putObject(
+        provider.buildStorageKey(releaseId, "art_worker_amd64", workerDigest),
+        workerContent,
+      );
+      await storage.putObject(
+        provider.buildStorageKey(releaseId, "art_scheduler_amd64", schedulerDigest),
+        schedulerContent,
+      );
+      await storage.putObject(
+        provider.buildStorageKey(releaseId, "art_voice_amd64", voiceDigest),
+        voiceContent,
+      );
+      await storage.putObject(
+        provider.buildStorageKey(releaseId, "art_migrator_amd64", migratorDigest),
+        migratorContent,
+      );
 
       provider.registerRelease(releaseMeta);
 
@@ -380,7 +413,7 @@ describe("L9.1 Real Distribution Adapter & Artifact Storage", () => {
 
       // Provider throws digest error or service detects digest mismatch
       await expect(service.downloadArtifact("art_app_amd64", token)).rejects.toThrow(
-        /Artifact Storage Corruption: Digest mismatch/
+        /Artifact Storage Corruption: Digest mismatch/,
       );
     });
 
@@ -554,7 +587,7 @@ describe("L9.1 Real Distribution Adapter & Artifact Storage", () => {
       // 3. Different bytes -> DENY (IMMUTABLE_OBJECT_CONFLICT)
       const tamperedPayload = Buffer.from("TAMPERED_MALICIOUS_BYTES");
       await expect(storage.putObject(key, tamperedPayload)).rejects.toThrow(
-        /IMMUTABLE_OBJECT_CONFLICT/
+        /IMMUTABLE_OBJECT_CONFLICT/,
       );
     });
 
@@ -585,12 +618,36 @@ describe("L9.1 Real Distribution Adapter & Artifact Storage", () => {
           channel: "stable",
           minSchemaVersion: "1",
           artifacts: [
-            { artifactId: "a1", architecture: "amd64", artifactType: "oci-image", filename: "a1.tar", data: Buffer.from("1") },
-            { artifactId: "a2", architecture: "amd64", artifactType: "oci-image", filename: "a2.tar", data: Buffer.from("2") },
-            { artifactId: "a3", architecture: "amd64", artifactType: "oci-image", filename: "a3.tar", data: Buffer.from("3") },
-            { artifactId: "a4", architecture: "amd64", artifactType: "oci-image", filename: "a4.tar", data: Buffer.from("4") },
+            {
+              artifactId: "a1",
+              architecture: "amd64",
+              artifactType: "oci-image",
+              filename: "a1.tar",
+              data: Buffer.from("1"),
+            },
+            {
+              artifactId: "a2",
+              architecture: "amd64",
+              artifactType: "oci-image",
+              filename: "a2.tar",
+              data: Buffer.from("2"),
+            },
+            {
+              artifactId: "a3",
+              architecture: "amd64",
+              artifactType: "oci-image",
+              filename: "a3.tar",
+              data: Buffer.from("3"),
+            },
+            {
+              artifactId: "a4",
+              architecture: "amd64",
+              artifactType: "oci-image",
+              filename: "a4.tar",
+              data: Buffer.from("4"),
+            },
           ],
-        })
+        }),
       ).rejects.toThrow(/Simulated storage write error/);
 
       // Verify manifest was NEVER written
@@ -621,7 +678,8 @@ describe("L9.1 Real Distribution Adapter & Artifact Storage", () => {
 
     it("enforces installer verification: promotes valid temp artifact, rejects and unlinks tampered artifact", async () => {
       const validPayload = Buffer.from("VALID_DISTRIBUTION_PACKAGE_BINARY");
-      const validDigest = `sha256:${crypto.createHash("sha256").update(validPayload).digest("hex")}` as `sha256:${string}`;
+      const validDigest =
+        `sha256:${crypto.createHash("sha256").update(validPayload).digest("hex")}` as `sha256:${string}`;
 
       const tempFileValid = path.join(tmpDir, "installer_test_valid.tmp.part");
       const targetFileValid = path.join(tmpDir, "installed_target_valid.tar");
@@ -661,7 +719,8 @@ describe("L9.1 Real Distribution Adapter & Artifact Storage", () => {
 
     it("enforces partial download protection: rejects truncated download, unlinks temp file, and preserves target", async () => {
       const fullPayload = Buffer.from("FULL_COMPLETE_PRODUCTION_BINARY");
-      const fullDigest = `sha256:${crypto.createHash("sha256").update(fullPayload).digest("hex")}` as `sha256:${string}`;
+      const fullDigest =
+        `sha256:${crypto.createHash("sha256").update(fullPayload).digest("hex")}` as `sha256:${string}`;
 
       // Simulate an existing installed production binary
       const targetPath = path.join(tmpDir, "existing_prod.tar");
@@ -785,4 +844,3 @@ describe("L9.1 Real Distribution Adapter & Artifact Storage", () => {
     });
   });
 });
-

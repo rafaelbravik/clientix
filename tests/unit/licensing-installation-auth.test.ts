@@ -9,6 +9,8 @@ import {
   isValidInstallationPublicKey,
   deriveInstallationPublicKey,
   getOrCreateInstallationPrivateKey,
+  getOrCreatePendingInstallationKeyPair,
+  commitPendingInstallationPrivateKey,
   generateActivationCode,
   deriveActivationCodeDigest,
   timingSafeEqualDigests,
@@ -35,10 +37,16 @@ describe("L8.1B Installation Auth & Crypto Primitives", () => {
 
   describe("1. Installation ID canonical format", () => {
     it("validates canonical inst_<UUIDv4> format strictly", () => {
-      expect(isValidCanonicalInstallationId("inst_123e4567-e89b-42d3-a456-426614174000")).toBe(true);
-      expect(isValidCanonicalInstallationId("inst_aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee")).toBe(true);
+      expect(isValidCanonicalInstallationId("inst_123e4567-e89b-42d3-a456-426614174000")).toBe(
+        true,
+      );
+      expect(isValidCanonicalInstallationId("inst_aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee")).toBe(
+        true,
+      );
       // Non-UUID or not UUIDv4
-      expect(isValidCanonicalInstallationId("inst_123e4567-e89b-12d3-a456-426614174000")).toBe(false); // UUID v1
+      expect(isValidCanonicalInstallationId("inst_123e4567-e89b-12d3-a456-426614174000")).toBe(
+        false,
+      ); // UUID v1
       expect(isValidCanonicalInstallationId("inst_invalid-uuid")).toBe(false);
       expect(isValidCanonicalInstallationId("123e4567-e89b-42d3-a456-426614174000")).toBe(false);
       expect(isValidCanonicalInstallationId("")).toBe(false);
@@ -80,12 +88,27 @@ describe("L8.1B Installation Auth & Crypto Primitives", () => {
       expect(key2).toBe(key1);
     });
 
+    it("keeps a recovery key pending until vendor authorization is committed", async () => {
+      const keyFile = path.join(tempDir, "installation.key");
+      const first = await getOrCreatePendingInstallationKeyPair(keyFile);
+      const retry = await getOrCreatePendingInstallationKeyPair(keyFile);
+
+      expect(retry).toEqual(first);
+      expect(isValidInstallationPrivateKey(first.privateKeyPem)).toBe(true);
+      await expect(fs.access(keyFile)).rejects.toThrow();
+      expect(await fs.readFile(`${keyFile}.pending`, "utf8")).toContain(first.privateKeyPem);
+
+      await commitPendingInstallationPrivateKey(keyFile);
+      expect((await fs.readFile(keyFile, "utf8")).trim()).toBe(first.privateKeyPem);
+      await expect(fs.access(`${keyFile}.pending`)).rejects.toThrow();
+    });
+
     it("fails closed if key file exists but is empty", async () => {
       const keyFile = path.join(tempDir, "installation.key");
       await fs.writeFile(keyFile, "   \n");
 
       await expect(getOrCreateInstallationPrivateKey(keyFile)).rejects.toThrow(
-        /empty or truncated/i
+        /empty or truncated/i,
       );
     });
 
@@ -94,7 +117,7 @@ describe("L8.1B Installation Auth & Crypto Primitives", () => {
       await fs.writeFile(keyFile, "not-a-valid-ed25519-key");
 
       await expect(getOrCreateInstallationPrivateKey(keyFile)).rejects.toThrow(
-        /malformed or corrupted/i
+        /malformed or corrupted/i,
       );
     });
   });
@@ -134,10 +157,10 @@ describe("L8.1B Installation Auth & Crypto Primitives", () => {
   describe("5. Canonical path and body hashing", () => {
     it("normalizes path with query sorting, stripping redundant slashes", () => {
       expect(normalizeCanonicalPath("/api//v1/installations///heartbeat/")).toBe(
-        "/api/v1/installations/heartbeat"
+        "/api/v1/installations/heartbeat",
       );
       expect(normalizeCanonicalPath("/api/v1/resource?b=2&a=1&c=3")).toBe(
-        "/api/v1/resource?a=1&b=2&c=3"
+        "/api/v1/resource?a=1&b=2&c=3",
       );
     });
 
@@ -439,7 +462,7 @@ describe("L8.1B Installation Auth & Crypto Primitives", () => {
           expiresAt,
           graceDays,
           now: new Date("2026-09-30T23:59:59Z"),
-        })
+        }),
       ).toBe("NOT_YET_VALID");
 
       // 2. Exactly at valid_from
@@ -449,7 +472,7 @@ describe("L8.1B Installation Auth & Crypto Primitives", () => {
           expiresAt,
           graceDays,
           now: new Date("2026-10-01T00:00:00Z"),
-        })
+        }),
       ).toBe("VALID");
 
       // 3. Before expires_at
@@ -459,7 +482,7 @@ describe("L8.1B Installation Auth & Crypto Primitives", () => {
           expiresAt,
           graceDays,
           now: new Date("2026-10-09T23:59:59Z"),
-        })
+        }),
       ).toBe("VALID");
 
       // 4. Exactly at expires_at (transitions immediately into GRACE)
@@ -469,7 +492,7 @@ describe("L8.1B Installation Auth & Crypto Primitives", () => {
           expiresAt,
           graceDays,
           now: new Date("2026-10-10T00:00:00Z"),
-        })
+        }),
       ).toBe("GRACE");
 
       // 5. Inside grace period
@@ -479,7 +502,7 @@ describe("L8.1B Installation Auth & Crypto Primitives", () => {
           expiresAt,
           graceDays,
           now: new Date("2026-10-12T00:00:00Z"),
-        })
+        }),
       ).toBe("GRACE");
 
       // 6. 1 millisecond before grace ends (2026-10-17T00:00:00Z - 1ms)
@@ -489,7 +512,7 @@ describe("L8.1B Installation Auth & Crypto Primitives", () => {
           expiresAt,
           graceDays,
           now: new Date("2026-10-16T23:59:59.999Z"),
-        })
+        }),
       ).toBe("GRACE");
 
       // 7. Exactly at grace end (transitions into EXPIRED)
@@ -499,7 +522,7 @@ describe("L8.1B Installation Auth & Crypto Primitives", () => {
           expiresAt,
           graceDays,
           now: new Date("2026-10-17T00:00:00Z"),
-        })
+        }),
       ).toBe("EXPIRED");
 
       // 8. After grace period
@@ -509,7 +532,7 @@ describe("L8.1B Installation Auth & Crypto Primitives", () => {
           expiresAt,
           graceDays,
           now: new Date("2026-10-17T00:00:01Z"),
-        })
+        }),
       ).toBe("EXPIRED");
 
       // 9. Perpetual license (expiresAt = null)
@@ -519,7 +542,7 @@ describe("L8.1B Installation Auth & Crypto Primitives", () => {
           expiresAt: null,
           graceDays,
           now: new Date("2050-01-01T00:00:00Z"),
-        })
+        }),
       ).toBe("VALID");
     });
   });

@@ -84,8 +84,9 @@ describe("signed installer compatibility contract", () => {
     const chatgptSubscriptionPublicationMigration = schemaManifest.migrations.find((entry) => entry.sequence === 9059);
     const pacingReplyDailyCapMigration = schemaManifest.migrations.find((entry) => entry.sequence === 9061);
     const platformInitializationMigration = schemaManifest.migrations.find((entry) => entry.sequence === 9062);
-    expect(schemaManifest.schema_target).toBe("9062");
-    expect(schemaManifest.baseline.incorporated_through_sequence).toBe(9062);
+    const atomicInviteSeatConsumptionMigration = schemaManifest.migrations.find((entry) => entry.sequence === 9063);
+    expect(schemaManifest.schema_target).toBe("9063");
+    expect(schemaManifest.baseline.incorporated_through_sequence).toBe(9063);
     expect(webchatMigration).toMatchObject({
       file: "20261010120000_0511_webchat_widget_bootstrap.sql",
       version: "20261010120000",
@@ -182,6 +183,13 @@ describe("signed installer compatibility contract", () => {
       version: "20261103121717",
       sequence: 9062,
       slug: "platform_owner_first_run_setup",
+      transactional: true,
+    });
+    expect(atomicInviteSeatConsumptionMigration).toMatchObject({
+      file: "20261104190000_9063_atomic_team_invite_seat_consumption.sql",
+      version: "20261104190000",
+      sequence: 9063,
+      slug: "atomic_team_invite_seat_consumption",
       transactional: true,
     });
 
@@ -315,8 +323,9 @@ describe("signed installer compatibility contract", () => {
         { version: chatgptSubscriptionPublicationMigration.version, checksum: chatgptSubscriptionPublicationMigration.checksum },
         { version: pacingReplyDailyCapMigration.version, checksum: pacingReplyDailyCapMigration.checksum },
         { version: platformInitializationMigration.version, checksum: platformInitializationMigration.checksum },
+        { version: atomicInviteSeatConsumptionMigration.version, checksum: atomicInviteSeatConsumptionMigration.checksum },
       ],
-    }, schemaManifest)).toMatchObject({ valid: true, currentSchema: "9062" });
+    }, schemaManifest)).toMatchObject({ valid: true, currentSchema: "9063" });
     expect(deriveCurrentSchema({ type: "FRESH_DATABASE" }, schemaManifest)).toMatchObject({ valid: true, currentSchema: null });
     expect(deriveCurrentSchema({ type: "EXISTING_UNTRACKED_INSTALLATION" }, schemaManifest).valid).toBe(false);
     expect(deriveCurrentSchema({ type: "TRACKED_INSTALLATION", applied: [] }, schemaManifest).valid).toBe(false);

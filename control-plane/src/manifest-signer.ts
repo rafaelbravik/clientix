@@ -10,7 +10,7 @@ export interface IReleaseManifestSigner {
 export class LocalReleaseManifestSigner implements IReleaseManifestSigner {
   constructor(
     private readonly keyId: string,
-    private readonly privateKeyPem: string
+    private readonly privateKeyPem: string,
   ) {}
 
   getKeyId(): string {
@@ -22,7 +22,9 @@ export class LocalReleaseManifestSigner implements IReleaseManifestSigner {
 
     const privateKey = crypto.createPrivateKey(this.privateKeyPem);
     if (privateKey.asymmetricKeyType !== "ed25519") {
-      throw new Error(`Invalid manifest signing key algorithm: expected ed25519, got ${privateKey.asymmetricKeyType}`);
+      throw new Error(
+        `Invalid manifest signing key algorithm: expected ed25519, got ${privateKey.asymmetricKeyType}`,
+      );
     }
 
     const sigBuffer = crypto.sign(null, canonicalBytes, privateKey);
@@ -49,7 +51,7 @@ export interface VerifyManifestResult {
 
 export function verifyReleaseManifest(
   manifest: SignedReleaseManifest,
-  trustedManifestKeys: Record<string, string>
+  trustedManifestKeys: Record<string, string>,
 ): VerifyManifestResult {
   if (manifest.algorithm !== "Ed25519") {
     return { valid: false, reason: `Unsupported algorithm: ${manifest.algorithm}` };
