@@ -170,6 +170,7 @@ generate() {
   api_url="${api_url/127.0.0.1/$vm_ip}"
   server_api_url="${api_url/$vm_ip/host.docker.internal}"
   app_url="http://127.0.0.1:${app_port}"
+  admin_url="http://127.0.0.1:${vendor_port}"
 
   if [[ -f "$ENV_FILE" ]] && [[ "$(env_value DESKCOMM_ENV_MODE)" != "local" ]]; then
     local backup
@@ -205,7 +206,7 @@ SUPABASE_SERVER_URL=$server_api_url
 CLIENTIX_BOOTSTRAP_TOKEN=
 
 NEXT_PUBLIC_APP_URL=$app_url
-NEXT_PUBLIC_ADMIN_URL=$app_url
+NEXT_PUBLIC_ADMIN_URL=$admin_url
 WAHA_WEBHOOK_BASE_URL=http://app:3000
 
 INTERNAL_SECRET=$(openssl rand -hex 32)

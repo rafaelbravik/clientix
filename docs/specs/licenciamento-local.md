@@ -36,14 +36,14 @@ As rotas `/api/v1/admin/license`, `/validate` e `/update` exigem sessão de Plat
 
 A página `/admin/license` mostra somente serial e installation ID mascarados, plano, validade, dias restantes, carência, estado, última validação e alertas de 30/15/7/1 dias. O arquivo é validado em memória antes da gravação temporária e da substituição atômica; uma candidata recusada não substitui o arquivo atual.
 
-O build self-host preserva somente essa página e as três rotas locais de licença. O painel vendor `/admin/licensing`, as demais rotas de administração global e o Control Plane continuam excluídos.
+O build self-host preserva essa página e as APIs locais de licença. Para completar a instalação, também preserva a superfície mínima `/owner` e apenas as rotas `/api/v1/admin/tenants` e `/api/v1/admin/users`; essas APIs mantêm os guards de Platform Admin, licença de instalação e quotas. O painel vendor `/admin/licensing`, as demais rotas de administração global e o Control Plane continuam excluídos.
 
 ## Living System review
 
 - **Entrada:** `installation_id` persistido por `FileInstallationIdStorage`/instalador, arquivo assinado em `CLIENTIX_LICENSE_PATH` e horário local observado por `observeLicenseClock`.
 - **Saídas:** `requireValidInstallationLicense` protege operações comerciais já licenciadas; `getInstallationCapabilities` e `getInstallationTenantLimit` expõem capacidades e limite de tenants sem alterar `organizations.settings.plan`.
 - **Atividade:** a substituição autorizada emite `platform_license.updated` via `audit()`; modo local de aviso registra `logger.warn` sem incluir payload ou segredo.
-- **Tela e porta:** `/admin/license`, alcançável pelo card de Platform Admin em `/app/settings`; a exceção estreita no customer build é necessária porque o restante de `/admin` é o painel vendor e não é distribuído.
+- **Tela e porta:** `/admin/license` continua alcançável pelo card de Platform Admin em `/app/settings`; `/owner` permite ao primeiro Platform Owner criar empresas e convites depois que a licença local foi ativada. A exceção estreita no customer build é necessária porque o restante de `/admin` é o painel vendor e não é distribuído.
 - **Continuidade:** estados `GRACE`, `EXPIRED`, `REVOKED` e `INVALID` mostram alerta e ação de atualização; leitura, backup, exportação e administração da plataforma continuam disponíveis.
 - **Configuração ausente:** a página mostra licença ausente/inválida, modo efetivo, último check e seletor para substituir o documento; produção continua fail-closed.
 - **IA ↔ humano:** não aplicável; licenciamento não participa do fluxo de atendimento ou handoff.

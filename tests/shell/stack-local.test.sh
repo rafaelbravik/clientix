@@ -92,6 +92,8 @@ check "gerador de .env.local: a chave do WAHA nasce aleatória" bash -c '
   grep -qF "waha_key=\"\$(openssl rand" "$1"' _ "$ENVGEN"
 check "ambiente local usa loopback com opt-in HTTP e callback WAHA interno" bash -c '
   grep -qF '\''app_url="http://127.0.0.1:${app_port}"'\'' "$1" &&
+  grep -qF '\''admin_url="http://127.0.0.1:${vendor_port}"'\'' "$1" &&
+  grep -qF "NEXT_PUBLIC_ADMIN_URL=\$admin_url" "$1" &&
   grep -qF "CLIENTIX_ALLOW_INSECURE_HTTP=true" "$1" &&
   grep -qF "WAHA_WEBHOOK_BASE_URL=http://app:3000" "$1"' _ "$ENVGEN"
 check "worker valida o ingresso HTTP local explicitamente" bash -c '
