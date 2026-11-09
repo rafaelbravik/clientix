@@ -132,14 +132,31 @@ local_ip() {
 
 choose_port() {
   local port="${1:-3000}"
-  while ! node -e 'const net=require("node:net");const s=net.createServer();s.once("error",()=>process.exit(1));s.listen(Number(process.argv[1]),"0.0.0.0",()=>s.close(()=>process.exit(0)))' "$port" >/dev/null 2>&1; do
+  shift || true
+  while [[ " $* " == *" $port "* ]] || ! node -e 'const net=require("node:net");const s=net.createServer();s.once("error",()=>process.exit(1));s.listen(Number(process.argv[1]),"0.0.0.0",()=>s.close(()=>process.exit(0)))' "$port" >/dev/null 2>&1; do
     port=$((port + 1))
   done
   printf '%s' "$port"
 }
 
+ensure_waha_port() {
+  local existing app_port vendor_port control_plane_db_port waha_port ports_file
+  existing="$(env_value WAHA_PORT)"
+  [[ -n "$existing" ]] && return
+  ports_file="$ROOT_DIR/.clientix-local/supabase-ports"
+  app_port="$(awk -F= '$1 == "APP" { print $2 }' "$ports_file")"
+  vendor_port="$(awk -F= '$1 == "VENDOR" { print $2 }' "$ports_file")"
+  control_plane_db_port="$(awk -F= '$1 == "CONTROL_PLANE_DB" { print $2 }' "$ports_file")"
+  [[ -n "$app_port" && -n "$vendor_port" && -n "$control_plane_db_port" ]] || {
+    printf 'Erro: o alocador local não retornou as portas necessárias para WAHA.\n' >&2
+    exit 1
+  }
+  waha_port="$(choose_port 3030 "$app_port" "$vendor_port" "$control_plane_db_port")"
+  upsert_env_value WAHA_PORT "$waha_port"
+}
+
 generate() {
-  local status vm_ip app_port vendor_port control_plane_db_port api_url server_api_url app_url db_url admin_db_url anon_key service_role_key ports_file
+  local status vm_ip app_port vendor_port control_plane_db_port waha_port api_url server_api_url app_url db_url admin_db_url anon_key service_role_key ports_file
   status="$(./scripts/local-supabase.sh status)"
   api_url="$(printf '%s' "$status" | json_value API_URL)"
   [[ -n "$api_url" ]] || {
@@ -163,7 +180,8 @@ generate() {
   app_port="$(awk -F= '$1 == "APP" { print $2 }' "$ports_file")"
   vendor_port="$(awk -F= '$1 == "VENDOR" { print $2 }' "$ports_file")"
   control_plane_db_port="$(awk -F= '$1 == "CONTROL_PLANE_DB" { print $2 }' "$ports_file")"
-  [[ -n "$app_port" && -n "$vendor_port" && -n "$control_plane_db_port" ]] || {
+  waha_port="$(choose_port 3030 "$app_port" "$vendor_port" "$control_plane_db_port")"
+  [[ -n "$app_port" && -n "$vendor_port" && -n "$control_plane_db_port" && -n "$waha_port" ]] || {
     printf 'Erro: o alocador local não retornou as portas necessárias.\n' >&2
     exit 1
   }
@@ -230,6 +248,7 @@ LGPD_SIGNING_KEY=$(openssl rand -hex 32)
 APP_PORT=$app_port
 VENDOR_PORT=$vendor_port
 CONTROL_PLANE_DB_PORT=$control_plane_db_port
+WAHA_PORT=$waha_port
 CLIENTIX_LICENSE_SERVER_URL=http://vendor:3000
 SENTRY_DSN=
 EOF
@@ -247,6 +266,7 @@ case "${1:-ensure}" in
     ensure_bootstrap_token
     ensure_control_plane_environment
     ensure_vapid_keys
+    ensure_waha_port
     ;;
   generate|force)
     generate

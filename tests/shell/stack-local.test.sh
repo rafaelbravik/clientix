@@ -93,9 +93,15 @@ check "gerador de .env.local: a chave do WAHA nasce aleatória" bash -c '
 check "ambiente local usa loopback com opt-in HTTP e callback WAHA interno" bash -c '
   grep -qF '\''app_url="http://127.0.0.1:${app_port}"'\'' "$1" &&
   grep -qF '\''admin_url="http://127.0.0.1:${vendor_port}"'\'' "$1" &&
+  grep -qF "waha_port=\"\$(choose_port 3030 \"\$app_port\" \"\$vendor_port\" \"\$control_plane_db_port\")\"" "$1" &&
+  grep -qF "WAHA_PORT=\$waha_port" "$1" &&
   grep -qF "NEXT_PUBLIC_ADMIN_URL=\$admin_url" "$1" &&
   grep -qF "CLIENTIX_ALLOW_INSECURE_HTTP=true" "$1" &&
   grep -qF "WAHA_WEBHOOK_BASE_URL=http://app:3000" "$1"' _ "$ENVGEN"
+check "alocador WAHA pula portas já reservadas por outros serviços" bash -c '
+  eval "$(sed -n "/^choose_port() {/,/^}/p" "$1")"
+  selected="$(choose_port 3030 3030 3031)"
+  [[ "$selected" -gt 3031 ]]' _ "$ENVGEN"
 check "worker valida o ingresso HTTP local explicitamente" bash -c '
   awk "/^  worker:/{f=1;next} f && /^  [a-z]/{f=0} f" "$1" | grep -qF "CLIENTIX_INGRESS_MODE: \"local\"" &&
   awk "/^  worker:/{f=1;next} f && /^  [a-z]/{f=0} f" "$1" | grep -qF "CLIENTIX_ALLOW_INSECURE_HTTP:"' _ "$COMPOSE"
@@ -115,7 +121,8 @@ check "worker valida o ingresso HTTP local explicitamente" bash -c '
 check "a sonda enxerga o bloco do WAHA no compose" bash -c '
   awk "/^  waha:/{f=1;next} f && /^  [a-z]/{f=0} f" "$1" | grep -q WAHA_DASHBOARD_ENABLED' _ "$COMPOSE"
 check "nenhuma porta do WAHA é publicada sem endereço de bind" bash -c '
-  ! awk "/^  waha:/{f=1;next} f && /^  [a-z]/{f=0} f" "$1" | grep -qE "^ +- \"[0-9]+:[0-9]+\"$"' _ "$COMPOSE"
+  awk "/^  waha:/{f=1;next} f && /^  [a-z]/{f=0} f" "$1" | grep -qF '\''127.0.0.1:${WAHA_PORT:-3030}:3000'\'' &&
+  ! awk "/^  waha:/{f=1;next} f && /^  [a-z]/{f=0} f" "$1" | grep -qF "127.0.0.1:3030:3000"' _ "$COMPOSE"
 
 # ── O .env.local de quem já usa o clone ────────────────────────────────────
 #

@@ -20,7 +20,7 @@ pnpm install --frozen-lockfile
 pnpm local:up
 ```
 
-`pnpm local:up` cria o projeto Supabase e o projeto Docker com identificadores derivados do caminho do clone. As portas locais são alocadas antes de iniciar os serviços, para que dois clones no mesmo computador não compartilhem containers, redes, volumes ou portas do Supabase. O arquivo operacional do Supabase fica em `.clientix-local/supabase/`; ele é gerado a partir de `supabase/config.toml`, sem editar o template versionado.
+`pnpm local:up` cria o projeto Supabase e o projeto Docker com identificadores derivados do caminho do clone. As portas locais são alocadas antes de iniciar os serviços, inclusive uma porta WAHA livre, para que dois clones no mesmo computador não compartilhem containers, redes, volumes ou portas. O dashboard WAHA continua preso a loopback. O arquivo operacional do Supabase fica em `.clientix-local/supabase/`; ele é gerado a partir de `supabase/config.toml`, sem editar o template versionado.
 
 O primeiro `local:up` provisiona uma senha aleatória para `agent_worker` antes de aplicar `supabase/baseline.sql`. A senha e a URL runtime ficam em `.clientix-local/` e são ignoradas pelo Git. `SUPABASE_DB_ADMIN_URL` é usada somente pelo provisionamento e pela inicialização; os serviços Customer e Worker recebem essa variável vazia e usam a URL runtime de `agent_worker`.
 
