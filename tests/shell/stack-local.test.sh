@@ -102,6 +102,12 @@ check "alocador WAHA pula portas já reservadas por outros serviços" bash -c '
   eval "$(sed -n "/^choose_port() {/,/^}/p" "$1")"
   selected="$(choose_port 3030 3030 3031)"
   [[ "$selected" -gt 3031 ]]' _ "$ENVGEN"
+check "alocador local pula portas publicadas por containers Docker" bash -c '
+  eval "$(sed -n "/^choose_port() {/,/^}/p" "$1")"
+  docker() { printf "127.0.0.1:3030->3000/tcp, 0.0.0.0:3031-3032->3000-3001/tcp\\n"; }
+  node() { return 0; }
+  selected="$(choose_port 3030)"
+  [[ "$selected" == "3033" ]]' _ "$ENVGEN"
 check "worker valida o ingresso HTTP local explicitamente" bash -c '
   awk "/^  worker:/{f=1;next} f && /^  [a-z]/{f=0} f" "$1" | grep -qF "CLIENTIX_INGRESS_MODE: \"local\"" &&
   awk "/^  worker:/{f=1;next} f && /^  [a-z]/{f=0} f" "$1" | grep -qF "CLIENTIX_ALLOW_INSECURE_HTTP:"' _ "$COMPOSE"

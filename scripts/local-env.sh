@@ -131,9 +131,16 @@ local_ip() {
 }
 
 choose_port() {
-  local port="${1:-3000}"
+  local port="${1:-3000}" docker_ports
   shift || true
-  while [[ " $* " == *" $port "* ]] || ! node -e 'const net=require("node:net");const s=net.createServer();s.once("error",()=>process.exit(1));s.listen(Number(process.argv[1]),"0.0.0.0",()=>s.close(()=>process.exit(0)))' "$port" >/dev/null 2>&1; do
+  # Docker Desktop may reserve a published host port outside Windows' socket
+  # table, so a successful Node bind probe alone is not sufficient there.
+  docker_ports="$(docker ps -a --format '{{.Ports}}' 2>/dev/null \
+    | grep -oE '[0-9]+(-[0-9]+)?->' \
+    | sed 's/->$//' \
+    | awk -F- 'NF == 1 { print $1; next } { for (port = $1; port <= $2; port++) print port }' \
+    | sort -nu || true)"
+  while [[ " $* " == *" $port "* ]] || grep -qxF "$port" <<<"$docker_ports" || ! node -e 'const net=require("node:net");const s=net.createServer();s.once("error",()=>process.exit(1));s.listen(Number(process.argv[1]),"0.0.0.0",()=>s.close(()=>process.exit(0)))' "$port" >/dev/null 2>&1; do
     port=$((port + 1))
   done
   printf '%s' "$port"
