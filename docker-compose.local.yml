@@ -64,6 +64,8 @@ services:
     restart: unless-stopped
     env_file: ${LOCAL_ENV_FILE:-.env.local}
     environment:
+      CLIENTIX_INGRESS_MODE: "local"
+      CLIENTIX_ALLOW_INSECURE_HTTP: ${CLIENTIX_ALLOW_INSECURE_HTTP:-true}
       SUPABASE_DB_ADMIN_URL: ""
       CONTROL_PLANE_DATABASE_URL: ""
       CONTROL_PLANE_PEPPER: ""

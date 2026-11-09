@@ -94,6 +94,9 @@ check "ambiente local usa loopback com opt-in HTTP e callback WAHA interno" bash
   grep -qF '\''app_url="http://127.0.0.1:${app_port}"'\'' "$1" &&
   grep -qF "CLIENTIX_ALLOW_INSECURE_HTTP=true" "$1" &&
   grep -qF "WAHA_WEBHOOK_BASE_URL=http://app:3000" "$1"' _ "$ENVGEN"
+check "worker valida o ingresso HTTP local explicitamente" bash -c '
+  awk "/^  worker:/{f=1;next} f && /^  [a-z]/{f=0} f" "$1" | grep -qF "CLIENTIX_INGRESS_MODE: \"local\"" &&
+  awk "/^  worker:/{f=1;next} f && /^  [a-z]/{f=0} f" "$1" | grep -qF "CLIENTIX_ALLOW_INSECURE_HTTP:"' _ "$COMPOSE"
 
 # ── O painel do WAHA não atende a rede ─────────────────────────────────────
 #
