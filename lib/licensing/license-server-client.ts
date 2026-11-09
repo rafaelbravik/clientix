@@ -54,14 +54,16 @@ export function resolveLicenseServerUrl(raw = process.env.CLIENTIX_LICENSE_SERVE
   } catch {
     throw new LicenseServerClientError("NOT_CONFIGURED");
   }
-  const isLocal = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(url.hostname.toLowerCase());
+  const hostname = url.hostname.toLowerCase();
+  const isLocalhost = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(hostname);
+  const isLocalVendorService = process.env.DESKCOMM_ENV_MODE === "local" && hostname === "vendor";
   if (
     url.username ||
     url.password ||
     url.search ||
     url.hash ||
     (url.protocol !== "https:" &&
-      !(process.env.NODE_ENV !== "production" && isLocal && url.protocol === "http:"))
+      !(url.protocol === "http:" && (isLocalVendorService || (process.env.NODE_ENV !== "production" && isLocalhost))))
   ) {
     throw new LicenseServerClientError("NOT_CONFIGURED");
   }

@@ -29,13 +29,27 @@ echo "stack local — instalador e scripts"
 for arquivo in "$INSTALADOR" "$STACK" "$SUPA" "$ENVGEN"; do
   check "sintaxe Bash válida: ${arquivo#"$ROOT_DIR"/}" bash -n "$arquivo"
 done
+check "atalhos pnpm entram no Git Bash nativo no Windows" bash -c '
+  grep -qF "scripts/local-stack-launcher.mjs up" "$1" &&
+  grep -qF "path.join(programFiles, \"Git\", \"bin\", \"bash.exe\")" "$2" &&
+  grep -qF "spawnSync(" "$2" &&
+  grep -qF "resolveBash()," "$2"' _ "$ROOT_DIR/package.json" "$ROOT_DIR/scripts/local-stack-launcher.mjs"
+check "Supabase CLI 3.1.0 recebe config local gerada por clone" bash -c '
+  grep -qF "npm exec --yes --package=supabase@3.1.0" "$1" &&
+  grep -qF -- "--workdir" "$1" &&
+  grep -qF "[local_smtp]" "$2"' _ "$SUPA" "$ROOT_DIR/supabase/config.toml"
+check "agent_worker é provisionado antes da baseline sem senha em stdout" bash -c '
+  grep -qF "agent-worker-password" "$1" &&
+  grep -qF "provision_agent_worker \"\$db_url\"" "$1" &&
+  grep -qF "agent_worker must be provisioned before applying the worker runtime ACL contract" "$2"' _ "$SUPA" "$ROOT_DIR/supabase/baseline.sql"
+check "migrations Vendor usam tsx do lockfile sem depender do shim pnpm global" bash -c '
+  grep -qF "node ./node_modules/tsx/dist/cli.mjs control-plane/scripts/apply-migrations.ts" "$1"' _ "$STACK"
 
 # ── A senha do dono ────────────────────────────────────────────────────────
 #
 # O instalador publica as credenciais na tela no fim. Se a senha for literal
-# no arquivo, ela está publicada NO REPOSITÓRIO — e o `.env.local` que este
-# mesmo script gera aponta a aplicação para o IP da VM na rede, não para
-# 127.0.0.1. Qualquer máquina da rede alcançaria o CRM com a senha do GitHub.
+# no arquivo, ela está publicada NO REPOSITÓRIO. O `.env.local` usa loopback
+# nas origens da interface e callback WAHA pela rede privada do compose.
 check "a senha do dono não é literal no script" bash -c '
   ! grep -qE "^export OWNER_PASSWORD=\"[^$]" "$1"' _ "$INSTALADOR"
 check "a senha do dono é solicitada em TTY e exigida em modo não interativo" bash -c '
@@ -76,6 +90,10 @@ check "gerador de .env.local: o hash do WAHA deriva da MESMA chave" bash -c '
 
 check "gerador de .env.local: a chave do WAHA nasce aleatória" bash -c '
   grep -qF "waha_key=\"\$(openssl rand" "$1"' _ "$ENVGEN"
+check "ambiente local usa loopback com opt-in HTTP e callback WAHA interno" bash -c '
+  grep -qF '\''app_url="http://127.0.0.1:${app_port}"'\'' "$1" &&
+  grep -qF "CLIENTIX_ALLOW_INSECURE_HTTP=true" "$1" &&
+  grep -qF "WAHA_WEBHOOK_BASE_URL=http://app:3000" "$1"' _ "$ENVGEN"
 
 # ── O painel do WAHA não atende a rede ─────────────────────────────────────
 #
@@ -89,11 +107,10 @@ check "gerador de .env.local: a chave do WAHA nasce aleatória" bash -c '
 # padrão de fim e o bloco colapsa em 1 linha — sonda quebrada devolve zero e
 # lê exatamente como "nenhuma porta exposta". Por isso a flag `f`, e por isso a
 # checagem de controle logo abaixo.
-BLOCO_WAHA='awk "/^  waha:/{f=1;next} f && /^  [a-z]/{f=0} f"'
 check "a sonda enxerga o bloco do WAHA no compose" bash -c '
-  eval "$2" "$1" | grep -q WAHA_DASHBOARD_ENABLED' _ "$COMPOSE" "$BLOCO_WAHA"
+  awk "/^  waha:/{f=1;next} f && /^  [a-z]/{f=0} f" "$1" | grep -q WAHA_DASHBOARD_ENABLED' _ "$COMPOSE"
 check "nenhuma porta do WAHA é publicada sem endereço de bind" bash -c '
-  ! eval "$2" "$1" | grep -qE "^ +- \"[0-9]+:[0-9]+\"$"' _ "$COMPOSE" "$BLOCO_WAHA"
+  ! awk "/^  waha:/{f=1;next} f && /^  [a-z]/{f=0} f" "$1" | grep -qE "^ +- \"[0-9]+:[0-9]+\"$"' _ "$COMPOSE"
 
 # ── O .env.local de quem já usa o clone ────────────────────────────────────
 #

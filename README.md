@@ -300,31 +300,28 @@ Esta seção destina-se **exclusivamente a engenheiros e mantenedores** que dese
 - **Node.js:** Versão 22 LTS ou superior.
 - **Gerenciador de Pacotes:** `pnpm` (versão 9.15+ recomendada).
 - **Docker & Docker Compose:** Para execução de serviços locais de teste (Postgres e WAHA).
+- **Windows:** Git for Windows com Git Bash para os comandos da stack local.
 
-### 2. Instalação e Inicialização Local
+### 2. Instalação local nova
 
 ```bash
-# Clone do repositório
-git clone https://github.com/rafaelbravik/clientix-agencia.git
-cd clientix-agencia
+# Clone limpo e dependências do lockfile
+git clone https://github.com/rafaelbravik/clientix.git clientix
+cd clientix
+pnpm install --frozen-lockfile
 
-# Instalação rigorosa de dependências
-pnpm install
-
-# Configuração do ambiente local
-cp .env.example .env.local
-
-# Inicialização da stack local com PostgreSQL e dependências
+# Gera ambiente local, cria bancos vazios, aplica baseline e Control Plane,
+# e inicia Customer, Vendor e dependências em projetos isolados por clone.
 pnpm local:up
-
-# Execução do servidor de desenvolvimento Next.js
-pnpm dev
 ```
 
-A aplicação de desenvolvimento estará disponível em:
+O primeiro `local:up` gera o token de first-run em `.clientix-bootstrap-token` e `.env.local`. Use-o em `/setup` para criar o primeiro Platform Owner. URLs e portas são gravadas em `.env.local`:
 
-- **Aplicação:** `http://localhost:3000`
-- **Health Check da API:** `http://localhost:3000/api/v1/health`
+- **Customer:** `http://localhost:<APP_PORT>`
+- **Vendor:** `http://localhost:<VENDOR_PORT>`
+- **Health Check:** `http://localhost:<VENDOR_PORT>/api/v1/health`
+
+Veja [Instalação local nova do proprietário](docs/self-hosted/owner-install-from-zero.md) para runtime, provisioning de `agent_worker`, separação dos bancos e fluxo de licença sintética.
 
 ---
 

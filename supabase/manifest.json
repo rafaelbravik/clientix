@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "generated_at": "2026-11-04T19:08:24.200Z",
+  "generated_at": "2026-11-09T17:50:46.665Z",
   "schema_target": "9063",
   "baseline": {
     "file": "baseline.sql",
-    "checksum": "d9f18414a1b63fd4e3a45dfffcbeed9380883e52e4b9761dc3c917058d30907a",
-    "size_bytes": 2572417,
+    "checksum": "4f6b60a8515597fa3ec127d682199b632ba8b775ca5e88d9481862b09e5d80e2",
+    "size_bytes": 2571611,
     "incorporated_through_sequence": 9063
   },
   "migrations": [
