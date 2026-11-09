@@ -50,8 +50,8 @@ describe('política TLS de PostgreSQL', () => {
     expect(resolvePostgresConnectionConfig('postgres://u:p@10.0.0.2/x').ssl).toMatchObject({ rejectUnauthorized: true });
   });
 
-  it('permite os hostnames da stack Docker local somente com opt-in', () => {
-    const localOptions = { allowLocalDockerHosts: true };
+  it('permite hostnames Docker explicitamente fornecidos pelo runtime local', () => {
+    const localOptions = { localDockerHosts: ['host.docker.internal', 'control-plane-db'] };
     for (const host of ['host.docker.internal', 'control-plane-db']) {
       const url = `postgres://worker:synthetic@${host}/clientix?sslmode=require`;
       expect(resolvePostgresConnectionConfig(url).ssl).toMatchObject({ rejectUnauthorized: true });

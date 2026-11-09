@@ -2,7 +2,7 @@ import type { PoolConfig } from 'pg';
 
 export type PostgresHostClass = 'LOCAL_LOOPBACK' | 'LOCAL_DOCKER_NETWORK' | 'REMOTE';
 export interface PostgresConnectionOptions {
-  allowLocalDockerHosts?: boolean;
+  localDockerHosts?: readonly string[];
 }
 
 export function classifyPostgresHost(hostname: string): PostgresHostClass;

@@ -167,6 +167,15 @@ describe("customer build boundary", () => {
     expect(findCustomerArtifactMarkerHits('"support_readonly"')).toEqual(["support_readonly"]);
   });
 
+  it("keeps vendor database hostnames out of shared Customer runtime modules", () => {
+    const sharedRuntime = [
+      readFileSync("lib/agent-engine/db/pool.ts", "utf8"),
+      readFileSync("scripts/lib/postgres-tls-policy.cjs", "utf8"),
+    ].join("\n");
+
+    expect(findCustomerArtifactMarkerHits(sharedRuntime)).toEqual([]);
+  });
+
   it("substitutes vendor support providers with customer build implementations", () => {
     expect(CUSTOMER_BUILD_SOURCE_REPLACEMENTS).toEqual({
       "lib/auth/support-context-provider.ts": "lib/auth/support-context-provider.customer.ts",

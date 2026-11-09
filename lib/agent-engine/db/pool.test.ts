@@ -13,12 +13,24 @@ describe('TLS do pool do agent-engine', () => {
   it('aceita os hostnames exclusivos da stack Docker local quando o ingress é local', () => {
     process.env.CLIENTIX_INGRESS_MODE = 'local';
 
-    for (const host of ['host.docker.internal', 'control-plane-db']) {
-      const config = resolveAgentEnginePostgresConnectionConfig(
-        `postgres://worker:synthetic@${host}/clientix?sslmode=require`,
-      );
-      expect(config.ssl).toBe(false);
-    }
+    const config = resolveAgentEnginePostgresConnectionConfig(
+      'postgres://worker:synthetic@host.docker.internal/clientix?sslmode=require',
+    );
+    expect(config.ssl).toBe(false);
+  });
+
+  it('só permite hostname Docker fornecido pelo caller Vendor quando o ingress é local', () => {
+    const url = 'postgres://worker:synthetic@control-plane-db/clientix?sslmode=require';
+    process.env.CLIENTIX_INGRESS_MODE = 'local';
+    expect(resolveAgentEnginePostgresConnectionConfig(url).ssl).toMatchObject({
+      rejectUnauthorized: true,
+    });
+    expect(resolveAgentEnginePostgresConnectionConfig(url, ['control-plane-db']).ssl).toBe(false);
+
+    process.env.CLIENTIX_INGRESS_MODE = 'production';
+    expect(resolveAgentEnginePostgresConnectionConfig(url, ['control-plane-db']).ssl).toMatchObject({
+      rejectUnauthorized: true,
+    });
   });
 
   it('mantém TLS obrigatório fora do modo local e para hosts remotos', () => {
