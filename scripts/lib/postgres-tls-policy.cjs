@@ -4,6 +4,10 @@
 const net = require('node:net');
 
 const LOCAL_DOCKER_DATABASE_HOSTS = new Set(['supabase-db']);
+const LOCAL_DOCKER_DATABASE_HOSTS_WITH_LOCAL_INGRESS = new Set([
+  'control-plane-db',
+  'host.docker.internal',
+]);
 const TLS_QUERY_PARAMETERS = ['sslmode', 'sslrootcert', 'sslcert', 'sslkey', 'sslpassword'];
 
 function normalizeHost(hostname) {
@@ -49,7 +53,11 @@ function removeTlsQueryParameters(url) {
   }
 }
 
-function resolvePostgresConnectionConfig(connectionString, rootCert = process.env.POSTGRES_SSL_ROOT_CERT) {
+function resolvePostgresConnectionConfig(
+  connectionString,
+  rootCert = process.env.POSTGRES_SSL_ROOT_CERT,
+  options = {},
+) {
   let url;
   try {
     url = new URL(connectionString);
@@ -61,7 +69,13 @@ function resolvePostgresConnectionConfig(connectionString, rootCert = process.en
   }
   if (!url.hostname) throw new Error('PostgreSQL connection URL must include a host');
 
-  const connectionClass = classifyPostgresHost(url.hostname);
+  const host = normalizeHost(url.hostname);
+  const localDockerHostWithOptIn =
+    options.allowLocalDockerHosts === true &&
+    LOCAL_DOCKER_DATABASE_HOSTS_WITH_LOCAL_INGRESS.has(host);
+  const connectionClass = localDockerHostWithOptIn
+    ? 'LOCAL_DOCKER_NETWORK'
+    : classifyPostgresHost(host);
   removeTlsQueryParameters(url);
   if (connectionClass !== 'REMOTE') return { connectionString: url.toString(), ssl: false };
 

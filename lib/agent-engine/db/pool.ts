@@ -23,6 +23,22 @@ import {
   resolvePostgresConnectionConfig,
 } from '../../../scripts/lib/postgres-tls-policy.cjs';
 
+export function resolveAgentEnginePostgresConnectionConfig(
+  databaseUrl: string,
+  ingressMode: 'production' | 'local' | undefined = process.env.CLIENTIX_INGRESS_MODE as
+    | 'production'
+    | 'local'
+    | undefined,
+): ReturnType<typeof resolvePostgresConnectionConfig> {
+  return resolvePostgresConnectionConfig(databaseUrl, undefined, {
+    // A stack local publicada pelo Docker Desktop alcança o Postgres do
+    // Supabase via host.docker.internal; seu Control Plane usa control-plane-db.
+    // Esses dois nomes só são plaintext no modo local explícito. Hosts externos
+    // continuam exigindo TLS, inclusive quando uma URL pede sslmode=disable.
+    allowLocalDockerHosts: ingressMode === 'local',
+  });
+}
+
 export function createPool(
   databaseUrl: string,
   onError?: (err: Error) => void,
@@ -34,7 +50,7 @@ export function createPool(
   const raw = process.env.DB_POOL_MAX;
   const parsed = raw === undefined ? Number.NaN : Number.parseInt(raw, 10);
   const max = poolOptions.max ?? (Number.isInteger(parsed) && parsed > 0 ? parsed : undefined);
-  const pool = new pg.Pool({ ...resolvePostgresConnectionConfig(databaseUrl), max });
+  const pool = new pg.Pool({ ...resolveAgentEnginePostgresConnectionConfig(databaseUrl), max });
   const handler =
     onError ??
     ((err: Error): void => {
