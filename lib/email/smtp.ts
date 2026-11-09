@@ -1,7 +1,6 @@
-import { createRequire } from "node:module";
 import { isIP } from "node:net";
-import path from "node:path";
 import nodemailer, { type Transporter } from "nodemailer";
+import addressparser from "nodemailer/lib/addressparser";
 import { env } from "@/lib/env";
 import { getSmtpConfig, type SmtpConfig } from "@/lib/email/config";
 
@@ -10,14 +9,10 @@ interface NodemailerAddress {
   group?: NodemailerAddress[] | null;
 }
 
-// O Worker é empacotado como CommonJS pelo esbuild; nesse formato,
-// import.meta.url vira undefined. O Docker executa a partir da raiz do app,
-// assim como os comandos locais, então o package.json ancora a resolução dos
-// módulos externos sem depender do formato do bundle.
-const require = createRequire(path.join(process.cwd(), "package.json"));
-const parseAddressList = require("nodemailer/lib/addressparser") as (
-  input: string,
-) => NodemailerAddress[];
+// Import estático mantém o parser interno resolvível pelo Next durante o build
+// e pelo bundle CommonJS do Worker sem depender de createRequire/import.meta.
+const parseAddressList = (input: string): NodemailerAddress[] =>
+  addressparser(input) as unknown as NodemailerAddress[];
 
 interface SendArgs {
   to: string | string[];
