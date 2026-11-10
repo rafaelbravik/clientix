@@ -24,6 +24,7 @@ services:
     environment:
       CLIENTIX_INGRESS_MODE: "local"
       CLIENTIX_ALLOW_INSECURE_HTTP: ${CLIENTIX_ALLOW_INSECURE_HTTP:-true}
+      CLIENTIX_ADMIN_ORIGIN: ${CLIENTIX_ADMIN_ORIGIN:-${NEXT_PUBLIC_ADMIN_URL:-}}
       SUPABASE_DB_ADMIN_URL: ""
       CONTROL_PLANE_DATABASE_URL: ""
       CONTROL_PLANE_PEPPER: ""
@@ -79,7 +80,7 @@ services:
       waha:
         condition: service_healthy
     ports:
-      - "8787:8787"
+      - "127.0.0.1:${WORKER_HOST_PORT:-8787}:8787"
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8787/healthz"]
       interval: 30s
@@ -146,6 +147,7 @@ services:
       CONTROL_PLANE_DB_PASSWORD: ""
       CLIENTIX_INGRESS_MODE: "local"
       CLIENTIX_ALLOW_INSECURE_HTTP: "true"
+      CLIENTIX_ADMIN_ORIGIN: ${CLIENTIX_ADMIN_ORIGIN:-${NEXT_PUBLIC_ADMIN_URL:-}}
     ports:
       - "127.0.0.1:${VENDOR_PORT:-3100}:3000"
     extra_hosts:

@@ -96,6 +96,7 @@ check "ambiente local usa loopback com opt-in HTTP e callback WAHA interno" bash
   grep -qF "waha_port=\"\$(choose_port 3030 \"\$app_port\" \"\$vendor_port\" \"\$control_plane_db_port\")\"" "$1" &&
   grep -qF "WAHA_PORT=\$waha_port" "$1" &&
   grep -qF "NEXT_PUBLIC_ADMIN_URL=\$admin_url" "$1" &&
+  grep -qF "CLIENTIX_ADMIN_ORIGIN=\$admin_url" "$1" &&
   grep -qF "CLIENTIX_ALLOW_INSECURE_HTTP=true" "$1" &&
   grep -qF "WAHA_WEBHOOK_BASE_URL=http://app:3000" "$1"' _ "$ENVGEN"
 check "alocador WAHA pula portas já reservadas por outros serviços" bash -c '
@@ -108,6 +109,16 @@ check "alocador local pula portas publicadas por containers Docker" bash -c '
   node() { return 0; }
   selected="$(choose_port 3030)"
   [[ "$selected" == "3033" ]]' _ "$ENVGEN"
+check "alocador do worker pula 8787 publicado por outro container" bash -c '
+  eval "$(sed -n "/^choose_port() {/,/^}/p" "$1")"
+  docker() { printf "0.0.0.0:8787->8787/tcp\\n"; }
+  node() { return 0; }
+  selected="$(choose_port 8787)"
+  [[ "$selected" == "8788" ]]' _ "$ENVGEN"
+check "compose mantém 8787 interno e publica override do worker só em loopback" bash -c '
+  grep -qF "WORKER_HOST_PORT=\$worker_host_port" "$1" &&
+  grep -qF "127.0.0.1:\${WORKER_HOST_PORT:-8787}:8787" "$2"' _ "$ENVGEN" "$COMPOSE"
+
 check "worker valida o ingresso HTTP local explicitamente" bash -c '
   awk "/^  worker:/{f=1;next} f && /^  [a-z]/{f=0} f" "$1" | grep -qF "CLIENTIX_INGRESS_MODE: \"local\"" &&
   awk "/^  worker:/{f=1;next} f && /^  [a-z]/{f=0} f" "$1" | grep -qF "CLIENTIX_ALLOW_INSECURE_HTTP:"' _ "$COMPOSE"

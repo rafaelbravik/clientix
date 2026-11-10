@@ -162,8 +162,25 @@ ensure_waha_port() {
   upsert_env_value WAHA_PORT "$waha_port"
 }
 
+ensure_worker_host_port() {
+  local existing app_port vendor_port control_plane_db_port waha_port worker_host_port ports_file
+  existing="$(env_value WORKER_HOST_PORT)"
+  [[ -n "$existing" ]] && return
+  ports_file="$ROOT_DIR/.clientix-local/supabase-ports"
+  app_port="$(awk -F= '$1 == "APP" { print $2 }' "$ports_file")"
+  vendor_port="$(awk -F= '$1 == "VENDOR" { print $2 }' "$ports_file")"
+  control_plane_db_port="$(awk -F= '$1 == "CONTROL_PLANE_DB" { print $2 }' "$ports_file")"
+  waha_port="$(env_value WAHA_PORT)"
+  [[ -n "$app_port" && -n "$vendor_port" && -n "$control_plane_db_port" && -n "$waha_port" ]] || {
+    printf 'Erro: o alocador local não retornou as portas necessárias para o worker.\n' >&2
+    exit 1
+  }
+  worker_host_port="$(choose_port 8787 "$app_port" "$vendor_port" "$control_plane_db_port" "$waha_port")"
+  upsert_env_value WORKER_HOST_PORT "$worker_host_port"
+}
+
 generate() {
-  local status vm_ip app_port vendor_port control_plane_db_port waha_port api_url server_api_url app_url db_url admin_db_url anon_key service_role_key ports_file
+  local status vm_ip app_port vendor_port control_plane_db_port waha_port worker_host_port api_url server_api_url app_url db_url admin_db_url anon_key service_role_key ports_file
   status="$(./scripts/local-supabase.sh status)"
   api_url="$(printf '%s' "$status" | json_value API_URL)"
   [[ -n "$api_url" ]] || {
@@ -188,7 +205,8 @@ generate() {
   vendor_port="$(awk -F= '$1 == "VENDOR" { print $2 }' "$ports_file")"
   control_plane_db_port="$(awk -F= '$1 == "CONTROL_PLANE_DB" { print $2 }' "$ports_file")"
   waha_port="$(choose_port 3030 "$app_port" "$vendor_port" "$control_plane_db_port")"
-  [[ -n "$app_port" && -n "$vendor_port" && -n "$control_plane_db_port" && -n "$waha_port" ]] || {
+  worker_host_port="$(choose_port 8787 "$app_port" "$vendor_port" "$control_plane_db_port" "$waha_port")"
+  [[ -n "$app_port" && -n "$vendor_port" && -n "$control_plane_db_port" && -n "$waha_port" && -n "$worker_host_port" ]] || {
     printf 'Erro: o alocador local não retornou as portas necessárias.\n' >&2
     exit 1
   }
@@ -232,6 +250,7 @@ CLIENTIX_BOOTSTRAP_TOKEN=
 
 NEXT_PUBLIC_APP_URL=$app_url
 NEXT_PUBLIC_ADMIN_URL=$admin_url
+CLIENTIX_ADMIN_ORIGIN=$admin_url
 WAHA_WEBHOOK_BASE_URL=http://app:3000
 
 INTERNAL_SECRET=$(openssl rand -hex 32)
@@ -256,6 +275,7 @@ APP_PORT=$app_port
 VENDOR_PORT=$vendor_port
 CONTROL_PLANE_DB_PORT=$control_plane_db_port
 WAHA_PORT=$waha_port
+WORKER_HOST_PORT=$worker_host_port
 CLIENTIX_LICENSE_SERVER_URL=http://vendor:3000
 SENTRY_DSN=
 EOF
@@ -274,6 +294,7 @@ case "${1:-ensure}" in
     ensure_control_plane_environment
     ensure_vapid_keys
     ensure_waha_port
+    ensure_worker_host_port
     ;;
   generate|force)
     generate
