@@ -89,9 +89,11 @@ export function deriveInstallationPublicKey(privateKeyPem: string): string {
 }
 
 /**
- * Default production file path for persistent installation private key.
+ * Default production file path for the Customer's persistent installation private key.
+ * The installer mounts /opt/clientix/licenses writable for the app; state/ is
+ * deliberately read-only in commercial deployments.
  */
-export const DEFAULT_INSTALLATION_KEY_PATH = "/opt/clientix/state/installation.key";
+export const DEFAULT_INSTALLATION_KEY_PATH = "/opt/clientix/licenses/installation.key";
 
 /**
  * Loads an existing installation private key or creates and persists one atomically with mode 0600.

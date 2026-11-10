@@ -63,7 +63,12 @@ ensure_control_plane_environment() {
   local private_json public_b64 database_url
   mkdir -p "$key_dir"
   chmod 700 "$ROOT_DIR/.clientix-local" "$key_dir"
-  if [[ ! -s "$key_dir/license-private.pem" || ! -s "$key_dir/license-public.pem" ]]; then
+  if [[ -e "$key_dir/license-private.pem" || -e "$key_dir/license-public.pem" ]]; then
+    [[ -s "$key_dir/license-private.pem" && -s "$key_dir/license-public.pem" ]] || {
+      printf 'Par de chaves do signer local incompleto; recusando rotação automática.\n' >&2
+      return 1
+    }
+  else
     node - "$key_dir/license-private.pem" "$key_dir/license-public.pem" <<'NODE'
 const crypto = require("node:crypto");
 const fs = require("node:fs");
@@ -72,6 +77,21 @@ const pair = crypto.generateKeyPairSync("ed25519");
 fs.writeFileSync(privatePath, pair.privateKey.export({ type: "pkcs8", format: "pem" }), { mode: 0o600 });
 fs.writeFileSync(publicPath, pair.publicKey.export({ type: "spki", format: "pem" }), { mode: 0o600 });
 NODE
+  fi
+  if ! node - "$key_dir/license-private.pem" "$key_dir/license-public.pem" >/dev/null 2>&1 <<'NODE'
+const crypto = require("node:crypto");
+const fs = require("node:fs");
+const [privatePath, publicPath] = process.argv.slice(2);
+const privateKey = crypto.createPrivateKey(fs.readFileSync(privatePath, "utf8"));
+const configuredPublicKey = crypto.createPublicKey(fs.readFileSync(publicPath, "utf8"));
+if (privateKey.asymmetricKeyType !== "ed25519" || configuredPublicKey.asymmetricKeyType !== "ed25519") process.exit(1);
+const derived = crypto.createPublicKey(privateKey).export({ type: "spki", format: "der" });
+const configured = configuredPublicKey.export({ type: "spki", format: "der" });
+if (derived.length !== configured.length || !crypto.timingSafeEqual(derived, configured)) process.exit(1);
+NODE
+  then
+    printf 'Par de chaves do signer local inválido ou divergente; nenhuma chave foi substituída.\n' >&2
+    return 1
   fi
   chmod 600 "$key_dir/license-private.pem" "$key_dir/license-public.pem"
   key_id="clientix-certification-test-$LOCAL_STACK_ID"
@@ -179,6 +199,37 @@ ensure_worker_host_port() {
   upsert_env_value WORKER_HOST_PORT "$worker_host_port"
 }
 
+ensure_local_installation_identity() {
+  local installation_id stored_id identity_file tmp
+  identity_file="$ROOT_DIR/.clientix-local/runtime/licensing/installation_id"
+  mkdir -p "$(dirname "$identity_file")"
+  installation_id="$(env_value INSTALLATION_ID)"
+  if [[ -e "$identity_file" ]]; then
+    stored_id="$(tr -d '\r\n' < "$identity_file")"
+    [[ "$stored_id" =~ ^inst_[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$ ]] || {
+      printf 'Installation ID local persistido inválido; nenhuma identidade foi substituída.\n' >&2
+      return 1
+    }
+    [[ -z "$installation_id" || "$installation_id" == "$stored_id" ]] || {
+      printf 'INSTALLATION_ID local diverge do estado persistido; nenhuma identidade foi substituída.\n' >&2
+      return 1
+    }
+    installation_id="$stored_id"
+  else
+    [[ -n "$installation_id" ]] || installation_id="inst_$(node -e 'process.stdout.write(require("node:crypto").randomUUID())')"
+    [[ "$installation_id" =~ ^inst_[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$ ]] || {
+      printf 'INSTALLATION_ID local inválido; recusando criar estado persistido.\n' >&2
+      return 1
+    }
+    tmp="$(mktemp "${identity_file}.XXXXXX")"
+    umask 077
+    printf '%s\n' "$installation_id" > "$tmp"
+    chmod 600 "$tmp"
+    mv "$tmp" "$identity_file"
+  fi
+  [[ "$(env_value INSTALLATION_ID)" == "$installation_id" ]] || upsert_env_value INSTALLATION_ID "$installation_id"
+}
+
 generate() {
   local status vm_ip app_port vendor_port control_plane_db_port waha_port worker_host_port api_url server_api_url app_url db_url admin_db_url anon_key service_role_key ports_file
   status="$(./scripts/local-supabase.sh status)"
@@ -283,6 +334,7 @@ EOF
   chmod 600 "$ENV_FILE"
   ensure_bootstrap_token
   ensure_control_plane_environment
+  ensure_local_installation_identity
   printf 'Ambiente local gerado em %s\n' "$ENV_FILE"
   printf 'Aplicação: %s\n' "$app_url"
 }
@@ -292,6 +344,7 @@ case "${1:-ensure}" in
     if ! has_local_env; then generate; fi
     ensure_bootstrap_token
     ensure_control_plane_environment
+    ensure_local_installation_identity
     ensure_vapid_keys
     ensure_waha_port
     ensure_worker_host_port

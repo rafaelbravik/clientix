@@ -16,6 +16,8 @@ A aplicação contém somente chaves públicas confiáveis. Chaves privadas pert
 
 ## Identidade e tempo
 
+Em runtime Customer, a chave privada de instalação é criada sob demanda com permissão 0600 em /opt/clientix/licenses/installation.key. O instalador comercial monta esse diretório gravável para o app; state/ permanece somente leitura para o installation_id provisionado pelo instalador. A chave pública é derivada para a prova de posse e enviada ao Vendor; a privada permanece local e nunca entra no banco ou na imagem.
+
 O identificador persistente segue `inst_<UUIDv4>`, o contrato já usado pelo instalador. Ele não deriva de hardware ou hostname. O caminho de desenvolvimento fica em `.clientix-local/runtime/licensing/`; em produção, a licença e o relógio local ficam no volume gravável `/opt/clientix/licenses/`, enquanto o `installation_id` provisionado pelo instalador fica em `/opt/clientix/state/` montado somente para leitura. Os caminhos podem ser definidos por `CLIENTIX_LICENSE_PATH`, `CLIENTIX_INSTALLATION_ID_PATH` e `CLIENTIX_LICENSE_CLOCK_PATH`.
 
 Datas são UTC ISO-8601 estritas. `valid_from` é inclusivo; `expires_at` inicia a carência. A carência padrão é de sete dias e pode ser declarada no payload assinado. Depois dela, o estado é `EXPIRED`. Uma regressão local do relógio superior a cinco minutos é sinalizada sem bloqueio imediato; a instalação indica que futura revalidação online será necessária.

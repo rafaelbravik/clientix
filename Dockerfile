@@ -121,6 +121,12 @@ ENV NODE_ENV=production \
 RUN apk add --no-cache ffmpeg
 # non-root
 RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001
+# Runtime licensing state is written by the non-root Customer process. Named
+# local volumes inherit these permissions; the commercial installer mounts
+# owner-managed directories at the same paths with their own restricted modes.
+RUN mkdir -p /opt/clientix/state /opt/clientix/licenses \
+    && chown nextjs:nodejs /opt/clientix/state /opt/clientix/licenses \
+    && chmod 0750 /opt/clientix/state /opt/clientix/licenses
 # A versão que /api/v1/health reporta (invariante 7). Precisa vir por ARG: a
 # alternativa anterior era `process.env.npm_package_version`, que é `undefined`
 # sob `CMD ["node","server.js"]` — só existe quando o processo nasce de um

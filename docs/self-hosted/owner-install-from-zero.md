@@ -34,6 +34,14 @@ O Customer atende `http://127.0.0.1:<APP_PORT>` e o Vendor `http://127.0.0.1:<VE
 
 Após o primeiro login, o Platform Owner usa `/owner` no Customer para criar empresas e convidar usuários. Essa tela é uma superfície local mínima: a API exige sessão de Platform Owner, licença Customer válida e quotas do plano; o Customer não recebe o painel de emissão de licenças do Vendor. O convite devolve uma URL de aceitação para o caso em que o serviço local de e-mail não esteja configurado.
 
+## Provisionamento de identidade e signer local
+
+O ambiente local persiste o INSTALLATION_ID Customer gerado por CSPRNG em .clientix-local/runtime/licensing/installation_id e mantém o mesmo valor no .env.local. O Compose usa volumes próprios do projeto para /opt/clientix/state e /opt/clientix/licenses, isolados pelo identificador do clone. A chave privada Ed25519 de instalação Customer é criada sob demanda em /opt/clientix/licenses/installation.key, com modo 0600, e permanece fora do banco e da imagem.
+
+O signer local sintético é gerado uma vez em .clientix-local/control-plane/. Um par ausente é criado; um par incompleto ou cujo material não corresponda falha fechado sem substituir a chave existente. Depois das migrations Control Plane, local:up executa o provisionador local: ele insere somente a pública se o registro estiver vazio, retorna NO_CHANGE para a mesma chave ativa e recusa chaves ativas conflitantes ou aposentadas. A privada fica no arquivo local e na configuração protegida do Vendor. Ela nunca é enviada ao Customer, ao banco ou ao Git.
+
+distribution/installer/install.sh instala o artefato Customer. Ele não provisiona o signer privado do Vendor: essa chave pertence ao operador do Control Plane. O instalador comercial já monta /opt/clientix/licenses gravável para persistir licença e chave privada local do Customer; /opt/clientix/state continua somente leitura e contém o ID provisionado pelo instalador.
+
 ## Conferir a instalação
 
 ```bash

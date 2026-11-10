@@ -21,6 +21,9 @@ services:
     pull_policy: never
     restart: unless-stopped
     env_file: ${LOCAL_ENV_FILE:-.env.local}
+    volumes:
+      - customer-state:/opt/clientix/state
+      - customer-licenses:/opt/clientix/licenses
     environment:
       CLIENTIX_INGRESS_MODE: "local"
       CLIENTIX_ALLOW_INSECURE_HTTP: ${CLIENTIX_ALLOW_INSECURE_HTTP:-true}
@@ -228,3 +231,5 @@ volumes:
   waha-data:
   waha-media:
   control-plane-data:
+  customer-state:
+  customer-licenses:

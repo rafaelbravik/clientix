@@ -44,6 +44,27 @@ check "agent_worker é provisionado antes da baseline sem senha em stdout" bash 
   grep -qF "agent_worker must be provisioned before applying the worker runtime ACL contract" "$2"' _ "$SUPA" "$ROOT_DIR/supabase/baseline.sql"
 check "migrations Vendor usam tsx do lockfile sem depender do shim pnpm global" bash -c '
   grep -qF "node ./node_modules/tsx/dist/cli.mjs control-plane/scripts/apply-migrations.ts" "$1"' _ "$STACK"
+check "signer público local é provisionado após as migrations e antes do Vendor" bash -c '
+  migrations_line="$(grep -n "^    apply_control_plane_migrations$" "$1" | cut -d: -f1)"
+  signer_line="$(grep -n "^    provision_local_control_plane_signer$" "$1" | cut -d: -f1)"
+  compose_line="$(grep -n "up -d --build" "$1" | cut -d: -f1)"
+  [[ -n "$migrations_line" && -n "$signer_line" && -n "$compose_line" ]] &&
+  (( migrations_line < signer_line && signer_line < compose_line ))' _ "$STACK"
+check "provisionador local recusa DB remoto e exige signer sintético de teste" bash -c '
+  grep -qF "DESKCOMM_ENV_MODE !== \"local\"" "$1" &&
+  grep -qF "clientix-certification-test-" "$1" &&
+  grep -qF "127.0.0.1" "$1" &&
+  ! grep -qF "PRIVATE KEY" "$1"' _ "$ROOT_DIR/control-plane/scripts/provision-local-license-signer.ts"
+check "compose Customer persiste estado e licença em volumes próprios do projeto" bash -c '
+  app="$(awk "/^  app:/{f=1;next} f && /^  [a-z]/{f=0} f" "$1")"
+  printf "%s\n" "$app" | grep -qF "customer-state:/opt/clientix/state" &&
+  printf "%s\n" "$app" | grep -qF "customer-licenses:/opt/clientix/licenses" &&
+  grep -q "^  customer-state:$" "$1" &&
+  grep -q "^  customer-licenses:$" "$1"' _ "$COMPOSE"
+check "Customer private installation key uses the writable commercial license mount" bash -c '
+  grep -qF "/opt/clientix/licenses/installation.key" "$1" &&
+  grep -qF "./licenses:/opt/clientix/licenses:rw" "$2" &&
+  grep -qF "./state:/opt/clientix/state:ro" "$2"' _ "$ROOT_DIR/lib/licensing/installation-auth.ts" "$ROOT_DIR/distribution/installer/compose.yaml"
 
 # ── A senha do dono ────────────────────────────────────────────────────────
 #
@@ -159,6 +180,46 @@ check "o .env.local gerado carrega a marca (senão o próximo run apaga sem back
 # `.env.local` de mentira, que é a única forma de saber que a condição casa.
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
+check "signer local é idempotente e não regenera par incompleto" bash -c '
+  set -euo pipefail
+  ROOT_DIR="$2"
+  ENV_FILE="$ROOT_DIR/.env.local"
+  LOCAL_STACK_ID="stack-test"
+  mkdir -p "$ROOT_DIR"
+  eval "$(sed -n "/^env_value() {/,/^}/p" "$1")"
+  eval "$(sed -n "/^upsert_env_value() {/,/^}/p" "$1")"
+  eval "$(sed -n "/^ensure_control_plane_environment() {/,/^}/p" "$1")"
+  ensure_control_plane_environment >/dev/null
+  cp "$ROOT_DIR/.clientix-local/control-plane/license-private.pem" "$ROOT_DIR/private.first"
+  cp "$ROOT_DIR/.clientix-local/control-plane/license-public.pem" "$ROOT_DIR/public.first"
+  ensure_control_plane_environment >/dev/null
+  cmp "$ROOT_DIR/private.first" "$ROOT_DIR/.clientix-local/control-plane/license-private.pem"
+  cmp "$ROOT_DIR/public.first" "$ROOT_DIR/.clientix-local/control-plane/license-public.pem"
+  rm "$ROOT_DIR/.clientix-local/control-plane/license-public.pem"
+  if ensure_control_plane_environment >/dev/null 2>&1; then exit 1; fi
+  cmp "$ROOT_DIR/private.first" "$ROOT_DIR/.clientix-local/control-plane/license-private.pem"
+  [[ ! -e "$ROOT_DIR/.clientix-local/control-plane/license-public.pem" ]]
+' _ "$ENVGEN" "$TMP_DIR/signer-check"
+check "identity local nasce uma vez, persiste e recusa divergência" bash -c '
+  set -euo pipefail
+  ROOT_DIR="$2"
+  ENV_FILE="$ROOT_DIR/.env.local"
+  mkdir -p "$ROOT_DIR"
+  printf "DESKCOMM_ENV_MODE=local\n" > "$ENV_FILE"
+  eval "$(sed -n "/^env_value() {/,/^}/p" "$1")"
+  eval "$(sed -n "/^upsert_env_value() {/,/^}/p" "$1")"
+  eval "$(sed -n "/^ensure_local_installation_identity() {/,/^}/p" "$1")"
+  ensure_local_installation_identity
+  stored="$(tr -d "\r\n" < "$ROOT_DIR/.clientix-local/runtime/licensing/installation_id")"
+  [[ "$stored" =~ ^inst_[0-9a-fA-F-]{36}$ ]] &&
+  [[ "$(env_value INSTALLATION_ID)" == "$stored" ]]
+  printf "DESKCOMM_ENV_MODE=local\n" > "$ENV_FILE"
+  ensure_local_installation_identity
+  [[ "$(env_value INSTALLATION_ID)" == "$stored" ]]
+  upsert_env_value INSTALLATION_ID inst_aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee
+  if ensure_local_installation_identity >/dev/null 2>&1; then exit 1; fi
+  [[ "$(tr -d "\r\n" < "$ROOT_DIR/.clientix-local/runtime/licensing/installation_id")" == "$stored" ]]
+' _ "$ENVGEN" "$TMP_DIR/identity-check"
 guarda() {
   # O mesmo bloco do instalador, extraído por marcador — se ele mudar lá, esta
   # extração falha e o teste fica vermelho em vez de medir um texto obsoleto.

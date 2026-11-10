@@ -21,7 +21,10 @@ function generateTestKeypair() {
   return { pubPem, privPem, publicKey, privateKey };
 }
 
-function createSamplePayload(installationId: string, overrides: Partial<LicensePayload> = {}): LicensePayload {
+function createSamplePayload(
+  installationId: string,
+  overrides: Partial<LicensePayload> = {},
+): LicensePayload {
   return {
     license_version: 1,
     license_id: "lic_enf_test_001",
@@ -68,6 +71,7 @@ describe("Licensing Enforcement — Central Guard & Status Inspection", () => {
 
   afterEach(async () => {
     resetLicenseCache();
+    vi.unstubAllEnvs();
     delete process.env.CLIENTIX_LICENSE_JSON;
     await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
   });
@@ -98,23 +102,53 @@ describe("Licensing Enforcement — Central Guard & Status Inspection", () => {
     expect(body.error.details.error_code).toBe("LICENSE_FILE_MISSING");
   });
 
-  it.each(["EACCES", "EPERM"] as const)("classifies %s as an unreadable file, not malformed JSON", async (code) => {
-    await fs.writeFile(licensePath, "{}", "utf-8");
-    vi.stubEnv("INSTALLATION_ID", mockInstId);
-    const readError = Object.assign(new Error("sensitive filesystem detail"), { code });
-    const readSpy = vi.spyOn(fs, "readFile").mockRejectedValue(readError);
+  it("creates and reuses a persistent installation identity before a license exists", async () => {
+    vi.stubEnv("INSTALLATION_ID", "");
+    const freshInstallationIdPath = path.join(tmpDir, "fresh-state", "installation_id");
+    const options = {
+      licensePath,
+      installationIdPath: freshInstallationIdPath,
+      trustedKeys,
+      now: new Date("2026-11-10T00:00:00Z"),
+    };
 
-    try {
-      const status = await getInstallationLicenseStatus({ licensePath, installationIdPath: instIdPath, trustedKeys });
-      expect(status.state).toBe("LICENSE_FILE_UNREADABLE");
-      expect(status.error_code).toBe("LICENSE_FILE_UNREADABLE");
-      expect(status.reason).not.toContain(licensePath);
-      expect(status.reason).not.toContain("sensitive filesystem detail");
-    } finally {
-      readSpy.mockRestore();
-      vi.unstubAllEnvs();
-    }
+    const first = await getInstallationLicenseStatus(options);
+    expect(first.state).toBe("LICENSE_FILE_MISSING");
+    expect(first.installation_id_expected).toMatch(
+      /^inst_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89a-f][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+    const persistedId = (await fs.readFile(freshInstallationIdPath, "utf8")).trim();
+    expect(persistedId).toBe(first.installation_id_expected);
+
+    resetLicenseCache();
+    const afterRestart = await getInstallationLicenseStatus(options);
+    expect(afterRestart.installation_id_expected).toBe(persistedId);
   });
+
+  it.each(["EACCES", "EPERM"] as const)(
+    "classifies %s as an unreadable file, not malformed JSON",
+    async (code) => {
+      await fs.writeFile(licensePath, "{}", "utf-8");
+      vi.stubEnv("INSTALLATION_ID", mockInstId);
+      const readError = Object.assign(new Error("sensitive filesystem detail"), { code });
+      const readSpy = vi.spyOn(fs, "readFile").mockRejectedValue(readError);
+
+      try {
+        const status = await getInstallationLicenseStatus({
+          licensePath,
+          installationIdPath: instIdPath,
+          trustedKeys,
+        });
+        expect(status.state).toBe("LICENSE_FILE_UNREADABLE");
+        expect(status.error_code).toBe("LICENSE_FILE_UNREADABLE");
+        expect(status.reason).not.toContain(licensePath);
+        expect(status.reason).not.toContain("sensitive filesystem detail");
+      } finally {
+        readSpy.mockRestore();
+        vi.unstubAllEnvs();
+      }
+    },
+  );
 
   it("distinguishes readable invalid JSON from a readable document with invalid schema", async () => {
     await fs.writeFile(licensePath, "{", "utf-8");
@@ -145,7 +179,11 @@ describe("Licensing Enforcement — Central Guard & Status Inspection", () => {
     const readSpy = vi.spyOn(fs, "readFile").mockRejectedValue(readError);
 
     try {
-      const status = await getInstallationLicenseStatus({ licensePath, installationIdPath: instIdPath, trustedKeys });
+      const status = await getInstallationLicenseStatus({
+        licensePath,
+        installationIdPath: instIdPath,
+        trustedKeys,
+      });
       expect(status.state).toBe("LICENSE_FILE_IO_ERROR");
       expect(status.error_code).toBe("LICENSE_FILE_IO_ERROR");
       expect(status.state).not.toBe("MALFORMED_DOCUMENT");
@@ -317,10 +355,12 @@ describe("Licensing Enforcement — Central Guard & Status Inspection", () => {
   it("reports UNSUPPORTED_LICENSE_VERSION and blocks when license version is in the future", async () => {
     const rawPayload = createSamplePayload(mockInstId);
     (rawPayload as unknown as Record<string, unknown>).license_version = 99;
-    
+
     // Canonicalize and sign manually with Ed25519
     const canonicalBytes = Buffer.from(JSON.stringify(rawPayload));
-    const signature = crypto.sign(null, canonicalBytes, crypto.createPrivateKey(keys.privPem)).toString("base64url");
+    const signature = crypto
+      .sign(null, canonicalBytes, crypto.createPrivateKey(keys.privPem))
+      .toString("base64url");
     const doc = {
       payload: rawPayload,
       signature,
@@ -486,7 +526,9 @@ describe("Licensing Enforcement — Atomic License Replacement & Safeguards", ()
 
   it("rejects invalid candidate without overwriting or destroying existing valid license", async () => {
     // 1. Install an initial valid license
-    const initialPayload = createSamplePayload(mockInstId, { license_id: "lic_original_preserved" });
+    const initialPayload = createSamplePayload(mockInstId, {
+      license_id: "lic_original_preserved",
+    });
     const initialDoc = signLicensePayload(initialPayload, {
       privateKey: keys.privPem,
       keyId: KEY_ID,
@@ -509,11 +551,14 @@ describe("Licensing Enforcement — Atomic License Replacement & Safeguards", ()
         targetPath: licensePath,
         installationIdPath: instIdPath,
         trustedKeys,
-      })
+      }),
     ).rejects.toThrow("Candidato de licença recusado");
 
     const tamperedFirstChar = initialDoc.signature[0] === "A" ? "B" : "A";
-    const tamperedDoc = { ...initialDoc, signature: `${tamperedFirstChar}${initialDoc.signature.slice(1)}` };
+    const tamperedDoc = {
+      ...initialDoc,
+      signature: `${tamperedFirstChar}${initialDoc.signature.slice(1)}`,
+    };
     await expect(
       installLicenseFile(tamperedDoc, {
         targetPath: licensePath,
@@ -590,7 +635,7 @@ describe("Licensing Enforcement — Invariants: Plan Isolation & Recovery", () =
   it("data destruction invariant: no destructive operations in licensing enforcement code", async () => {
     const enforcementCode = await fs.readFile(
       path.join(process.cwd(), "lib/licensing/enforcement.ts"),
-      "utf-8"
+      "utf-8",
     );
     expect(enforcementCode).not.toMatch(/\bDROP\s+TABLE\b/i);
     expect(enforcementCode).not.toMatch(/\bTRUNCATE\b/i);
