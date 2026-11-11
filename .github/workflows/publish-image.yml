@@ -791,6 +791,10 @@ jobs:
           # fora do cluster.
           # Sonda scripts/sonda-do-laco-de-event-log.ts compilada em dist/sonda/sonda.js
           saida=$(docker run --rm --name worker-laco \
+            -e CLIENTIX_INGRESS_MODE=local \
+            -e CLIENTIX_ALLOW_INSECURE_HTTP=true \
+            -e NEXT_PUBLIC_APP_URL=http://127.0.0.1:3000 \
+            -e NEXT_PUBLIC_ADMIN_URL=http://127.0.0.1:3000 \
             -e NEXT_PUBLIC_SUPABASE_URL=https://exemplo.supabase.co \
             -e NEXT_PUBLIC_SUPABASE_ANON_KEY=chave-de-mentira \
             -e SUPABASE_SERVICE_ROLE_KEY=chave-de-mentira \
@@ -832,6 +836,10 @@ jobs:
           docker run -d --name worker-boot \
             -p 127.0.0.1:3971:3971 \
             -e HEALTH_PORT=3971 \
+            -e CLIENTIX_INGRESS_MODE=local \
+            -e CLIENTIX_ALLOW_INSECURE_HTTP=true \
+            -e NEXT_PUBLIC_APP_URL=http://127.0.0.1:3000 \
+            -e NEXT_PUBLIC_ADMIN_URL=http://127.0.0.1:3000 \
             -e NEXT_PUBLIC_SUPABASE_URL=https://exemplo.supabase.co \
             -e NEXT_PUBLIC_SUPABASE_ANON_KEY=chave-de-mentira \
             -e SUPABASE_SERVICE_ROLE_KEY=chave-de-mentira \
