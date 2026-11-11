@@ -98,17 +98,20 @@ describe("L8.1E Control Plane Migration Runner & Schema Certification", () => {
   it("applies migration on first run and is idempotent on second run (0 pending)", async () => {
     const db = new MockDatabaseClient();
 
-    // First run applies the schema, lifecycle, clone protection and commercial admin migrations.
+    // First run applies all versioned schema, lifecycle, clone, billing and artifact migrations.
     const res1 = await runControlPlaneMigrations(db, realMigrationsDir);
-    expect(res1.appliedCount).toBe(4);
-    expect(res1.appliedVersions).toContain("0001_initial_control_plane");
-    expect(res1.appliedVersions).toContain("0002_commercial_license_lifecycle");
-    expect(res1.appliedVersions).toContain("0003_installation_clone_attestation");
-    expect(res1.appliedVersions).toContain("0004_vendor_commercial_admin");
-    expect(db.migrationsTable.has("0001_initial_control_plane")).toBe(true);
-    expect(db.migrationsTable.has("0002_commercial_license_lifecycle")).toBe(true);
-    expect(db.migrationsTable.has("0003_installation_clone_attestation")).toBe(true);
-    expect(db.migrationsTable.has("0004_vendor_commercial_admin")).toBe(true);
+    const expectedVersions = [
+      "0001_initial_control_plane",
+      "0002_commercial_license_lifecycle",
+      "0003_installation_clone_attestation",
+      "0004_vendor_commercial_admin",
+      "0005_billing_automation",
+      "0006_signed_license_artifact_versions",
+    ];
+    expect(res1.appliedCount).toBe(expectedVersions.length);
+    expect(res1.totalMigrations).toBe(expectedVersions.length);
+    expect(res1.appliedVersions).toEqual(expectedVersions);
+    expect([...db.migrationsTable.keys()]).toEqual(expectedVersions);
 
     // Second run: 0 migrations pending
     const res2 = await runControlPlaneMigrations(db, realMigrationsDir);

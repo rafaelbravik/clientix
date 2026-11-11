@@ -49,7 +49,11 @@ function removeTlsQueryParameters(url) {
   }
 }
 
-function resolvePostgresConnectionConfig(connectionString, rootCert = process.env.POSTGRES_SSL_ROOT_CERT) {
+function resolvePostgresConnectionConfig(
+  connectionString,
+  rootCert = process.env.POSTGRES_SSL_ROOT_CERT,
+  options = {},
+) {
   let url;
   try {
     url = new URL(connectionString);
@@ -61,7 +65,14 @@ function resolvePostgresConnectionConfig(connectionString, rootCert = process.en
   }
   if (!url.hostname) throw new Error('PostgreSQL connection URL must include a host');
 
-  const connectionClass = classifyPostgresHost(url.hostname);
+  const host = normalizeHost(url.hostname);
+  const localDockerHosts = new Set(
+    (Array.isArray(options?.localDockerHosts) ? options.localDockerHosts : []).map(normalizeHost),
+  );
+  const localDockerHostWithOptIn = localDockerHosts.has(host);
+  const connectionClass = localDockerHostWithOptIn
+    ? 'LOCAL_DOCKER_NETWORK'
+    : classifyPostgresHost(host);
   removeTlsQueryParameters(url);
   if (connectionClass !== 'REMOTE') return { connectionString: url.toString(), ssl: false };
 

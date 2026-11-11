@@ -95,7 +95,9 @@ export function getControlPlaneAdminService(): ControlPlaneAdminService {
 /** Shared vendor-only Control Plane connection for billing and admin services. */
 export function getControlPlaneDatabaseClient(): DatabaseClient {
   const config = resolveControlPlaneConfig(process.env);
-  _databasePool ??= createPool(config.databaseUrl);
+  _databasePool ??= createPool(config.databaseUrl, undefined, {
+    localDockerHosts: ["control-plane-db"],
+  });
   return new PostgresDatabaseClient(_databasePool);
 }
 

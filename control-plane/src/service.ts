@@ -75,6 +75,7 @@ export type ControlPlaneErrorCode =
   | "INVALID_INSTALLATION_SIGNATURE"
   | "CLOCK_SKEW_EXCEEDED"
   | "REPLAY_DETECTED"
+  | "INSTANCE_SESSION_ENDED"
   | "RATE_LIMITED"
   | "RENEWAL_NOT_ALLOWED"
   | "MALFORMED_REQUEST"
@@ -605,8 +606,14 @@ export class ControlPlaneService {
         [digest, now.toISOString()],
       );
 
-      const licenseStateResult = await this.ctx.db.query<{ status: string }>(
-        `select status from control_plane.licensing_licenses where id = $1 for update;`,
+      const licenseStateResult = await this.ctx.db.query<{
+        status: string;
+        valid_from: string;
+        expires_at: string;
+        grace_days: number;
+      }>(
+        `select status, valid_from, expires_at, grace_days
+           from control_plane.licensing_licenses where id = $1 for update;`,
         [params.license_id],
       );
       const licenseState = licenseStateResult.rows[0];
@@ -618,9 +625,17 @@ export class ControlPlaneService {
           error: { code: "UNAUTHORIZED", message: "Attestation could not be completed." },
         };
       }
-      if (licenseState.status !== "ACTIVE") {
-        // Return the signed authoritative state, but never reopen a boot
-        // session for an expired, suspended, or revoked commercial license.
+      const validFromMs = Date.parse(licenseState.valid_from);
+      const expiresAtMs = Date.parse(licenseState.expires_at);
+      const sessionEligible =
+        licenseState.status === "ACTIVE" &&
+        Number.isFinite(validFromMs) &&
+        Number.isFinite(expiresAtMs) &&
+        now.getTime() >= validFromMs &&
+        now.getTime() < expiresAtMs + Number(licenseState.grace_days ?? 0) * 86_400_000;
+      if (!sessionEligible) {
+        // Return the signed authoritative state, but never open a boot session
+        // for a suspended, revoked, or temporally unusable license.
         await this.ctx.db.query("COMMIT;");
         return this.heartbeat({
           ...params,
@@ -629,14 +644,44 @@ export class ControlPlaneService {
         });
       }
 
-      const existingSession = await this.ctx.db.query<{ boot_started_at: string; status: string }>(
-        `select boot_started_at, status from control_plane.licensing_instance_sessions where session_id = $1 for update;`,
+      const existingSession = await this.ctx.db.query<{
+        license_id: string;
+        installation_id: string;
+        boot_started_at: string;
+        status: string;
+      }>(
+        `select license_id, installation_id, boot_started_at, status
+           from control_plane.licensing_instance_sessions where session_id = $1 for update;`,
         [params.instance_session_id],
       );
+      const storedSession = existingSession.rows[0];
       if (
-        existingSession.rows[0] &&
-        (existingSession.rows[0].status !== "ACTIVE" ||
-          new Date(existingSession.rows[0].boot_started_at).toISOString() !== bootStartedAt)
+        storedSession &&
+        (storedSession.license_id !== params.license_id ||
+          storedSession.installation_id !== params.installation_id)
+      ) {
+        await this.ctx.db.query("ROLLBACK;");
+        return {
+          ok: false,
+          status: 401,
+          error: { code: "UNAUTHORIZED", message: "Attestation could not be completed." },
+        };
+      }
+      if (storedSession?.status === "ENDED") {
+        await this.ctx.db.query("ROLLBACK;");
+        return {
+          ok: false,
+          status: 409,
+          error: {
+            code: "INSTANCE_SESSION_ENDED",
+            message: "Attestation could not be completed.",
+          },
+        };
+      }
+      if (
+        storedSession &&
+        (storedSession.status !== "ACTIVE" ||
+          new Date(storedSession.boot_started_at).toISOString() !== bootStartedAt)
       ) {
         await this.ctx.db.query("ROLLBACK;");
         return {
@@ -688,7 +733,7 @@ export class ControlPlaneService {
                 and session_id <> $2
                 and status = 'ACTIVE'
                 and last_heartbeat_at >= $3
-                and last_heartbeat_at >= $4
+                and last_heartbeat_at > $4
            ) as reported;`,
           [
             params.installation_id,

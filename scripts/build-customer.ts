@@ -384,7 +384,7 @@ try {
   if (!existsSync(nextCli))
     throw new Error("Next.js não foi instalado na árvore isolada do cliente.");
   console.info(
-    `Build de cliente: preservando somente /admin/license e suas APIs locais; excluindo ${CUSTOMER_BUILD_EXCLUDED_PATHS.join(", ")}.`,
+    `Build de cliente: preservando /owner, suas APIs de tenant/usuários e /admin/license local; excluindo ${CUSTOMER_BUILD_EXCLUDED_PATHS.join(", ")}.`,
   );
 
   const build = spawnSync(process.execPath, [nextCli, "build", "--webpack"], {

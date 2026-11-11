@@ -610,6 +610,8 @@ const schema = z
       .string()
       .url()
       .default(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"),
+    /** Origem canônica server-only usada pelas escritas do Vendor contra CSRF. */
+    CLIENTIX_ADMIN_ORIGIN: z.string().optional().default(""),
     /**
      * URL pública opcional para os webhooks da Meta (WhatsApp Cloud API / canais oficiais).
      * Quando definida, é usada no lugar de NEXT_PUBLIC_APP_URL para compor a URL de callback
@@ -712,6 +714,9 @@ const schema = z
     const publicOrigins = [
       ["NEXT_PUBLIC_APP_URL", values.NEXT_PUBLIC_APP_URL],
       ["NEXT_PUBLIC_ADMIN_URL", values.NEXT_PUBLIC_ADMIN_URL],
+      ...(values.CLIENTIX_ADMIN_ORIGIN.trim()
+        ? [["CLIENTIX_ADMIN_ORIGIN", values.CLIENTIX_ADMIN_ORIGIN] as const]
+        : []),
       ...(values.META_WEBHOOK_BASE_URL.trim()
         ? [["META_WEBHOOK_BASE_URL", values.META_WEBHOOK_BASE_URL] as const]
         : []),
@@ -749,7 +754,7 @@ const schema = z
           message: "DOMAIN deve ser um hostname DNS público válido, sem esquema ou porta",
         });
       } else {
-        for (const key of ["NEXT_PUBLIC_APP_URL", "NEXT_PUBLIC_ADMIN_URL"] as const) {
+        for (const key of ["NEXT_PUBLIC_APP_URL", "NEXT_PUBLIC_ADMIN_URL", "CLIENTIX_ADMIN_ORIGIN"] as const) {
           const origin = urlDeOrigem(values[key]);
           if (origin && origin.hostname.toLowerCase() !== domain) {
             ctx.addIssue({

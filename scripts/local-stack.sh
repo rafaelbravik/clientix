@@ -5,7 +5,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 ENV_FILE="${LOCAL_ENV_FILE:-.env.local}"
-COMPOSE=(docker compose -f docker-compose.local.yml --env-file "$ENV_FILE")
+LOCAL_STACK_ID="$(node -e 'process.stdout.write(require("node:crypto").createHash("sha256").update(process.argv[1]).digest("hex").slice(0, 10))' "$ROOT_DIR")"
+COMPOSE=(docker compose --project-name "clientix-$LOCAL_STACK_ID" -f docker-compose.local.yml --env-file "$ENV_FILE")
 
 usage() {
   printf 'Uso: %s {up|down|restart|status|logs|supabase-status|reset}\n' "$0"
@@ -21,6 +22,10 @@ require_env() {
 ensure_supabase() {
   if ! ./scripts/local-supabase.sh status >/dev/null 2>&1; then
     ./scripts/local-supabase.sh start
+  else
+    # Retenta a aplicação idempotente se a primeira inicialização do CLI tiver
+    # subido o banco, mas parado antes de concluir baseline/ACL.
+    ./scripts/local-supabase.sh apply-baseline
   fi
 }
 
@@ -38,12 +43,65 @@ ensure_encryption_key() {
     >/dev/null
 }
 
+control_plane_env_value() {
+  local key="$1"
+  awk -F= -v key="$key" '$1 == key { sub(/^[^=]*=/, ""); print; exit }' "$ENV_FILE"
+}
+
+start_control_plane_database() {
+  local container_id health attempt
+  "${COMPOSE[@]}" up -d control-plane-db
+  for attempt in $(seq 1 60); do
+    container_id="$("${COMPOSE[@]}" ps -q control-plane-db)"
+    health="$(docker inspect -f '{{.State.Health.Status}}' "$container_id" 2>/dev/null || true)"
+    if [[ "$health" == "healthy" ]]; then return 0; fi
+    sleep 2
+  done
+  printf 'Control Plane PostgreSQL não ficou healthy; migrations e Vendor não foram iniciados.\n' >&2
+  return 1
+}
+
+apply_control_plane_migrations() {
+  local password pepper port database_url
+  password="$(control_plane_env_value CONTROL_PLANE_DB_PASSWORD)"
+  pepper="$(control_plane_env_value CONTROL_PLANE_PEPPER)"
+  port="$(control_plane_env_value CONTROL_PLANE_DB_PORT)"
+  [[ -n "$password" && -n "$pepper" && -n "$port" ]] || {
+    printf 'Configuração local do Control Plane incompleta.\n' >&2
+    return 1
+  }
+  database_url="postgres://clientix_vendor:${password}@127.0.0.1:${port}/clientix_control_plane"
+  CONTROL_PLANE_DATABASE_URL="$database_url" \
+    CONTROL_PLANE_PEPPER="$pepper" \
+    CONTROL_PLANE_MIGRATIONS_APPROVED=yes \
+    node ./node_modules/tsx/dist/cli.mjs control-plane/scripts/apply-migrations.ts
+}
+
+provision_local_control_plane_signer() {
+  local password port key_id database_url
+  password="$(control_plane_env_value CONTROL_PLANE_DB_PASSWORD)"
+  port="$(control_plane_env_value CONTROL_PLANE_DB_PORT)"
+  key_id="$(control_plane_env_value CONTROL_PLANE_ACTIVE_LICENSE_KEY_ID)"
+  [[ -n "$password" && -n "$port" && -n "$key_id" ]] || {
+    printf 'Configuração local do signer Control Plane incompleta.\n' >&2
+    return 1
+  }
+  database_url="postgres://clientix_vendor:${password}@127.0.0.1:${port}/clientix_control_plane"
+  DESKCOMM_ENV_MODE=local \
+    CONTROL_PLANE_DATABASE_URL="$database_url" \
+    CONTROL_PLANE_ACTIVE_LICENSE_KEY_ID="$key_id" \
+    node ./node_modules/tsx/dist/cli.mjs control-plane/scripts/provision-local-license-signer.ts
+}
+
 case "${1:-}" in
   up)
     ensure_supabase
     ./scripts/local-env.sh ensure
     require_env
     ensure_encryption_key
+    start_control_plane_database
+    apply_control_plane_migrations
+    provision_local_control_plane_signer
     "${COMPOSE[@]}" up -d --build
     ;;
   down)
