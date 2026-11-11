@@ -12,7 +12,7 @@ export default async function SetupPage() {
   const idioma = await idiomaDoVisitante(null);
   const t = (texto: string) => traduzir(texto, idioma);
   const { data: initialized, error } = await createAdminClient().rpc("fn_platform_initialized");
-  if (!error && initialized === true) redirect("/login?next=%2Fadmin");
+  if (!error && initialized === true) redirect("/login?next=%2Fowner");
   if (error || typeof initialized !== "boolean") {
     return (
       <main className="mx-auto flex min-h-[70vh] w-full max-w-3xl items-center px-4 py-10 sm:px-6">

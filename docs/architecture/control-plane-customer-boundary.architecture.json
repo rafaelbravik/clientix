@@ -17,6 +17,7 @@
     "licenseui",
     "licenseapi",
     "locallicense",
+    "customerStorage",
     "instanceSession",
     "cloneApi",
     "cloneMigration",
@@ -131,6 +132,22 @@
       "sublabel": "Schema central; migration proíbe aplicação no banco do cliente",
       "type": "database",
       "dot": "red"
+    },
+    {
+      "id": "ownerProvisioner",
+      "lane": "vendor",
+      "label": "local-stack.sh + provision-local-license-signer.ts",
+      "sublabel": "Provisiona só a pública sintética após migrations; retry sem troca e conflitos fail-closed",
+      "type": "service",
+      "dot": "violet"
+    },
+    {
+      "id": "customerStorage",
+      "lane": "cliente",
+      "label": "Customer state e licenses volumes",
+      "sublabel": "ID, licença e chave privada de instalação persistem fora da imagem; chave privada somente no volume local gravável",
+      "type": "backend",
+      "dot": "green"
     },
     {
       "id": "tests",
@@ -277,6 +294,42 @@
     { "id": "e7", "from": "vendorui", "to": "vendorroutes", "label": "usa rotas globais" },
     { "id": "e8", "from": "vendorroutes", "to": "provider", "label": "obtém serviço central" },
     { "id": "e9", "from": "provider", "to": "cpdb", "label": "pool separado obrigatório" },
+    {
+      "id": "e45",
+      "from": "ownerProvisioner",
+      "to": "cpdb",
+      "label": "registra somente a chave pública sintética depois das migrations"
+    },
+    {
+      "id": "e46",
+      "from": "ownerProvisioner",
+      "to": "issuer",
+      "label": "privada fica no arquivo/env local do Vendor, fora do banco e do Customer"
+    },
+    {
+      "id": "e47",
+      "from": "tests",
+      "to": "ownerProvisioner",
+      "label": "prova primeira execução, retry sem mudança e recusas fail-closed"
+    },
+    {
+      "id": "e48",
+      "from": "locallicense",
+      "to": "customerStorage",
+      "label": "persiste ID e licença em volumes do projeto"
+    },
+    {
+      "id": "e49",
+      "from": "onlineclient",
+      "to": "customerStorage",
+      "label": "usa ID e chave privada local para prova de posse"
+    },
+    {
+      "id": "e50",
+      "from": "tests",
+      "to": "customerStorage",
+      "label": "prova criação e reuso da identidade Customer"
+    },
     { "id": "e10", "from": "tests", "to": "policy", "label": "cobre inclusão/exclusão" },
     {
       "id": "e11",

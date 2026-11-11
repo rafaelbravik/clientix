@@ -67,9 +67,9 @@ describe("assistente de configuração inicial", () => {
       password_confirmation: PASSWORD,
       platform_name: "Clientix Agência Demo",
     });
-    expect(screen.getByRole("link", { name: "Entrar no painel global" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Entrar no painel do proprietário" })).toHaveAttribute(
       "href",
-      "/login?next=%2Fadmin",
+      "/login?next=%2Fowner",
     );
   });
 

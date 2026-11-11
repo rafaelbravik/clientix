@@ -130,7 +130,10 @@ export async function withControlPlaneLicenseService<T>(
   ) => Promise<T>,
 ): Promise<T> {
   const config = resolveLicenseServerRuntimeConfig(process.env);
-  pool ??= createPool(config.databaseUrl, undefined, { max: 8 });
+  pool ??= createPool(config.databaseUrl, undefined, {
+    max: 8,
+    localDockerHosts: ["control-plane-db"],
+  });
   const client = await pool.connect();
   const db = new PinnedDatabaseClient(client);
   try {

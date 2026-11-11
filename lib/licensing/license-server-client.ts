@@ -11,7 +11,12 @@ import {
   DEFAULT_INSTALLATION_KEY_PATH,
   generateRequestNonce,
 } from "./installation-auth";
-import { getInstanceSession, rotateInstanceSessionAfterRecovery } from "./instance-session";
+import {
+  getInstanceSession,
+  rotateInstanceSessionAfterRecovery,
+  rotateInstanceSessionAfterServerTermination,
+  type InstanceSession,
+} from "./instance-session";
 import {
   DEFAULT_INSTALLATION_ID_PATH,
   DEFAULT_LICENSE_PATH,
@@ -33,7 +38,14 @@ export interface LicenseServerClientResult {
 }
 
 export class LicenseServerClientError extends Error {
-  constructor(readonly code: "NOT_CONFIGURED" | "UNAVAILABLE" | "REJECTED" | "INVALID_RESPONSE") {
+  constructor(
+    readonly code:
+      | "NOT_CONFIGURED"
+      | "UNAVAILABLE"
+      | "REJECTED"
+      | "INVALID_RESPONSE"
+      | "SESSION_ENDED",
+  ) {
     super(
       code === "NOT_CONFIGURED"
         ? "O License Server ainda não está configurado nesta instalação."
@@ -41,7 +53,9 @@ export class LicenseServerClientError extends Error {
           ? "O License Server está indisponível; a licença local continua sujeita à tolerância offline."
           : code === "REJECTED"
             ? "O License Server não autorizou esta operação."
-            : "A resposta do License Server foi recusada por não passar na verificação criptográfica.",
+            : code === "SESSION_ENDED"
+              ? "A sessão desta instalação foi encerrada pelo License Server."
+              : "A resposta do License Server foi recusada por não passar na verificação criptográfica.",
     );
     this.name = "LicenseServerClientError";
   }
@@ -54,14 +68,16 @@ export function resolveLicenseServerUrl(raw = process.env.CLIENTIX_LICENSE_SERVE
   } catch {
     throw new LicenseServerClientError("NOT_CONFIGURED");
   }
-  const isLocal = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(url.hostname.toLowerCase());
+  const hostname = url.hostname.toLowerCase();
+  const isLocalhost = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(hostname);
+  const isLocalVendorService = process.env.DESKCOMM_ENV_MODE === "local" && hostname === "vendor";
   if (
     url.username ||
     url.password ||
     url.search ||
     url.hash ||
     (url.protocol !== "https:" &&
-      !(process.env.NODE_ENV !== "production" && isLocal && url.protocol === "http:"))
+      !(url.protocol === "http:" && (isLocalVendorService || (process.env.NODE_ENV !== "production" && isLocalhost))))
   ) {
     throw new LicenseServerClientError("NOT_CONFIGURED");
   }
@@ -93,11 +109,33 @@ export async function activate(params: {
 }
 
 export async function onlineValidate(): Promise<LicenseServerClientResult> {
+  return onlineValidateWithSessionRecovery();
+}
+
+async function onlineValidateWithSessionRecovery(
+  retryAfterSessionEnd = false,
+): Promise<LicenseServerClientResult> {
+  const session = getInstanceSession();
+  try {
+    return await onlineValidateAttempt(session);
+  } catch (error) {
+    if (
+      retryAfterSessionEnd ||
+      !(error instanceof LicenseServerClientError) ||
+      error.code !== "SESSION_ENDED"
+    ) {
+      throw error;
+    }
+    rotateInstanceSessionAfterServerTermination(session.instance_session_id);
+    return onlineValidateWithSessionRecovery(true);
+  }
+}
+
+async function onlineValidateAttempt(session: InstanceSession): Promise<LicenseServerClientResult> {
   const installationId = await getInstallationId();
   const privateKeyPem = await getInstallationPrivateKey();
   const localStatus = await getInstallationLicenseStatus();
   if (!localStatus.license_id) throw new LicenseServerClientError("REJECTED");
-  const session = getInstanceSession();
   const clientixVersion = getClientixVersion();
   const challengeTimestamp = Math.floor(Date.now() / 1000);
   const challengeRequestNonce = generateRequestNonce();
@@ -271,8 +309,28 @@ async function post(
   if (response.status === 429 || response.status >= 500) {
     throw new LicenseServerClientError("UNAVAILABLE");
   }
-  if (!response.ok) throw new LicenseServerClientError("REJECTED");
+  if (!response.ok) {
+    if (
+      pathname === "api/v1/licensing/validate-attestation" &&
+      response.status === 409 &&
+      (await readApiErrorCode(response)) === "installation_session_ended"
+    ) {
+      throw new LicenseServerClientError("SESSION_ENDED");
+    }
+    throw new LicenseServerClientError("REJECTED");
+  }
   return response;
+}
+
+async function readApiErrorCode(response: Response): Promise<string | null> {
+  try {
+    const body = (await response.clone().json()) as {
+      error?: { code?: unknown };
+    };
+    return typeof body.error?.code === "string" ? body.error.code : null;
+  } catch {
+    return null;
+  }
 }
 
 async function acceptResponse(

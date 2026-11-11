@@ -16,6 +16,15 @@ async function readInstallerTemplateKeys() {
 }
 
 describe("commercial installer runtime environment contract", () => {
+  it("grants the local Customer the license reader group without adding privileges", async () => {
+    const compose = await fs.readFile(path.resolve("docker-compose.local.yml"), "utf8");
+    const appService = compose.match(/  app:\n([\s\S]*?)\n  worker:/)?.[1] ?? "";
+
+    expect(appService).toContain(`group_add:\n      - "${LICENSE_RUNTIME_READER_GID}"`);
+    expect(appService).not.toContain("privileged:");
+    expect(appService).not.toContain("cap_add:");
+  });
+
   it("persists the strict ingress policy in the HostGator-generated environment", async () => {
     const installer = await fs.readFile(path.resolve("hostgator-setup-kit/install.sh"), "utf8");
     const start = installer.indexOf("  printf '# Gerado por install.sh");
@@ -88,7 +97,9 @@ describe("commercial installer runtime environment contract", () => {
     expect(template).not.toMatch(/^CLOUDFLARE_API_TOKEN=/m);
     expect(compose).toContain("caddy:2.11.7-alpine@sha256:");
     expect(dnsCompose).toContain("CADDY_IMAGE:?a signed release manifest");
-    expect(dnsCompose).toContain("source: ${CLIENTIX_CLOUDFLARE_TOKEN_FILE:?DNS-01 external secret path is required}");
+    expect(dnsCompose).toContain(
+      "source: ${CLIENTIX_CLOUDFLARE_TOKEN_FILE:?DNS-01 external secret path is required}",
+    );
     expect(dnsCompose).toContain("read_only: true");
     expect(dnsCompose).toContain("create_host_path: false");
     expect(dnsCompose).not.toContain("state/secrets/cloudflare-api-token");
@@ -116,7 +127,7 @@ describe("commercial installer runtime environment contract", () => {
     expect(installer).toContain("validate_external_cloudflare_secret_file");
     expect(installer).toContain("compose exec -T caddy");
     expect(installer).toContain("remove_legacy_cloudflare_secret_after_ready");
-    expect(installer).not.toContain('printf \'%s\' "$CLOUDFLARE_API_TOKEN"');
+    expect(installer).not.toContain("printf '%s' \"$CLOUDFLARE_API_TOKEN\"");
   });
 
   it("mounts licenses writable only for the app and grants the canonical reader group to app, worker, and voice", async () => {

@@ -2,7 +2,7 @@
 
 ## Objetivo e fronteira
 
-O License Server é uma superfície vendor separada do artefato self-hosted do cliente. Ele mantém o banco `control_plane`, a chave privada Ed25519 de emissão e as operações administrativas comerciais. O build customer remove o Control Plane, suas rotas administrativas e os endpoints centrais; preserva apenas a tela e as APIs locais do LIC-01.
+O License Server é uma superfície vendor separada do artefato self-hosted do cliente. Ele mantém o banco `control_plane`, a chave privada Ed25519 de emissão e as operações administrativas comerciais. O build customer remove o Control Plane, suas rotas administrativas e os endpoints centrais; preserva as APIs locais do LIC-01 e somente a superfície mínima `/owner` com os endpoints de tenants e usuários necessários ao primeiro Platform Owner. Esses endpoints não emitem licença nem acessam o banco Vendor.
 
 O banco do Control Plane é configurado por `CONTROL_PLANE_DATABASE_URL` e não pode apontar para o mesmo banco que `SUPABASE_DB_URL`. `CONTROL_PLANE_PEPPER` é exclusivo do servidor central. A chave privada é entregue ao runtime vendor pelo secret manager ou ambiente protegido; nunca é armazenada no banco nem incluída no pacote do cliente. Esta implementação não cria uma chave oficial.
 
