@@ -589,6 +589,23 @@ jobs:
         # aceita `timeout-minutes`. Razão e medições: o cabeçalho da action.
         timeout-minutes: 5
 
+      # Prefere a última release deste repositório. Quando um fork ainda não
+      # publicou nenhuma, usa o upstream que publica as versões do kit. A troca
+      # de origin afeta somente o checkout efêmero e também deixa a tag
+      # resolvida disponível para o fetch feito pelo teste.
+      - name: Selecionar repositório com release publicada para o teste do kit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName >/dev/null 2>&1; then
+            release_repo="$GITHUB_REPOSITORY"
+          else
+            release_repo=melgarafael/DeskcommCRM
+          fi
+          git remote set-url origin "https://github.com/${release_repo}.git"
+          echo "GH_REPO=${release_repo}" >> "$GITHUB_ENV"
+          echo "Release de referência do teste: ${release_repo}" >> "$GITHUB_STEP_SUMMARY"
+
       - name: RLS isolation + governance invariants (pg${{ matrix.pg }})
         # O token é só para `gh release view`: o test:db confere o update.sh da
         # última release publicada (issue #1909), e a API anônima tem teto de 60

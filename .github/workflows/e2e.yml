@@ -1559,6 +1559,22 @@ jobs:
           create extension if not exists pg_trgm with schema public;
           SQL
 
+      # O instalador provisiona esta role antes do baseline. O baseline confere
+      # o contrato de ACL e deve continuar falhando se a role estiver ausente ou
+      # mal configurada; o E2E reproduz o prelúdio do test:db em vez de afrouxar
+      # essa guarda.
+      - name: Provisionar agent_worker antes do baseline
+        run: |
+          psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -q <<'SQL'
+          DO $$
+          BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'agent_worker') THEN
+              CREATE ROLE agent_worker LOGIN NOINHERIT BYPASSRLS;
+            END IF;
+          END
+          $$;
+          SQL
+
       - name: Aplicar o baseline.sql (o mesmo que o install.sh do kit aplica)
         run: |
           psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \

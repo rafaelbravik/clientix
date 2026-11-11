@@ -239,6 +239,24 @@ const MARCA_CONGELADA: Record<string, EntradaDeMarca> = {
       "`X-Client-Info` enviado ao Supabase — identifica o cliente nos logs e na telemetria DELES. Não é texto de interface e nunca chega ao usuário",
     marcas: ["deskcomm-crm"],
   },
+  "lib/licensing/license-server-client.ts": {
+    categoria: "INFRA",
+    motivo:
+      "chave de ambiente lida apenas para permitir HTTP ao serviço Vendor interno no compose local; não é exibida nem enviada como marca",
+    marcas: ["process.env.deskcomm_env_mode"],
+  },
+  "lib/licensing/license-server-client.test.ts": {
+    categoria: "DEV",
+    motivo:
+      "fixture local que ativa o modo de serviço Vendor interno para testar a política de URL; não embarca na imagem",
+    marcas: ["deskcomm_env_mode", "deskcomm_env_mode"],
+  },
+  "lib/licensing/license-server-client-reactivation.test.ts": {
+    categoria: "DEV",
+    motivo:
+      "fixture local que ativa o modo de serviço Vendor interno no teste de reativação; não embarca na imagem",
+    marcas: ["deskcomm_env_mode"],
+  },
   "lib/wacalls/events-bridge.ts": {
     categoria: "PROTOCOLO",
     motivo:
