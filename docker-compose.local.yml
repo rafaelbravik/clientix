@@ -24,6 +24,9 @@ services:
     volumes:
       - customer-state:/opt/clientix/state
       - customer-licenses:/opt/clientix/licenses
+    # Keep the license readable by the shared worker group after atomic replacement.
+    group_add:
+      - "1001"
     environment:
       CLIENTIX_INGRESS_MODE: "local"
       CLIENTIX_ALLOW_INSECURE_HTTP: ${CLIENTIX_ALLOW_INSECURE_HTTP:-true}

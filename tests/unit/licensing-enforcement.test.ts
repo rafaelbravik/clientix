@@ -474,10 +474,12 @@ describe("Licensing Enforcement — Atomic License Replacement & Safeguards", ()
 
   afterEach(async () => {
     resetLicenseCache();
+    vi.restoreAllMocks();
     await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
   });
 
   it("atomically installs and rotates a valid license with the runtime reader access contract", async () => {
+    const renameSpy = vi.spyOn(fs, "rename");
     const payload = createSamplePayload(mockInstId, { license_id: "lic_atomic_valid" });
     const doc = signLicensePayload(payload, {
       privateKey: keys.privPem,
@@ -493,6 +495,10 @@ describe("Licensing Enforcement — Atomic License Replacement & Safeguards", ()
     expect(result.success).toBe(true);
     expect(result.statusInfo.state).toBe("VALID");
     expect(result.statusInfo.license_id).toBe("lic_atomic_valid");
+    const firstRename = renameSpy.mock.calls[0];
+    expect(String(firstRename?.[0]).startsWith(`${licensePath}.tmp.`)).toBe(true);
+    expect(firstRename?.[1]).toBe(licensePath);
+    expect(path.dirname(String(firstRename?.[0]))).toBe(tmpDir);
 
     // Confirm file was written to disk
     const content = await fs.readFile(licensePath, "utf-8");
@@ -513,6 +519,10 @@ describe("Licensing Enforcement — Atomic License Replacement & Safeguards", ()
       installationIdPath: instIdPath,
       trustedKeys,
     });
+    const secondRename = renameSpy.mock.calls[1];
+    expect(String(secondRename?.[0]).startsWith(`${licensePath}.tmp.`)).toBe(true);
+    expect(secondRename?.[1]).toBe(licensePath);
+    expect(path.dirname(String(secondRename?.[0]))).toBe(tmpDir);
 
     const rotatedContent = await fs.readFile(licensePath, "utf-8");
     expect(rotatedContent).toContain("lic_atomic_rotated");
@@ -522,7 +532,97 @@ describe("Licensing Enforcement — Atomic License Replacement & Safeguards", ()
       expect(rotatedStat.mode & 0o777).toBe(0o640);
       if (process.platform === "linux") expect(rotatedStat.gid).toBe(1001);
     }
+    expect((await fs.readdir(tmpDir)).sort()).toEqual(["installation_id", "license.json"]);
+    renameSpy.mockRestore();
   });
+
+  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+    "fails closed when the license directory is read-only and preserves the current license",
+    async () => {
+      const initialPayload = createSamplePayload(mockInstId, { license_id: "lic_readonly_old" });
+      const initialDoc = signLicensePayload(initialPayload, {
+        privateKey: keys.privPem,
+        keyId: KEY_ID,
+      });
+      await installLicenseFile(initialDoc, {
+        targetPath: licensePath,
+        installationIdPath: instIdPath,
+        trustedKeys,
+      });
+      const original = await fs.readFile(licensePath, "utf8");
+
+      const replacementPayload = createSamplePayload(mockInstId, {
+        license_id: "lic_readonly_new",
+      });
+      const replacementDoc = signLicensePayload(replacementPayload, {
+        privateKey: keys.privPem,
+        keyId: KEY_ID,
+      });
+
+      await fs.chmod(tmpDir, 0o550);
+      try {
+        await expect(
+          installLicenseFile(replacementDoc, {
+            targetPath: licensePath,
+            installationIdPath: instIdPath,
+            trustedKeys,
+          }),
+        ).rejects.toThrow("LICENSE_FILE_ACCESS_CONTRACT_FAILED");
+        expect(await fs.readFile(licensePath, "utf8")).toBe(original);
+      } finally {
+        await fs.chmod(tmpDir, 0o700);
+      }
+    },
+  );
+
+  it("creates a nested fresh license directory and persists the file with the reader group", async () => {
+    const freshLicensePath = path.join(tmpDir, "fresh", "licenses", "license.json");
+    const payload = createSamplePayload(mockInstId, { license_id: "lic_fresh_directory" });
+    const document = signLicensePayload(payload, {
+      privateKey: keys.privPem,
+      keyId: KEY_ID,
+    });
+
+    await installLicenseFile(document, {
+      targetPath: freshLicensePath,
+      installationIdPath: instIdPath,
+      trustedKeys,
+    });
+
+    expect(await fs.readFile(freshLicensePath, "utf8")).toContain("lic_fresh_directory");
+    if (process.platform !== "win32") {
+      const installedStat = await fs.stat(freshLicensePath);
+      expect(installedStat.mode & 0o777).toBe(0o640);
+      if (process.platform === "linux") expect(installedStat.gid).toBe(1001);
+    }
+  });
+
+  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+    "fails closed when a fresh license directory is read-only",
+    async () => {
+      const freshDir = path.join(tmpDir, "fresh-read-only");
+      await fs.mkdir(freshDir);
+      await fs.chmod(freshDir, 0o550);
+      const payload = createSamplePayload(mockInstId, { license_id: "lic_fresh_readonly" });
+      const document = signLicensePayload(payload, {
+        privateKey: keys.privPem,
+        keyId: KEY_ID,
+      });
+
+      try {
+        await expect(
+          installLicenseFile(document, {
+            targetPath: path.join(freshDir, "license.json"),
+            installationIdPath: instIdPath,
+            trustedKeys,
+          }),
+        ).rejects.toThrow("LICENSE_FILE_ACCESS_CONTRACT_FAILED");
+        expect(await fs.readdir(freshDir)).toEqual([]);
+      } finally {
+        await fs.chmod(freshDir, 0o700);
+      }
+    },
+  );
 
   it("rejects invalid candidate without overwriting or destroying existing valid license", async () => {
     // 1. Install an initial valid license
