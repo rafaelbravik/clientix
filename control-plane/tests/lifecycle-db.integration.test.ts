@@ -178,7 +178,7 @@ localDatabaseSuite("Control Plane lifecycle migration on disposable PostgreSQL",
     return id;
   }
 
-  async function createRuntimeService(): Promise<{
+  async function createRuntimeService(clockNow?: () => Date): Promise<{
     service: ControlPlaneService;
     release: () => void;
   }> {
@@ -192,6 +192,7 @@ localDatabaseSuite("Control Plane lifecycle migration on disposable PostgreSQL",
         pepper: testPepper,
         nonceStore: new PostgresNonceStore(db),
         rateLimiter: new PostgresRateLimiter(db, testPepper),
+        ...(clockNow ? { clockNow } : {}),
       }),
       release: () => client.release(),
     };
@@ -1033,10 +1034,12 @@ localDatabaseSuite("Control Plane lifecycle migration on disposable PostgreSQL",
        values ($1, $2, $3, $4, 'ACTIVE', 'test', 'test', 'test');`,
       [id, license.licenseId, originalKey.publicKeyPem, fingerprint],
     );
-    const { service, release } = await createRuntimeService();
+    let now = new Date();
+    const { service, release } = await createRuntimeService(() => now);
     const bootTimes = new Map<string, string>();
 
     async function attest(sessionId: string, keyPair = originalKey) {
+      now = new Date(now.getTime() + 1_000);
       const bootStartedAt = bootTimes.get(sessionId) ?? new Date().toISOString();
       bootTimes.set(sessionId, bootStartedAt);
       const challengeTimestamp = Math.floor(Date.now() / 1000);
@@ -1117,7 +1120,8 @@ localDatabaseSuite("Control Plane lifecycle migration on disposable PostgreSQL",
       const sessionA = `sess_${randomUUID()}`;
       const sessionB = `sess_${randomUUID()}`;
       expect((await attest(sessionA)).result.data?.clone_status).toBe("NORMAL");
-      expect((await attest(sessionB)).result.data?.clone_status).toBe("SUSPECTED_CLONE");
+      expect((await attest(sessionB)).result.data?.clone_status).toBe("NORMAL");
+      expect((await attest(sessionA)).result.data?.clone_status).toBe("SUSPECTED_CLONE");
       expect((await attest(sessionB)).result.data?.clone_status).toBe("SUSPECTED_CLONE");
       const persistentConflict = await attest(sessionA);
       expect(persistentConflict.result.data?.clone_status).toBe("CLONE_CONFIRMED");

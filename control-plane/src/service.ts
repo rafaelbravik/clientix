@@ -733,7 +733,7 @@ export class ControlPlaneService {
                 and session_id <> $2
                 and status = 'ACTIVE'
                 and last_heartbeat_at >= $3
-                and last_heartbeat_at >= $4
+                and last_heartbeat_at > $4
            ) as reported;`,
           [
             params.installation_id,
