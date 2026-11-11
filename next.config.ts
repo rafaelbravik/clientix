@@ -85,6 +85,10 @@ const nextConfig: NextConfig = {
   // typedRoutes moved out of experimental in Next 15.5+
   typedRoutes: true,
   experimental: {
+    // O Customer é construído em runners de memória limitada. Um worker de
+    // geração estática evita o pico dos quatro workers padrão sem alterar o
+    // runtime; o Vendor mantém o paralelismo padrão.
+    cpus: isCustomerBuild ? 1 : undefined,
     serverSourceMaps: isCustomerBuild ? false : undefined,
     optimizePackageImports: ["@phosphor-icons/react", "lucide-react", "date-fns"],
   },

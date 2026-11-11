@@ -135,6 +135,9 @@ jobs:
     # Executor próprio para trabalho nosso quando EXECUTOR_PROPRIO=ligado; o
     # porquê e a guarda contra fork: comentário do e2e-parte no e2e.yml.
     runs-on: ${{ vars.EXECUTOR_PROPRIO == 'ligado' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) && 'deskcomm-proprio' || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+      pull-requests: read
     concurrency:
       group: ${{ github.workflow }}-verify-parte${{ matrix.parte }}-${{ github.event.pull_request.number || github.ref }}${{ github.event_name == 'pull_request' && github.run_attempt != '1' && format('-reentrada-{0}', github.event.pull_request.head.sha) || '' }}
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -572,8 +575,14 @@ jobs:
       # Uma variável, os dois scripts: `scripts/test-db.sh` e
       # `scripts/test-update-com-dados.sh` leem esta para escolher a imagem.
       TEST_DB_IMAGE: pgvector/pgvector:pg${{ matrix.pg }}
+      DESKCOMM_RELEASE_DIAGNOSTICS: "1"
     steps:
       - uses: actions/checkout@v7
+        with:
+          # O API /releases/latest pode não ter release publicada. Nesse caso o
+          # guard usa a última tag estável; torne tags disponíveis no checkout
+          # raso em vez de depender de uma segunda consulta Git remota.
+          fetch-tags: true
 
       - uses: ./.github/actions/preparar-node
         # O teto do preâmbulo mora aqui porque passo de composite action não

@@ -2051,8 +2051,24 @@ ultima_release_estavel() {
 
   # `-f` faz o curl falhar em 404 (repo sem release nenhuma) em vez de devolver
   # o corpo de erro, que o sed abaixo interpretaria como ausência de tag_name.
-  tag="$(curl -fsSL --max-time 20 -H 'Accept: application/vnd.github+json' "${auth_args[@]}" "$url" 2>/dev/null \
-    | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)"
+  if [ "${DESKCOMM_RELEASE_DIAGNOSTICS:-}" = "1" ]; then
+    local response response_body http_status curl_status
+    if response="$(curl -fsSL --max-time 20 -H 'Accept: application/vnd.github+json' "${auth_args[@]}" \
+      -w $'\n__HTTP_STATUS__:%{http_code}' "$url" 2>/dev/null)"; then
+      curl_status=0
+    else
+      curl_status=$?
+    fi
+    http_status="$(printf '%s\n' "$response" | sed -n 's/^__HTTP_STATUS__://p' | tail -1)"
+    response_body="$(printf '%s\n' "$response" | sed '$d')"
+    tag="$(printf '%s\n' "$response_body" \
+      | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)"
+    printf 'DIAGNÓSTICO: release API curl_exit=%s http_status=%s tag=%s.\n' \
+      "$curl_status" "${http_status:-unknown}" "$([ -n "$tag" ] && printf found || printf empty)" >&2
+  else
+    tag="$(curl -fsSL --max-time 20 -H 'Accept: application/vnd.github+json' "${auth_args[@]}" "$url" 2>/dev/null \
+      | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)"
+  fi
 
   # Sem jq de propósito: o kit não pode exigir jq numa VPS de cliente. O
   # `tag_name` é o primeiro campo desse formato no JSON de uma release e não

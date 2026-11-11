@@ -6,6 +6,7 @@ import { LicensingNav } from "@/components/admin/licensing/LicensingNav";
 import { StatusBadge, TemporalStateBadge } from "@/components/admin/licensing/Badges";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useT } from "@/hooks/i18n/useT";
 import { useTagDeIdioma } from "@/hooks/i18n/useLocaleDeData";
 import { CircleNotch, DownloadSimple, MagnifyingGlass, Plus } from "@/lib/ui/icons";
 
@@ -84,6 +85,7 @@ function SummaryCard({
 }
 
 export default function AdminLicensesPage() {
+  const t = useT();
   const tag = useTagDeIdioma();
   const [licenses, setLicenses] = useState<LicenseItem[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -178,9 +180,9 @@ export default function AdminLicensesPage() {
     <div className="space-y-6">
       <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Administração comercial</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t("Administração comercial")}</h1>
           <p className="text-sm text-muted-foreground">
-            Clientes, licenças e instalações do Control Plane do fornecedor.
+            {t("Clientes, licenças e instalações do Control Plane do fornecedor.")}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -198,7 +200,7 @@ export default function AdminLicensesPage() {
           <Button asChild size="sm">
             <Link href="/admin/licenses/new">
               <Plus className="mr-1.5 h-4 w-4" />
-              Nova licença
+              {t("Nova licença")}
             </Link>
           </Button>
         </div>
@@ -245,7 +247,7 @@ export default function AdminLicensesPage() {
             value={summary.expiring_1_day}
             warning={summary.expiring_1_day > 0}
           />
-          <SummaryCard label="Instalações ativas" value={summary.active_installations} />
+          <SummaryCard label={t("Instalações ativas")} value={summary.active_installations} />
           <SummaryCard
             label="Clones suspeitos"
             value={summary.suspicious_clones}
@@ -256,7 +258,7 @@ export default function AdminLicensesPage() {
 
       {summary?.upcoming_expirations.length ? (
         <section className="rounded-lg border bg-card p-4">
-          <h2 className="mb-3 text-sm font-semibold">Próximos vencimentos</h2>
+          <h2 className="mb-3 text-sm font-semibold">{t("Próximos vencimentos")}</h2>
           <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
             {summary.upcoming_expirations.map((item) => (
               <Link
@@ -291,8 +293,8 @@ export default function AdminLicensesPage() {
           <Input
             value={searchDraft}
             onChange={(event) => setSearchDraft(event.target.value)}
-            placeholder="Serial, cliente, documento, e-mail ou ID de instalação"
-            aria-label="Buscar licenças"
+            placeholder={t("Serial, cliente, documento, e-mail ou ID de instalação")}
+            aria-label={t("Buscar licenças")}
           />
           <Button type="submit" variant="secondary" size="icon" aria-label="Buscar">
             <MagnifyingGlass className="h-4 w-4" />
@@ -305,7 +307,7 @@ export default function AdminLicensesPage() {
             onChange={(event) => setCustomerId(event.target.value)}
             className="h-9 min-w-0 rounded-md border bg-background px-2 text-sm"
           >
-            <option value="ALL">Todos os clientes</option>
+            <option value="ALL">{t("Todos os clientes")}</option>
             {customers.map((customer) => (
               <option key={customer.id} value={customer.id}>
                 {customer.name}
@@ -318,7 +320,7 @@ export default function AdminLicensesPage() {
             onChange={(event) => setStatus(event.target.value)}
             className="h-9 min-w-0 rounded-md border bg-background px-2 text-sm"
           >
-            <option value="ALL">Todos os status</option>
+            <option value="ALL">{t("Todos os status")}</option>
             {["DRAFT", "ACTIVE", "SUSPENDED", "EXPIRED", "REVOKED"].map((value) => (
               <option key={value}>{value}</option>
             ))}
@@ -329,7 +331,7 @@ export default function AdminLicensesPage() {
             onChange={(event) => setPlan(event.target.value)}
             className="h-9 min-w-0 rounded-md border bg-background px-2 text-sm"
           >
-            <option value="ALL">Todos os planos</option>
+            <option value="ALL">{t("Todos os planos")}</option>
             <option value="standard">Essencial</option>
             <option value="pro">Profissional</option>
             <option value="enterprise">Escala</option>
@@ -341,20 +343,20 @@ export default function AdminLicensesPage() {
             className="h-9 min-w-0 rounded-md border bg-background px-2 text-sm"
           >
             <option value="ALL">Qualquer validade</option>
-            <option value="VALID">Válida</option>
+            <option value="VALID">{t("Válida")}</option>
             <option value="GRACE">Grace</option>
             <option value="EXPIRED">Expirada</option>
             <option value="NOT_YET_VALID">Futura</option>
           </select>
           <select
-            aria-label="Filtrar instalação"
+            aria-label={t("Filtrar instalação")}
             value={installationStatus}
             onChange={(event) => setInstallationStatus(event.target.value)}
             className="h-9 min-w-0 rounded-md border bg-background px-2 text-sm"
           >
-            <option value="ALL">Instalações: todas</option>
-            <option value="ACTIVE">Com ativa</option>
-            <option value="INACTIVE">Sem ativa</option>
+            <option value="ALL">{t("Instalações: todas")}</option>
+            <option value="ACTIVE">{t("Com ativa")}</option>
+            <option value="INACTIVE">{t("Sem ativa")}</option>
           </select>
           <select
             aria-label="Filtrar clone"
@@ -362,10 +364,10 @@ export default function AdminLicensesPage() {
             onChange={(event) => setCloneStatus(event.target.value)}
             className="h-9 min-w-0 rounded-md border bg-background px-2 text-sm"
           >
-            <option value="ALL">Clone: todos</option>
+            <option value="ALL">{t("Clone: todos")}</option>
             <option value="SUSPECTED_CLONE">Suspeito</option>
             <option value="CLONE_CONFIRMED">Confirmado</option>
-            <option value="TRANSFER_PENDING">Transferência</option>
+            <option value="TRANSFER_PENDING">{t("Transferência")}</option>
           </select>
           <select
             aria-label="Filtrar vencimento"
@@ -373,14 +375,14 @@ export default function AdminLicensesPage() {
             onChange={(event) => setExpiryDays(event.target.value)}
             className="h-9 min-w-0 rounded-md border bg-background px-2 text-sm"
           >
-            <option value="ALL">Vencimento: todos</option>
-            <option value="1">Até 1 dia</option>
-            <option value="7">Até 7 dias</option>
-            <option value="15">Até 15 dias</option>
-            <option value="30">Até 30 dias</option>
+            <option value="ALL">{t("Vencimento: todos")}</option>
+            <option value="1">{t("Até 1 dia")}</option>
+            <option value="7">{t("Até 7 dias")}</option>
+            <option value="15">{t("Até 15 dias")}</option>
+            <option value="30">{t("Até 30 dias")}</option>
           </select>
           <select
-            aria-label="Ordenar licenças"
+            aria-label={t("Ordenar licenças")}
             value={sort}
             onChange={(event) => setSort(event.target.value)}
             className="h-9 min-w-0 rounded-md border bg-background px-2 text-sm"
@@ -388,8 +390,8 @@ export default function AdminLicensesPage() {
             <option value="customer">Cliente</option>
             <option value="status">Status</option>
             <option value="expires_at">Validade</option>
-            <option value="created_at">Criação</option>
-            <option value="last_validation">Última validação</option>
+            <option value="created_at">{t("Criação")}</option>
+            <option value="last_validation">{t("Última validação")}</option>
           </select>
           <Button
             type="button"
@@ -413,11 +415,11 @@ export default function AdminLicensesPage() {
         {loading ? (
           <div className="flex items-center justify-center p-10 text-sm text-muted-foreground">
             <CircleNotch className="mr-2 h-4 w-4 animate-spin" />
-            Carregando licenças…
+            {t("Carregando licenças…")}
           </div>
         ) : licenses.length === 0 ? (
           <div className="p-10 text-center text-sm text-muted-foreground">
-            Nenhuma licença corresponde aos filtros.
+            {t("Nenhuma licença corresponde aos filtros.")}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -428,10 +430,10 @@ export default function AdminLicensesPage() {
                   <th className="px-4 py-3">Plano</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Validade</th>
-                  <th className="px-4 py-3">Instalações</th>
-                  <th className="px-4 py-3">Última validação</th>
+                  <th className="px-4 py-3">{t("Instalações")}</th>
+                  <th className="px-4 py-3">{t("Última validação")}</th>
                   <th className="px-4 py-3">Clone</th>
-                  <th className="px-4 py-3 text-right">Ação</th>
+                  <th className="px-4 py-3 text-right">{t("Ação")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -465,12 +467,12 @@ export default function AdminLicensesPage() {
                       <td className="px-4 py-3 text-xs">
                         {license.last_validation_at
                           ? new Date(license.last_validation_at).toLocaleString(tag)
-                          : "Nunca"}
+                          : t("Nunca")}
                       </td>
                       <td className="px-4 py-3 text-xs">{license.clone_status ?? "NORMAL"}</td>
                       <td className="px-4 py-3 text-right">
                         <Button asChild size="sm" variant="outline">
-                          <Link href={`/admin/licenses/${license.id}`}>Detalhes</Link>
+                          <Link href={`/admin/licenses/${license.id}`}>{t("Detalhes")}</Link>
                         </Button>
                       </td>
                     </tr>
@@ -501,7 +503,7 @@ export default function AdminLicensesPage() {
               disabled={offset + limit >= total || loading}
               onClick={() => void fetchData(offset + limit)}
             >
-              Próxima
+              {t("Próxima")}
             </Button>
           </div>
         </footer>

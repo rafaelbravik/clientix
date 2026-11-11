@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { useT } from "@/hooks/i18n/useT";
+import { randomId } from "@/lib/random-id";
 
 type Tenant = { id: string; slug: string; display_name: string };
 type OwnerApiPayload = {
@@ -18,6 +20,7 @@ type OwnerApiPayload = {
 type Feedback = { kind: "success" | "error"; message: string } | null;
 
 export function OwnerConsole({ ownerEmail }: { ownerEmail: string }) {
+  const t = useT();
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [selectedTenantId, setSelectedTenantId] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -72,7 +75,7 @@ export function OwnerConsole({ ownerEmail }: { ownerEmail: string }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Idempotency-Key": crypto.randomUUID(),
+          "Idempotency-Key": randomId(),
         },
         body: JSON.stringify({
           display_name: displayName,
@@ -156,6 +159,19 @@ export function OwnerConsole({ ownerEmail }: { ownerEmail: string }) {
 
   return (
     <div className="space-y-8">
+      <header className="space-y-2">
+        <p className="text-sm font-medium text-muted-foreground">{ownerEmail}</p>
+        <h1 className="text-3xl font-semibold tracking-tight">{t("Painel do proprietário")}</h1>
+        <p className="max-w-2xl text-sm text-muted-foreground">
+          {t(
+            "Crie empresas nesta instalação e convide usuários dentro do limite do plano e da licença. Gerencie a licença local em",
+          )}{" "}
+          <a className="underline" href="/admin/license">
+            {t("Licença")}
+          </a>
+          .
+        </p>
+      </header>
       <section aria-labelledby="owner-tenants-title" className="space-y-4 rounded-lg border p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -163,7 +179,7 @@ export function OwnerConsole({ ownerEmail }: { ownerEmail: string }) {
               Empresas
             </h2>
             <p className="text-sm text-muted-foreground">
-              A criação respeita o limite global da licença.
+              {t("A criação respeita o limite global da licença.")}
             </p>
           </div>
           <button
@@ -175,7 +191,7 @@ export function OwnerConsole({ ownerEmail }: { ownerEmail: string }) {
             Atualizar empresas
           </button>
         </div>
-        <ul aria-label="Empresas desta instalação" className="space-y-2">
+        <ul aria-label={t("Empresas desta instalação")} className="space-y-2">
           {tenants.map((tenant) => (
             <li key={tenant.id} className="rounded-md bg-muted/50 px-3 py-2 text-sm">
               <span className="font-medium">{tenant.display_name}</span>{" "}
@@ -244,10 +260,10 @@ export function OwnerConsole({ ownerEmail }: { ownerEmail: string }) {
       <section aria-labelledby="owner-users-title" className="space-y-4 rounded-lg border p-5">
         <div>
           <h2 id="owner-users-title" className="text-xl font-semibold">
-            Usuários e vagas
+            {t("Usuários e vagas")}
           </h2>
           <p className="text-sm text-muted-foreground">
-            O convite reserva uma vaga quando for aceito, conforme o plano da empresa.
+            {t("O convite reserva uma vaga quando for aceito, conforme o plano da empresa.")}
           </p>
         </div>
         <form onSubmit={inviteUser} className="grid gap-4 sm:grid-cols-2">
@@ -268,7 +284,7 @@ export function OwnerConsole({ ownerEmail }: { ownerEmail: string }) {
             </select>
           </label>
           <label className="grid gap-1 text-sm">
-            E-mail do usuário
+            {t("E-mail do usuário")}
             <input
               type="email"
               value={inviteEmail}
@@ -302,7 +318,7 @@ export function OwnerConsole({ ownerEmail }: { ownerEmail: string }) {
         {inviteUrl && (
           <p className="text-sm break-all">
             <a className="underline" href={inviteUrl}>
-              Abrir convite para aceitar a vaga
+              {t("Abrir convite para aceitar a vaga")}
             </a>
           </p>
         )}

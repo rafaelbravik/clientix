@@ -35,6 +35,12 @@ describe("customer build boundary", () => {
     expect(nextConfig).toMatch(/enablePrerenderSourceMaps:\s*isCustomerBuild \? false : undefined/);
   });
 
+  it("limits Customer static-generation workers without changing Vendor build concurrency", () => {
+    const nextConfig = readFileSync("next.config.ts", "utf8");
+
+    expect(nextConfig).toMatch(/cpus:\s*isCustomerBuild \? 1 : undefined/);
+  });
+
   it("keeps only self-host owner tenant/seat APIs while excluding vendor administration", () => {
     expect(CUSTOMER_BUILD_EXCLUDED_PATHS).toEqual([
       "app/admin",

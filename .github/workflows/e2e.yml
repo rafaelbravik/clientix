@@ -2250,6 +2250,13 @@ jobs:
 
       - uses: actions/checkout@v7
         if: always()
+        with:
+          # O agregador conta as specs do checkout; declare a entrada necessária
+          # para que esse passo continue correto caso o job use sparse checkout.
+          sparse-checkout: |
+            .github/workflows/e2e.yml
+            tests/e2e/*.spec.ts
+          sparse-checkout-cone-mode: false
 
       - name: Declarar o que este job ainda NÃO cobre
         if: always()
