@@ -945,7 +945,7 @@ localDatabaseSuite("Control Plane lifecycle migration on disposable PostgreSQL",
     expect(transferEvents.rows[0]?.count).toBe(0);
   });
 
-  it("ends active sessions after vendor transfer, suspension, and revocation", async () => {
+  it("keeps terminated sessions ended after reactivation and ends sessions after transfer/suspension/revocation", async () => {
     const license = await createActiveLicense(1);
     const sourceInstallationId = await addInstallation(license.licenseId);
     const sourceSessionId = `sess_${randomUUID()}`;
@@ -996,6 +996,12 @@ localDatabaseSuite("Control Plane lifecycle migration on disposable PostgreSQL",
     expect(afterSuspend.rows[0]?.status).toBe("ENDED");
 
     await admin.reactivateLicense(license.licenseId, "db-test-operator");
+    const afterReactivation = await pool.query<{ status: string }>(
+      `select status from control_plane.licensing_instance_sessions where session_id = $1;`,
+      [targetSessionAfterSuspend],
+    );
+    expect(afterReactivation.rows[0]?.status).toBe("ENDED");
+
     const targetSessionAfterReactivation = `sess_${randomUUID()}`;
     const revokeStartedAt = new Date().toISOString();
     await pool.query(

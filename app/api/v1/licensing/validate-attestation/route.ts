@@ -64,7 +64,12 @@ export async function POST(request: NextRequest) {
         rawBody: JSON.stringify(body),
         clientIp: request.headers.get("x-forwarded-for")?.split(",", 1)[0]?.trim(),
       });
-      if (!validated.ok || !validated.data) return { status: validated.status } as const;
+      if (!validated.ok || !validated.data) {
+        return {
+          status: validated.status,
+          errorCode: validated.error?.code,
+        } as const;
+      }
       return {
         status: 200,
         response: runtimeConfig.signResponse({
@@ -89,6 +94,14 @@ export async function POST(request: NextRequest) {
       } as const;
     });
     if (result.status !== 200 || !("response" in result)) {
+      if ("errorCode" in result && result.errorCode === "INSTANCE_SESSION_ENDED") {
+        return fail(
+          "installation_session_ended",
+          "Installation session has ended.",
+          409,
+          { requestId, headers: noStore },
+        );
+      }
       return fail(
         "unauthorized",
         "Attestation could not be completed.",
