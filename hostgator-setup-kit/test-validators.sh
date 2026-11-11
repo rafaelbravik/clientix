@@ -3266,10 +3266,10 @@ reexec_ok() {
   achou="$(cd "$dir" && KIT_DIR="$raiz" bash -c "
     set +e
     $linha
-    printf '%s' \"\$CONHECIDAS\" | grep -c . 
+    printf '%s\\n' \"\$CONHECIDAS\" | grep -cx DOMAIN
   " install.sh 2>/dev/null)"
   rm -rf "$raiz"
-  if [ "${achou:-0}" -gt 0 ]; then printf '  ✓ %s (%s vars)\n' "$desc" "$achou"
+  if [ "${achou:-0}" -eq 1 ]; then printf '  ✓ %s (DOMAIN presente)\n' "$desc"
   else printf '  ✗ %s — o kit não se encontra depois do cd; a 2ª execução morre\n' "$desc"; fail=1; fi
 }
 # O CONTROLE NEGATIVO. Ele foi PROMETIDO por escrito no comentário acima e
@@ -3303,19 +3303,20 @@ reexec_neg() {
     *) printf '  ✗ controle negativo — a linha CONHECIDAS= não usa mais $KIT_DIR; o defeito voltou ou o caso perdeu o alvo\n'; fail=1; rm -rf "$raiz"; return;;
   esac
   # A forma ANTIGA, reconstruída a partir da linha real: o `$KIT_DIR/install.sh`
+  # DOMAIN é lido de envq; OWNER_EMAIL/OWNER_PASSWORD são fallback legado e não provam que o kit foi localizado.
   # vira `"$0"`, e nada mais muda.
   linha="${linha//\"\$KIT_DIR\/install.sh\"/\"\$0\"}"
   achou="$(cd "$dir" && KIT_DIR="$raiz" bash -c "
     set +e
     $linha
-    printf '%s' \"\$CONHECIDAS\" | grep -c .
+    printf '%s\\n' \"\$CONHECIDAS\" | grep -cx DOMAIN
   " install.sh 2>/dev/null)"
   rm -rf "$raiz"
-  if [ "${achou:-0}" -eq 0 ]; then printf '  ✓ controle negativo: com "$0" relativo depois do cd, o kit NÃO se acha\n'
-  else printf '  ✗ controle negativo FALHOU — a sonda achou %s vars mesmo com o defeito; ela não distingue nada\n' "$achou"; fail=1; fi
+  if [ "${achou:-0}" -eq 0 ]; then printf '  ✓ controle negativo: com "$0" relativo depois do cd, DOMAIN não aparece\n'
+  else printf '  ✗ controle negativo FALHOU — DOMAIN apareceu mesmo simulando o defeito\n'; fail=1; fi
 }
 reexec_neg
-reexec_ok "o bloco de variáveis conhecidas acha o kit depois do cd"
+reexec_ok "o bloco de variáveis conhecidas lê DOMAIN depois do cd"
 
 echo "cron numa VPS sem crontab nenhum (#715)"
 # VPS nova não tem crontab para o root: `crontab -l` sai 1. As rodadas acima

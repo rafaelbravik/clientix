@@ -2096,7 +2096,7 @@ PENDENCIA_ARQUIVO="$PENDENCIA_EMAIL" \
   bash "$KIT_DIR/marca-emails.sh" --projeto "$PROJECT_DIR" || true
 
 # ── 8. Primeiro acesso ──────────────────────────────────────────────────────
-step "$(t "Token de configuração inicial protegido em {1}" ".clientix-bootstrap-token")
+step "$(t "Token de configuração inicial protegido em {1}" ".clientix-bootstrap-token")"
 c_dim "$(t "A criação do proprietário e da primeira empresa acontece no assistente /setup.")"
 
 # ── 9. Sobe a stack ─────────────────────────────────────────────────────────
