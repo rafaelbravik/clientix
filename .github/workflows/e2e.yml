@@ -159,12 +159,6 @@ jobs:
     # (infra/executor-proprio/so-o-que-e-nosso.sh). Vigiado por
     # tests/unit/executor-proprio-so-roda-o-que-e-nosso.test.ts.
     runs-on: ${{ vars.EXECUTOR_PROPRIO == 'ligado' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) && 'deskcomm-proprio' || 'ubuntu-latest' }}
-    # Este job builda e inicia o app apenas contra Supabase local. O modo local
-    # permite o opt-in HTTP somente quando as origens são loopback; lib/env.ts
-    # continua recusando HTTP externo e o modo de produção segue inalterado.
-    env:
-      CLIENTIX_INGRESS_MODE: local
-      CLIENTIX_ALLOW_INSECURE_HTTP: "true"
     # O teto FICA EM 30, e essa foi uma correção de rumo desta branch.
     #
     # Eu tinha subido para 45, com o argumento de que o teto acumula dois papéis
@@ -620,6 +614,9 @@ jobs:
     env:
       # Provider controlado; preview/assistência executam core, ferramentas e gates reais.
       INTERNAL_AGENT_RUN_STUB: "true"
+      # Apenas este job conversa com serviços locais; lib/env.ts ainda restringe HTTP a loopback.
+      CLIENTIX_INGRESS_MODE: "local"
+      CLIENTIX_ALLOW_INSECURE_HTTP: "true"
       # Única exceção HTTP do laboratório de extensões. O servidor é iniciado
       # pela própria spec, em loopback, com SQLite e PID exclusivos.
       EXTENSIONS_LOCAL_CATALOG_ORIGIN: "http://127.0.0.1:56331"
