@@ -12,15 +12,31 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: customer-certification
       args:
         APP_VERSION: ${APP_VERSION:-local}
-    image: deskcomm-app:local
+        CLIENTIX_CERTIFICATION_KEY_ID: ${CLIENTIX_CERTIFICATION_KEY_ID}
+        CLIENTIX_CERTIFICATION_PUBLIC_KEY_B64: ${CLIENTIX_CERTIFICATION_PUBLIC_KEY_B64}
+    image: clientix-customer-certification:local
     pull_policy: never
     restart: unless-stopped
     env_file: ${LOCAL_ENV_FILE:-.env.local}
+    volumes:
+      - customer-state:/opt/clientix/state
+      - customer-licenses:/opt/clientix/licenses
+    # Keep the license readable by the shared worker group after atomic replacement.
+    group_add:
+      - "1001"
     environment:
       CLIENTIX_INGRESS_MODE: "local"
-      CLIENTIX_ALLOW_INSECURE_HTTP: ${CLIENTIX_ALLOW_INSECURE_HTTP:-false}
+      CLIENTIX_ALLOW_INSECURE_HTTP: ${CLIENTIX_ALLOW_INSECURE_HTTP:-true}
+      CLIENTIX_ADMIN_ORIGIN: ${CLIENTIX_ADMIN_ORIGIN:-${NEXT_PUBLIC_ADMIN_URL:-}}
+      SUPABASE_DB_ADMIN_URL: ""
+      CONTROL_PLANE_DATABASE_URL: ""
+      CONTROL_PLANE_PEPPER: ""
+      CONTROL_PLANE_LICENSE_SIGNING_KEYS_JSON: ""
+      CONTROL_PLANE_ACTIVE_LICENSE_KEY_ID: ""
+      CONTROL_PLANE_DB_PASSWORD: ""
       WAHA_API_BASE_URL: http://waha:3000
     ports:
       - "${APP_PORT:-3000}:3000"
@@ -55,6 +71,14 @@ services:
     restart: unless-stopped
     env_file: ${LOCAL_ENV_FILE:-.env.local}
     environment:
+      CLIENTIX_INGRESS_MODE: "local"
+      CLIENTIX_ALLOW_INSECURE_HTTP: ${CLIENTIX_ALLOW_INSECURE_HTTP:-true}
+      SUPABASE_DB_ADMIN_URL: ""
+      CONTROL_PLANE_DATABASE_URL: ""
+      CONTROL_PLANE_PEPPER: ""
+      CONTROL_PLANE_LICENSE_SIGNING_KEYS_JSON: ""
+      CONTROL_PLANE_ACTIVE_LICENSE_KEY_ID: ""
+      CONTROL_PLANE_DB_PASSWORD: ""
       WAHA_API_BASE_URL: http://waha:3000
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -62,7 +86,7 @@ services:
       waha:
         condition: service_healthy
     ports:
-      - "8787:8787"
+      - "127.0.0.1:${WORKER_HOST_PORT:-8787}:8787"
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8787/healthz"]
       interval: 30s
@@ -82,6 +106,12 @@ services:
     env_file: ${LOCAL_ENV_FILE:-.env.local}
     environment:
       TZ: UTC
+      SUPABASE_DB_ADMIN_URL: ""
+      CONTROL_PLANE_DATABASE_URL: ""
+      CONTROL_PLANE_PEPPER: ""
+      CONTROL_PLANE_LICENSE_SIGNING_KEYS_JSON: ""
+      CONTROL_PLANE_ACTIVE_LICENSE_KEY_ID: ""
+      CONTROL_PLANE_DB_PASSWORD: ""
       # Os crons autenticam com INTERNAL_CRON_SECRET quando definido; o app
       # aplica a mesma prioridade. Sem este fallback, o scheduler enviava
       # INTERNAL_SECRET e recebia 401 em instalações com os dois segredos.
@@ -89,6 +119,60 @@ services:
     depends_on:
       app:
         condition: service_healthy
+
+  control-plane-db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: clientix_vendor
+      POSTGRES_PASSWORD: ${CONTROL_PLANE_DB_PASSWORD}
+      POSTGRES_DB: clientix_control_plane
+    ports:
+      - "127.0.0.1:${CONTROL_PLANE_DB_PORT:-55432}:5432"
+    volumes:
+      - control-plane-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clientix_vendor -d clientix_control_plane"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  vendor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: vendor
+      args:
+        APP_VERSION: ${APP_VERSION:-local}
+    image: clientix-vendor:local
+    pull_policy: never
+    restart: unless-stopped
+    env_file: ${LOCAL_ENV_FILE:-.env.local}
+    environment:
+      SUPABASE_DB_ADMIN_URL: ""
+      CONTROL_PLANE_DB_PASSWORD: ""
+      CLIENTIX_INGRESS_MODE: "local"
+      CLIENTIX_ALLOW_INSECURE_HTTP: "true"
+      CLIENTIX_ADMIN_ORIGIN: ${CLIENTIX_ADMIN_ORIGIN:-${NEXT_PUBLIC_ADMIN_URL:-}}
+    ports:
+      - "127.0.0.1:${VENDOR_PORT:-3100}:3000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      control-plane-db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
 
   waha:
     image: devlikeapro/waha:latest-2026.7.2
@@ -101,8 +185,8 @@ services:
       # resolve o mesmo problema desligando o dashboard ("nunca expor o
       # dashboard num template público", linha 156) e não publicando porta
       # nenhuma para o WAHA; aqui ele fica de pé para quem desenvolve, mas só
-      # atende de dentro da própria máquina (de fora, `ssh -L 3030:localhost:3030`).
-      - "127.0.0.1:3030:3000"
+      # atende de dentro da própria máquina, na porta livre definida em WAHA_PORT.
+      - "127.0.0.1:${WAHA_PORT:-3030}:3000"
     environment:
       # O WAHA recebe o hash com o prefixo para hashear a chave plaintext
       # enviada pelo app em X-Api-Key.
@@ -149,3 +233,6 @@ services:
 volumes:
   waha-data:
   waha-media:
+  control-plane-data:
+  customer-state:
+  customer-licenses:

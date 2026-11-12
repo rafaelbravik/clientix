@@ -241,7 +241,7 @@ export default function AdminCustomersPage() {
                 disabled={offset + 25 >= total}
                 onClick={() => void fetchCustomers(offset + 25)}
               >
-                Próxima
+                {t("Próxima")}
               </Button>
             </div>
           </footer>
@@ -311,7 +311,7 @@ export default function AdminCustomersPage() {
 
               <div>
                 <label className="mb-1 block text-xs font-medium tracking-wider text-muted-foreground uppercase">
-                  Observações internas
+                  {t("Observações internas")}
                 </label>
                 <textarea
                   value={internalNotes}

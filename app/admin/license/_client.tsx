@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useT } from "@/hooks/i18n/useT";
 import { useTagDeIdioma } from "@/hooks/i18n/useLocaleDeData";
 import type { LicenseAdminSummary } from "@/lib/licensing/admin-view";
 
@@ -105,6 +107,7 @@ function alertas(license: LicenseAdminSummary): { text: string; tone: string }[]
 }
 
 export function LicenseAdminClient({ initialLicense }: Props) {
+  const t = useT();
   const locale = useTagDeIdioma();
   const [license, setLicense] = useState(initialLicense);
   const [busy, setBusy] = useState(false);
@@ -231,13 +234,20 @@ export function LicenseAdminClient({ initialLicense }: Props) {
 
   return (
     <section className="mx-auto max-w-4xl space-y-6" aria-labelledby="license-title">
+      <Link
+        href="/app/settings"
+        className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+      >
+        {t("Voltar para Configurações")}
+      </Link>
       <header>
         <h1 id="license-title" className="text-2xl font-semibold tracking-tight">
-          Licença da instalação
+          {t("Licença da instalação")}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Estado local da autorização comercial. O Bootstrap Token do primeiro acesso é independente
-          desta licença.
+          {t(
+            "Estado local da autorização comercial. O Bootstrap Token do primeiro acesso é independente desta licença.",
+          )}
         </p>
       </header>
 
@@ -248,12 +258,16 @@ export function LicenseAdminClient({ initialLicense }: Props) {
         <p className="text-sm font-semibold">Status: {STATUS_LABEL[license.status]}</p>
         <p className="mt-1 text-sm text-muted-foreground">
           {license.restricted_mode_active
-            ? "Modo restrito ativo. Login, administração da plataforma, leitura, backup, exportação e atualização da licença continuam disponíveis."
+            ? t(
+                "Modo restrito ativo. Login, administração da plataforma, leitura, backup, exportação e atualização da licença continuam disponíveis.",
+              )
             : license.enforcement_mode === "warn" && !license.usable
-              ? "Modo de desenvolvimento: a licença é acompanhada no painel e as operações ainda não são bloqueadas."
+              ? t(
+                  "Modo de desenvolvimento: a licença é acompanhada no painel e as operações ainda não são bloqueadas.",
+                )
               : license.status === "ACTIVE"
-                ? "A licença está válida para esta instalação."
-                : "A situação da licença requer atenção do administrador da plataforma."}
+                ? t("A licença está válida para esta instalação.")
+                : t("A situação da licença requer atenção do administrador da plataforma.")}
         </p>
       </div>
 
@@ -272,8 +286,9 @@ export function LicenseAdminClient({ initialLicense }: Props) {
           className="rounded-lg border border-amber-500/50 bg-amber-500/5 p-3 text-sm"
           role="alert"
         >
-          O relógio local parece ter regredido. A operação não foi bloqueada; uma futura revalidação
-          online será necessária.
+          {t(
+            "O relógio local parece ter regredido. A operação não foi bloqueada; uma futura revalidação online será necessária.",
+          )}
         </div>
       )}
 
@@ -288,24 +303,25 @@ export function LicenseAdminClient({ initialLicense }: Props) {
 
       {!license.clock_baseline_available && (
         <p className="text-xs text-muted-foreground">
-          O registro local de horário ainda não está disponível; a validação da assinatura continua
-          independente dele.
+          {t(
+            "O registro local de horário ainda não está disponível; a validação da assinatura continua independente dele.",
+          )}
         </p>
       )}
 
       <div className="flex flex-wrap gap-3">
         <Button type="button" variant="outline" disabled={busy} onClick={() => void validarAgora()}>
-          {busy ? "Aguarde…" : "Validar agora"}
+          {busy ? "Aguarde…" : t("Validar agora")}
         </Button>
         <Button type="button" disabled={busy} onClick={() => inputRef.current?.click()}>
-          Atualizar licença
+          {t("Atualizar licença")}
         </Button>
         <Input
           ref={inputRef}
           type="file"
           accept="application/json,.json"
           className="sr-only h-px w-px p-0"
-          aria-label="Selecionar arquivo de licença assinado"
+          aria-label={t("Selecionar arquivo de licença assinado")}
           onChange={(event) => void atualizarArquivo(event.currentTarget.files?.[0])}
         />
       </div>
@@ -315,10 +331,11 @@ export function LicenseAdminClient({ initialLicense }: Props) {
           onSubmit={(event) => void ativarOnline(event)}
         >
           <div>
-            <h2 className="text-sm font-semibold">Ativar instalação online</h2>
+            <h2 className="text-sm font-semibold">{t("Ativar instalação online")}</h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              Use o código fornecido pelo operador. Ele será enviado somente ao License Server
-              configurado.
+              {t(
+                "Use o código fornecido pelo operador. Ele será enviado somente ao License Server configurado.",
+              )}
             </p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
@@ -327,12 +344,12 @@ export function LicenseAdminClient({ initialLicense }: Props) {
               onChange={(event) => setActivationCode(event.target.value)}
               autoComplete="off"
               spellCheck={false}
-              aria-label="Código de ativação da licença"
+              aria-label={t("Código de ativação da licença")}
               placeholder="ACT_…"
               className="min-w-0 font-mono"
             />
             <Button type="submit" disabled={busy || activationCode.trim().length === 0}>
-              {busy ? "Aguarde…" : "Ativar instalação"}
+              {busy ? "Aguarde…" : t("Ativar instalação")}
             </Button>
           </div>
         </form>
@@ -345,10 +362,11 @@ export function LicenseAdminClient({ initialLicense }: Props) {
           onSubmit={(event) => void recuperarIdentidade(event)}
         >
           <div>
-            <h2 className="text-sm font-semibold">Recuperar identidade da instalação</h2>
+            <h2 className="text-sm font-semibold">{t("Recuperar identidade da instalação")}</h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              Solicite ao fornecedor um código de recuperação. A nova chave permanece nesta
-              instalação e não é enviada ao fornecedor.
+              {t(
+                "Solicite ao fornecedor um código de recuperação. A nova chave permanece nesta instalação e não é enviada ao fornecedor.",
+              )}
             </p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
@@ -358,7 +376,7 @@ export function LicenseAdminClient({ initialLicense }: Props) {
               onChange={(event) => setRecoveryCode(event.target.value)}
               autoComplete="off"
               spellCheck={false}
-              aria-label="Código de recuperação emitido pelo fornecedor"
+              aria-label={t("Código de recuperação emitido pelo fornecedor")}
               placeholder="REC_…"
               className="min-w-0 font-mono"
             />

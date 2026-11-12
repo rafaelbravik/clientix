@@ -614,6 +614,9 @@ jobs:
     env:
       # Provider controlado; preview/assistência executam core, ferramentas e gates reais.
       INTERNAL_AGENT_RUN_STUB: "true"
+      # Apenas este job conversa com serviços locais; lib/env.ts ainda restringe HTTP a loopback.
+      CLIENTIX_INGRESS_MODE: "local"
+      CLIENTIX_ALLOW_INSECURE_HTTP: "true"
       # Única exceção HTTP do laboratório de extensões. O servidor é iniciado
       # pela própria spec, em loopback, com SQLite e PID exclusivos.
       EXTENSIONS_LOCAL_CATALOG_ORIGIN: "http://127.0.0.1:56331"
@@ -1559,6 +1562,22 @@ jobs:
           create extension if not exists pg_trgm with schema public;
           SQL
 
+      # O instalador provisiona esta role antes do baseline. O baseline confere
+      # o contrato de ACL e deve continuar falhando se a role estiver ausente ou
+      # mal configurada; o E2E reproduz o prelúdio do test:db em vez de afrouxar
+      # essa guarda.
+      - name: Provisionar agent_worker antes do baseline
+        run: |
+          psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -q <<'SQL'
+          DO $$
+          BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'agent_worker') THEN
+              CREATE ROLE agent_worker LOGIN NOINHERIT BYPASSRLS;
+            END IF;
+          END
+          $$;
+          SQL
+
       - name: Aplicar o baseline.sql (o mesmo que o install.sh do kit aplica)
         run: |
           psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
@@ -2250,6 +2269,13 @@ jobs:
 
       - uses: actions/checkout@v7
         if: always()
+        with:
+          # O agregador conta as specs do checkout; declare a entrada necessária
+          # para que esse passo continue correto caso o job use sparse checkout.
+          sparse-checkout: |
+            .github/workflows/e2e.yml
+            tests/e2e/*.spec.ts
+          sparse-checkout-cone-mode: false
 
       - name: Declarar o que este job ainda NÃO cobre
         if: always()

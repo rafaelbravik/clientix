@@ -63,30 +63,55 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 KIT="$ROOT/hostgator-setup-kit"
 
 release="${CONFERENCIA_KIT_RELEASE:-}"
+release_source="${release:+explicit}"
+gh_release_status="not attempted"
+api_release_status="not attempted"
+local_tag_status="not attempted"
+remote_tag_status="not attempted"
 if [ -z "$release" ] && [ -n "${GH_TOKEN:-${GITHUB_TOKEN:-}}" ] && command -v gh >/dev/null 2>&1; then
-  release="$(cd "$ROOT" && GH_TOKEN="${GH_TOKEN:-${GITHUB_TOKEN:-}}" gh release view --json tagName -q .tagName 2>/dev/null || true)"
+  if release="$(cd "$ROOT" && GH_TOKEN="${GH_TOKEN:-${GITHUB_TOKEN:-}}" gh release view --json tagName -q .tagName 2>/dev/null)"; then
+    gh_release_status="tag found"
+  else
+    gh_exit=$?
+    gh_release_status="exit ${gh_exit}"
+  fi
+  if [ -n "$release" ]; then release_source="gh release view"; else gh_release_status="${gh_release_status}; empty"; fi
 fi
 if [ -z "$release" ]; then
-  release="$(cd "$ROOT" && GITHUB_TOKEN="${GITHUB_TOKEN:-${GH_TOKEN:-}}" bash -c 'source "$1/_common.sh" >/dev/null 2>&1; ultima_release_estavel' _ "$KIT" || true)"
+  if release="$(cd "$ROOT" && GITHUB_TOKEN="${GITHUB_TOKEN:-${GH_TOKEN:-}}" bash -c 'source "$1/_common.sh" >/dev/null 2>&1; ultima_release_estavel' _ "$KIT")"; then
+    if [ -n "$release" ]; then api_release_status="tag found"; release_source="GitHub releases API"; else api_release_status="empty"; fi
+  else
+    api_exit=$?
+    api_release_status="exit ${api_exit}"
+  fi
 fi
 if [ -z "$release" ]; then
   # Fallback quando não há GitHub Releases publicadas via API (repositório privado
   # sem releases na API ou checkout raso sem tags): consulta tags locais ou remotas.
   release="$(git -C "$ROOT" tag -l 'clientix-*' 'v*' --sort=-v:refname | head -1 || true)"
+  if [ -n "$release" ]; then local_tag_status="tag found"; release_source="local Git tag"; else local_tag_status="empty"; fi
   if [ -z "$release" ]; then
     release="$(git -C "$ROOT" ls-remote --tags origin 'refs/tags/clientix-*' 'refs/tags/v*' 2>/dev/null \
       | sed -n 's#.*refs/tags/##p' | grep -v '\^{}' | sort -V -r | head -1 || true)"
+    if [ -n "$release" ]; then remote_tag_status="tag found"; release_source="remote Git tag"; else remote_tag_status="empty"; fi
   fi
 fi
 case "$release" in
   v[0-9]*|clientix-[0-9]*) ;;
-  *) echo "FATAL: não consegui saber qual é a última release publicada (sem rede? API fora? sem releases/tags?)." >&2
+  *)
+     if [ "${DESKCOMM_RELEASE_DIAGNOSTICS:-}" = "1" ]; then
+       echo "DIAGNÓSTICO: gh=${gh_release_status}; API=${api_release_status}; tag local=${local_tag_status}; tag remota=${remote_tag_status}." >&2
+     fi
+     echo "FATAL: não consegui saber qual é a última release publicada (sem rede? API fora? sem releases/tags?)." >&2
      echo "       Diga qual com CONFERENCIA_KIT_RELEASE=vX.Y.Z ou clientix-YYYY-MM-DD e rode de novo." >&2
-     exit 1 ;;
+      exit 1 ;;
 esac
+if [ "${DESKCOMM_RELEASE_DIAGNOSTICS:-}" = "1" ]; then
+  echo "DIAGNÓSTICO: release resolvida via ${release_source:-unknown}." >&2
+fi
 
-# O arquivo de cada release. No CI o checkout é raso e sem tags: busca só a tag,
-# rasa também. Numa árvore completa, busca sem --depth — com ele o git marcaria o
+# O arquivo de cada release. Em checkout raso sem a tag, busca só a tag, rasa
+# também. Numa árvore completa, busca sem --depth — com ele o git marcaria o
 # repositório de quem roda como raso.
 ANTES_DO_FILTRO="v1.63.0"
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/deskcomm-update-sh.XXXXXX")"

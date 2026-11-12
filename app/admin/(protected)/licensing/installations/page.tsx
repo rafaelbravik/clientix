@@ -6,6 +6,7 @@ import { LicensingNav } from "@/components/admin/licensing/LicensingNav";
 import { StatusBadge } from "@/components/admin/licensing/Badges";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useT } from "@/hooks/i18n/useT";
 import { useTagDeIdioma } from "@/hooks/i18n/useLocaleDeData";
 import { CircleNotch, MagnifyingGlass } from "@/lib/ui/icons";
 
@@ -29,6 +30,7 @@ function maskedId(id: string) {
 }
 
 export default function AdminInstallationsPage() {
+  const t = useT();
   const tag = useTagDeIdioma();
   const [installations, setInstallations] = useState<InstallationItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -81,9 +83,9 @@ export default function AdminInstallationsPage() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-bold tracking-tight">Instalações</h1>
+        <h1 className="text-2xl font-bold tracking-tight">{t("Instalações")}</h1>
         <p className="text-sm text-muted-foreground">
-          Identidade, sessão e estado de clone registrados no Control Plane.
+          {t("Identidade, sessão e estado de clone registrados no Control Plane.")}
         </p>
       </header>
       <LicensingNav />
@@ -99,19 +101,19 @@ export default function AdminInstallationsPage() {
             value={searchDraft}
             onChange={(event) => setSearchDraft(event.target.value)}
             placeholder="Buscar installation_id, serial ou cliente"
-            aria-label="Buscar instalações"
+            aria-label={t("Buscar instalações")}
           />
           <Button type="submit" size="icon" variant="secondary" aria-label="Buscar">
             <MagnifyingGlass className="h-4 w-4" />
           </Button>
         </form>
         <select
-          aria-label="Status de instalação"
+          aria-label={t("Status de instalação")}
           value={status}
           onChange={(event) => setStatus(event.target.value)}
           className="h-9 rounded-md border bg-background px-3 text-sm"
         >
-          <option value="ALL">Todos os status</option>
+          <option value="ALL">{t("Todos os status")}</option>
           {["ACTIVE", "SUSPENDED", "REVOKED", "DEACTIVATED", "TRANSFERRED", "DISABLED"].map(
             (value) => (
               <option key={value}>{value}</option>
@@ -124,21 +126,21 @@ export default function AdminInstallationsPage() {
           onChange={(event) => setCloneStatus(event.target.value)}
           className="h-9 rounded-md border bg-background px-3 text-sm"
         >
-          <option value="ALL">Todos os estados de clone</option>
+          <option value="ALL">{t("Todos os estados de clone")}</option>
           {["NORMAL", "SUSPECTED_CLONE", "CLONE_CONFIRMED", "TRANSFER_PENDING"].map((value) => (
             <option key={value}>{value}</option>
           ))}
         </select>
         <select
-          aria-label="Ordenar instalações"
+          aria-label={t("Ordenar instalações")}
           value={sort}
           onChange={(event) => setSort(event.target.value)}
           className="h-9 rounded-md border bg-background px-3 text-sm"
         >
-          <option value="created_at">Mais recentes</option>
+          <option value="created_at">{t("Mais recentes")}</option>
           <option value="customer">Cliente</option>
           <option value="status">Status</option>
-          <option value="last_validation">Última validação</option>
+          <option value="last_validation">{t("Última validação")}</option>
         </select>
         <Button
           type="button"
@@ -160,25 +162,25 @@ export default function AdminInstallationsPage() {
         {loading ? (
           <div className="flex items-center justify-center p-10 text-sm text-muted-foreground">
             <CircleNotch className="mr-2 h-4 w-4 animate-spin" />
-            Carregando instalações…
+            {t("Carregando instalações…")}
           </div>
         ) : installations.length === 0 ? (
           <div className="p-10 text-center text-sm text-muted-foreground">
-            Nenhuma instalação corresponde aos filtros.
+            {t("Nenhuma instalação corresponde aos filtros.")}
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1000px] text-left text-sm">
               <thead className="border-b bg-muted/40 text-xs tracking-wide text-muted-foreground uppercase">
                 <tr>
-                  <th className="px-4 py-3">Instalação</th>
-                  <th className="px-4 py-3">Cliente / licença</th>
+                  <th className="px-4 py-3">{t("Instalação")}</th>
+                  <th className="px-4 py-3">{t("Cliente / licença")}</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Clone</th>
-                  <th className="px-4 py-3">Última validação</th>
-                  <th className="px-4 py-3">Heartbeat / sessão</th>
-                  <th className="px-4 py-3">Versão</th>
-                  <th className="px-4 py-3 text-right">Ação</th>
+                  <th className="px-4 py-3">{t("Última validação")}</th>
+                  <th className="px-4 py-3">{t("Heartbeat / sessão")}</th>
+                  <th className="px-4 py-3">{t("Versão")}</th>
+                  <th className="px-4 py-3 text-right">{t("Ação")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -203,16 +205,16 @@ export default function AdminInstallationsPage() {
                     <td className="px-4 py-3 text-xs">
                       {item.last_validation_at
                         ? new Date(item.last_validation_at).toLocaleString(tag)
-                        : "Nunca"}
+                        : t("Nunca")}
                     </td>
                     <td className="px-4 py-3 text-xs">
                       <span className="block">
                         {item.last_heartbeat_at
                           ? new Date(item.last_heartbeat_at).toLocaleString(tag)
-                          : "Sem heartbeat"}
+                          : t("Sem heartbeat")}
                       </span>
                       <span className="text-muted-foreground">
-                        {item.active_session_id ? "sessão ativa" : "sem sessão ativa"}
+                        {item.active_session_id ? t("sessão ativa") : t("sem sessão ativa")}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-xs">{item.clientix_version ?? "—"}</td>
@@ -221,7 +223,7 @@ export default function AdminInstallationsPage() {
                         <Link
                           href={`/admin/licensing/installations/${encodeURIComponent(item.id)}`}
                         >
-                          Detalhes
+                          {t("Detalhes")}
                         </Link>
                       </Button>
                     </td>
@@ -252,7 +254,7 @@ export default function AdminInstallationsPage() {
               disabled={offset + limit >= total || loading}
               onClick={() => void fetchInstallations(offset + limit)}
             >
-              Próxima
+              {t("Próxima")}
             </Button>
           </div>
         </footer>

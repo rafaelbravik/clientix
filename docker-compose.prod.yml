@@ -39,6 +39,7 @@ services:
     environment:
       CLIENTIX_INGRESS_MODE: "production"
       CLIENTIX_ALLOW_INSECURE_HTTP: "false"
+      CLIENTIX_ADMIN_ORIGIN: ${CLIENTIX_ADMIN_ORIGIN:-${NEXT_PUBLIC_ADMIN_URL:-}}
       SUPABASE_DB_ADMIN_URL: ""
     depends_on:
       srh:

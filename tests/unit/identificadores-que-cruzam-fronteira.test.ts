@@ -198,6 +198,7 @@ const SITES: { arquivo: string; fronteira: string; papel?: "gerador" | "validado
   { arquivo: "app/admin/(protected)/billing/new/page.tsx", fronteira: "api.idempotency-key", papel: "gerador" },
   { arquivo: "app/admin/(protected)/licensing/licenses/[id]/page.tsx", fronteira: "api.idempotency-key", papel: "gerador" },
   { arquivo: "app/admin/(protected)/licensing/licenses/new/page.tsx", fronteira: "api.idempotency-key", papel: "gerador" },
+  { arquivo: "app/owner/_owner-console.tsx", fronteira: "api.idempotency-key", papel: "gerador" },
 ];
 
 describe("todo identificador que cruza fronteira cabe no que o terceiro aceita", () => {

@@ -67,7 +67,7 @@ function purposesEmitidosNoCodigo(): Map<string, string[]> {
   for (const arquivo of arquivosDeCodigo(["lib", "workers", "app"])) {
     for (const purpose of purposesDoTexto(readFileSync(arquivo, "utf8"), arquivo)) {
       const lista = encontrados.get(purpose) ?? [];
-      lista.push(path.relative(RAIZ_DO_REPO, arquivo));
+      lista.push(path.relative(RAIZ_DO_REPO, arquivo).split(path.sep).join("/"));
       encontrados.set(purpose, lista);
     }
   }
@@ -128,6 +128,37 @@ const FORA_DO_SEAM: Record<string, { arquivo: string; marcador: string }> = {
  */
 const CHAMADAS_DO_JEV_SEM_PONTO: ReadonlySet<string> = new Set([PEDIDOS_DO_CLIENTE.purpose]);
 
+/**
+ * `purpose` também é campo de payload assinado do License Server. Esses valores
+ * descrevem o protocolo Ed25519, não chamadas de modelo; a exceção é limitada
+ * aos arquivos exatos do protocolo e ao literal que o schema valida.
+ */
+const PROPOSITOS_DE_PROTOCOLO_ASSINADO: Readonly<Record<string, readonly string[]>> = {
+  license_server_response: [
+    "app/api/v1/licensing/activate/route.ts",
+    "app/api/v1/licensing/validate/route.ts",
+    "app/api/v1/licensing/validate-attestation/route.ts",
+  ],
+  installation_attestation_challenge: ["app/api/v1/licensing/challenge/route.ts"],
+  installation_recovery: ["app/api/v1/licensing/recover-installation/route.ts"],
+};
+
+function ehPropositoDeProtocoloAssinado(purpose: string, arquivos: readonly string[]): boolean {
+  const fontesEsperadas = PROPOSITOS_DE_PROTOCOLO_ASSINADO[purpose];
+  if (!fontesEsperadas) return false;
+
+  const encontrados = [...arquivos].sort();
+  const esperados = [...fontesEsperadas].sort();
+  if (JSON.stringify(encontrados) !== JSON.stringify(esperados)) return false;
+
+  const schema = readFileSync(path.join(RAIZ_DO_REPO, "lib/licensing/online-cache.ts"), "utf8");
+  if (!schema.includes(`purpose: z.literal("${purpose}")`)) return false;
+
+  return fontesEsperadas.every((arquivo) =>
+    readFileSync(path.join(RAIZ_DO_REPO, arquivo), "utf8").includes(`purpose: "${purpose}"`),
+  );
+}
+
 describe("registro de pontos de IA × código", () => {
   const emitidos = purposesEmitidosNoCodigo();
   it("instrumento lê os dois ramos e aspas distintas sem contar tipos/comentários", () => {
@@ -156,7 +187,12 @@ describe("registro de pontos de IA × código", () => {
     const registrados = new Set(PONTOS_DE_IA.map((p) => p.id));
 
     const orfaos = [...emitidos.entries()]
-      .filter(([purpose]) => !registrados.has(purpose) && !CHAMADAS_DO_JEV_SEM_PONTO.has(purpose))
+      .filter(
+        ([purpose, arquivos]) =>
+          !registrados.has(purpose) &&
+          !CHAMADAS_DO_JEV_SEM_PONTO.has(purpose) &&
+          !ehPropositoDeProtocoloAssinado(purpose, arquivos),
+      )
       .map(([purpose, arquivos]) => `${purpose} (emitido em ${arquivos.join(", ")})`);
 
     expect(
@@ -171,6 +207,17 @@ describe("registro de pontos de IA × código", () => {
       expect(emitidos.has(purpose), `${purpose} não é emitido: a exceção ficou sem objeto`).toBe(true);
       expect(PONTOS_DE_IA.some((p) => p.id === purpose), `${purpose} virou ponto: tire-o da exceção`).toBe(false);
       expect(rotuloDaChamadaDoJev(purpose), `${purpose} apareceria cru em Execuções`).not.toBeNull();
+    }
+  });
+
+  it("purpose de payload de licenciamento assinado não é tratado como chamada de IA", () => {
+    const registrados = new Set(PONTOS_DE_IA.map((ponto) => ponto.id));
+    for (const [purpose, arquivos] of Object.entries(PROPOSITOS_DE_PROTOCOLO_ASSINADO)) {
+      expect(emitidos.get(purpose)?.slice().sort(), `${purpose} continua vindo só do protocolo`).toEqual(
+        [...arquivos].sort(),
+      );
+      expect(registrados.has(purpose), `${purpose} não deve aparecer como opção de modelo`).toBe(false);
+      expect(ehPropositoDeProtocoloAssinado(purpose, arquivos)).toBe(true);
     }
   });
 

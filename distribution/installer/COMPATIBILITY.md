@@ -145,8 +145,11 @@ alteram a precedência.
 - O instalador comercial exige `DOMAIN` como hostname DNS público sem esquema,
   porta ou caminho, `ACME_EMAIL` e as origens públicas `NEXT_PUBLIC_APP_URL`,
   `NEXT_PUBLIC_ADMIN_URL` e `WAHA_WEBHOOK_BASE_URL` exatamente como
-  `https://DOMAIN`. Se `META_WEBHOOK_BASE_URL` for definida, ela pode usar um
-  hostname dedicado, mas precisa ser uma origem HTTPS pública sem porta ou caminho.
+  `https://DOMAIN`. O Compose entrega `NEXT_PUBLIC_ADMIN_URL` também como
+  `CLIENTIX_ADMIN_ORIGIN` server-only em runtime, para que o guard same-origin não
+  dependa do valor `NEXT_PUBLIC_*` embutido durante o build. Se `META_WEBHOOK_BASE_URL`
+  for definida, ela pode usar um hostname dedicado, mas precisa ser uma origem HTTPS
+  pública sem porta ou caminho.
 - O Caddy do instalador publica TCP 80 e 443, redireciona HTTP para HTTPS,
   provisiona/renova certificados ACME e persiste o estado em `caddy-data` e
   `caddy-config`. HSTS é `max-age=31536000`, sem subdomínios ou preload.

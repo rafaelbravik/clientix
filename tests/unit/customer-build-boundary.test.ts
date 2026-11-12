@@ -35,7 +35,15 @@ describe("customer build boundary", () => {
     expect(nextConfig).toMatch(/enablePrerenderSourceMaps:\s*isCustomerBuild \? false : undefined/);
   });
 
-  it("excludes global platform administration, support impersonation and vendor licensing", () => {
+  it("limits Customer static-generation workers without changing Vendor build concurrency", () => {
+    const nextConfig = readFileSync("next.config.ts", "utf8");
+
+    expect(nextConfig).toMatch(/cpus:\s*isCustomerBuild \? 1 : undefined/);
+    expect(nextConfig).toMatch(/webpackBuildWorker:\s*isCustomerBuild \? true : undefined/);
+    expect(nextConfig).toMatch(/if \(isCustomerBuild\) \{[\s\S]*?config\.parallelism = 1;[\s\S]*?config\.cache = false;/);
+  });
+
+  it("keeps only self-host owner tenant/seat APIs while excluding vendor administration", () => {
     expect(CUSTOMER_BUILD_EXCLUDED_PATHS).toEqual([
       "app/admin",
       "app/api/v1/admin",
@@ -60,7 +68,12 @@ describe("customer build boundary", () => {
     expect(isCustomerBuildExcludedPath("app/admin/(protected)/tenants/page.tsx")).toBe(true);
     expect(isCustomerBuildExcludedPath("app/admin/license/page.tsx")).toBe(false);
     expect(isCustomerBuildExcludedPath("app/admin/license/_client.tsx")).toBe(false);
-    expect(isCustomerBuildExcludedPath("app/api/v1/admin/tenants/route.ts")).toBe(true);
+    expect(isCustomerBuildExcludedPath("app/owner/page.tsx")).toBe(false);
+    expect(isCustomerBuildExcludedPath("app/owner/_owner-console.tsx")).toBe(false);
+    expect(isCustomerBuildExcludedPath("app/api/v1/admin/tenants/route.ts")).toBe(false);
+    expect(isCustomerBuildExcludedPath("app/api/v1/admin/tenants/[id]/route.ts")).toBe(true);
+    expect(isCustomerBuildExcludedPath("app/api/v1/admin/users/route.ts")).toBe(false);
+    expect(isCustomerBuildExcludedPath("app/api/v1/admin/users/[id]/route.ts")).toBe(true);
     expect(isCustomerBuildExcludedPath("app/api/v1/billing/webhooks/stripe/route.ts")).toBe(true);
     expect(isCustomerBuildExcludedPath("app/api/v1/admin/license/route.ts")).toBe(false);
     expect(isCustomerBuildExcludedPath("app/api/v1/admin/license/validate/route.ts")).toBe(false);
@@ -123,6 +136,8 @@ describe("customer build boundary", () => {
         "/api/v1/system/license/route",
         "/admin/tenants/page",
         "/api/v1/admin/tenants/route",
+        "/api/v1/admin/users/route",
+        "/api/v1/admin/users/[id]/route",
         "/api/v1/billing/webhooks/stripe/route",
         "/api/v1/auth/support/route",
         "/support-ended/page",
@@ -132,7 +147,7 @@ describe("customer build boundary", () => {
       "/admin/(protected)/licensing/licenses/page",
       "/api/v1/admin/licensing/licenses/route",
       "/admin/tenants/page",
-      "/api/v1/admin/tenants/route",
+      "/api/v1/admin/users/[id]/route",
       "/api/v1/billing/webhooks/stripe/route",
       "/api/v1/auth/support/route",
       "/support-ended/page",
@@ -165,6 +180,15 @@ describe("customer build boundary", () => {
       "deskcomm-impersonate",
     ]);
     expect(findCustomerArtifactMarkerHits('"support_readonly"')).toEqual(["support_readonly"]);
+  });
+
+  it("keeps vendor database hostnames out of shared Customer runtime modules", () => {
+    const sharedRuntime = [
+      readFileSync("lib/agent-engine/db/pool.ts", "utf8"),
+      readFileSync("scripts/lib/postgres-tls-policy.cjs", "utf8"),
+    ].join("\n");
+
+    expect(findCustomerArtifactMarkerHits(sharedRuntime)).toEqual([]);
   });
 
   it("substitutes vendor support providers with customer build implementations", () => {

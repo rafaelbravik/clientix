@@ -64,16 +64,21 @@ function instalar(itens) {
     i = fim + 1;
   }
 }
-module.exports = (sourcePath) => ({
-  c: (chunkPath) => instalar(require(chunkPath)),
-  m: (id) => {
-    const fabrica = fabricas.get(id);
-    if (typeof fabrica !== "function") throw new Error("module factory not available for: " + id);
-    const modulo = { id, exports: {} };
-    fabrica({ F: (caminho) => caminho }, modulo, modulo.exports);
-    return modulo;
-  },
-});
+module.exports = (sourcePath) => {
+  if (sourcePath !== "server/chunks/ssr/[turbopack]_runtime.js") {
+    throw new Error("runtime público inesperado: " + sourcePath);
+  }
+  return {
+    c: (chunkPath) => instalar(require(chunkPath)),
+    m: (id) => {
+      const fabrica = fabricas.get(id);
+      if (typeof fabrica !== "function") throw new Error("module factory not available for: " + id);
+      const modulo = { id, exports: {} };
+      fabrica({ F: (caminho) => caminho }, modulo, modulo.exports);
+      return modulo;
+    },
+  };
+};
 `;
 
 /** Um chunk com a forma do empacotado, cuja extração passa (ou não) pelo worker. */
@@ -101,17 +106,25 @@ module.exports=[766534,
 }
 
 /** Monta um "standalone" sintético em /tmp e devolve a raiz dele. */
-function montarImagem(opcoes: { comWorker: boolean; texto?: string }) {
+function montarImagem(opcoes: { comWorker: boolean; comWorkerPacote?: boolean; comRuntime?: boolean; texto?: string }) {
   const raizApp = mkdtempSync(join(tmpdir(), "sonda-pdf-1075-"));
   const chunks = join(raizApp, ".next/server/chunks");
-  mkdirSync(chunks, { recursive: true });
-  writeFileSync(join(chunks, "[turbopack]_runtime.js"), RUNTIME_SINTETICO);
+  const chunksSsr = join(chunks, "ssr");
+  mkdirSync(chunksSsr, { recursive: true });
+  if (opcoes.comRuntime !== false) {
+    writeFileSync(join(chunksSsr, "[turbopack]_runtime.js"), RUNTIME_SINTETICO);
+  }
   writeFileSync(
     join(chunks, "0b5b_pdfjs-dist_legacy_build_pdf_mjs_sintetico._.js"),
     chunkPdfjsSintetico(opcoes.texto),
   );
   if (opcoes.comWorker) {
     writeFileSync(join(chunks, "pdf.worker.mjs"), "export const WorkerMessageHandler = {};\n");
+  }
+  if (opcoes.comWorkerPacote !== false) {
+    const workerPacote = join(raizApp, "node_modules/pdfjs-dist/legacy/build");
+    mkdirSync(workerPacote, { recursive: true });
+    writeFileSync(join(workerPacote, "pdf.worker.mjs"), "export const WorkerMessageHandler = {};\n");
   }
   return raizApp;
 }
@@ -141,6 +154,8 @@ describe("scripts/sonda-pdf-na-imagem.mjs", () => {
     // O texto é o mesmo que o extrator do RAG devolve — não basta "não deu erro".
     expect(log).toContain(`"textoExtraido": "${TEXTO_DA_FIXTURE}"`);
     expect(log).toContain('"idEmpacotado": 766534');
+    expect(log).toContain('"runtimeTurbopack": ".next/server/chunks/ssr/[turbopack]_runtime.js"');
+    expect(log).toContain('"workersEncontrados"');
   });
 
   it("dá RED quando o worker não está na imagem — o defeito da issue #1075", async () => {
@@ -159,6 +174,33 @@ describe("scripts/sonda-pdf-na-imagem.mjs", () => {
     expect(log).toContain('"etapa": "extrair"');
     // A lista de onde o worker foi procurado é o dado que a issue pede para não sumir.
     expect(log).toContain('"workersEncontrados"');
+  });
+
+  it("dá RED quando o worker do pacote não foi materializado no standalone", async () => {
+    const raizApp = novaImagem({ comWorker: true, comWorkerPacote: false });
+    const { codigo, log } = await rodarSonda({
+      APP_DIR: raizApp,
+      PDF_FIXTURE: fixture,
+      PDF_ESPERADO: TEXTO_DA_FIXTURE,
+    });
+
+    expect(codigo).toBe(1);
+    expect(log).toContain("VEREDITO=RED");
+    expect(log).toContain("dependência pdfjs worker não materializada");
+    expect(log).toContain("node_modules");
+  });
+
+  it("dá RED quando nenhum runtime Turbopack suportado foi empacotado", async () => {
+    const raizApp = novaImagem({ comWorker: true, comRuntime: false });
+    const { codigo, log } = await rodarSonda({
+      APP_DIR: raizApp,
+      PDF_FIXTURE: fixture,
+      PDF_ESPERADO: TEXTO_DA_FIXTURE,
+    });
+
+    expect(codigo).toBe(1);
+    expect(log).toContain("VEREDITO=RED");
+    expect(log).toContain("não achei o runtime do Turbopack em nenhum layout suportado");
   });
 
   it("dá RED quando a imagem extrai outro texto (PDF que abre, mas sem o texto esperado)", async () => {

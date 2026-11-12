@@ -89,6 +89,10 @@ jobs:
   cortar-tag:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    # `secrets` não é um contexto válido em `steps.if`. Exponha só um booleano,
+    # sem propagar os valores secretos ao ambiente inteiro do job.
+    env:
+      RELEASE_APP_CREDENTIALS_CONFIGURED: ${{ secrets.RELEASE_APP_ID != '' && secrets.RELEASE_APP_PRIVATE_KEY != '' }}
     permissions:
       contents: read
       # A guarda pergunta à API quem abriu o PR de origem do merge
@@ -99,7 +103,7 @@ jobs:
     steps:
       - uses: actions/create-github-app-token@v3
         id: token
-        if: ${{ secrets.RELEASE_APP_ID != '' && secrets.RELEASE_APP_PRIVATE_KEY != '' }}
+        if: ${{ env.RELEASE_APP_CREDENTIALS_CONFIGURED == 'true' }}
         with:
           app-id: ${{ secrets.RELEASE_APP_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}

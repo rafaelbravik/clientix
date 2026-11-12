@@ -178,7 +178,7 @@ localDatabaseSuite("Control Plane lifecycle migration on disposable PostgreSQL",
     return id;
   }
 
-  async function createRuntimeService(): Promise<{
+  async function createRuntimeService(clockNow?: () => Date): Promise<{
     service: ControlPlaneService;
     release: () => void;
   }> {
@@ -192,6 +192,7 @@ localDatabaseSuite("Control Plane lifecycle migration on disposable PostgreSQL",
         pepper: testPepper,
         nonceStore: new PostgresNonceStore(db),
         rateLimiter: new PostgresRateLimiter(db, testPepper),
+        ...(clockNow ? { clockNow } : {}),
       }),
       release: () => client.release(),
     };
@@ -945,7 +946,7 @@ localDatabaseSuite("Control Plane lifecycle migration on disposable PostgreSQL",
     expect(transferEvents.rows[0]?.count).toBe(0);
   });
 
-  it("ends active sessions after vendor transfer, suspension, and revocation", async () => {
+  it("keeps terminated sessions ended after reactivation and ends sessions after transfer/suspension/revocation", async () => {
     const license = await createActiveLicense(1);
     const sourceInstallationId = await addInstallation(license.licenseId);
     const sourceSessionId = `sess_${randomUUID()}`;
@@ -996,6 +997,12 @@ localDatabaseSuite("Control Plane lifecycle migration on disposable PostgreSQL",
     expect(afterSuspend.rows[0]?.status).toBe("ENDED");
 
     await admin.reactivateLicense(license.licenseId, "db-test-operator");
+    const afterReactivation = await pool.query<{ status: string }>(
+      `select status from control_plane.licensing_instance_sessions where session_id = $1;`,
+      [targetSessionAfterSuspend],
+    );
+    expect(afterReactivation.rows[0]?.status).toBe("ENDED");
+
     const targetSessionAfterReactivation = `sess_${randomUUID()}`;
     const revokeStartedAt = new Date().toISOString();
     await pool.query(
@@ -1027,10 +1034,12 @@ localDatabaseSuite("Control Plane lifecycle migration on disposable PostgreSQL",
        values ($1, $2, $3, $4, 'ACTIVE', 'test', 'test', 'test');`,
       [id, license.licenseId, originalKey.publicKeyPem, fingerprint],
     );
-    const { service, release } = await createRuntimeService();
+    let now = new Date();
+    const { service, release } = await createRuntimeService(() => now);
     const bootTimes = new Map<string, string>();
 
     async function attest(sessionId: string, keyPair = originalKey) {
+      now = new Date(now.getTime() + 1_000);
       const bootStartedAt = bootTimes.get(sessionId) ?? new Date().toISOString();
       bootTimes.set(sessionId, bootStartedAt);
       const challengeTimestamp = Math.floor(Date.now() / 1000);
@@ -1111,7 +1120,8 @@ localDatabaseSuite("Control Plane lifecycle migration on disposable PostgreSQL",
       const sessionA = `sess_${randomUUID()}`;
       const sessionB = `sess_${randomUUID()}`;
       expect((await attest(sessionA)).result.data?.clone_status).toBe("NORMAL");
-      expect((await attest(sessionB)).result.data?.clone_status).toBe("SUSPECTED_CLONE");
+      expect((await attest(sessionB)).result.data?.clone_status).toBe("NORMAL");
+      expect((await attest(sessionA)).result.data?.clone_status).toBe("SUSPECTED_CLONE");
       expect((await attest(sessionB)).result.data?.clone_status).toBe("SUSPECTED_CLONE");
       const persistentConflict = await attest(sessionA);
       expect(persistentConflict.result.data?.clone_status).toBe("CLONE_CONFIRMED");

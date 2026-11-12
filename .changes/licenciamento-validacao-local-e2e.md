@@ -1,6 +1,6 @@
 ---
-impacto: corrigido
-secao: licenciamento
+impacto: nada_mudou
+secao: corrigido
 titulo: Corrige e fecha a validação local E2E de licenças
 ---
 

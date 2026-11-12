@@ -243,6 +243,11 @@ describe("a sétima cópia não nasce", () => {
       trecho: "display_name: data.display_name ?? null,",
       motivo: "o export de LGPD entrega as DUAS colunas do titular cruas; não decide nome",
     },
+    {
+      arquivo: "app/owner/_owner-console.tsx",
+      trecho: "display_name: payload.data.display_name ?? displayName,",
+      motivo: "nome da organização/tenant no console Owner, não rótulo de contato",
+    },
     // ── canais e sessões sociais (0503-0507): nomes do canal/bot/inbox em channel_sessions ──
     {
       arquivo: "app/api/v1/channels/email/route.ts",

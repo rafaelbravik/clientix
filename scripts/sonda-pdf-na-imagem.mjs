@@ -53,9 +53,9 @@
  *   PDF_ESPERADO  texto exato que ele deve render     (default: DeskcommCRM RAG fixture)
  */
 
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
-import { join, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const TEXTO_ESPERADO_PADRAO = "DeskcommCRM RAG fixture";
@@ -63,8 +63,14 @@ export const TEXTO_ESPERADO_PADRAO = "DeskcommCRM RAG fixture";
 /** Onde ficam o runtime e os chunks do servidor no `output: standalone`. */
 export const DIR_CHUNKS = join(".next", "server", "chunks");
 
-/** O runtime do Turbopack que registra as fábricas dos chunks. */
-export const RUNTIME = join(DIR_CHUNKS, "[turbopack]_runtime.js");
+/** Layouts de runtime emitidos pelo Next/Turbopack nas versões suportadas. */
+export const RUNTIMES = [
+  join(DIR_CHUNKS, "[turbopack]_runtime.js"),
+  join(DIR_CHUNKS, "ssr", "[turbopack]_runtime.js"),
+];
+
+/** A cópia do worker preservada pelo output standalone em node_modules. */
+export const WORKER_PACOTE = join("node_modules", "pdfjs-dist", "legacy", "build", "pdf.worker.mjs");
 
 /**
  * Os chunks que carregam o pdfjs empacotado (nome gerado no build a partir do
@@ -110,7 +116,7 @@ export function procurarWorker(raiz) {
     join(raiz, "node_modules", "pdfjs-dist", "legacy", "build", "pdf.worker.mjs"),
   ];
   for (const caminho of diretos) {
-    if (existsSync(caminho)) achados.push(caminho);
+    if (arquivoMaterializado(caminho)) achados.push(caminho);
   }
 
   const raizesPnpm = [
@@ -128,10 +134,19 @@ export function procurarWorker(raiz) {
     for (const entrada of entradas) {
       if (!entrada.startsWith("pdfjs-dist@")) continue;
       const caminho = join(base, entrada, "node_modules", "pdfjs-dist", "legacy", "build", "pdf.worker.mjs");
-      if (existsSync(caminho)) achados.push(caminho);
+      if (arquivoMaterializado(caminho)) achados.push(caminho);
     }
   }
   return achados;
+}
+
+function arquivoMaterializado(caminho) {
+  try {
+    const info = statSync(caminho);
+    return info.isFile() && info.size > 0;
+  } catch {
+    return false;
+  }
 }
 
 /** Configuração da execução, sempre por variável de ambiente (default: a imagem). */
@@ -173,10 +188,14 @@ export async function extrairTexto(pdfjs, dados) {
  */
 export function carregarPdfjsEmpacotado({ raiz }) {
   const dirChunks = join(raiz, DIR_CHUNKS);
-  const caminhoRuntime = join(raiz, RUNTIME);
+  const runtimes = RUNTIMES.map((caminho) => join(raiz, caminho)).filter(arquivoMaterializado);
+  const caminhoRuntime = runtimes[0];
 
-  if (!existsSync(caminhoRuntime)) {
-    throw new Error(`não achei o runtime do Turbopack em ${caminhoRuntime}`);
+  if (!caminhoRuntime) {
+    throw new Error(
+      `não achei o runtime do Turbopack em nenhum layout suportado: ` +
+        `${RUNTIMES.map((caminho) => join(raiz, caminho)).join(", ")}`,
+    );
   }
   if (!existsSync(dirChunks)) {
     throw new Error(`não achei os chunks do servidor em ${dirChunks}`);
@@ -190,12 +209,17 @@ export function carregarPdfjsEmpacotado({ raiz }) {
     );
   }
   const chunk = candidatos[0];
+  const caminhoWorkerPacote = join(raiz, WORKER_PACOTE);
+  if (!arquivoMaterializado(caminhoWorkerPacote)) {
+    throw new Error(`dependência pdfjs worker não materializada em ${caminhoWorkerPacote}`);
+  }
 
   // O contrato do runtime (lido do próprio arquivo):
   //   module.exports = (sourcePath) => ({ m: (id) => modulo, c: (chunkPath) => carregaChunk }) 
   // `c` faz `path.resolve(RUNTIME_ROOT, chunkPath)` e `require`, então o caminho
   // absoluto do chunk passa direto.
-  const runtime = createRequire(import.meta.url)(caminhoRuntime)("server/chunks/[turbopack]_runtime.js");
+  const caminhoPublicoRuntime = relative(join(raiz, ".next"), caminhoRuntime).replaceAll("\\", "/");
+  const runtime = createRequire(import.meta.url)(caminhoRuntime)(caminhoPublicoRuntime);
   runtime.c(join(dirChunks, chunk));
 
   const ids = idsDoChunk(readFileSync(join(dirChunks, chunk), "utf8"));
@@ -207,7 +231,7 @@ export function carregarPdfjsEmpacotado({ raiz }) {
       continue;
     }
     if (exportado && typeof exportado.getDocument === "function") {
-      return { pdfjs: exportado, id, chunk };
+      return { pdfjs: exportado, id, chunk, runtime: caminhoRuntime };
     }
   }
 
@@ -236,9 +260,11 @@ export async function rodar(env = process.env) {
       );
     }
 
-    const { pdfjs, id, chunk } = carregarPdfjsEmpacotado(config);
+    const { pdfjs, id, chunk, runtime } = carregarPdfjsEmpacotado(config);
     relatorio.chunkPdfjs = chunk;
     relatorio.idEmpacotado = id;
+    relatorio.runtimeTurbopack = relative(config.raiz, runtime).replaceAll("\\", "/");
+    relatorio.workersEncontrados = procurarWorker(config.raiz);
 
     relatorio.etapa = "extrair";
     const texto = await extrairTexto(pdfjs, readFileSync(config.fixture));
