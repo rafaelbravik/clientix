@@ -39,6 +39,8 @@ describe("customer build boundary", () => {
     const nextConfig = readFileSync("next.config.ts", "utf8");
 
     expect(nextConfig).toMatch(/cpus:\s*isCustomerBuild \? 1 : undefined/);
+    expect(nextConfig).toMatch(/webpackBuildWorker:\s*isCustomerBuild \? true : undefined/);
+    expect(nextConfig).toMatch(/if \(isCustomerBuild\) \{[\s\S]*?config\.parallelism = 1;[\s\S]*?config\.cache = false;/);
   });
 
   it("keeps only self-host owner tenant/seat APIs while excluding vendor administration", () => {

@@ -68,7 +68,10 @@ function createBuildEnvironment(): NodeJS.ProcessEnv {
   }
 
   result.NODE_ENV = "production";
-  result.NODE_OPTIONS = "--max-old-space-size=6144";
+  // O build usa um Webpack worker isolado e concorrência unitária. O BuildKit
+  // deste alvo reserva 7 GiB; o heap de 5 GiB mantém margem para memória nativa,
+  // o processo de orquestração do Next e os auxiliares do build.
+  result.NODE_OPTIONS = "--max-old-space-size=5120";
   result.NEXT_TELEMETRY_DISABLED = "1";
   result.NEXT_PUBLIC_CLIENTIX_BUILD_TARGET = "customer";
   result.NEXT_PUBLIC_SUPABASE_URL = "https://placeholder.supabase.co";

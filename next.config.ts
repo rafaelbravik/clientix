@@ -89,8 +89,25 @@ const nextConfig: NextConfig = {
     // geração estática evita o pico dos quatro workers padrão sem alterar o
     // runtime; o Vendor mantém o paralelismo padrão.
     cpus: isCustomerBuild ? 1 : undefined,
+    // A geração estática processa uma página por vez. O compilador Webpack roda
+    // em processo separado para não somar o heap da orquestração do Next ao da
+    // compilação; as otimizações de memória continuam específicas do Customer.
+    // Isso só muda a estratégia de build, não o artefato/runtime.
+    webpackBuildWorker: isCustomerBuild ? true : undefined,
+    staticGenerationMaxConcurrency: isCustomerBuild ? 1 : undefined,
+    webpackMemoryOptimizations: isCustomerBuild ? true : undefined,
     serverSourceMaps: isCustomerBuild ? false : undefined,
     optimizePackageImports: ["@phosphor-icons/react", "lucide-react", "date-fns"],
+  },
+  webpack(config) {
+    // O Customer é compilado em runners limitados: serializar módulos e não
+    // manter cache de compilação evita reter o grafo inteiro no heap. São
+    // opções de build; o bundle e o runtime não mudam. Vendor mantém o padrão.
+    if (isCustomerBuild) {
+      config.parallelism = 1;
+      config.cache = false;
+    }
+    return config;
   },
   enablePrerenderSourceMaps: isCustomerBuild ? false : undefined,
   images: {

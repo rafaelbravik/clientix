@@ -234,7 +234,8 @@ if [ -n "$DOCKER_REAL" ] && "$DOCKER_REAL" compose version >/dev/null 2>&1; then
   CRM="$WORK/crm"; mkdir -p "$CRM"
   cp "$ROOT/docker-compose.prod.yml" "$ROOT/docker-compose.single-server.yml" "$CRM/"
   printf '%s\n' 'SUPABASE_DB_URL=postgresql://postgres:x@supabase-db:5432/postgres' \
-    'DOMAIN=crm.exemplo.com' 'SINGLE_SERVER_NETWORK=deskcommcrm_supabase' > "$CRM/.env"
+    'DOMAIN=crm.exemplo.com' 'ACME_EMAIL=owner-certification@example.invalid' \
+    'SINGLE_SERVER_NETWORK=deskcommcrm_supabase' > "$CRM/.env"
   sem_rede="$(cd "$CRM" && env -i PATH="$PATH" HOME="$HOME" "$DOCKER_REAL" compose \
       -f docker-compose.prod.yml -f docker-compose.single-server.yml --profile '*' config --format json 2>/dev/null \
     | python3 -c '
