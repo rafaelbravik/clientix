@@ -25,9 +25,9 @@
 #   4. sem `DB_URL` na resposta do stack, o gerador RECUSA (exit 1) em vez de
 #      chutar a porta padrão — o modo de falha silencioso é o caro.
 #
-# Não precisa de Docker, de Supabase de verdade nem de rede: o `supabase` do PATH
-# é um dublê que só responde `status` e `status -o env`, e o gerador roda num
-# diretório temporário (ele faz `cd "$(dirname "$0")/.."`).
+# Não precisa de Docker, de Supabase de verdade nem de rede: o wrapper
+# `scripts/local-supabase.sh` é um dublê que responde `status` com JSON, e o
+# gerador roda num diretório temporário (ele faz `cd "$(dirname "$0")/.."`).
 set -uo pipefail
 
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -41,26 +41,20 @@ casos=0
 ok()   { printf '  ok     %s\n' "$1"; }
 falha(){ printf '  FALHA  %s\n' "$1"; falhas=$((falhas + 1)); }
 
-# Monta o diretório do caso com o gerador REAL e um `supabase` de dublê.
-# uso: preparar <caso> <linha…>   (as linhas são a resposta de `status -o env`)
+# Monta o diretório do caso com o gerador REAL e um wrapper local de dublê.
+# uso: preparar <caso> <JSON de status>
 preparar() {
-  local caso="$1"; shift
-  mkdir -p "$TMP/$caso/bin" "$TMP/$caso/scripts"
+  local caso="$1" status_json="$2"
+  mkdir -p "$TMP/$caso/scripts"
   cp "$GERADOR_REAL" "$TMP/$caso/scripts/gerar-env-e2e.sh"
-  {
-    echo '#!/usr/bin/env bash'
-    echo 'set -eu'
-    echo 'if [ "$*" = "status" ]; then exit 0; fi'
-    echo 'if [ "$*" = "status -o env" ]; then'
-    echo "cat <<'FIM'"
-    local linha
-    for linha in "$@"; do printf '%s\n' "$linha"; done
-    echo 'FIM'
-    echo 'exit 0'
-    echo 'fi'
-    echo 'exit 2'
-  } > "$TMP/$caso/bin/supabase"
-  chmod +x "$TMP/$caso/bin/supabase"
+  printf '%s\n' "$status_json" > "$TMP/$caso/status.json"
+  cat > "$TMP/$caso/scripts/local-supabase.sh" <<'MOCK'
+#!/usr/bin/env bash
+set -eu
+if [ "$*" != "status" ]; then exit 2; fi
+cat "$(dirname "${BASH_SOURCE[0]}")/../status.json"
+MOCK
+  chmod +x "$TMP/$caso/scripts/local-supabase.sh"
   # Chaves de cifra já prontas: o gerador só as regenera quando faltam, então a
   # prova não depende de `openssl`.
   local chave="chave-de-teste-com-mais-de-44-caracteres-000000000000"
@@ -70,7 +64,7 @@ preparar() {
 
 # uso: rodar <caso>  → SAIDA recebe stdout+stderr e RC o código de saída
 rodar() {
-  SAIDA="$(cd "$TMP/$1" && PATH="$TMP/$1/bin:$PATH" bash scripts/gerar-env-e2e.sh 2>&1)"
+  SAIDA="$(cd "$TMP/$1" && bash scripts/gerar-env-e2e.sh 2>&1)"
   RC=$?
 }
 
@@ -80,11 +74,7 @@ nao_contem() { ! grep -qF -- "$2" "$1"; }
 # ── 1 e 2. Stack fora das portas padrão: é o cenário da #1091 ────────────────
 casos=$((casos + 1))
 printf 'caso 1: o stack está com o banco em 55312 — o .env.e2e tem que acompanhar\n'
-preparar fora \
-  'API_URL="http://127.0.0.1:55321"' \
-  'ANON_KEY="anon-sintetico"' \
-  'SERVICE_ROLE_KEY="service-sintetico"' \
-  'DB_URL="postgresql://postgres:senha-do-stack@127.0.0.1:55312/postgres"'
+preparar fora '{"API_URL":"http://127.0.0.1:55321","ANON_KEY":"anon-sintetico","SERVICE_ROLE_KEY":"service-sintetico","DB_URL":"postgresql://postgres:senha-do-stack@127.0.0.1:55312/postgres"}'
 rodar fora
 if [ "$RC" -eq 0 ]; then
   ok "o gerador saiu 0"
@@ -109,11 +99,7 @@ esac
 # ── 3. Stack nas portas padrão continua funcionando ─────────────────────────
 casos=$((casos + 1))
 printf 'caso 2: o stack está nas portas padrão — o .env.e2e segue o status\n'
-preparar padrao \
-  'API_URL="http://127.0.0.1:54321"' \
-  'ANON_KEY="anon-sintetico"' \
-  'SERVICE_ROLE_KEY="service-sintetico"' \
-  'DB_URL="postgresql://postgres:senha-do-stack@127.0.0.1:54322/postgres"'
+preparar padrao '{"API_URL":"http://127.0.0.1:54321","ANON_KEY":"anon-sintetico","SERVICE_ROLE_KEY":"service-sintetico","DB_URL":"postgresql://postgres:senha-do-stack@127.0.0.1:54322/postgres"}'
 rodar padrao
 if [ "$RC" -eq 0 ]; then
   ok "o gerador saiu 0"
@@ -129,10 +115,7 @@ fi
 # ── 4. Sem DB_URL no status, recusa — nunca o chute da porta padrão ─────────
 casos=$((casos + 1))
 printf 'caso 3: o stack não diz a DB_URL — o gerador tem que recusar\n'
-preparar sem-dburl \
-  'API_URL="http://127.0.0.1:54321"' \
-  'ANON_KEY="anon-sintetico"' \
-  'SERVICE_ROLE_KEY="service-sintetico"'
+preparar sem-dburl '{"API_URL":"http://127.0.0.1:54321","ANON_KEY":"anon-sintetico","SERVICE_ROLE_KEY":"service-sintetico"}'
 rodar sem-dburl
 if [ "$RC" -eq 1 ]; then
   ok "recusou com exit 1"
