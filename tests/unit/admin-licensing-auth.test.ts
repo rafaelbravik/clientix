@@ -5,6 +5,7 @@ import type { User } from "@supabase/supabase-js";
 const mocks = vi.hoisted(() => {
   const adminService = {
     listCustomers: vi.fn().mockResolvedValue([]),
+    listCommercialCustomers: vi.fn().mockResolvedValue({ items: [], total: 0, limit: 50, offset: 0 }),
     createCustomer: vi.fn().mockResolvedValue({ id: "cust_123" }),
     updateCustomer: vi.fn().mockResolvedValue({ id: "cust_123" }),
     getCustomer: vi.fn().mockResolvedValue({}),
@@ -74,6 +75,12 @@ import { POST as suspendLicense } from "@/app/api/v1/admin/licensing/licenses/[i
 
 const id = "11111111-1111-4111-8111-111111111111";
 const context = { params: Promise.resolve({ id }) };
+function localRequest(input: string, init?: RequestInit) {
+  const headers = new Headers(init?.headers);
+  headers.set("Origin", "http://localhost");
+  const { signal, ...options } = init ?? {};
+  return new NextRequest(input, { ...options, ...(signal ? { signal } : {}), headers });
+}
 const supportReadonly = {
   id,
   organization_id: "22222222-2222-4222-8222-222222222222",
@@ -92,14 +99,14 @@ const mutacoesLicenciamento: { nome: string; executar: () => Promise<Response> }
     nome: "criar cliente",
     executar: () =>
       postCustomer(
-        new NextRequest("http://localhost/api/v1/admin/licensing/customers", { method: "POST" }),
+        localRequest("http://localhost/api/v1/admin/licensing/customers", { method: "POST" }),
       ),
   },
   {
     nome: "atualizar cliente",
     executar: () =>
       patchCustomer(
-        new NextRequest("http://localhost/api/v1/admin/licensing/customers/customer-id", {
+        localRequest("http://localhost/api/v1/admin/licensing/customers/customer-id", {
           method: "PATCH",
         }),
         context,
@@ -109,7 +116,7 @@ const mutacoesLicenciamento: { nome: string; executar: () => Promise<Response> }
     nome: "desativar instalação",
     executar: () =>
       deactivateInstallation(
-        new NextRequest("http://localhost/api/v1/admin/licensing/installations/id/deactivate", {
+        localRequest("http://localhost/api/v1/admin/licensing/installations/id/deactivate", {
           method: "POST",
         }),
         context,
@@ -119,7 +126,7 @@ const mutacoesLicenciamento: { nome: string; executar: () => Promise<Response> }
     nome: "reativar instalação",
     executar: () =>
       reactivateInstallation(
-        new NextRequest("http://localhost/api/v1/admin/licensing/installations/id/reactivate", {
+        localRequest("http://localhost/api/v1/admin/licensing/installations/id/reactivate", {
           method: "POST",
         }),
         context,
@@ -129,7 +136,7 @@ const mutacoesLicenciamento: { nome: string; executar: () => Promise<Response> }
     nome: "revogar instalação",
     executar: () =>
       revokeInstallation(
-        new NextRequest("http://localhost/api/v1/admin/licensing/installations/id/revoke", {
+        localRequest("http://localhost/api/v1/admin/licensing/installations/id/revoke", {
           method: "POST",
         }),
         context,
@@ -139,7 +146,7 @@ const mutacoesLicenciamento: { nome: string; executar: () => Promise<Response> }
     nome: "suspender instalação",
     executar: () =>
       suspendInstallation(
-        new NextRequest("http://localhost/api/v1/admin/licensing/installations/id/suspend", {
+        localRequest("http://localhost/api/v1/admin/licensing/installations/id/suspend", {
           method: "POST",
         }),
         context,
@@ -149,7 +156,7 @@ const mutacoesLicenciamento: { nome: string; executar: () => Promise<Response> }
     nome: "emitir código de ativação",
     executar: () =>
       createActivationCode(
-        new NextRequest("http://localhost/api/v1/admin/licensing/licenses/id/activation-codes", {
+        localRequest("http://localhost/api/v1/admin/licensing/licenses/id/activation-codes", {
           method: "POST",
         }),
         context,
@@ -159,7 +166,7 @@ const mutacoesLicenciamento: { nome: string; executar: () => Promise<Response> }
     nome: "reativar licença",
     executar: () =>
       reactivateLicense(
-        new NextRequest("http://localhost/api/v1/admin/licensing/licenses/id/reactivate", {
+        localRequest("http://localhost/api/v1/admin/licensing/licenses/id/reactivate", {
           method: "POST",
         }),
         context,
@@ -169,7 +176,7 @@ const mutacoesLicenciamento: { nome: string; executar: () => Promise<Response> }
     nome: "renovar licença",
     executar: () =>
       renewLicense(
-        new NextRequest("http://localhost/api/v1/admin/licensing/licenses/id/renew", {
+        localRequest("http://localhost/api/v1/admin/licensing/licenses/id/renew", {
           method: "POST",
         }),
         context,
@@ -179,7 +186,7 @@ const mutacoesLicenciamento: { nome: string; executar: () => Promise<Response> }
     nome: "revogar licença",
     executar: () =>
       revokeLicense(
-        new NextRequest("http://localhost/api/v1/admin/licensing/licenses/id/revoke", {
+        localRequest("http://localhost/api/v1/admin/licensing/licenses/id/revoke", {
           method: "POST",
         }),
         context,
@@ -189,7 +196,7 @@ const mutacoesLicenciamento: { nome: string; executar: () => Promise<Response> }
     nome: "suspender licença",
     executar: () =>
       suspendLicense(
-        new NextRequest("http://localhost/api/v1/admin/licensing/licenses/id/suspend", {
+        localRequest("http://localhost/api/v1/admin/licensing/licenses/id/suspend", {
           method: "POST",
         }),
         context,
@@ -199,14 +206,14 @@ const mutacoesLicenciamento: { nome: string; executar: () => Promise<Response> }
     nome: "criar licença",
     executar: () =>
       postLicense(
-        new NextRequest("http://localhost/api/v1/admin/licensing/licenses", { method: "POST" }),
+        localRequest("http://localhost/api/v1/admin/licensing/licenses", { method: "POST" }),
       ),
   },
   {
     nome: "revogar código de ativação",
     executar: () =>
       revokeActivationCode(
-        new NextRequest("http://localhost/api/v1/admin/licensing/activation-codes/id/revoke", {
+        localRequest("http://localhost/api/v1/admin/licensing/activation-codes/id/revoke", {
           method: "POST",
         }),
         context,
@@ -224,7 +231,7 @@ describe("Admin Licensing Routes Security & RBAC Guards", () => {
     it("denies unauthenticated / non-platform-admin requests on customers GET", async () => {
       vi.mocked(requirePlatformAdmin).mockRejectedValueOnce(new Error("Unauthorized redirect"));
 
-      const req = new NextRequest("http://localhost/api/v1/admin/licensing/customers");
+      const req = localRequest("http://localhost/api/v1/admin/licensing/customers");
       const res = await getCustomers(req);
 
       expect(res.status).toBe(403);
@@ -238,7 +245,7 @@ describe("Admin Licensing Routes Security & RBAC Guards", () => {
         platformAdmin: { user_id: "admin_user_id", scope: "full", mfa_required: true },
       });
 
-      const req = new NextRequest("http://localhost/api/v1/admin/licensing/customers");
+      const req = localRequest("http://localhost/api/v1/admin/licensing/customers");
       const res = await getCustomers(req);
 
       expect(res.status).toBe(200);
@@ -249,7 +256,7 @@ describe("Admin Licensing Routes Security & RBAC Guards", () => {
     it("denies unauthenticated / non-platform-admin requests on licenses GET", async () => {
       vi.mocked(requirePlatformAdmin).mockRejectedValueOnce(new Error("Unauthorized redirect"));
 
-      const req = new NextRequest("http://localhost/api/v1/admin/licensing/licenses");
+      const req = localRequest("http://localhost/api/v1/admin/licensing/licenses");
       const res = await getLicenses(req);
 
       expect(res.status).toBe(403);
@@ -258,7 +265,7 @@ describe("Admin Licensing Routes Security & RBAC Guards", () => {
     it("denies unauthenticated / non-platform-admin requests on installations GET", async () => {
       vi.mocked(requirePlatformAdmin).mockRejectedValueOnce(new Error("Unauthorized redirect"));
 
-      const req = new NextRequest("http://localhost/api/v1/admin/licensing/installations");
+      const req = localRequest("http://localhost/api/v1/admin/licensing/installations");
       const res = await getInstallations(req);
 
       expect(res.status).toBe(403);
@@ -267,7 +274,7 @@ describe("Admin Licensing Routes Security & RBAC Guards", () => {
     it("denies unauthenticated / non-platform-admin requests on audit GET", async () => {
       vi.mocked(requirePlatformAdmin).mockRejectedValueOnce(new Error("Unauthorized redirect"));
 
-      const req = new NextRequest("http://localhost/api/v1/admin/licensing/audit");
+      const req = localRequest("http://localhost/api/v1/admin/licensing/audit");
       const res = await getAudit(req);
 
       expect(res.status).toBe(403);
@@ -278,7 +285,7 @@ describe("Admin Licensing Routes Security & RBAC Guards", () => {
     it("denies non-full scope or unauthenticated requests on customer POST", async () => {
       vi.mocked(requirePlatformAdminEscrita).mockRejectedValueOnce(new Error("Forbidden scope"));
 
-      const req = new NextRequest("http://localhost/api/v1/admin/licensing/customers", {
+      const req = localRequest("http://localhost/api/v1/admin/licensing/customers", {
         method: "POST",
         body: JSON.stringify({ name: "Acme", billing_email: "a@b.com" }),
       });
@@ -293,7 +300,7 @@ describe("Admin Licensing Routes Security & RBAC Guards", () => {
         platformAdmin: { user_id: "admin_user_id", scope: "full", mfa_required: true },
       });
 
-      const req = new NextRequest("http://localhost/api/v1/admin/licensing/customers", {
+      const req = localRequest("http://localhost/api/v1/admin/licensing/customers", {
         method: "POST",
         body: JSON.stringify({ name: "Acme", billing_email: "a@b.com" }),
       });
@@ -307,7 +314,7 @@ describe("Admin Licensing Routes Security & RBAC Guards", () => {
     it("denies non-full scope on license POST", async () => {
       vi.mocked(requirePlatformAdminEscrita).mockRejectedValueOnce(new Error("Forbidden scope"));
 
-      const req = new NextRequest("http://localhost/api/v1/admin/licensing/licenses", {
+      const req = localRequest("http://localhost/api/v1/admin/licensing/licenses", {
         method: "POST",
         body: JSON.stringify({
           customer_id: "11111111-1111-4111-8111-111111111111",
@@ -335,7 +342,7 @@ describe("Admin Licensing Routes Security & RBAC Guards", () => {
       vi.mocked(loadAuthUser).mockResolvedValueOnce({ support: supportReadonly } as never);
 
       const res = await getCustomers(
-        new NextRequest("http://localhost/api/v1/admin/licensing/customers"),
+        localRequest("http://localhost/api/v1/admin/licensing/customers"),
       );
 
       expect(res.status).toBe(200);
@@ -371,7 +378,7 @@ describe("Admin Licensing Routes Security & RBAC Guards", () => {
       });
 
       const res = await postCustomer(
-        new NextRequest("http://localhost/api/v1/admin/licensing/customers", {
+        localRequest("http://localhost/api/v1/admin/licensing/customers", {
           method: "POST",
           body: JSON.stringify({ name: "Acme", billing_email: "a@b.com" }),
         }),
@@ -388,7 +395,7 @@ describe("Admin Licensing Routes Security & RBAC Guards", () => {
       vi.mocked(requirePlatformAdminEscrita).mockRejectedValueOnce(new Error("MFA required / scope forbidden"));
 
       const { POST: revokeLicense } = await import("@/app/api/v1/admin/licensing/licenses/[id]/revoke/route");
-      const req = new NextRequest("http://localhost/api/v1/admin/licensing/licenses/lic_123/revoke", {
+      const req = localRequest("http://localhost/api/v1/admin/licensing/licenses/lic_123/revoke", {
         method: "POST",
       });
       const res = await revokeLicense(req, { params: Promise.resolve({ id: "lic_123" }) });
@@ -400,7 +407,7 @@ describe("Admin Licensing Routes Security & RBAC Guards", () => {
       vi.mocked(requirePlatformAdminEscrita).mockRejectedValueOnce(new Error("MFA required / scope forbidden"));
 
       const { POST: revokeInstallation } = await import("@/app/api/v1/admin/licensing/installations/[id]/revoke/route");
-      const req = new NextRequest("http://localhost/api/v1/admin/licensing/installations/inst_123/revoke", {
+      const req = localRequest("http://localhost/api/v1/admin/licensing/installations/inst_123/revoke", {
         method: "POST",
       });
       const res = await revokeInstallation(req, { params: Promise.resolve({ id: "inst_123" }) });
@@ -412,7 +419,7 @@ describe("Admin Licensing Routes Security & RBAC Guards", () => {
       vi.mocked(requirePlatformAdminEscrita).mockRejectedValueOnce(new Error("MFA required / scope forbidden"));
 
       const { POST: deactivateInstallation } = await import("@/app/api/v1/admin/licensing/installations/[id]/deactivate/route");
-      const req = new NextRequest("http://localhost/api/v1/admin/licensing/installations/inst_123/deactivate", {
+      const req = localRequest("http://localhost/api/v1/admin/licensing/installations/inst_123/deactivate", {
         method: "POST",
       });
       const res = await deactivateInstallation(req, { params: Promise.resolve({ id: "inst_123" }) });

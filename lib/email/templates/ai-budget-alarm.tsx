@@ -6,8 +6,8 @@
  * cliente que o gasto passou do ponto escolhido é o item `budget_warning` na
  * Central (`agent_inbox_items`), aberto pelo próprio gate. Este arquivo fica de
  * pé porque o alarme POR E-MAIL continua sendo uma peça desejada — e é a dívida
- * D1 de marca (`tests/unit/branding.test.ts`): ele ainda escreve o nosso nome,
- * o que só passa a importar no dia em que ele voltar a ser enviado.
+ * D1 operacional: como não tem chamador, este template não compõe o fluxo de
+ * produção. Se voltar a ser enviado, o nome da instalação deve vir por opção.
  */
 export interface BudgetAlarmEmailOptions {
   pct: number;
@@ -32,7 +32,7 @@ export function buildBudgetAlarmEmail(opts: BudgetAlarmEmailOptions): {
   text: string;
 } {
   const pctStr = `${opts.pct.toFixed(2)}%`;
-  const subject = `Alerta IA: orçamento atingiu ${pctStr} — DeskcommCRM`;
+  const subject = `Alerta IA: orçamento atingiu ${pctStr}`;
   const orgLine = opts.orgName
     ? `<p style="margin:0 0 16px;font-size:14px;color:#57534e">Organização: <strong>${escapeHtml(opts.orgName)}</strong></p>`
     : "";

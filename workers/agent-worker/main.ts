@@ -12,7 +12,7 @@ import {
   LICENSE_RECHECK_DELAY_MS,
 } from "./license-settlement";
 /**
- * Worker 24/7 do agent-engine (fusão Vendaval → DeskcommCRM) — o processo
+ * Worker 24/7 do agent-engine (fusão Vendaval → Clientix) — o processo
  * long-running que o CRM não tinha: fila durável, cron/follow-up, drain do
  * event_log e os turnos do agente rico.
  *

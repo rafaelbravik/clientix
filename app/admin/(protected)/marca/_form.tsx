@@ -65,6 +65,8 @@ const ERRO_EM_PORTUGUES: Record<string, string> = {
   validation_failed: "Algum campo não está no formato esperado.",
   unauthenticated: "Sua sessão expirou. Entre de novo para salvar.",
   forbidden_role: "Só quem administra a instalação pode mudar a marca.",
+  WHITE_LABEL_NOT_LICENSED:
+    "A licença desta instalação não inclui personalização da marca. Confira se o plano e a licença têm esse recurso habilitado.",
 };
 
 /** Cinza médio para o seletor visual quando o campo ainda não tem cor válida. */

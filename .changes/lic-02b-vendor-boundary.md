@@ -1,4 +1,8 @@
-# LIC-02B — fronteira vendor/customer
+---
+impacto: nada_mudou
+secao: corrigido
+titulo: Reforça o isolamento entre Customer e Vendor
+---
 
 - Reforça a cópia customer removendo caminhos de Control Plane, emissão, chaves e fixtures privadas.
 - Varre o standalone, assets públicos e nomes de arquivos em busca de rotas vendor, segredo de emissão e blocos de chave privada PEM.

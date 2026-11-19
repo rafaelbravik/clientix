@@ -1,4 +1,4 @@
-# DeskcommCRM — stack de produção self-host (VPS HostGator).
+# Clientix — stack de produção self-host (VPS HostGator).
 # Sobe: caddy (HTTPS) → app (Next standalone) + waha + redis+srh + scheduler.
 # Só o Caddy publica portas (80/443). Todo o resto vive na rede interna.
 #
@@ -39,6 +39,7 @@ services:
     environment:
       CLIENTIX_INGRESS_MODE: "production"
       CLIENTIX_ALLOW_INSECURE_HTTP: "false"
+      CLIENTIX_ADMIN_ORIGIN: ${CLIENTIX_ADMIN_ORIGIN:-${NEXT_PUBLIC_ADMIN_URL:-}}
       SUPABASE_DB_ADMIN_URL: ""
     depends_on:
       srh:

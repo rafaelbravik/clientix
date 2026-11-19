@@ -6,6 +6,7 @@ const {
   requireRole,
   requireSupportWrite,
   createClient,
+  createAdminClient,
   originateCall,
   audit,
   supabase,
@@ -41,6 +42,7 @@ const {
     requireRole: vi.fn(),
     requireSupportWrite: vi.fn(),
     createClient: vi.fn(async () => db),
+    createAdminClient: vi.fn(() => db),
     originateCall: vi.fn(async () => ({ id: "ari-channel-test" })),
     audit: vi.fn(async () => undefined),
     supabase: db,
@@ -51,6 +53,7 @@ vi.mock("@/lib/tenant/plan-limits", () => ({ checkFeatureQuota }));
 vi.mock("@/lib/auth/require-role", () => ({ requireRole }));
 vi.mock("@/lib/impersonate/support", () => ({ requireSupportWrite }));
 vi.mock("@/lib/supabase/server", () => ({ createClient }));
+vi.mock("@/lib/supabase/admin", () => ({ createAdminClient }));
 vi.mock("@/lib/voip/ariClient", () => ({ originateCall }));
 vi.mock("@/lib/audit", () => ({ audit }));
 
@@ -74,6 +77,7 @@ describe("entitlement voice_calls na discagem SIP", () => {
       org: { orgId: "org-test", role: "manager" },
     });
     createClient.mockResolvedValue(supabase);
+    createAdminClient.mockReturnValue(supabase);
     originateCall.mockResolvedValue({ id: "ari-channel-test" });
   });
 
@@ -85,6 +89,7 @@ describe("entitlement voice_calls na discagem SIP", () => {
     expect(res.status).toBe(403);
     expect(await res.json()).toMatchObject({ error: { code: "feature_not_available" } });
     expect(checkFeatureQuota).toHaveBeenCalledWith(supabase, "org-test", "voice_calls");
+    expect(createAdminClient).toHaveBeenCalledOnce();
     expect(supabase.from).not.toHaveBeenCalled();
     expect(originateCall).not.toHaveBeenCalled();
   });

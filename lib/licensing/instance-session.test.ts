@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   getInstanceSession,
   rotateInstanceSessionAfterRecovery,
+  rotateInstanceSessionAfterServerTermination,
   resetInstanceSessionForTests,
   resolveLicenseHeartbeatIntervalSeconds,
 } from "./instance-session";
@@ -36,6 +37,23 @@ describe("ephemeral installation sessions", () => {
     expect(afterRecovery.instance_session_id).not.toBe(beforeRecovery.instance_session_id);
     expect(afterRecovery.boot_started_at).toBe("2026-11-06T12:01:00.000Z");
     expect(getInstanceSession()).toBe(afterRecovery);
+  });
+
+  it("rotates a server-ended session once and converges concurrent recovery callers", () => {
+    const oldSession = getInstanceSession(new Date("2026-11-10T12:00:00.000Z"));
+
+    const recovered = rotateInstanceSessionAfterServerTermination(
+      oldSession.instance_session_id,
+      new Date("2026-11-10T12:01:00.000Z"),
+    );
+    const concurrentRecovery = rotateInstanceSessionAfterServerTermination(
+      oldSession.instance_session_id,
+      new Date("2026-11-10T12:02:00.000Z"),
+    );
+
+    expect(recovered.instance_session_id).not.toBe(oldSession.instance_session_id);
+    expect(concurrentRecovery).toBe(recovered);
+    expect(getInstanceSession()).toBe(recovered);
   });
 
   it("uses a bounded five-minute heartbeat cadence", () => {

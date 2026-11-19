@@ -2,7 +2,7 @@
 
 ## Objetivo e fronteira
 
-O License Server é uma superfície vendor separada do artefato self-hosted do cliente. Ele mantém o banco `control_plane`, a chave privada Ed25519 de emissão e as operações administrativas comerciais. O build customer remove o Control Plane, suas rotas administrativas e os endpoints centrais; preserva apenas a tela e as APIs locais do LIC-01.
+O License Server é uma superfície vendor separada do artefato self-hosted do cliente. Ele mantém o banco `control_plane`, a chave privada Ed25519 de emissão e as operações administrativas comerciais. O build customer remove o Control Plane, suas rotas administrativas e os endpoints centrais; preserva as APIs locais do LIC-01 e somente a superfície mínima `/owner` com os endpoints de tenants e usuários necessários ao primeiro Platform Owner. Esses endpoints não emitem licença nem acessam o banco Vendor.
 
 O banco do Control Plane é configurado por `CONTROL_PLANE_DATABASE_URL` e não pode apontar para o mesmo banco que `SUPABASE_DB_URL`. `CONTROL_PLANE_PEPPER` é exclusivo do servidor central. A chave privada é entregue ao runtime vendor pelo secret manager ou ambiente protegido; nunca é armazenada no banco nem incluída no pacote do cliente. Esta implementação não cria uma chave oficial.
 
@@ -42,6 +42,10 @@ Eventos administrativos e de instalação não contêm chaves privadas, códigos
 
 O cliente LIC-01 continua usando validação local em cada decisão de autorização e não chama o servidor central por request. Ativação, validação explícita e heartbeat de processo chamam o License Server por HTTPS (HTTP somente em loopback fora de produção), recusam redirects e têm timeout. O heartbeat começa no runtime Node, é configurável entre 60 e 3600 segundos (300 por padrão) e é desativado quando não há licença ou URL configurada. Ausência de heartbeat não é indício de clone e o cache assinado/offline tolerance continua valendo.
 
+O modelo Cloud de venda direta usa uma instalação Customer multi-tenant operada pelo projeto. Cada empresa possui uma assinatura em `tenant_plan_subscriptions`, no próprio banco Customer. Esta assinatura determina o plano e as cotas do tenant e é distinta da licença de instalação `ACT_...`, que continua sendo a autorização comercial das instalações self-hosted e parceiros. O Vendor não armazena nem valida as assinaturas dos tenants Cloud.
+
+O instalador self-host coleta a URL base HTTPS em `CLIENTIX_LICENSE_SERVER_URL`, confirma o valor antes de gravar e o preserva em reexecuções. A URL é opcional para uma instalação sem licença central; para ativar ou renovar pelo Vendor, ela precisa apontar ao serviço público do fornecedor. Se ficar vazia, a instalação continua, mas não consegue ativar nem receber atualizações online da licença; a tela final do instalador informa esse estado. O runtime Customer contém somente a URL e a chave pública confiável, nunca a chave privada do emissor.
+
 O estado online assinado alimenta o LIC-01: revogação é autoritativa, suspensão entra em modo restrito e tolerância offline é distinta da carência comercial da licença. Se o servidor estiver indisponível, o runtime continua com o estado local até a tolerância configurada; não exige chamada online em cada request. O Bootstrap Token continua restrito ao first-run e não é usado neste protocolo.
 
 ### LIC-02C — sessão e recuperação de identidade
@@ -56,4 +60,4 @@ Eventos de controle incluem `INSTALLATION_ATTESTED`, `INSTANCE_SESSION_STARTED`,
 
 As migrations do Control Plane são separadas de `supabase/migrations/` e do `baseline.sql` do cliente. `0003_installation_clone_attestation.sql` adiciona sessões, desafios, recuperação e função vendor de autorização somente ao Control Plane; não foi aplicada ao banco self-hosted persistente `deskcomm-crm`. Os testes unitários e de contrato cobrem estado de clone, sessão, assinatura, recovery e boundary customer. Os testes reais de banco exigem PostgreSQL descartável com o nome dedicado `clientix_license_server_test`; recusam hosts externos, banco com outro nome, schema já existente ou role de runtime preexistente e provam duas sessões sobrepostas, replay e recuperação autorizada.
 
-Esta fase não inclui cobrança, pagamentos, portal público, renovação por pagamento nem revogação automática por gateway. `PUBLIC_RELEASE_READY` permanece `NO`.
+O registro de assinatura por tenant no Customer é administrado pelo Platform Owner em `/owner` e, nesta fase, tem cobrança manual. Não há gateway, checkout, nota fiscal ou renovação automática nessa superfície. A cobrança de licenças de instalação continua no Control Plane Vendor conforme LIC-04. `PUBLIC_RELEASE_READY` permanece `NO`.

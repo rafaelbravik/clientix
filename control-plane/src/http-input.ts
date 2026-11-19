@@ -2,8 +2,16 @@
 export function hasSameOrigin(request: Request): boolean {
   const origin = request.headers.get("origin");
   if (!origin) return false;
+
+  // This guard needs the installed public origin at runtime. Next.js embeds
+  // NEXT_PUBLIC_* values in the image during build, so Compose passes the same
+  // canonical URL through this server-only variable instead.
+  const configuredOrigin = process.env["CLIENTIX_ADMIN_ORIGIN"]?.trim();
+  if (!configuredOrigin && process.env.NODE_ENV === "production") return false;
+
   try {
-    return new URL(origin).origin === new URL(request.url).origin;
+    const expectedOrigin = configuredOrigin || new URL(request.url).origin;
+    return new URL(origin).origin === new URL(expectedOrigin).origin;
   } catch {
     return false;
   }

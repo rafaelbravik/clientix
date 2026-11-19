@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 const ROOT = process.cwd();
 const MIGRATION_FILE = "20261104190000_9063_atomic_team_invite_seat_consumption.sql";
 const BLOCK_HEADER = "-- ---- 9063 — atomic team invite seat consumption (migration 9063) ----";
-const FINAL_SCAN = "-- ---- VARREDURA anon:";
+const NEXT_MIGRATION = "-- ---- 9064 — agent worker reply draft ACL (migration 9064) ----";
 const sha256 = (content: Buffer | string) => createHash("sha256").update(content).digest("hex");
 
 describe("migration 9063 — tripla e fronteira do baseline", () => {
@@ -15,7 +15,7 @@ describe("migration 9063 — tripla e fronteira do baseline", () => {
     const migration = readFileSync(resolve(ROOT, "supabase/migrations", MIGRATION_FILE), "utf8");
     const baselineText = baseline.toString("utf8");
     const start = baselineText.lastIndexOf(BLOCK_HEADER);
-    const end = baselineText.indexOf(FINAL_SCAN, start);
+    const end = baselineText.indexOf(NEXT_MIGRATION, start);
 
     expect(start).toBeGreaterThanOrEqual(0);
     expect(end).toBeGreaterThan(start);
@@ -34,8 +34,8 @@ describe("migration 9063 — tripla e fronteira do baseline", () => {
     };
     const entry = manifest.migrations.find((item) => item.sequence === 9063);
 
-    expect(manifest.schema_target).toBe("9063");
-    expect(manifest.baseline.incorporated_through_sequence).toBe(9063);
+    expect(manifest.schema_target).toBe("9065");
+    expect(manifest.baseline.incorporated_through_sequence).toBe(9065);
     expect(manifest.baseline.checksum).toBe(sha256(baseline));
     expect(manifest.baseline.size_bytes).toBe(baseline.byteLength);
     expect(entry).toMatchObject({

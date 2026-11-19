@@ -136,10 +136,14 @@ preflight() {
 init_directories() {
   mkdir -p "$INSTALL_DIR/data" "$INSTALL_DIR/backups" "$INSTALL_DIR/state" "$INSTALL_DIR/licenses" "$INSTALL_DIR/logs"
   # GID 1001 é o grupo leitor compartilhado pelo app, worker e voice-agent.
-  chown 1001:1001 "$INSTALL_DIR/state" "$INSTALL_DIR/licenses" || die "RUNTIME_DIRECTORY_OWNERSHIP_FAILED: não foi possível preparar os volumes para o usuário não-root do app."
+  if [ "$(id -u)" -eq 0 ]; then
+    chown 1001:1001 "$INSTALL_DIR/state" "$INSTALL_DIR/licenses" || die "RUNTIME_DIRECTORY_OWNERSHIP_FAILED: não foi possível preparar os volumes para o usuário não-root do app."
+  fi
   chmod 2750 "$INSTALL_DIR/state" "$INSTALL_DIR/licenses" || die "RUNTIME_DIRECTORY_PERMISSIONS_FAILED: não foi possível preparar os volumes de runtime."
   if [ -f "$INSTALL_DIR/licenses/license.json" ]; then
-    chown 1001:1001 "$INSTALL_DIR/licenses/license.json" || die "LICENSE_FILE_OWNERSHIP_FAILED: não foi possível preparar a licença para leitura do worker."
+    if [ "$(id -u)" -eq 0 ]; then
+      chown 1001:1001 "$INSTALL_DIR/licenses/license.json" || die "LICENSE_FILE_OWNERSHIP_FAILED: não foi possível preparar a licença para leitura do worker."
+    fi
     chmod 640 "$INSTALL_DIR/licenses/license.json" || die "LICENSE_FILE_PERMISSIONS_FAILED: não foi possível preparar a licença para leitura do worker."
   fi
 }
@@ -148,7 +152,9 @@ write_installation_id_file() {
   local installation_id="$1" target="$INSTALL_DIR/state/installation_id" tmp="$INSTALL_DIR/state/installation_id.tmp.$$"
   is_valid_canonical_installation_id "$installation_id" || die "INSTALLATION_ID_INVALID: não é possível persistir um ID fora do contrato inst_<UUIDv4>."
   printf '%s\n' "$installation_id" > "$tmp" || die "INSTALLATION_ID_WRITE_FAILED: falha ao gravar o ID persistente."
-  chown 1001:1001 "$tmp" || die "INSTALLATION_ID_OWNERSHIP_FAILED: não foi possível entregar o ID ao runtime."
+  if [ "$(id -u)" -eq 0 ]; then
+    chown 1001:1001 "$tmp" || die "INSTALLATION_ID_OWNERSHIP_FAILED: não foi possível entregar o ID ao runtime."
+  fi
   chmod 640 "$tmp" || die "INSTALLATION_ID_PERMISSIONS_FAILED: não foi possível proteger o ID persistente."
   mv -f "$tmp" "$target" || die "INSTALLATION_ID_PROMOTION_FAILED: não foi possível promover o ID persistente."
 }
@@ -239,6 +245,19 @@ setup_env() {
     [ "${#secret}" -ge 40 ] || die "CSPRNG_UNAVAILABLE: falha ao gerar AI_CRED_AES_KEY."
     set_env_value AI_CRED_AES_KEY "$secret"
   fi
+
+  secret="$(read_env_value CLIENTIX_BOOTSTRAP_TOKEN)"
+  if [ -z "$secret" ]; then
+    secret="$(random_hex 32)"
+    set_env_value CLIENTIX_BOOTSTRAP_TOKEN "$secret"
+  fi
+  [ "${#secret}" -ge 32 ] || die "BOOTSTRAP_TOKEN_INVALID: CLIENTIX_BOOTSTRAP_TOKEN deve conter ao menos 32 caracteres."
+  local bootstrap_token_file="$INSTALL_DIR/.clientix-bootstrap-token"
+  local bootstrap_token_tmp="$INSTALL_DIR/.clientix-bootstrap-token.tmp.$$"
+  printf '%s\n' "$secret" > "$bootstrap_token_tmp" || die "BOOTSTRAP_TOKEN_WRITE_FAILED: não foi possível persistir o token de first-run."
+  chmod 600 "$bootstrap_token_tmp" || die "BOOTSTRAP_TOKEN_PERMISSIONS_FAILED: não foi possível proteger o token de first-run."
+  mv -f "$bootstrap_token_tmp" "$bootstrap_token_file" || die "BOOTSTRAP_TOKEN_PROMOTION_FAILED: não foi possível persistir o token de first-run."
+  log "Token de first-run protegido em $bootstrap_token_file; entregue ao proprietário por canal privado e remova a cópia após o uso."
   chmod 600 "$ENV_FILE" 2>/dev/null || true
 }
 
@@ -311,11 +330,29 @@ validate_config_evolution() {
   log "Validação de configuração concluída: OK."
 }
 
+# Instalações comerciais novas precisam apontar para o License Server do
+# fornecedor. Atualizações antigas aceitam a URL vazia para preservar .env
+# legados; quando preenchida, ela precisa seguir o contrato HTTPS do runtime.
+# A chave privada de assinatura nunca pertence a este host.
+validate_license_server_config() {
+  local policy="${1:-optional}"
+  local value="${CLIENTIX_LICENSE_SERVER_URL:-}"
+  if [ -z "$value" ]; then
+    if [ "$policy" = "required" ]; then
+      die "LICENSE_SERVER_URL_REQUIRED: configure CLIENTIX_LICENSE_SERVER_URL com a URL base HTTPS do Vendor no .env antes da instalação."
+    fi
+    log "CLIENTIX_LICENSE_SERVER_URL ausente; validação online do Vendor não está ativa nesta instalação legada."
+    return 0
+  fi
+  [[ "$value" =~ ^https://[^/@?#[:space:]]+(/[^?#[:space:]]*)?$ ]] ||
+    die "LICENSE_SERVER_URL_INVALID: CLIENTIX_LICENSE_SERVER_URL precisa ser uma URL base HTTPS sem usuário/senha, query ou fragmento."
+}
+
 # Credenciais e URLs de serviços independentes do pacote comercial. Nenhum
 # endpoint recebe defaults locais: o Supabase, Upstash e WAHA são externos.
 validate_external_config() {
   local missing=() key webhook_secret="${WAHA_HMAC_SECRET:-}"
-  local required=(DOMAIN ACME_EMAIL NEXT_PUBLIC_APP_URL NEXT_PUBLIC_ADMIN_URL NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY SUPABASE_DB_URL SUPABASE_DB_ADMIN_URL WAHA_API_BASE_URL WAHA_API_KEY WAHA_WEBHOOK_BASE_URL UPSTASH_REDIS_REST_URL UPSTASH_REDIS_REST_TOKEN)
+  local required=(DOMAIN ACME_EMAIL NEXT_PUBLIC_APP_URL NEXT_PUBLIC_ADMIN_URL NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY SUPABASE_DB_ADMIN_URL WAHA_API_BASE_URL WAHA_API_KEY WAHA_WEBHOOK_BASE_URL UPSTASH_REDIS_REST_URL UPSTASH_REDIS_REST_TOKEN)
   for key in "${required[@]}"; do
     if [ -z "${!key:-}" ]; then missing+=("$key"); fi
   done
@@ -956,6 +993,9 @@ run_docker_with_database() (
     printf 'DATABASE_URL=%s\n' "$database_url"
     printf 'POSTGRES_SSL_ROOT_CERT=%s\n' "${POSTGRES_SSL_ROOT_CERT:-}"
     printf 'BACKUP_ACK=%s\n' "${BACKUP_ACK:-1}"
+    if [ -n "${CLIENTIX_AGENT_WORKER_PASSWORD:-}" ]; then
+      printf 'CLIENTIX_AGENT_WORKER_PASSWORD=%s\n' "$CLIENTIX_AGENT_WORKER_PASSWORD"
+    fi
   } > "$env_file" || exit 1
   chmod 600 "$env_file" || exit 1
   docker run --rm \
@@ -974,6 +1014,21 @@ run_migrator_with_image() {
 
 run_migrator() {
   run_migrator_with_image "$VERIFIED_IMAGE_MIGRATOR" "$@"
+}
+
+provision_runtime_db_role() {
+  local password runtime_url
+  [ -n "${SUPABASE_DB_URL:-}" ] && return 0
+  password="$(random_hex 32)"
+  log "Provisionando agent_worker com credencial local aleatória antes do baseline..."
+  CLIENTIX_AGENT_WORKER_PASSWORD="$password" \
+    run_docker_with_database "$SUPABASE_DB_ADMIN_URL" \
+      --entrypoint node "$VERIFIED_IMAGE_MIGRATOR" \
+      -e 'const {Client}=require("pg");const {resolvePostgresConnectionConfig}=require("/app/lib/postgres-tls-policy.cjs");const password=process.env.CLIENTIX_AGENT_WORKER_PASSWORD;if(!/^[a-f0-9]{64}$/.test(password||""))throw new Error("ROLE_PASSWORD_INVALID");const client=new Client({...resolvePostgresConnectionConfig(process.env.DATABASE_URL),connectionTimeoutMillis:10000});(async()=>{await client.connect();const role=await client.query("select rolsuper, rolcanlogin, rolinherit, rolbypassrls, rolcreatedb, rolcreaterole, rolreplication from pg_roles where rolname = $1",["agent_worker"]);if(role.rowCount){const r=role.rows[0];if(r.rolsuper||!r.rolcanlogin||r.rolinherit||!r.rolbypassrls||r.rolcreatedb||r.rolcreaterole||r.rolreplication)throw new Error("RUNTIME_ROLE_CONTRACT_INVALID");await client.query(`ALTER ROLE agent_worker WITH LOGIN NOINHERIT BYPASSRLS PASSWORD '\''${password}'\''`)}else{await client.query(`CREATE ROLE agent_worker WITH LOGIN NOINHERIT BYPASSRLS PASSWORD '\''${password}'\''`)}const db=await client.query("select current_database() as name");const name=String(db.rows[0].name).replaceAll("\"","\"\"");await client.query(`GRANT CONNECT ON DATABASE \"${name}\" TO agent_worker`);await client.end()})().catch(async()=>{try{await client.end()}catch{};process.exit(1)});' \
+    || die "RUNTIME_DATABASE_ROLE_PROVISION_FAILED: agent_worker não pôde ser provisionado com a conexão administrativa; nenhuma migration foi aplicada."
+  runtime_url="$(printf '%s\n%s' "$SUPABASE_DB_ADMIN_URL" "$password" | node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>{const [raw,password]=s.split("\n");const u=new URL(raw);u.username="agent_worker";u.password=password;process.stdout.write(u.toString())})')"
+  set_env_value SUPABASE_DB_URL "$runtime_url"
+  load_env
 }
 
 run_runtime_db_preflight() {
@@ -1120,6 +1175,7 @@ cmd_install() {
   preflight
   [ ! -f "$STATE_FILE" ] || die "ALREADY_INSTALLED: Instalação existente detectada no estado. Para atualizar, use 'clientix-installer update'."
   load_env
+  validate_license_server_config required
   validate_external_config
   validate_ingress_config
   check_ingress_ports_available
@@ -1132,7 +1188,6 @@ cmd_install() {
   ensure_target_images
   registry_logout
 
-  run_runtime_db_preflight
   log "Verificando estado do banco de dados..."
   local status_json
   status_json="$(run_migrator status --json)"
@@ -1157,6 +1212,13 @@ cmd_install() {
   else
     die "DATABASE_STATE_UNSUPPORTED: estado de banco '$state_type' não é suportado pelo instalador."
   fi
+
+  if [ "$state_type" = "FRESH_DATABASE" ]; then
+    provision_runtime_db_role
+  elif [ -z "${SUPABASE_DB_URL:-}" ]; then
+    die "RUNTIME_DATABASE_URL_REQUIRED_FOR_EXISTING: configure SUPABASE_DB_URL de um agent_worker já provisionado antes de adotar um banco existente."
+  fi
+  run_runtime_db_preflight
 
   # Só agora, após validar dependências, assinatura, digests e estado real do
   # banco, o instalador cria arquivos de estado sem copiar nenhum segredo DNS.
@@ -1263,6 +1325,7 @@ cmd_update() {
   preflight
   [ -f "$STATE_FILE" ] || die "ESTADO_NAO_ENCONTRADO: Nenhuma instalacao anterior encontrada para atualizar."
   load_env
+  validate_license_server_config optional
   validate_external_config
   validate_ingress_config
   check_ingress_ports_available
@@ -1374,7 +1437,9 @@ cmd_update() {
   validate_target_migration_plan "$target_status"
   init_directories
   [ -f "$INSTALL_DIR/state/installation_id" ] || write_installation_id_file "$INSTALLATION_ID"
-  chown 1001:1001 "$INSTALL_DIR/state/installation_id" 2>/dev/null || die "INSTALLATION_ID_OWNERSHIP_FAILED: nao foi possivel entregar o ID ao runtime."
+  if [ "$(id -u)" -eq 0 ]; then
+    chown 1001:1001 "$INSTALL_DIR/state/installation_id" 2>/dev/null || die "INSTALLATION_ID_OWNERSHIP_FAILED: nao foi possivel entregar o ID ao runtime."
+  fi
   chmod 640 "$INSTALL_DIR/state/installation_id" || die "INSTALLATION_ID_PERMISSIONS_FAILED: nao foi possivel proteger o ID persistente."
   UPDATE_CONFIG_CHANGED=1
   persist_verified_image_refs

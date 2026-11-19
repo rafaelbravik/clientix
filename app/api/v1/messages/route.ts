@@ -52,9 +52,6 @@ export async function POST(req: NextRequest): Promise<Response> {
   const supportDenied = await requireSupportWrite();
   if (supportDenied) return supportDenied;
 
-  const licenseDenied = await requireValidInstallationLicense();
-  if (licenseDenied) return licenseDenied;
-
   const requestId = randomUUID();
 
   // spec 13 §4: escrita é agent+ (viewer é read-only).
@@ -70,6 +67,13 @@ export async function POST(req: NextRequest): Promise<Response> {
     scope: "mcp:write",
   });
   if (!authz.ok) return authz.response;
+
+  // Primeiro confirmamos identidade e papel. A licença só é relevante para
+  // quem já está autorizado a operar; assim a restrição comercial não mascara
+  // o resultado do RBAC para papéis sem permissão.
+  const licenseDenied = await requireValidInstallationLicense();
+  if (licenseDenied) return licenseDenied;
+
   const { supabase, organizationId, actor, idioma } = authz;
 
   let input;

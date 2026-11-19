@@ -8,7 +8,12 @@ const mocks = vi.hoisted(() => ({
   client: {} as Record<string, unknown>,
 }));
 
-vi.mock("@/lib/env", () => ({ env: { CLIENTIX_BOOTSTRAP_TOKEN: "a".repeat(64) } }));
+vi.mock("@/lib/env", () => ({
+  env: {
+    CLIENTIX_BOOTSTRAP_TOKEN: "a".repeat(64),
+    NEXT_PUBLIC_APP_URL: "https://crm.example.test",
+  },
+}));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => mocks.client }));
 
 const TOKEN = "a".repeat(64);
@@ -26,8 +31,12 @@ function payload(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function request(body: unknown = payload(), origin = "https://crm.example.test") {
-  return new Request("https://crm.example.test/api/setup/initialize", {
+function request(
+  body: unknown = payload(),
+  origin = "https://crm.example.test",
+  requestUrl = "https://crm.example.test/api/setup/initialize",
+) {
+  return new Request(requestUrl, {
     method: "POST",
     headers: {
       origin,
@@ -116,6 +125,21 @@ describe("POST /api/setup/initialize", () => {
     const response = await POST(request(payload({ bootstrap_token: "b".repeat(64) })));
     expect(response.status).toBe(403);
     expect(mocks.createUser).not.toHaveBeenCalled();
+  });
+
+  it("aceita a origem pública atrás de um runtime com URL interna", async () => {
+    setRpcResults(
+      { data: false, error: null },
+      { data: true, error: null },
+      { data: true, error: null },
+      { data: true, error: null },
+    );
+    const { POST } = await import("./route");
+    const response = await POST(
+      request(payload(), "https://crm.example.test", "http://app:3000/api/setup/initialize"),
+    );
+    expect(response.status).toBe(201);
+    expect(mocks.createUser).toHaveBeenCalledTimes(1);
   });
 
   it("blocks setup after initialization before Auth or reservation calls", async () => {

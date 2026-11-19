@@ -1,12 +1,16 @@
 import type { PoolConfig } from 'pg';
 
 export type PostgresHostClass = 'LOCAL_LOOPBACK' | 'LOCAL_DOCKER_NETWORK' | 'REMOTE';
+export interface PostgresConnectionOptions {
+  localDockerHosts?: readonly string[];
+}
 
 export function classifyPostgresHost(hostname: string): PostgresHostClass;
 
 export function resolvePostgresConnectionConfig(
   connectionString: string,
   rootCert?: string,
+  options?: PostgresConnectionOptions,
 ): Pick<PoolConfig, 'connectionString' | 'ssl'>;
 
 export function resolveExternalPostgresSsl(

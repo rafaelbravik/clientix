@@ -324,26 +324,26 @@ export default function InstallationDetailPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 id="clone-status-title" className="text-base font-semibold">
-              Atestação e sessões
+              {t("Atestação e sessões")}
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Estado de sobreposição de sessões recentes:{" "}
+              {t("Estado de sobreposição de sessões recentes:")}{" "}
               <strong>{installation.clone_status}</strong>
             </p>
           </div>
           <span className="text-xs text-muted-foreground">
-            Último conflito:{" "}
+            {t("Último conflito:")}{" "}
             {installation.last_clone_conflict_at
               ? new Date(installation.last_clone_conflict_at).toLocaleString(tag)
-              : "nenhum"}
+              : t("nenhum")}
           </span>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
           <Input
             value={recoveryReason}
             onChange={(event) => setRecoveryReason(event.target.value)}
-            aria-label="Motivo da recuperação da instalação"
-            placeholder="Motivo para autorizar recuperação"
+            aria-label={t("Motivo da recuperação da instalação")}
+            placeholder={t("Motivo para autorizar recuperação")}
             maxLength={500}
           />
           <Button
@@ -354,7 +354,7 @@ export default function InstallationDetailPage() {
             }
             onClick={() => void handleAuthorizeRecovery()}
           >
-            Autorizar recuperação
+            {t("Autorizar recuperação")}
           </Button>
         </div>
         {recoveryCodeOnce && (
@@ -363,13 +363,13 @@ export default function InstallationDetailPage() {
             role="alert"
           >
             <p className="text-sm font-semibold">
-              Código de uso único — entregue ao operador desta instalação.
+              {t("Código de uso único — entregue ao operador desta instalação.")}
             </p>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Input
                 readOnly
                 value={recoveryCodeOnce}
-                aria-label="Código de recuperação de uso único"
+                aria-label={t("Código de recuperação de uso único")}
                 className="font-mono"
               />
               <Button
@@ -377,7 +377,7 @@ export default function InstallationDetailPage() {
                 variant="outline"
                 onClick={() => void copyPublicKey(recoveryCodeOnce)}
               >
-                {copiedKey ? "Copiado" : "Copiar código"}
+                {copiedKey ? "Copiado" : t("Copiar código")}
               </Button>
               <Button type="button" variant="ghost" onClick={() => setRecoveryCodeOnce(null)}>
                 Ocultar
@@ -386,16 +386,16 @@ export default function InstallationDetailPage() {
           </div>
         )}
         {sessions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nenhuma sessão de boot registrada.</p>
+          <p className="text-sm text-muted-foreground">{t("Nenhuma sessão de boot registrada.")}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="border-b text-xs text-muted-foreground">
                 <tr>
-                  <th className="py-2">Sessão</th>
+                  <th className="py-2">{t("Sessão")}</th>
                   <th>Estado</th>
-                  <th>Último heartbeat</th>
-                  <th>Versão</th>
+                  <th>{t("Último heartbeat")}</th>
+                  <th>{t("Versão")}</th>
                   <th />
                 </tr>
               </thead>
@@ -408,7 +408,7 @@ export default function InstallationDetailPage() {
                         ? "Ativa"
                         : session.status === "ENDED"
                           ? "Encerrada"
-                          : "Sem heartbeat recente"}
+                          : t("Sem heartbeat recente")}
                     </td>
                     <td>{new Date(session.last_heartbeat_at).toLocaleString(tag)}</td>
                     <td>{session.clientix_version || "—"}</td>
@@ -421,7 +421,7 @@ export default function InstallationDetailPage() {
                           disabled={actionLoading}
                           onClick={() => void handleEndSession(session.session_id)}
                         >
-                          Encerrar sessão
+                          {t("Encerrar sessão")}
                         </Button>
                       )}
                     </td>

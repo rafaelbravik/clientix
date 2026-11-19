@@ -4,6 +4,8 @@
 
 A cobrança comercial pertence somente ao banco `control_plane` e ao build Vendor. O Customer Runtime não recebe páginas ou rotas administrativas de billing, credenciais de provedor, fila comercial ou banco do Vendor. A migration `0005_billing_automation.sql` não faz parte do baseline Supabase self-host.
 
+Este contrato cobre a licença comercial da instalação `ACT_...` e a operação de emissão/renovação do parceiro. Ele não processa cobranças das empresas que usam uma instalação multi-tenant. A assinatura de cada tenant Cloud ou self-hosted é registrada no Customer conforme [`assinatura-por-tenant.md`](assinatura-por-tenant.md), sem gateway nesta fase.
+
 Nesta wave, `MANUAL` é o único provedor habilitado. Stripe e Mercado Pago permanecem desabilitados em código e no estado comercial, mesmo que alguém configure metadata ou segredo por engano; não há conexão externa, conta, webhook live ou credencial de sandbox. O envelope webhook normalizado continua presente como estrutura futura, mas a rota externa falha fechada até LIC-05 entregar adapters nativos e validação própria de cada provedor.
 
 ## Dados e invariantes

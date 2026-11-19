@@ -37,6 +37,7 @@ import {
   type Tom,
 } from "@/lib/branding/linguagem";
 import { ehHexValido, K, normalizarHex } from "@/lib/branding/rampa";
+import type { PaletaVisualOrganizacao } from "@/lib/branding/paleta-organizacao";
 import { REGUA_DO_PRODUTO } from "@/lib/branding/regua-do-produto";
 import {
   camadaDaInstalacao,
@@ -61,6 +62,7 @@ interface Props {
   readonly gravada: {
     readonly app_name: string | null;
     readonly accent_hex: string | null;
+    readonly appearance_preset: PaletaVisualOrganizacao | null;
     readonly logo_path: string | null;
   };
   /** A linha da marca da INSTALAÇÃO — a camada logo abaixo desta. */
@@ -79,6 +81,8 @@ const ERRO_EM_PORTUGUES: Record<string, string> = {
   unauthenticated: "Sua sessão expirou. Entre de novo para salvar.",
   forbidden_tenant: "Não consegui identificar sua empresa. Recarregue a página.",
   forbidden_role: "Só quem administra esta empresa pode mudar a marca.",
+  WHITE_LABEL_NOT_LICENSED:
+    "A licença desta instalação não inclui personalização da marca. Peça ao responsável pela instalação que confira as opções do plano.",
   // A sessão está com um fator cadastrado mas não confirmado AGORA. Sem esta
   // linha o toast mostraria o código cru — a action passou a cobrar o segundo
   // fator, e o gate de MFA das telas não alcança Server Action.
@@ -97,6 +101,45 @@ const CLASSE_DO_TOM: Record<Tom, string> = {
 
 /** Cinza médio para o seletor visual quando o campo ainda não tem cor válida. */
 const COR_NEUTRA_DO_SELETOR = "#808080";
+
+type SelecaoDePaleta = "original" | PaletaVisualOrganizacao;
+
+const OPCOES_DE_PALETA: ReadonlyArray<{
+  readonly valor: SelecaoDePaleta;
+  readonly nome: string;
+  readonly descricao: string;
+  readonly claro: readonly [string, string, string];
+  readonly escuro: readonly [string, string, string];
+}> = [
+  {
+    valor: "original",
+    nome: "Padrão atual",
+    descricao: "Aparência original do sistema",
+    claro: ["#faf9f6", "#ffffff", "#f5f3ee"],
+    escuro: ["#161510", "#1d1c17", "#272620"],
+  },
+  {
+    valor: "ocean",
+    nome: "Oceano",
+    descricao: "Fundos frios com tons azulados",
+    claro: ["#f4f8fb", "#ffffff", "#eaf1f6"],
+    escuro: ["#101a22", "#18252e", "#1e2f39"],
+  },
+  {
+    valor: "sand",
+    nome: "Areia",
+    descricao: "Fundos quentes e suaves",
+    claro: ["#fbf6ef", "#fffcf7", "#f3eadf"],
+    escuro: ["#211913", "#2b211a", "#35291f"],
+  },
+  {
+    valor: "forest",
+    nome: "Verde natural",
+    descricao: "Fundos verdes suaves no claro e profundos no escuro",
+    claro: ["#f3f7f3", "#fbfdfb", "#e9f0e9"],
+    escuro: ["#101813", "#18221b", "#222f25"],
+  },
+];
 
 /**
  * De onde veio o campo, na língua de quem administra UMA empresa.
@@ -130,6 +173,7 @@ export function FormularioDaMarcaDaOrganizacao({ gravada, instalacao, ambiente }
   const router = useRouter();
   const [nome, setNome] = useState(gravada.app_name ?? "");
   const [hex, setHex] = useState(gravada.accent_hex ?? "");
+  const [paleta, setPaleta] = useState<SelecaoDePaleta>(gravada.appearance_preset ?? "original");
   const [erroTecnico, setErroTecnico] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -229,6 +273,7 @@ export function FormularioDaMarcaDaOrganizacao({ gravada, instalacao, ambiente }
     const lido = marcaDaOrganizacaoSchema.safeParse({
       app_name: nomeLimpo.length > 0 ? nomeLimpo : null,
       accent_hex: hexLimpo.length > 0 ? hexLimpo : null,
+      appearance_preset: paleta === "original" ? null : paleta,
     });
     if (!lido.success) {
       toast.error(t("Confira os campos: algum valor não está no formato esperado."));
@@ -364,6 +409,83 @@ export function FormularioDaMarcaDaOrganizacao({ gravada, instalacao, ambiente }
           origemDoHerdado="de quem instalou o sistema"
           nomeEmVigor={resolvida.name}
         />
+      </Card>
+
+      <Card className="space-y-4 p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-1">
+            <h2 className="text-base font-semibold tracking-tight text-text">
+              {t("Aparência do sistema")}
+            </h2>
+            <p className="max-w-2xl text-sm text-text-muted">
+              {t(
+                "Escolha os tons de fundo, cartões e bordas. A cor da sua marca e o logo continuam separados.",
+              )}
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isPending || paleta === "original"}
+            onClick={() => setPaleta("original")}
+          >
+            {t("Restaurar padrão")}
+          </Button>
+        </div>
+
+        <fieldset className="space-y-3">
+          <legend className="text-sm font-medium text-text">{t("Escolha uma paleta")}</legend>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {OPCOES_DE_PALETA.map((opcao) => (
+              <label key={opcao.valor} className="cursor-pointer">
+                <input
+                  type="radio"
+                  name="appearance_preset"
+                  value={opcao.valor}
+                  checked={paleta === opcao.valor}
+                  onChange={() => setPaleta(opcao.valor)}
+                  className="peer sr-only"
+                />
+                <span className="block h-full rounded-lg border border-border p-3 transition-colors hover:bg-surface-elevated peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent peer-checked:border-accent peer-checked:ring-2 peer-checked:ring-accent">
+                  <span className="mb-2 block text-sm font-medium text-text">
+                    {t(opcao.nome)}
+                  </span>
+                  <span className="mb-2 block text-xs text-text-muted">{t(opcao.descricao)}</span>
+                  <span className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-text-subtle">
+                    {t("Claro")}
+                  </span>
+                  <span className="mb-2 flex gap-1" aria-hidden="true">
+                    {opcao.claro.map((cor) => (
+                      <span
+                        key={cor}
+                        className="h-5 flex-1 rounded-sm border border-black/5"
+                        style={{ backgroundColor: cor }}
+                      />
+                    ))}
+                  </span>
+                  <span className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-text-subtle">
+                    {t("Escuro")}
+                  </span>
+                  <span className="flex gap-1" aria-hidden="true">
+                    {opcao.escuro.map((cor) => (
+                      <span
+                        key={cor}
+                        className="h-5 flex-1 rounded-sm border border-black/5"
+                        style={{ backgroundColor: cor }}
+                      />
+                    ))}
+                  </span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
+        <p className="text-xs text-text-muted">
+          {t(
+            "A escolha vale para todas as pessoas desta empresa e respeita o modo claro, escuro ou automático escolhido em cada navegador. A paleta será aplicada ao salvar.",
+          )}
+        </p>
       </Card>
 
       {/*

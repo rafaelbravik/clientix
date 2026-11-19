@@ -2,23 +2,14 @@ import { LOGOTIPO, SIMBOLO } from "@/lib/branding/desenho";
 import { cn } from "@/lib/utils";
 
 /**
- * A marca do PRODUTO desenhada em SVG inline — o que a tela mostra quando
- * ninguém configurou marca própria (`marcaEhADoProduto`, em `lib/branding.ts`).
+ * Marca vetorial do produto. Só aparece quando nenhuma instalação ou
+ * organização configurou a própria marca (`marcaEhADoProduto`).
  *
- * Inline, e não `<img src="/algo.svg">`, por três motivos:
- *  - as cores seguem o TEMA: sálvia mais clara e nome em creme no escuro, como
- *    a régua do produto já define — um arquivo estático teria uma cor só;
- *  - nada em `public/`: um `.svg` fixo ali seria servido na instalação de um
- *    revendedor que configurou a marca dele (ver `lib/branding/desenho.ts`);
- *  - a barra lateral já usa `<img>` para o logo CONFIGURADO, e o e2e
- *    `marca-logo.spec.ts` mede "barra sem `<img>`" como "sem logo do
- *    revendedor". Um `<img>` do produto ali faria a spec medir a coisa errada.
- *
- * O texto alternativo é o `nome` que a tela já resolveu — nunca uma string
- * fixa, para que a catraca de marca (`tests/unit/branding.test.ts`) continue
- * contando ZERO ocorrências fora de `lib/branding.ts`.
+ * Continua inline para acompanhar o tema sem publicar um logo estático em
+ * `public/`, que seria servido também pelas instalações dos revendedores.
+ * O símbolo e as letras vêm dos contornos de `docs/brand/clientix-logo.svg`;
+ * o X claro usa verde para continuar legível sobre fundo claro.
  */
-
 type Props = {
   readonly nome: string;
   readonly className?: string;
@@ -26,14 +17,12 @@ type Props = {
   readonly decorativo?: boolean;
 };
 
-const SIMBOLO_CLARO_ESCURO = "fill-[#506d48] dark:fill-[#82a077]";
-const NOME_CLARO_ESCURO = "fill-[#1c1a16] dark:fill-[#f5f4ef]";
-const SUFIXO_CLARO_ESCURO = "fill-[#5d594f] dark:fill-[#8e8b7f]";
+const SIMBOLO_CLARO_ESCURO = "fill-[#017a32] dark:fill-[#01fa4e]";
+const NOME_CLARO_ESCURO = "fill-[#017a32] dark:fill-[#f5f5f5]";
+const SUFIXO_CLARO_ESCURO = "fill-[#017a32] dark:fill-[#01fa4e]";
 
-// As classes acima repetem os hexes de `CORES_DA_MARCA` porque o Tailwind só
-// gera utilitário para valor LITERAL no fonte. Quem impede os dois de divergirem
-// é `tests/unit/marca-do-produto.test.tsx`, que compara as classes à paleta —
-// e não uma asserção em runtime: um throw aqui derrubaria a casca inteira.
+// As classes repetem os hexes de `CORES_DA_MARCA` porque o Tailwind só inclui
+// utilitários com valores literais. O teste da marca mantém os dois alinhados.
 export const CLASSES_DE_COR = {
   simbolo: SIMBOLO_CLARO_ESCURO,
   nome: NOME_CLARO_ESCURO,
@@ -46,7 +35,7 @@ function acessibilidade(nome: string, decorativo: boolean) {
     : ({ role: "img", "aria-label": nome } as const);
 }
 
-/** O símbolo sozinho — para a barra recolhida, avatar e cantos apertados. */
+/** O símbolo sozinho, usado na barra recolhida e em espaços compactos. */
 export function SimboloDoProduto({ nome, className, decorativo = false }: Props) {
   return (
     <svg
@@ -54,15 +43,12 @@ export function SimboloDoProduto({ nome, className, decorativo = false }: Props)
       className={cn("shrink-0", className)}
       {...acessibilidade(nome, decorativo)}
     >
-      <g className={SIMBOLO_CLARO_ESCURO} transform={SIMBOLO.transform}>
-        <path d={SIMBOLO.d} />
-        <rect {...SIMBOLO.modulo} />
-      </g>
+      <path className={SIMBOLO_CLARO_ESCURO} d={SIMBOLO.d} />
     </svg>
   );
 }
 
-/** Símbolo + nome — para a barra aberta e a fachada de entrada. */
+/** Logotipo completo, com proporção e contornos dos SVGs fornecidos. */
 export function LogotipoDoProduto({ nome, className, decorativo = false }: Props) {
   return (
     <svg
@@ -70,20 +56,25 @@ export function LogotipoDoProduto({ nome, className, decorativo = false }: Props
       className={cn("shrink-0", className)}
       {...acessibilidade(nome, decorativo)}
     >
-      <g className={SIMBOLO_CLARO_ESCURO} transform={LOGOTIPO.simbolo.transform}>
-        <path d={LOGOTIPO.simbolo.d} />
-        <rect {...LOGOTIPO.simbolo.modulo} />
-      </g>
-      <g className={NOME_CLARO_ESCURO}>
-        {LOGOTIPO.nome.map((g) => (
-          <path key={g.transform} transform={g.transform} d={g.d} />
+      <path
+        className={SIMBOLO_CLARO_ESCURO}
+        transform={LOGOTIPO.simbolo.transform}
+        d={LOGOTIPO.simbolo.d}
+      />
+      <g transform={LOGOTIPO.letrasTransform}>
+        {LOGOTIPO.letras.map((glifo, indice) => (
+          <path
+            key={`${glifo.papel}-${indice}`}
+            className={glifo.papel === "sufixo" ? SUFIXO_CLARO_ESCURO : NOME_CLARO_ESCURO}
+            transform={glifo.transform}
+            d={glifo.d}
+          />
         ))}
       </g>
-      <g className={SUFIXO_CLARO_ESCURO}>
-        {LOGOTIPO.sufixo.map((g) => (
-          <path key={g.transform} transform={g.transform} d={g.d} />
-        ))}
-      </g>
+      {/* Contorno textual para extração; o aria-label acima é o nome acessível. */}
+      <text x="0" y="0" fontSize="0" opacity="0" aria-hidden="true">
+        {nome}
+      </text>
     </svg>
   );
 }

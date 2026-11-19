@@ -83,7 +83,6 @@ export async function gerarIconeDoApp(
           >
             <g fill={CORES_DA_MARCA.claro.simbolo} transform={SIMBOLO.transform}>
               <path d={SIMBOLO.d} />
-              <rect {...SIMBOLO.modulo} />
             </g>
           </svg>
         ) : (

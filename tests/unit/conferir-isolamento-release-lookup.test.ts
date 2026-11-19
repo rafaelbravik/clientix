@@ -5,6 +5,7 @@ import { join } from "node:path";
 describe("Resolução de release para repositório privado e padrão de tags", () => {
   const commonSh = readFileSync(join(process.cwd(), "hostgator-setup-kit/_common.sh"), "utf8");
   const conferirSh = readFileSync(join(process.cwd(), "scripts/conferir-isolamento-do-kit.sh"), "utf8");
+  const ciWorkflow = readFileSync(join(process.cwd(), ".github/workflows/ci.yml"), "utf8");
 
   it("hostgator-setup-kit/_common.sh suporta GITHUB_TOKEN/GH_TOKEN na autenticação da API", () => {
     expect(commonSh).toContain('token="${GITHUB_TOKEN:-${GH_TOKEN:-}}"');
@@ -40,5 +41,11 @@ describe("Resolução de release para repositório privado e padrão de tags", (
   it("scripts/conferir-isolamento-do-kit.sh valida formato v* e clientix-* e recusa formatos inválidos", () => {
     expect(conferirSh).toContain("v[0-9]*|clientix-[0-9]*) ;;");
     expect(conferirSh).toContain("FATAL: não consegui saber qual é a última release publicada");
+  });
+
+  it("CI preserva tags no checkout raso e expõe diagnóstico sanitizado da resolução", () => {
+    expect(ciWorkflow).toContain("fetch-tags: true");
+    expect(ciWorkflow).toContain('DESKCOMM_RELEASE_DIAGNOSTICS: "1"');
+    expect(commonSh).toContain("http_status=%s tag=%s");
   });
 });

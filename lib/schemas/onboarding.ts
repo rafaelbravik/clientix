@@ -62,6 +62,10 @@ export const onboardingStateSchema = z.object({
   welcome: z
     .object({
       accepted_at: z.string(),
+      /** Data em que a pessoa aceitou os Termos de Uso nesta instalação. */
+      terms_accepted_at: z.string().optional(),
+      /** Confirmação de leitura da política; não representa consentimento de tratamento. */
+      privacy_notice_acknowledged_at: z.string().optional(),
       timezone: z.string(),
       display_name: z.string(),
       /** O ramo, na palavra do dono. Alimenta o prompt e o quadro de clientes. */

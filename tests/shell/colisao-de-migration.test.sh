@@ -50,6 +50,11 @@
 #  30. mais de 30 PRs abertos: o gate pede --limit, senão o gh corta calado em 30.
 set -uo pipefail
 
+# O CI exporta GITHUB_REF=refs/pull/<n>/merge para o PR que está sendo validado. Estes casos
+# montam PRs sintéticos com números fixos (incluindo o #7); herdar o ref real faria o gate
+# excluir um fixture como se fosse o PR atual e contaminaria a população que os testes medem.
+unset GITHUB_REF
+
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 GATE_ORIGEM="$RAIZ/scripts/checar-colisao-de-migration.sh"
 

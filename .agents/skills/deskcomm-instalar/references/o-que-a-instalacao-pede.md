@@ -38,6 +38,7 @@ projeto** e preenche as quatro sozinho (`hostgator-setup-kit/supabase-provision.
 | `APP_LOCALE` (1 = Português, 2 = Español) | grava o idioma da organização |
 | `APP_ACCENT_HEX` (ex. `#7a5cd6`) | a cor do produto (verde) na tela e nos e-mails |
 | `SUPPORT_EMAIL` | a tela de "conta suspensa" fica sem endereço de contato |
+| `CLIENTIX_LICENSE_SERVER_URL` (URL base HTTPS pública do Vendor, sem endpoint `/api/v1`) | no kit interativo do cliente, informe a URL quando perguntada; no pacote comercial, preencha-a no `.env` antes da instalação. Instalação nova exige esse endereço; atualização antiga pode seguir sem ele, mas não ativa nem renova online. Depois use o código `ACT_...` em `/admin/license` |
 | `RESEND_API_KEY` + `RESEND_FROM_EMAIL` | envio de e-mail **desligado**: o convite mostra o link de aceite na própria tela; o export de LGPD fica pendente. O remetente precisa ser de um domínio **verificado** na Resend, senão toda tentativa falha com mensagem opaca |
 | Telemetria (`s/N`, padrão **não enviar**) | só erros, com CPF/telefone/e-mail redigidos, sem replay. `--yes` → não envia. Copiando o `.env` do exemplo a pergunta não aparece e sai **ligada** (issue #668) — escreva `SENTRY_DSN=off` |
 

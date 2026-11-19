@@ -4,7 +4,7 @@
 
 ### Plataforma Comercial e Operacional de Atendimento, CRM, Automação e IA
 
-**Sistema operacional de vendas e relacionamento com arquitetura multi-tenant, suporte a operação 100% humana ou com IA nativa, distribuição por artefatos assinados e modelo self-hosted em infraestrutura do cliente.**
+**Sistema operacional de vendas e relacionamento multi-tenant, disponível em Cloud gerenciada e em instalações self-hosted licenciadas.**
 
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org)
 [![React 19](https://img.shields.io/badge/React-19-blue?logo=react)](https://react.dev)
@@ -32,7 +32,7 @@
 
 O **Clientix Agência** é uma plataforma robusta de operações comerciais, gestão de relacionamento (CRM), automação de processos e atendimento multicanal (WhatsApp/WAHA, voz e mensageria digital) com isolamento nativo multi-tenant e suporte a agentes de IA integrados.
 
-Projetado sob o modelo **self-hosted**, o sistema é executado diretamente na infraestrutura de servidores (VPS) de propriedade e controle do cliente ou agência parceira. Isso garante soberania de dados, conformidade com a LGPD e ausência de restrições arbitrárias de assentos cobradas por terceiros.
+O sistema oferece dois modelos. Empresas que contratam diretamente acessam uma instalação Cloud multi-tenant gerenciada pelo projeto e têm plano, cotas e período vinculados ao seu tenant. Empresas e parceiros também podem instalar o produto open source em VPS própria; nessa modalidade, a licença `ACT_...` autoriza a instalação inteira, e cada organização pode ter sua própria assinatura comercial se o proprietário optar por cobrar seus tenants. Os registros de assinatura por tenant ficam no banco Customer; o licenciamento `ACT_...` continua separado no Control Plane Vendor.
 
 A plataforma combina flexibilidade de vocabulário e funis de vendas para múltiplos nichos (agências, clínicas, imobiliárias, infoprodutos, e-commerce e serviços corporativos), mantendo governança rigorosa de acessos por papéis (RBAC) e proteção em profundidade via Row Level Security (RLS) no PostgreSQL.
 
@@ -300,31 +300,28 @@ Esta seção destina-se **exclusivamente a engenheiros e mantenedores** que dese
 - **Node.js:** Versão 22 LTS ou superior.
 - **Gerenciador de Pacotes:** `pnpm` (versão 9.15+ recomendada).
 - **Docker & Docker Compose:** Para execução de serviços locais de teste (Postgres e WAHA).
+- **Windows:** Git for Windows com Git Bash para os comandos da stack local.
 
-### 2. Instalação e Inicialização Local
+### 2. Instalação local nova
 
 ```bash
-# Clone do repositório
-git clone https://github.com/rafaelbravik/clientix-agencia.git
-cd clientix-agencia
+# Clone limpo e dependências do lockfile
+git clone https://github.com/rafaelbravik/clientix.git clientix
+cd clientix
+pnpm install --frozen-lockfile
 
-# Instalação rigorosa de dependências
-pnpm install
-
-# Configuração do ambiente local
-cp .env.example .env.local
-
-# Inicialização da stack local com PostgreSQL e dependências
+# Gera ambiente local, cria bancos vazios, aplica baseline e Control Plane,
+# e inicia Customer, Vendor e dependências em projetos isolados por clone.
 pnpm local:up
-
-# Execução do servidor de desenvolvimento Next.js
-pnpm dev
 ```
 
-A aplicação de desenvolvimento estará disponível em:
+O primeiro `local:up` gera o token de first-run em `.clientix-bootstrap-token` e `.env.local`. Use-o em `/setup` para criar o primeiro Platform Owner. URLs e portas são gravadas em `.env.local`:
 
-- **Aplicação:** `http://localhost:3000`
-- **Health Check da API:** `http://localhost:3000/api/v1/health`
+- **Customer:** `http://localhost:<APP_PORT>`
+- **Vendor:** `http://localhost:<VENDOR_PORT>`
+- **Health Check:** `http://localhost:<VENDOR_PORT>/api/v1/health`
+
+Veja [Instalação local nova do proprietário](docs/self-hosted/owner-install-from-zero.md) para runtime, provisioning de `agent_worker`, separação dos bancos e fluxo de licença sintética.
 
 ---
 
@@ -403,7 +400,7 @@ As minutas e relatórios técnicos elaborados para subsidiar a assessoria juríd
 
 ## 🙏 Reconhecimento e Atribuição do Upstream
 
-O **Clientix Agência** reconhece e preserva a linhagem tecnológica herdada do projeto open source original **DeskcommCRM**, idealizado e desenvolvido sob a liderança de **Rafael Melgaço** juntamente com a comunidade de colaboradores do código aberto. As modificações e novos módulos comerciais desenvolvidos representam uma evolução arquitetural voltada para empacotamento corporativo, governança de licenças e atendimento a agências parceiras.
+O **Clientix Agência** reconhece e preserva a linhagem tecnológica herdada da base open source que originou o projeto, idealizada e desenvolvida sob a liderança de **Rafael Melgaço** juntamente com a comunidade de colaboradores do código aberto. As modificações e novos módulos comerciais desenvolvidos representam uma evolução arquitetural voltada para empacotamento corporativo, governança de licenças e atendimento a agências parceiras.
 
 Agradecemos igualmente aos projetos e fornecedores das tecnologias de fundação:
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Backup do Postgres (Supabase) do DeskcommCRM — schema public completo
+# Backup do Postgres (Supabase) do Clientix — schema public completo
 # (CRM + harness do agente). Roda no host ou num cron da VPS:
 #   0 3 * * * /path/repo/scripts/backup-db.sh /var/backups/deskcomm
 # Requer: pg_dump no PATH (major compatível) e a conexão do DONO no .env/.env.local — com a do app o dump sai parcial e sai verde.

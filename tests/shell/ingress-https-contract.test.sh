@@ -93,6 +93,38 @@ installer="$(cat "$RAIZ/distribution/installer/install.sh")"
 [[ "$installer" == *"validate_dns_ingress_release"* && "$installer" == *"VERIFIED_IMAGE_CADDY"* ]] || fail "DNS-01 não exige Caddy do manifesto"
 pass "instalação/atualização falham antes de aplicar migration sem ingress válido"
 
+installer_template="$(cat "$RAIZ/distribution/installer/.env.example")"
+[[ "$installer_template" == *'CLIENTIX_LICENSE_SERVER_URL='* ]] || fail "template comercial não declara a URL do License Server"
+[[ "$installer" == *"validate_license_server_config required"* ]] || fail "instalação comercial nova não exige o License Server"
+[[ "$installer" == *"validate_license_server_config optional"* ]] || fail "atualização comercial não preserva .env legado sem a URL"
+
+license_server_result() {
+  local expected="$1" policy="$2" value="$3" output rc
+  if output="$(bash -c '
+    source "$1"
+    CLIENTIX_LICENSE_SERVER_URL="$2"
+    validate_license_server_config "$3"
+  ' _ "$RAIZ/distribution/installer/install.sh" "$value" "$policy" 2>&1)"; then
+    rc=0
+  else
+    rc=$?
+  fi
+  if [ "$expected" = "pass" ]; then
+    [ "$rc" -eq 0 ] || fail "URL do License Server recusada: ${output%%$'\n'*}"
+  else
+    [ "$rc" -ne 0 ] || fail "URL inválida/vazia do License Server aceita quando deveria ser recusada"
+    [[ "$output" == *"$expected"* ]] || fail "URL do License Server recusada pelo motivo errado: ${output%%$'\n'*}"
+  fi
+}
+
+license_server_result pass required "https://licencas.empresa.com.br"
+license_server_result pass required "https://empresa.com.br/licencas"
+license_server_result LICENSE_SERVER_URL_REQUIRED required ""
+license_server_result LICENSE_SERVER_URL_INVALID required "http://licencas.empresa.com.br"
+license_server_result LICENSE_SERVER_URL_INVALID required "https://user:pass@licencas.empresa.com.br"
+license_server_result pass optional ""
+pass "URL HTTPS do Vendor obrigatória em instalação nova e opcional em .env legado"
+
 traefik="$(cat "$RAIZ/docker-compose.traefik.yml")"
 [[ "$traefik" == *'traefik.tls.options.deskcomm-tls.minVersion: "VersionTLS12"'* ]] || fail "Traefik não fixa TLS 1.2 como mínimo"
 [[ "$traefik" == *'traefik.tls.options.deskcomm-tls.maxVersion: "VersionTLS13"'* ]] || fail "Traefik não permite/fixa o teto TLS 1.3"

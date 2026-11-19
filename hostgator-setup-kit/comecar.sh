@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# DeskcommCRM — a porta de entrada.
+# Clientix — a porta de entrada.
 #
 # Diferente do install.sh, este script roda no SEU computador (macOS, Linux ou
 # WSL), antes de existir servidor. Ele responde a única pergunta que trava quem
@@ -34,29 +34,9 @@ c_ylw() { paint 33 "$*"; }
 c_dim() { paint 2  "$*"; }
 die()   { paint 31 "✖ $*"; exit 1; }
 
-LOGO_COLS=71
 banner() {
-  local cols linha ch
-  cols="$(tput cols 2>/dev/null || echo 80)"
-  case "$cols" in ''|*[!0-9]*) cols=80;; esac
   printf '\n'
-  if [ "$COLOR" != 1 ] || [ "$cols" -lt $((LOGO_COLS + 2)) ]; then
-    paint 1 "  DESKCOMM"
-  else
-    [ -t 1 ] && printf '\033[2J\033[H'
-    while IFS= read -r linha; do
-      linha="${linha//█/$'\033[32m'█$'\033[0m'}"
-      for ch in ═ ╗ ║ ╝ ╚ ╔; do linha="${linha//$ch/$'\033[2m'$ch$'\033[0m'}"; done
-      printf '  %s\n' "$linha"
-    done <<'LOGO'
-██████╗ ███████╗███████╗██╗  ██╗ ██████╗ ██████╗ ███╗   ███╗███╗   ███╗
-██╔══██╗██╔════╝██╔════╝██║ ██╔╝██╔════╝██╔═══██╗████╗ ████║████╗ ████║
-██║  ██║█████╗  ███████╗█████╔╝ ██║     ██║   ██║██╔████╔██║██╔████╔██║
-██║  ██║██╔══╝  ╚════██║██╔═██╗ ██║     ██║   ██║██║╚██╔╝██║██║╚██╔╝██║
-██████╔╝███████╗███████║██║  ██╗╚██████╗╚██████╔╝██║ ╚═╝ ██║██║ ╚═╝ ██║
-╚═════╝ ╚══════╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝     ╚═╝
-LOGO
-  fi
+  paint 1 "  CLIENTIX"
   printf '\n'
   c_dim "  Agentes de IA que atendem no WhatsApp, dentro do seu CRM."
   c_dim "  Open-source · roda no seu servidor · os dados são seus."

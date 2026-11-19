@@ -28,17 +28,14 @@ CHAVE_CPF=""; CHAVE_WAHA=""; CHAVE_AI=""
 
 cd "$(dirname "$0")/.."
 
-# `supabase` do PATH quando existe (é o que o CI instala, via supabase/setup-cli),
-# `npx supabase` como plano B para a máquina do dev. Insistir no `npx` custaria um
-# download do registry a cada uma das três chamadas abaixo — a CLI não é
-# dependência deste projeto.
-SUPABASE="supabase"
-command -v supabase >/dev/null 2>&1 || SUPABASE="npx supabase"
-
-if ! $SUPABASE status >/dev/null 2>&1; then
-  echo "==> O Supabase local não está de pé. Rode 'npx supabase start' antes." >&2
+# O stack deste checkout é iniciado pelo wrapper local, que seleciona o
+# project_id e as portas próprios do diretório. Consultar `supabase status` na
+# raiz usa a configuração compartilhada e pode não reconhecer esse stack — ou
+# apontar para outro checkout da mesma máquina.
+STATUS_JSON="$(bash ./scripts/local-supabase.sh status 2>/dev/null)" || {
+  echo "==> O Supabase local deste checkout não está de pé. Rode 'pnpm local:up' antes." >&2
   exit 1
-fi
+}
 
 # Chaves de cifra de 32 bytes. Reaproveita as do .env.e2e atual quando ele já
 # existe: regenerá-las a cada chamada tornaria ilegível toda credencial que o
@@ -52,11 +49,23 @@ fi
 [ "${#CHAVE_WAHA}" -ge 44 ] || CHAVE_WAHA="$(openssl rand -base64 32)"
 [ "${#CHAVE_AI}" -ge 44 ] || CHAVE_AI="$(openssl rand -base64 32)"
 
-ENVOUT="$($SUPABASE status -o env 2>/dev/null)"
-# O `|| true` no fim não é decoração: sob `set -e` + `pipefail`, um `grep` sem
-# casamento (chave que o stack não devolveu) derruba o script AQUI, calado, antes
-# das guardas abaixo. Quem não tem a chave precisa chegar na recusa explicada.
-ler() { printf '%s\n' "$ENVOUT" | grep "^$1=" | cut -d= -f2- | tr -d '"' || true; }
+# A saída JSON vem do wrapper do próprio checkout. Parsear por chave evita
+# depender do formato textual do `supabase status -o env` e mantém valores
+# sensíveis apenas em memória, sem despejá-los no terminal.
+ler() {
+  printf '%s' "$STATUS_JSON" | node -e '
+let s = "";
+process.stdin.on("data", (chunk) => { s += chunk; });
+process.stdin.on("end", () => {
+  try {
+    const value = JSON.parse(s)[process.argv[1]];
+    if (typeof value === "string") process.stdout.write(value);
+  } catch {
+    process.exitCode = 2;
+  }
+});
+' "$1"
+}
 
 API_URL="$(ler API_URL)"
 ANON="$(ler ANON_KEY)"
@@ -70,7 +79,7 @@ SERVICE="$(ler SERVICE_ROLE_KEY)"
 DB_URL="$(ler DB_URL)"
 
 if [ -z "$API_URL" ] || [ -z "$ANON" ] || [ -z "$SERVICE" ]; then
-  echo "==> Não consegui ler as chaves do stack local (API_URL/ANON_KEY/SERVICE_ROLE_KEY)." >&2
+  echo "==> O status do Supabase local não trouxe API_URL/ANON_KEY/SERVICE_ROLE_KEY." >&2
   exit 1
 fi
 
@@ -92,7 +101,7 @@ esac
 # é o caro: um `.env.e2e` plausível apontando para o banco errado não dá erro
 # nenhum.
 if [ -z "$DB_URL" ]; then
-  echo "==> Não consegui ler a DB_URL do stack local (o 'supabase status -o env' não trouxe DB_URL)." >&2
+  echo "==> O status do Supabase local não trouxe DB_URL." >&2
   echo "    Sem ela, a alternativa seria chutar a porta padrão e semear o banco de outro stack." >&2
   exit 1
 fi
@@ -125,6 +134,10 @@ cat > .env.e2e <<EOF
 # GERADO por 'pnpm e2e:env'. Não versionado (.gitignore cobre '.env*').
 # Antes de rodar a suíte: pnpm e2e:build && pnpm test:e2e
 NEXT_PUBLIC_SUPABASE_URL=$API_URL
+# O Playwright inicia o Next no host, não dentro da rede Docker do stack. Fixar
+# também a URL server-only impede que o arquivo local empreste um endereço interno
+# de outro ambiente e faça o proxy falhar ao validar a RPC pública de setup.
+SUPABASE_SERVER_URL=$API_URL
 NEXT_PUBLIC_SUPABASE_ANON_KEY=$ANON
 SUPABASE_SERVICE_ROLE_KEY=$SERVICE
 # Vem do stack que está de pé (ver o comentário do \`ler DB_URL\` acima), não de
@@ -134,6 +147,10 @@ SUPABASE_DB_URL=$DB_URL
 
 # Precisa bater com o baseURL real do Playwright (ver comentário acima).
 NEXT_PUBLIC_APP_URL=http://localhost:$E2E_PORT
+# O servidor Next roda com NODE_ENV=production. Declare o modo local para
+# que as origens HTTP em loopback da bancada sejam aceitas pelo validador.
+CLIENTIX_INGRESS_MODE=local
+CLIENTIX_ALLOW_INSECURE_HTTP=true
 
 # Catálogo servido pelas provas de extensões. A exceção HTTP só é aceita
 # quando o aplicativo também é local; o ambiente do produto deixa isto vazio.

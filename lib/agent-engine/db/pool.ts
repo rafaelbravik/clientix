@@ -23,10 +23,29 @@ import {
   resolvePostgresConnectionConfig,
 } from '../../../scripts/lib/postgres-tls-policy.cjs';
 
+export function resolveAgentEnginePostgresConnectionConfig(
+  databaseUrl: string,
+  localDockerHosts: readonly string[] = [],
+  ingressMode: 'production' | 'local' | undefined = process.env.CLIENTIX_INGRESS_MODE as
+    | 'production'
+    | 'local'
+    | undefined,
+): ReturnType<typeof resolvePostgresConnectionConfig> {
+  return resolvePostgresConnectionConfig(databaseUrl, undefined, {
+    // O Supabase local publicado pelo Docker Desktop usa host.docker.internal.
+    // Hostnames específicos de outros runtimes só entram pelo caller isolado.
+    // Hosts remotos continuam exigindo TLS, inclusive quando uma URL pede
+    // sslmode=disable.
+    localDockerHosts: ingressMode === 'local'
+      ? ['host.docker.internal', ...localDockerHosts]
+      : [],
+  });
+}
+
 export function createPool(
   databaseUrl: string,
   onError?: (err: Error) => void,
-  poolOptions: { max?: number } = {},
+  poolOptions: { max?: number; localDockerHosts?: readonly string[] } = {},
 ): pg.Pool {
   // DB_POOL_MAX (env.ts Zod) define o teto padrão; scripts de jornada podem
   // passar um teto menor por chamada. Sem ambos, o pg decide (default 10) — o
@@ -34,7 +53,10 @@ export function createPool(
   const raw = process.env.DB_POOL_MAX;
   const parsed = raw === undefined ? Number.NaN : Number.parseInt(raw, 10);
   const max = poolOptions.max ?? (Number.isInteger(parsed) && parsed > 0 ? parsed : undefined);
-  const pool = new pg.Pool({ ...resolvePostgresConnectionConfig(databaseUrl), max });
+  const pool = new pg.Pool({
+    ...resolveAgentEnginePostgresConnectionConfig(databaseUrl, poolOptions.localDockerHosts),
+    max,
+  });
   const handler =
     onError ??
     ((err: Error): void => {

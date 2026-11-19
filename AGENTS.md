@@ -10,9 +10,13 @@
 
 Sistema operacional de vendas open source com agentes de IA nativos, multi-nicho (e-commerce,
 clínicas, imobiliárias, infoprodutos, serviços), WhatsApp como canal primário via WAHA, CRM
-inteiro exposto por MCP. Multi-tenant com RLS desde o dia 1; LGPD nativa. Monetização =
-**self-host em VPS**, não assinatura. Posicionamento: [`VISION.md`](VISION.md); estado real de
-implementação: [`docs/current-state.md`](docs/current-state.md).
+inteiro exposto por MCP. Multi-tenant com RLS desde o dia 1; LGPD nativa. Há dois modelos:
+**Cloud gerenciada pelo projeto, com assinatura e cotas por tenant**, e **self-host em VPS**, cuja
+licença `ACT_...` controla a instalação inteira; quem opera uma instalação própria pode cobrar
+seus tenants. A cobrança Cloud é administrada manualmente nesta fase. Decisão em
+[`docs/adr/0005-cloud-direto-e-assinatura-por-tenant.md`](docs/adr/0005-cloud-direto-e-assinatura-por-tenant.md).
+Posicionamento: [`VISION.md`](VISION.md); estado real de implementação:
+[`docs/current-state.md`](docs/current-state.md).
 
 **Consequência que muda como você trabalha:** o produto é distribuído como código. Quem instala
 numa VPS **é** o usuário. Uma mudança que funciona na máquina do dev e quebra no clone fresco é

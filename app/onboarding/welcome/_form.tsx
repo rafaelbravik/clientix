@@ -49,13 +49,19 @@ export function WelcomeForm({ defaultOrgName }: { defaultOrgName: string }) {
       className="space-y-5 rounded-lg border bg-background p-6"
       action={(formData) => {
         if (!accepted) {
-          toast.error(t("Aceite os termos para continuar."));
+          toast.error(
+            t("Aceite os Termos de Uso e confirme a leitura da Política de Privacidade para continuar."),
+          );
           return;
         }
         startTransition(async () => {
           const res = await acceptWelcome(formData);
           if (res && !res.ok) {
-            toast.error(`Falha: ${res.error}`);
+            toast.error(
+              res.error === "legal_acknowledgement_required"
+                ? t("Aceite os Termos de Uso e confirme a leitura da Política de Privacidade para continuar.")
+                : `Falha: ${res.error}`,
+            );
           }
         });
       }}
@@ -123,6 +129,9 @@ export function WelcomeForm({ defaultOrgName }: { defaultOrgName: string }) {
       <label className="flex items-start gap-2 text-sm">
         <input
           type="checkbox"
+          id="aceite-documentos-legais"
+          name="aceite_documentos_legais"
+          value="accepted"
           checked={accepted}
           onChange={(e) => setAccepted(e.target.checked)}
           className="mt-1"
@@ -133,7 +142,7 @@ export function WelcomeForm({ defaultOrgName }: { defaultOrgName: string }) {
           <a className="underline" href="/legal/terms" target="_blank" rel="noreferrer">
             {t("Termos de Uso")}
           </a>{" "}
-          {t("e a")}{" "}
+          {t("e confirmo que li a")}{" "}
           <a className="underline" href="/legal/privacy" target="_blank" rel="noreferrer">
             {t("Política de Privacidade")}
           </a>

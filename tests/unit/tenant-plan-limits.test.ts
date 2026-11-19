@@ -5,6 +5,7 @@ import {
   checkUserQuota,
   checkChannelQuota,
   checkFeatureQuota,
+  resolveTenantPlanLimitsFromCatalog,
 } from "@/lib/tenant/plan-limits";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -658,5 +659,105 @@ describe("Tenant Plan Limits & Quota Guards", () => {
       expect(result.allowed).toBe(false);
       expect(result.reason).toContain("não está disponível no plano STANDARD");
     });
+  });
+});
+
+function mockSubscriptionClient(subscription: Record<string, unknown> | null) {
+  const plans = {
+    standard: {
+      slug: "standard",
+      active: true,
+      max_users: 3,
+      max_channels: 1,
+      allowed_channels: ["whatsapp", "email"],
+      features: { campaigns: false, ai_agent: true, voice_calls: false, comment_to_dm: false },
+    },
+    pro: {
+      slug: "pro",
+      active: true,
+      max_users: 10,
+      max_channels: 5,
+      allowed_channels: ["whatsapp", "telegram", "email", "instagram"],
+      features: { campaigns: true, ai_agent: true, voice_calls: true, comment_to_dm: true },
+    },
+    enterprise: {
+      slug: "enterprise",
+      active: true,
+      max_users: null,
+      max_channels: null,
+      allowed_channels: null,
+      features: { campaigns: true, ai_agent: true, voice_calls: true, comment_to_dm: true },
+    },
+  };
+
+  return {
+    from: vi.fn((table: string) => {
+      if (table === "organizations") {
+        return {
+          select: () => ({
+            eq: () => ({ single: async () => ({ data: { settings: { plan: "standard" } }, error: null }) }),
+          }),
+        };
+      }
+      if (table === "tenant_plan_subscriptions") {
+        return {
+          select: () => ({
+            eq: () => ({
+              order: () => ({
+                limit: () => ({ maybeSingle: async () => ({ data: subscription, error: null }) }),
+              }),
+            }),
+          }),
+        };
+      }
+      if (table === "platform_plan_catalog") {
+        return {
+          select: () => ({
+            eq: (_column: string, slug: keyof typeof plans) => ({
+              maybeSingle: async () => ({ data: plans[slug], error: null }),
+            }),
+          }),
+        };
+      }
+      return {};
+    }),
+  } as unknown as SupabaseClient;
+}
+
+describe("assinatura por tenant ligada às cotas", () => {
+  it("usa o plano da assinatura ativa como fonte das cotas", async () => {
+    const now = Date.now();
+    const admin = mockSubscriptionClient({
+      plan_slug: "pro",
+      status: "active",
+      current_period_starts_at: new Date(now - 60_000).toISOString(),
+      current_period_ends_at: new Date(now + 30 * 24 * 60 * 60_000).toISOString(),
+      trial_ends_at: null,
+    });
+
+    const limits = await resolveTenantPlanLimitsFromCatalog(admin, { plan: "standard" }, "org-1");
+
+    expect(limits?.plan).toBe("pro");
+    expect(limits?.max_users).toBe(10);
+    expect(limits?.subscription_allows_usage).toBe(true);
+  });
+
+  it("bloqueia novos módulos depois do vencimento e mantém as cotas registradas", async () => {
+    const now = Date.now();
+    const admin = mockSubscriptionClient({
+      plan_slug: "pro",
+      status: "active",
+      current_period_starts_at: new Date(now - 60 * 24 * 60 * 60_000).toISOString(),
+      current_period_ends_at: new Date(now - 60_000).toISOString(),
+      trial_ends_at: null,
+    });
+
+    const limits = await resolveTenantPlanLimitsFromCatalog(admin, { plan: "standard" }, "org-1");
+    const feature = await checkFeatureQuota(admin, "org-1", "campaigns");
+
+    expect(limits?.plan).toBe("pro");
+    expect(limits?.subscription_allows_usage).toBe(false);
+    expect(feature.allowed).toBe(false);
+    expect(feature.reason).toContain("assinatura");
   });
 });

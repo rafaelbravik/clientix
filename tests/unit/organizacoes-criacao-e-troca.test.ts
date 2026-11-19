@@ -104,6 +104,76 @@ describe("criação administrativa", () => {
     expect(h.rpc).toHaveBeenCalledWith("fn_create_tenant_with_owner_limited", expect.objectContaining({ p_max_tenants: 3 }));
     expect(h.invite).not.toHaveBeenCalled();
   });
+  it("cria assinatura comercial na RPC transacional somente para o owner global", async () => {
+    h.escrita.mockResolvedValueOnce({
+      user: { id: actor, email: "owner@example.test", user_metadata: {} },
+      platformAdmin: { scope: "full", platform_role: "owner" },
+    });
+    const started = new Date(Date.now() - 60_000).toISOString();
+    const ends = new Date(Date.now() + 30 * 24 * 60 * 60_000).toISOString();
+    const requestWithSubscription = new NextRequest("http://localhost/api/v1/admin/tenants", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Idempotency-Key": "a2180000-0000-4000-8000-000000000004" },
+      body: JSON.stringify({
+        display_name: "Minha organização",
+        slug: "minha-org",
+        owner_email: "owner@example.test",
+        plan: "pro",
+        subscription: {
+          status: "active",
+          billing_interval: "monthly",
+          price_cents: 15900,
+          currency: "BRL",
+          current_period_starts_at: started,
+          current_period_ends_at: ends,
+          trial_ends_at: null,
+          cancel_at_period_end: false,
+        },
+      }),
+    });
+
+    const response = await POST(requestWithSubscription);
+
+    expect(response.status).toBe(201);
+    expect(h.rpc).toHaveBeenCalledWith(
+      "fn_create_tenant_with_owner_subscription_limited",
+      expect.objectContaining({
+        p_request: expect.objectContaining({
+          plan: "pro",
+          subscription: expect.objectContaining({ status: "active", price_cents: 15900 }),
+        }),
+      }),
+    );
+    expect(h.audit).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "tenant.subscription_created", organizationId: org }),
+    );
+  });
+  it("não permite que admin global inicie assinatura comercial", async () => {
+    const requestWithSubscription = new NextRequest("http://localhost/api/v1/admin/tenants", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Idempotency-Key": "a2180000-0000-4000-8000-000000000005" },
+      body: JSON.stringify({
+        display_name: "Minha organização",
+        slug: "minha-org",
+        owner_email: "owner@example.test",
+        plan: "pro",
+        subscription: {
+          status: "active",
+          billing_interval: "monthly",
+          price_cents: null,
+          currency: "BRL",
+          current_period_starts_at: new Date().toISOString(),
+          current_period_ends_at: new Date(Date.now() + 30 * 24 * 60 * 60_000).toISOString(),
+          trial_ends_at: null,
+          cancel_at_period_end: false,
+        },
+      }),
+    });
+
+    expect((await POST(requestWithSubscription)).status).toBe(403);
+    expect(h.rpc).not.toHaveBeenCalled();
+    expect(h.invite).not.toHaveBeenCalled();
+  });
   it("replay recupera o convite sem reenviar nem duplicar audit da criação", async () => {
     h.rpc.mockResolvedValueOnce({ data: { id: org, created: false, invite_id: actor, issued_at: 12345 } });
     expect((await POST(request("guest@example.test"))).status).toBe(201);

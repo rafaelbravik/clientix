@@ -1,10 +1,10 @@
-<!-- traduzido-de: docs/white-label.md@25018b251a76 -->
+<!-- traduzido-de: docs/white-label.md@2a9a02a1886f -->
 
 [🇧🇷 Português](white-label.md) · [🇺🇸 English](white-label.en.md) · 🇪🇸 Español
 
 # Instalar para clientes (agencias y revendedores)
 
-Guía para quien instala DeskcommCRM **para otras empresas** — agencia, consultoría, revendedor — y cobra por ello.
+Guía para quien instala Clientix **para otras empresas** — agencia, consultoría, revendedor — y cobra por ello.
 
 La licencia es MIT: puedes modificarlo, alojarlo para terceros, revenderlo y cobrar lo que quieras. No hay regalías, no hay cláusula que prohíba el alojamiento comercial y no existe una versión de pago que bloquee funciones a tu cliente.
 
@@ -61,7 +61,7 @@ La configuración sobrevive a toda actualización. Por eso la marca se lee en ti
 
 ## Marca por organización
 
-**Una instalación atiende a varias organizaciones, y cada una puede tener su propia marca.** El admin de cada organización abre `Configurações → Marca` (`/app/settings/marca`) y define el **nombre**, el **color** y el **logo** de ella — sin necesitarte, y sin ver a las demás.
+**Una instalación atiende a varias organizaciones, y cada una puede tener su propia marca.** El admin de cada organización abre `Configuración → Marca` (`/app/settings/marca`) y define el **nombre**, el **color**, el **logo** y una **paleta de apariencia** — sin necesitarte y sin ver a las demás. La paleta puede ser la original, Océano, Arena o Verde natural; cambia fondos, superficies y bordes dentro de la empresa, con versiones clara y oscura. Cada persona sigue eligiendo el modo claro, oscuro o automático. El color de marca y el logo siguen siendo independientes, y Restaurar valores predeterminados devuelve solo la paleta a la apariencia original.
 
 La frontera, que es deliberada:
 
@@ -82,7 +82,7 @@ Directo, para que no lo descubras delante del cliente. Cada línea trae la razó
 
 - **Dominio por organización.** Una instalación, un dominio. No hay columna de dominio en el esquema, la bifurcación por host en `proxy.ts` es un NOOP declarado (existe solo como documentación de la topología pretendida), y en el Edge no hay base de datos que consultar antes de decidir a quién pertenece ese host. El cliente que exige su propio dominio pide **instalación dedicada**.
 - **Tipografía.** La tipografía es la misma en toda instalación. `next/font` resuelve en tiempo de **build**, y la imagen que baja tu VPS ya viene construida — un selector de fuente en el panel guardaría un valor que nadie leería. (La fuente es la Atkinson Hyperlegible, elegida por el Braille Institute por legibilidad; cambiarla no altera la percepción de marca y empeora la lectura de quien pasa el día dentro del sistema.)
-- **Tema.** El par claro/oscuro es del design system. Tu marca mueve el **accent** — lo que es acción, destaque y foco — y deliberadamente **no** mueve el fondo de la página: el fondo es el mismo en toda marca, y por eso el color de la barra del navegador también.
+- **Apariencia más allá de las paletas disponibles.** La organización puede elegir la apariencia original, Océano, Arena o Verde natural, con superficies para los modos claro y oscuro. No hay selector libre para el color de fondo ni ajustes independientes por componente. Cada persona elige el modo claro, oscuro o automático; el color de marca sigue controlando el accent y el logo continúa separado.
 - **El informe de LGPD del titular no lleva tu marca — y es a propósito.** Ver la sección propia más abajo.
 - **La alarma de presupuesto de IA** todavía sale con nuestra marca. Es la única fuga conocida, y se queda: hoy esa alarma no tiene ninguna programación conectada, así que arreglar su marca no cambiaría nada que alguien vea. Sale cuando la alarma tenga un cron de verdad.
 - **Dos nombres técnicos no cambian**: la cabecera `X-Deskcomm-Signature` de los webhooks de salida y la cookie de sesión. El primero es un contrato con sistemas de terceros que ya verifican ese nombre; renombrarlo tumbaría la integración de un cliente **en silencio** — el receptor no da error, simplemente deja de reconocer.

@@ -6,6 +6,18 @@ import { useT } from "@/hooks/i18n/useT";
 import { apiClient } from "@/lib/api/client";
 import { showApiError } from "@/components/feedback/ApiErrorToast";
 import type { AgentRow } from "@/hooks/ai/useAgent";
+
+export function agentOperationDescription(
+  operationMode: "automatic" | "assisted" | null | undefined,
+  paused: boolean,
+): string {
+  if (paused)
+    return "Automático pausado. A versão publicada foi preservada e a assistência continua disponível.";
+  if (operationMode === "assisted")
+    return "O modo assistido prepara sugestões na conversa. Só a aprovação humana autoriza o envio.";
+  return "No modo automático, o agente envia respostas sem aprovação humana, conforme as regras e limites configurados.";
+}
+
 export function AgentOperation({ agent, readOnly }: { agent: AgentRow; readOnly?: boolean }) {
   const t = useT(),
     router = useRouter(),
@@ -49,11 +61,7 @@ export function AgentOperation({ agent, readOnly }: { agent: AgentRow; readOnly?
         {t(agent.paused_at ? "Retomar automático" : "Pausar automático")}
       </Button>
       <p className="w-full text-xs text-muted-foreground">
-        {t(
-          agent.paused_at
-            ? "Automático pausado. A versão publicada foi preservada e a assistência continua disponível."
-            : "O modo assistido prepara sugestões na conversa. Só a aprovação humana autoriza o envio.",
-        )}
+        {t(agentOperationDescription(agent.operation_mode, Boolean(agent.paused_at)))}
       </p>
     </section>
   );

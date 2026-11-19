@@ -112,7 +112,7 @@ export function SetupWizard() {
             {t("O proprietário tem acesso global. A conta não foi vinculada a uma empresa; você poderá criar empresas e escolher o plano no painel.")}
           </p>
           <Button asChild className="w-full sm:w-auto">
-            <Link href="/login?next=%2Fadmin">{t("Entrar no painel global")}</Link>
+            <Link href="/login?next=%2Fowner">{t("Entrar no painel do proprietário")}</Link>
           </Button>
         </CardContent>
       </Card>

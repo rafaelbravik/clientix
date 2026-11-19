@@ -234,7 +234,8 @@ if [ -n "$DOCKER_REAL" ] && "$DOCKER_REAL" compose version >/dev/null 2>&1; then
   CRM="$WORK/crm"; mkdir -p "$CRM"
   cp "$ROOT/docker-compose.prod.yml" "$ROOT/docker-compose.single-server.yml" "$CRM/"
   printf '%s\n' 'SUPABASE_DB_URL=postgresql://postgres:x@supabase-db:5432/postgres' \
-    'DOMAIN=crm.exemplo.com' 'SINGLE_SERVER_NETWORK=deskcommcrm_supabase' > "$CRM/.env"
+    'DOMAIN=crm.exemplo.com' 'ACME_EMAIL=owner-certification@example.invalid' \
+    'SINGLE_SERVER_NETWORK=deskcommcrm_supabase' > "$CRM/.env"
   sem_rede="$(cd "$CRM" && env -i PATH="$PATH" HOME="$HOME" "$DOCKER_REAL" compose \
       -f docker-compose.prod.yml -f docker-compose.single-server.yml --profile '*' config --format json 2>/dev/null \
     | python3 -c '
@@ -300,7 +301,7 @@ env_sb_inicial
 SMTP_HOST=smtp.env.com SMTP_PORT=587 SMTP_USERNAME=u SMTP_PASSWORD=s SMTP_FROM_EMAIL=a@env.com PSQL_SMTP='' smtp; rc=$?
 check "sem linha no banco, cai no .env do CRM (como lib/email/config.ts)" \
   bash -c '[ "$1" -eq 0 ] && grep -qx "SMTP_HOST=\"smtp.env.com\"" "$2"' _ "$rc" "$SB/.env"
-check "sem nome de remetente, usa o nome da instalação" grep -qx 'SMTP_SENDER_NAME="DeskcommCRM"' "$SB/.env"
+check "sem nome de remetente, usa o nome da instalação" grep -qx 'SMTP_SENDER_NAME="Clientix"' "$SB/.env"
 
 env_sb_inicial
 SMTP_HOST=smtp.env.com SMTP_FROM_EMAIL=a@env.com PSQL_SMTP='\x1f587\x1f\x1f\x1f\x1f\n' smtp; rc=$?

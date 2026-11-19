@@ -119,7 +119,10 @@ export async function updateMarcaDaOrganizacao(
   // Os dois campos vazios significam "volte ao que vem da instalação", e é `null`
   // que a função entende como apagar a chave `branding` — limpar é sempre permitido.
   // Mas customizar marca exige que a instalação tenha capacidade can_white_label_tenant.
-  const limpar = parsed.data.app_name === null && parsed.data.accent_hex === null;
+  const limpar =
+    parsed.data.app_name === null &&
+    parsed.data.accent_hex === null &&
+    parsed.data.appearance_preset === null;
   if (!limpar) {
     const podeWhiteLabel = await hasInstallationCapability("can_white_label_tenant");
     if (!podeWhiteLabel) {
@@ -151,6 +154,7 @@ export async function updateMarcaDaOrganizacao(
         // "mudou?" ser uma pergunta com resposta.
         accent_hex:
           parsed.data.accent_hex === null ? null : normalizarHex(parsed.data.accent_hex),
+        appearance_preset: parsed.data.appearance_preset,
         updated_by: authUser.id,
         updated_at: new Date().toISOString(),
       };
@@ -205,6 +209,7 @@ export async function updateMarcaDaOrganizacao(
       fields_changed: Object.keys(parsed.data),
       accent_definido: parsed.data.accent_hex !== null,
       nome_definido: parsed.data.app_name !== null,
+      paleta_visual_definida: parsed.data.appearance_preset !== null,
     },
   });
 

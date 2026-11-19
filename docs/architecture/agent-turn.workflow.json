@@ -126,7 +126,7 @@
       "col": 3,
       "type": "backend",
       "label": "Turno IA",
-      "sublabel": "contexto + RAG · keyword admite conversa nova uma vez · tools no idioma da conversa · kinds: inbound_turn, followup_turn, case_reply_turn",
+      "sublabel": "contexto + RAG · sem base injeta limite factual · keyword admite conversa nova uma vez · tools no idioma da conversa · kinds: inbound_turn, followup_turn, case_reply_turn",
       "tag": "runAgentTurn"
     },
     {
@@ -501,7 +501,7 @@
       "id": "routerconfig-turn",
       "from": "routerconfig",
       "to": "turn",
-      "label": "classifica a intenção e decide o agentConfig do turno",
+      "label": "classifica a intenção e decide o agentConfig; sem material injeta limite factual no system",
       "variant": "dashed",
       "fromSide": "right",
       "toSide": "right",

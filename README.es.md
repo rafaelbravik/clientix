@@ -198,7 +198,7 @@ estaba ocupada, declarar `SUPABASE_DB_ADMIN_URL` cuando fue permiso). Restaurar 
 
 **Clientix Agência** es una plataforma completa de operación comercial y atención omnicanal para agencias, clínicas, empresas y prestadores de servicios, operada por equipos humanos y agentes de IA autónomos integrados.
 
-> *Nota de linaje técnico: Este proyecto evolucionó a partir de la base open source DeskcommCRM, consolidando arquitectura multi-tenant robusta, automatizaciones multicanal y seguridad avanzada.*
+> *Linaje técnico: Clientix evoluciona a partir de una base open source anterior y continúa su trabajo comunitario, con arquitectura multi-tenant, automatizaciones multicanal y seguridad avanzada.*
 
 El proyecto sirve a **agencias, clínicas, inmobiliarias, infoproductos, e-commerce y empresas de servicios** — cualquier operación moderna de ventas y atención. La plataforma ofrece un **sistema operativo comercial completo**: agentes de IA con RAG por tenant atienden, califican, mueven leads en el embudo, disparan automatizaciones y saben cuándo transferir la conversación a un agente humano — con todo el CRM expuesto vía **MCP** para que los agentes operen con herramientas reales. La visión estratégica detallada está en [`VISION.md`](VISION.md).
 

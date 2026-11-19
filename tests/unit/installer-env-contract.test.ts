@@ -16,6 +16,31 @@ async function readInstallerTemplateKeys() {
 }
 
 describe("commercial installer runtime environment contract", () => {
+  it("grants the local Customer the license reader group without adding privileges", async () => {
+    const compose = await fs.readFile(path.resolve("docker-compose.local.yml"), "utf8");
+    const appService = compose.match(/  app:\n([\s\S]*?)\n  worker:/)?.[1] ?? "";
+
+    expect(appService).toContain(`group_add:\n      - "${LICENSE_RUNTIME_READER_GID}"`);
+    expect(appService).not.toContain("privileged:");
+    expect(appService).not.toContain("cap_add:");
+  });
+
+  it("builds the local worker with the same certification trust root as the local app", async () => {
+    const compose = await fs.readFile(path.resolve("docker-compose.local.yml"), "utf8");
+    const appService = compose.match(/  app:\n([\s\S]*?)\n  worker:/)?.[1] ?? "";
+    const workerService = compose.match(/  worker:\n([\s\S]*?)\n  scheduler:/)?.[1] ?? "";
+
+    expect(appService).toContain("CLIENTIX_CERTIFICATION_KEY_ID: ${CLIENTIX_CERTIFICATION_KEY_ID}");
+    expect(appService).toContain(
+      "CLIENTIX_CERTIFICATION_PUBLIC_KEY_B64: ${CLIENTIX_CERTIFICATION_PUBLIC_KEY_B64}",
+    );
+    expect(workerService).toContain("target: worker-certification");
+    expect(workerService).toContain("TEST_LICENSE_KEY_ID: ${CLIENTIX_CERTIFICATION_KEY_ID}");
+    expect(workerService).toContain(
+      "TEST_LICENSE_PUBLIC_KEY_BASE64: ${CLIENTIX_CERTIFICATION_PUBLIC_KEY_B64}",
+    );
+  });
+
   it("persists the strict ingress policy in the HostGator-generated environment", async () => {
     const installer = await fs.readFile(path.resolve("hostgator-setup-kit/install.sh"), "utf8");
     const start = installer.indexOf("  printf '# Gerado por install.sh");
@@ -24,6 +49,14 @@ describe("commercial installer runtime environment contract", () => {
 
     expect(generatedEnvBlock).toContain('envq CLIENTIX_INGRESS_MODE "production"');
     expect(generatedEnvBlock).toContain('envq CLIENTIX_ALLOW_INSECURE_HTTP "false"');
+    expect(generatedEnvBlock).toContain('envq CLIENTIX_LICENSE_SERVER_URL "${CLIENTIX_LICENSE_SERVER_URL:-}"');
+  });
+
+  it("configures and validates the Vendor license endpoint in the commercial installer", async () => {
+    const installer = await fs.readFile(path.resolve("distribution/installer/install.sh"), "utf8");
+    expect(installer).toContain("validate_license_server_config required");
+    expect(installer).toContain("validate_license_server_config optional");
+    expect(installer).toContain("LICENSE_SERVER_URL_INVALID");
   });
 
   it("declares app, worker, scheduler, voice, and migration inputs in the distribution template", async () => {
@@ -37,6 +70,7 @@ describe("commercial installer runtime environment contract", () => {
       "CLIENTIX_ACME_DNS_PROVIDER",
       "NEXT_PUBLIC_APP_URL",
       "NEXT_PUBLIC_ADMIN_URL",
+      "CLIENTIX_LICENSE_SERVER_URL",
       "NEXT_PUBLIC_SUPABASE_URL",
       "NEXT_PUBLIC_SUPABASE_ANON_KEY",
       "SUPABASE_SERVICE_ROLE_KEY",
@@ -88,7 +122,9 @@ describe("commercial installer runtime environment contract", () => {
     expect(template).not.toMatch(/^CLOUDFLARE_API_TOKEN=/m);
     expect(compose).toContain("caddy:2.11.7-alpine@sha256:");
     expect(dnsCompose).toContain("CADDY_IMAGE:?a signed release manifest");
-    expect(dnsCompose).toContain("source: ${CLIENTIX_CLOUDFLARE_TOKEN_FILE:?DNS-01 external secret path is required}");
+    expect(dnsCompose).toContain(
+      "source: ${CLIENTIX_CLOUDFLARE_TOKEN_FILE:?DNS-01 external secret path is required}",
+    );
     expect(dnsCompose).toContain("read_only: true");
     expect(dnsCompose).toContain("create_host_path: false");
     expect(dnsCompose).not.toContain("state/secrets/cloudflare-api-token");
@@ -116,7 +152,7 @@ describe("commercial installer runtime environment contract", () => {
     expect(installer).toContain("validate_external_cloudflare_secret_file");
     expect(installer).toContain("compose exec -T caddy");
     expect(installer).toContain("remove_legacy_cloudflare_secret_after_ready");
-    expect(installer).not.toContain('printf \'%s\' "$CLOUDFLARE_API_TOKEN"');
+    expect(installer).not.toContain("printf '%s' \"$CLOUDFLARE_API_TOKEN\"");
   });
 
   it("mounts licenses writable only for the app and grants the canonical reader group to app, worker, and voice", async () => {

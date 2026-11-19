@@ -132,6 +132,15 @@ ok "rejeita com https://"     reject v_domain "https://crm.empresa.com.br"  "sem
 ok "rejeita com caminho"      reject v_domain "crm.empresa.com.br/app"      "sem barra"
 ok "rejeita sem ponto"        reject v_domain "localhost"                   "falta o ponto"
 
+echo "servidor de licenças"
+ok "aceita URL base HTTPS do Vendor" pass v_license_server_url "https://licencas.empresa.com.br"
+ok "aceita URL HTTPS do Vendor atrás de caminho de proxy" pass v_license_server_url "https://empresa.com.br/licencas"
+ok "permite deixar a URL vazia antes de configurar o Vendor" pass v_license_server_url ""
+ok "rejeita HTTP sem TLS" reject v_license_server_url "http://licencas.empresa.com.br" "HTTPS"
+ok "rejeita URL sem esquema" reject v_license_server_url "licencas.empresa.com.br" "HTTPS"
+ok "rejeita credenciais embutidas" reject v_license_server_url "https://user:pass@licencas.empresa.com.br" "HTTPS"
+ok "rejeita query e fragmento" reject v_license_server_url "https://licencas.empresa.com.br/api?token=x" "HTTPS"
+
 echo "e-mail"
 ok "aceita e-mail válido"     pass   v_email "voce@empresa.com.br"
 ok "rejeita sem @"            reject v_email "voce.empresa.com.br"          "inválido"
@@ -1869,12 +1878,12 @@ chegou_na_deteccao() {
 # Quem acrescentar pergunta interativa ao install.sh acrescenta a resposta aqui,
 # na mesma posição relativa.
 #
-# Contagem de Enters antes do 'c', medida com
-#   eval "$(grep -m1 '^RESTO_DAS_PERGUNTAS=' test-validators.sh)"
-#   printf '%s' "${RESTO_DAS_PERGUNTAS%%c*}" | grep -c ''
-# → era 9 antes de APP_ACCENT_HEX entrar em FIELDS, 10 depois dela, e é 11
-#   desde que APP_LOCALE (o idioma da instalação) entrou logo após APP_NAME.
-RESTO_DAS_PERGUNTAS=$'\n\n\n\n\n\n\n\n\n\n\n\nc\n'
+# Treze Enters até o prompt do DNS: escolha do provedor, dez campos interativos,
+# confirmação dos dados e consentimento de telemetria. Um campo opcional novo
+# também consome uma linha quando fica vazio; a URL do License Server entrou
+# depois do último ajuste desta fila. Quem acrescentar pergunta deve atualizar
+# esta sequência, mantendo a cor na posição 7.
+RESTO_DAS_PERGUNTAS=$'\n\n\n\n\n\n\n\n\n\n\n\n\nc\n'
 
 # A posição da cor DENTRO da fila acima — SUPABASE_ACCESS_TOKEN + 1 provedor +
 # APP_IMAGE + OPENAI + APP_NAME + APP_LOCALE e ela é a 7ª. Fica numa variável porque a fila com a cor RESPONDIDA
@@ -2654,7 +2663,7 @@ STUB
 
   # 1. Recusa. O sintoma do defeito era instalar em silêncio; qualquer coisa que
   #    não seja parar aqui é o defeito de volta.
-  if ! printf '%s' "$saida" | grep -q 'Já existe um DeskcommCRM NO AR'; then
+  if ! printf '%s' "$saida" | grep -q 'Já existe um Clientix NO AR'; then
     printf '  ✗ NÃO recusou a instalação por cima da que está no ar\n'
     printf '     últimas linhas: %s\n' "$(printf '%s' "$saida" | tail -3 | tr '\n' ' ')"; exit 1
   fi
@@ -2695,7 +2704,7 @@ STUB2
   chmod +x "$VPS_RAIZ/bin/docker"
   saida="$(rodar install.sh --yes)"
   chegou_na_deteccao || exit 1
-  if printf '%s' "$saida" | grep -q 'Já existe um DeskcommCRM NO AR'; then
+  if printf '%s' "$saida" | grep -q 'Já existe um Clientix NO AR'; then
     printf '  ✗ bloqueou a RE-EXECUÇÃO legítima (mesma árvore) — o kit manda rodar de novo\n'; exit 1
   fi
   printf '  ✓ e a re-execução de dentro da própria árvore continua passando\n'
@@ -3266,10 +3275,10 @@ reexec_ok() {
   achou="$(cd "$dir" && KIT_DIR="$raiz" bash -c "
     set +e
     $linha
-    printf '%s' \"\$CONHECIDAS\" | grep -c . 
+    printf '%s\\n' \"\$CONHECIDAS\" | grep -cx DOMAIN
   " install.sh 2>/dev/null)"
   rm -rf "$raiz"
-  if [ "${achou:-0}" -gt 0 ]; then printf '  ✓ %s (%s vars)\n' "$desc" "$achou"
+  if [ "${achou:-0}" -eq 1 ]; then printf '  ✓ %s (DOMAIN presente)\n' "$desc"
   else printf '  ✗ %s — o kit não se encontra depois do cd; a 2ª execução morre\n' "$desc"; fail=1; fi
 }
 # O CONTROLE NEGATIVO. Ele foi PROMETIDO por escrito no comentário acima e
@@ -3303,19 +3312,20 @@ reexec_neg() {
     *) printf '  ✗ controle negativo — a linha CONHECIDAS= não usa mais $KIT_DIR; o defeito voltou ou o caso perdeu o alvo\n'; fail=1; rm -rf "$raiz"; return;;
   esac
   # A forma ANTIGA, reconstruída a partir da linha real: o `$KIT_DIR/install.sh`
+  # DOMAIN é lido de envq; OWNER_EMAIL/OWNER_PASSWORD são fallback legado e não provam que o kit foi localizado.
   # vira `"$0"`, e nada mais muda.
   linha="${linha//\"\$KIT_DIR\/install.sh\"/\"\$0\"}"
   achou="$(cd "$dir" && KIT_DIR="$raiz" bash -c "
     set +e
     $linha
-    printf '%s' \"\$CONHECIDAS\" | grep -c .
+    printf '%s\\n' \"\$CONHECIDAS\" | grep -cx DOMAIN
   " install.sh 2>/dev/null)"
   rm -rf "$raiz"
-  if [ "${achou:-0}" -eq 0 ]; then printf '  ✓ controle negativo: com "$0" relativo depois do cd, o kit NÃO se acha\n'
-  else printf '  ✗ controle negativo FALHOU — a sonda achou %s vars mesmo com o defeito; ela não distingue nada\n' "$achou"; fail=1; fi
+  if [ "${achou:-0}" -eq 0 ]; then printf '  ✓ controle negativo: com "$0" relativo depois do cd, DOMAIN não aparece\n'
+  else printf '  ✗ controle negativo FALHOU — DOMAIN apareceu mesmo simulando o defeito\n'; fail=1; fi
 }
 reexec_neg
-reexec_ok "o bloco de variáveis conhecidas acha o kit depois do cd"
+reexec_ok "o bloco de variáveis conhecidas lê DOMAIN depois do cd"
 
 echo "cron numa VPS sem crontab nenhum (#715)"
 # VPS nova não tem crontab para o root: `crontab -l` sai 1. As rodadas acima
@@ -3594,14 +3604,17 @@ else
   printf '  ✓ a tela de retomada avisa que o token de conta é perguntado de novo\n'
 fi
 
-echo "first-run: instalador entrega token protegido e deixa a criação do owner ao assistente"
+echo "first-run: /setup cria o owner e /owner cadastra empresas"
 if ! grep -q 'envq CLIENTIX_BOOTSTRAP_TOKEN' ./install.sh \
   || ! grep -q 'chmod 600 "$BOOTSTRAP_TOKEN_TMP"' ./install.sh \
   || ! grep -q 'https://${DOMAIN}/setup' ./install.sh \
-  || grep -q 'fn_bootstrap_first_tenant' ./install.sh; then
-  printf '  ✗ o instalador não protegeu o token ou ainda cria o owner fora do assistente\n'; fail=1
+  || grep -q 'fn_bootstrap_first_tenant' ./install.sh \
+  || ! grep -Fq 'O assistente /setup cria apenas o proprietário global.' ./install.sh \
+  || ! grep -Fq 'com a licença ativa, cadastre as empresas em /owner' ./install.sh \
+  || grep -Fq 'primeira empresa' ./install.sh; then
+  printf '  ✗ o instalador não protegeu o token ou confundiu o setup do proprietário com o cadastro de empresas\n'; fail=1
 else
-  printf '  ✓ token protegido; owner criado somente pelo fluxo transacional /setup\n'
+  printf '  ✓ token protegido; /setup cria o owner e /owner recebe as empresas\n'
 fi
 
 echo "política TLS PostgreSQL: URI remota sempre valida CA/hostname; exceção local explícita"

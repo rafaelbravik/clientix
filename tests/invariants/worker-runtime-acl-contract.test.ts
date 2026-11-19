@@ -33,6 +33,7 @@ const tableContract = {
   ai_models: ['SELECT'],
   ai_provider_credentials: ['SELECT'],
   ai_purpose_bindings: ['SELECT'],
+  ai_reply_drafts: ['SELECT', 'UPDATE'],
   ai_router_decisions: ['INSERT'],
   ai_router_members: ['SELECT'],
   ai_routers: ['SELECT'],
@@ -121,6 +122,8 @@ const serviceFunctions = [
   'public.fn_meet_delivery_policy(uuid,uuid,text,timestamptz)',
   'public.fn_meet_delivery_settle(uuid,uuid,text,timestamptz,text,timestamptz)',
   'public.fn_org_operante(uuid)',
+  'public.fn_reply_begin(uuid,uuid,uuid,uuid,uuid)',
+  'public.fn_reply_context_current(uuid,uuid)',
   'public.fn_reply_delivery_policy(uuid,uuid,text,timestamptz)',
   'public.fn_reply_prepare(uuid,uuid,text,timestamptz)',
   'public.fn_reply_receipt_policy(uuid,uuid,text,timestamptz)',
@@ -145,6 +148,8 @@ const workerFunctions = [
   'public.fn_meet_delivery_policy(uuid,uuid,text,timestamptz)',
   'public.fn_meet_delivery_settle(uuid,uuid,text,timestamptz,text,timestamptz)',
   'public.fn_org_operante(uuid)',
+  'public.fn_reply_begin(uuid,uuid,uuid,uuid,uuid)',
+  'public.fn_reply_context_current(uuid,uuid)',
   'public.fn_reply_delivery_policy(uuid,uuid,text,timestamptz)',
   'public.fn_reply_receipt_policy(uuid,uuid,text,timestamptz)',
   'public.fn_reply_settle(uuid,uuid,text,timestamptz,text,text)',
@@ -223,6 +228,13 @@ describe('contrato completo de ACL do worker', () => {
       );
       await client.query(triggerAclMigration);
       await client.query(triggerAclMigration);
+
+      const replyDraftAclMigration = readFileSync(
+        resolve(process.cwd(), 'supabase/migrations/20261117000700_9064_agent_worker_reply_draft_acl.sql'),
+        'utf8',
+      );
+      await client.query(replyDraftAclMigration);
+      await client.query(replyDraftAclMigration);
 
       const missing = await client.query(
         `with required(table_name, privilege) as (values ${requiredValues})

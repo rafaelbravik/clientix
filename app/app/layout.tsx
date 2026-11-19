@@ -12,6 +12,10 @@ import { MfaEnrollGate } from "@/components/auth/MfaEnrollGate";
 import { cssDaMarca, ESCOPO_DA_ORGANIZACAO } from "@/lib/branding/css";
 import { marcaDaInstalacao } from "@/lib/branding/instalacao";
 import { resolverMarcaDaOrganizacao } from "@/lib/branding/organizacao";
+import {
+  paletaVisualDaOrganizacao,
+  type PaletaVisualOrganizacao,
+} from "@/lib/branding/paleta-organizacao";
 import { env } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { modulosLigados } from "@/lib/instalacao/modulos";
@@ -57,6 +61,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
    * e não aqui: a precedência é regra do produto, não detalhe deste layout.
    */
   let cssDaOrganizacao: string | null = null;
+  let paletaVisual: PaletaVisualOrganizacao | null = null;
 
   // EPIC-02: gate /app/* on completed onboarding.
   // EPIC-11: gate /app/* on org not being suspended (S-11.08).
@@ -114,6 +119,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     if (orgRes.error) {
       throw new Error(`organizacao_ilegivel: ${orgRes.error.message}`);
     }
+    paletaVisual = paletaVisualDaOrganizacao(orgRow?.settings ?? null);
     conexoesCaidas = conexoes;
     enrolled = isEnrolled;
     needsMfaGate = mfaRequired;
@@ -258,7 +264,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         veria a tela de cadastro de MFA — a PRIMEIRA tela dele — com a cor da
         instalação, e depois o resto do produto com a dele.
       */}
-      <div data-marca-org="" className="contents">
+      <div
+        data-marca-org=""
+        data-appearance-preset={paletaVisual ?? undefined}
+        className="contents"
+      >
         <EstiloDaMarcaDaOrganizacao css={cssDaOrganizacao} />
         <ImpersonateBanner impersonating={impersonating} />
         <ConexaoCaidaBanner caidas={conexoesCaidas} />

@@ -6,6 +6,8 @@
 - **Lei que muda quando aceita:** [`docs/doctrine/operacao-de-agentes.md`](../doctrine/operacao-de-agentes.md) — §0, §1, a brecha "Faturamento e planos" da §3 e as proibições 2 e 3 da §4 — e, **só para este caso**, a condição 2 da [ADR-0002](0002-tabelas-de-modulo-num-banco-so.md)
 - **Desenho que a detalha:** [`docs/superpowers/specs/2026-09-29-cobranca-do-revendedor-design.md`](../superpowers/specs/2026-09-29-cobranca-do-revendedor-design.md)
 
+> **Atualização de escopo:** a [ADR-0005](0005-cloud-direto-e-assinatura-por-tenant.md), aceita em 2026-11-17, atualiza a linha do mantenedor: o projeto pode vender acesso Cloud direto por assinatura de tenant. A decisão desta ADR continua válida para proprietários de instalações self-hosted que cobram seus próprios tenants; o Control Plane Vendor continua cuidando das licenças `ACT_...` de instalação.
+
 ---
 
 ## Contexto

@@ -61,7 +61,7 @@ export async function GET(
   }
 
   const settings = (org.settings as Record<string, unknown>) || {};
-  const limits = await resolveTenantPlanLimitsFromCatalog(admin as unknown as SupabaseClient, settings);
+  const limits = await resolveTenantPlanLimitsFromCatalog(admin as unknown as SupabaseClient, settings, id);
   if (!limits) {
     return fail("upstream_unavailable", "Não foi possível validar o catálogo de planos da instalação.", 503, { requestId });
   }
@@ -126,6 +126,20 @@ export async function PATCH(
   const planClient = admin as unknown as SupabaseClient;
 
   if (plan) {
+    const { data: subscription, error: subscriptionError } = await planClient
+      .from("tenant_plan_subscriptions" as never)
+      .select("plan_slug, status")
+      .eq("organization_id", id)
+      .in("status", ["trialing", "active", "past_due", "suspended"])
+      .maybeSingle();
+    if (subscriptionError) {
+      return fail("upstream_unavailable", "Não foi possível conferir a assinatura atual da empresa.", 503, { requestId });
+    }
+    const subscriptionRow = subscription as { plan_slug?: string } | null;
+    if (subscriptionRow && subscriptionRow.plan_slug !== plan) {
+      return fail("conflict", "Esta empresa possui uma assinatura. Altere o plano na gestão de assinatura.", 409, { requestId });
+    }
+
     const { data: planRow, error: planError } = await planClient
       .from("platform_plan_catalog")
       .select("slug, active")
@@ -163,7 +177,7 @@ export async function PATCH(
       : {}),
   };
 
-  const resolvedLimits = await resolveTenantPlanLimitsFromCatalog(planClient, newSettings);
+  const resolvedLimits = await resolveTenantPlanLimitsFromCatalog(planClient, newSettings, id);
   if (!resolvedLimits) {
     return fail("upstream_unavailable", "Não foi possível validar os limites finais do plano.", 503, { requestId });
   }

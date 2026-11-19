@@ -32,6 +32,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { fail } from "@/lib/api/wrappers";
 import { env } from "@/lib/env";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { estadoDaVoz, instalacaoOfereceVoz, type EscolhaDeVoz } from "@/lib/voice/opt-in";
 import { checkFeatureQuota } from "@/lib/tenant/plan-limits";
 
@@ -90,10 +91,11 @@ export async function exigirVozLigada(
    */
   opts: { requestId?: string; instalacaoOferece?: boolean } = {},
 ): Promise<Response | null> {
-  // Consentimento e disponibilidade da instalação não substituem o plano. A
-  // leitura usa o client já autenticado e escopa a organização explicitamente;
-  // erro/ausência de configuração resulta em recusa pelo helper de quota.
-  const entitlement = await checkFeatureQuota(supabase, organizationId, "voice_calls");
+  // Consentimento e disponibilidade da instalação não substituem o plano.
+  // O catálogo e as assinaturas são privados ao service_role; a consulta fica
+  // limitada ao organizationId já resolvido pelo guard da rota. A configuração
+  // de voz da empresa abaixo continua sendo lida com o client da sessão.
+  const entitlement = await checkFeatureQuota(createAdminClient(), organizationId, "voice_calls");
   if (!entitlement.allowed) {
     return fail(
       "feature_not_available",

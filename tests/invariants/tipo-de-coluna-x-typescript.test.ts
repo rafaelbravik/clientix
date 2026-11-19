@@ -1,5 +1,6 @@
 import { readFileSync, readdirSync } from "node:fs";
 
+import * as ts from "typescript";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -379,94 +380,179 @@ function iniciaisAtePontoEVirgula(fonte: string, desde: number): string {
   return fonte.slice(desde);
 }
 
-/**
- * Alarga um IDENTIFICADOR ao primitivo que ele representa.
- *
- * `ProvedorComChave = (typeof PROVEDORES_COM_CHAVE)[number]["id"]` é string
- * (toda união de literais de string é string), mas saber disso exige seguir a
- * cadeia até os literais. O que este extrator SABE fazer:
- *
- *  - união de literais de string (`"a" | "b"`) → `string`;
- *  - `(typeof C)[number]["campo"]` → lê os literais de `campo` nas constantes
- *    citadas (com expansão de spread) e, se todos forem string, → `string`;
- *  - primitivo direto (`string`, `number`, …) → ele mesmo.
- *
- * Qualquer outra forma LANÇA. Devolver `string` por palpite transformaria o
- * invariante na terceira lista manuscrita que ele existe para proibir.
- */
-function alargaIdentificador(id: string): string {
-  if (/^(string|number|boolean)$/.test(id)) return id;
-  for (const raiz of RAIZES_DE_TIPO) {
-    for (const rel of arquivosDeTipo(raiz)) {
-      const caminho = `${raiz}/${rel}`;
-      let fonte: string;
-      try {
-        fonte = semComentarios(readFileSync(caminho, "utf8"));
-      } catch {
-        continue;
-      }
-      const decl = new RegExp(`\\b(?:export\\s+)?type\\s+${id}\\s*=\\s*([^;]+);`).exec(fonte);
-      if (!decl) continue;
-      const rhs = decl[1]!.replace(/\s+/g, " ").trim();
+type TipoResolvido = { ts: string | null; nulo: boolean };
 
-      // união de literais de string
-      const membros = rhs.split("|").map((s) => s.trim());
-      if (membros.length > 0 && membros.every((m) => /^"[^"]*"$/.test(m))) return "string";
-      if (membros.length > 0 && membros.every((m) => /^-?\d+(\.\d+)?$/.test(m))) return "number";
-
-      // (typeof C)[number]["campo"]
-      const t = /^\(typeof\s+(\w+)\)\s*\[\s*number\s*\]\s*\[\s*"(\w+)"\s*\]$/.exec(rhs);
-      if (t) {
-        const literais = literaisDeCampo(t[1]!, t[2]!);
-        if (literais.length === 0) {
-          throw new Error(
-            `extrator de tipo: ${id} deriva de (typeof ${t[1]})[number]["${t[2]}"], mas não ` +
-              `achei nenhum literal de ${t[2]} nas constantes citadas. Lista vazia aqui seria ` +
-              `comparação por vacuidade — ensine o extrator.`,
-          );
-        }
-        if (literais.every((v) => typeof v === "string")) return "string";
-        throw new Error(
-          `extrator de tipo: ${id} não é união de string e este extritor não sabe alargar ` +
-            `o tipo — ensine, em vez de chutar.`,
-        );
-      }
-
-      throw new Error(
-        `extrator de tipo: não sei alargar \`${id}\` (= \`${rhs.slice(0, 80)}\`). ` +
-          `Ensinando alargaIdentificador é o conserto: chutar \`string\` faria o par ` +
-          `passar por palpite, que é o defeito que este invariante existe para pegar.`,
-      );
-    }
-  }
-  throw new Error(`extrator de tipo: não achei a declaração de \`${id}\` em nenhuma raiz.`);
+function falhaExtrator(motivo: string): never {
+  throw new Error(`extrator de tipo: ${motivo} — ensine o extrator; não adivinhe.`);
 }
 
-/** Tipo declarado no campo → primitivo alargado + nulidade declarada. */
-function tipoTs(declarado: string): { ts: string; nulo: boolean } {
-  const bruto = declarado.trim();
-  const membros = bruto.split("|").map((s) => s.trim()).filter(Boolean);
-  const semNulo = membros.filter((m) => m !== "null" && m !== "undefined");
-  const nulo = semNulo.length !== membros.length;
-  if (semNulo.length === 0) {
-    throw new Error(`extrator de tipo: \`${bruto}\` não tem tipo nenhum além de null.`);
+function parseTipo(texto: string): { fonte: ts.SourceFile; tipo: ts.TypeNode } {
+  const fonte = ts.createSourceFile(
+    "<tipo-extraido>.ts",
+    `type __TipoExtraido = ${texto};`,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const declaracao = fonte.statements.find(ts.isTypeAliasDeclaration);
+  if (!declaracao || (fonte as ts.SourceFile & { parseDiagnostics: readonly ts.Diagnostic[] }).parseDiagnostics.length > 0) {
+    return falhaExtrator(`não consegui analisar o tipo ${JSON.stringify(texto)}`);
   }
-  if (semNulo.length > 1) {
-    throw new Error(
-      `extrator de tipo: \`${bruto}\` é união de tipos diferentes — não sei alargar ` +
-        `sem chutar. Ensine o extrator.`,
+  return { fonte, tipo: declaracao.type };
+}
+
+function parseExpressao(texto: string): ts.Expression {
+  const fonte = ts.createSourceFile(
+    "<initializer-extraido>.ts",
+    `const __ValorExtraido = ${texto};`,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const declaracao = fonte.statements.find(ts.isVariableStatement)?.declarationList.declarations[0];
+  if (!declaracao?.initializer || (fonte as ts.SourceFile & { parseDiagnostics: readonly ts.Diagnostic[] }).parseDiagnostics.length > 0) {
+    return falhaExtrator(`não consegui analisar o initializer ${JSON.stringify(texto.slice(0, 80))}`);
+  }
+  return declaracao.initializer;
+}
+
+function combinarTipos(tipos: TipoResolvido[], contexto: string): TipoResolvido {
+  const concretos = [...new Set(tipos.flatMap((tipo) => (tipo.ts === null ? [] : [tipo.ts])))];
+  if (concretos.length !== 1) {
+    return falhaExtrator(
+      `a união ${JSON.stringify(contexto)} ${concretos.length === 0 ? "não tem tipo além de null/undefined" : `mistura domínios (${concretos.join(", ")})`}`,
     );
   }
-  let um = semNulo[0]!.replace(/^\(|\)$/g, "").trim();
-  let array = false;
-  if (um.endsWith("[]")) {
-    array = true;
-    um = um.slice(0, -2).trim();
-  }
-  const base = /^(string|number|boolean)$/.test(um) ? um : alargaIdentificador(um);
-  return { ts: array ? `${base}[]` : base, nulo };
+  return {
+    ts: concretos[0]!,
+    nulo: tipos.some((tipo) => tipo.nulo || tipo.ts === null),
+  };
 }
 
+function resolverConstante(nome: string, vistos: Set<string>): string {
+  const chave = `const:${nome}`;
+  if (vistos.has(chave)) return falhaExtrator(`initializer cíclico em ${JSON.stringify(nome)}`);
+  const initializer = iniciaisDe(nome);
+  if (initializer === null) return falhaExtrator(`não achei o initializer de ${JSON.stringify(nome)}`);
+
+  const proximaVista = new Set(vistos).add(chave);
+  let expressao = parseExpressao(initializer);
+  while (
+    ts.isParenthesizedExpression(expressao) ||
+    ts.isAsExpression(expressao) ||
+    ts.isTypeAssertionExpression(expressao) ||
+    ts.isSatisfiesExpression(expressao) ||
+    ts.isNonNullExpression(expressao)
+  ) {
+    expressao = expressao.expression;
+  }
+  if (ts.isStringLiteral(expressao) || ts.isNoSubstitutionTemplateLiteral(expressao)) return "string";
+  if (ts.isNumericLiteral(expressao)) return "number";
+  if (expressao.kind === ts.SyntaxKind.TrueKeyword || expressao.kind === ts.SyntaxKind.FalseKeyword) {
+    return "boolean";
+  }
+  if (ts.isPrefixUnaryExpression(expressao) && ts.isNumericLiteral(expressao.operand)) return "number";
+  if (ts.isIdentifier(expressao)) return resolverConstante(expressao.text, proximaVista);
+  return falhaExtrator(`não resolvi com segurança o initializer de ${JSON.stringify(nome)}`);
+}
+
+function resolverTipo(tipo: ts.TypeNode, fonte: ts.SourceFile, vistos = new Set<string>()): TipoResolvido {
+  if (ts.isParenthesizedTypeNode(tipo)) return resolverTipo(tipo.type, fonte, vistos);
+  if (ts.isUnionTypeNode(tipo)) {
+    return combinarTipos(tipo.types.map((membro) => resolverTipo(membro, fonte, vistos)), tipo.getText(fonte));
+  }
+  if (ts.isArrayTypeNode(tipo)) {
+    const elemento = resolverTipo(tipo.elementType, fonte, vistos);
+    if (elemento.ts === null || elemento.nulo) {
+      return falhaExtrator(`array com elemento nullable não resolvido: ${JSON.stringify(tipo.getText(fonte))}`);
+    }
+    return { ts: `${elemento.ts}[]`, nulo: false };
+  }
+  if (tipo.kind === ts.SyntaxKind.NullKeyword || tipo.kind === ts.SyntaxKind.UndefinedKeyword) {
+    return { ts: null, nulo: true };
+  }
+  if (tipo.kind === ts.SyntaxKind.StringKeyword) return { ts: "string", nulo: false };
+  if (tipo.kind === ts.SyntaxKind.NumberKeyword) return { ts: "number", nulo: false };
+  if (tipo.kind === ts.SyntaxKind.BooleanKeyword) return { ts: "boolean", nulo: false };
+  if (ts.isLiteralTypeNode(tipo)) {
+    const literal = tipo.literal;
+    if (ts.isStringLiteral(literal) || ts.isNoSubstitutionTemplateLiteral(literal)) {
+      return { ts: "string", nulo: false };
+    }
+    if (ts.isNumericLiteral(literal)) return { ts: "number", nulo: false };
+    if (literal.kind === ts.SyntaxKind.TrueKeyword || literal.kind === ts.SyntaxKind.FalseKeyword) {
+      return { ts: "boolean", nulo: false };
+    }
+    if (literal.kind === ts.SyntaxKind.NullKeyword) return { ts: null, nulo: true };
+    return falhaExtrator(`literal sem domínio comparável: ${JSON.stringify(tipo.getText(fonte))}`);
+  }
+  if (ts.isTypeQueryNode(tipo)) {
+    if (!ts.isIdentifier(tipo.exprName)) {
+      return falhaExtrator(`type query não resolvido: ${JSON.stringify(tipo.getText(fonte))}`);
+    }
+    return { ts: resolverConstante(tipo.exprName.text, vistos), nulo: false };
+  }
+  if (ts.isTypeReferenceNode(tipo)) {
+    if (!ts.isIdentifier(tipo.typeName)) {
+      return falhaExtrator(`referência qualificada não resolvida: ${JSON.stringify(tipo.getText(fonte))}`);
+    }
+    const nome = tipo.typeName.text;
+    if (nome === "Array" && tipo.typeArguments?.length === 1) {
+      const elemento = resolverTipo(tipo.typeArguments[0]!, fonte, vistos);
+      if (elemento.ts === null || elemento.nulo) {
+        return falhaExtrator(`array com elemento nullable não resolvido: ${JSON.stringify(tipo.getText(fonte))}`);
+      }
+      return { ts: `${elemento.ts}[]`, nulo: false };
+    }
+    const chave = `type:${nome}`;
+    if (vistos.has(chave)) return falhaExtrator(`alias cíclico em ${JSON.stringify(nome)}`);
+    for (const raiz of RAIZES_DE_TIPO) {
+      for (const rel of arquivosDeTipo(raiz)) {
+        let conteudo: string;
+        try {
+          conteudo = semComentarios(readFileSync(`${raiz}/${rel}`, "utf8"));
+        } catch {
+          continue;
+        }
+        const declaracao = new RegExp(`\\b(?:export\\s+)?type\\s+${nome}\\s*=\\s*([^;]+);`).exec(conteudo);
+        if (!declaracao) continue;
+        const proximaVista = new Set(vistos).add(chave);
+        const alias = parseTipo(declaracao[1]!.trim());
+        return resolverTipo(alias.tipo, alias.fonte, proximaVista);
+      }
+    }
+    return falhaExtrator(`não achei a declaração do alias ${JSON.stringify(nome)} em nenhuma raiz`);
+  }
+  if (ts.isIndexedAccessTypeNode(tipo)) {
+    const expressao = tipo.getText(fonte).replace(/\s+/g, "");
+    const correspondencia = /^\(typeof([A-Za-z_$][\w$]*)\)\[number\]\["([A-Za-z_$][\w$]*)"\]$/.exec(
+      expressao,
+    );
+    if (!correspondencia) {
+      return falhaExtrator(`indexed access não resolvido: ${JSON.stringify(tipo.getText(fonte))}`);
+    }
+    const [, constante, campo] = correspondencia;
+    const expandido = textoExpandido(constante!);
+    const ocorrencias = [...expandido.matchAll(new RegExp(`\\b${campo}\\s*:`, "g"))].length;
+    const literais = literaisDeCampo(constante!, campo!);
+    if (ocorrencias === 0 || literais.length !== ocorrencias) {
+      return falhaExtrator(
+        `não resolvi todos os valores de ${JSON.stringify(`${constante}[number]["${campo}"]`)} (propriedades: ${ocorrencias}, literais: ${literais.length})`,
+      );
+    }
+    return { ts: "string", nulo: false };
+  }
+  return falhaExtrator(`forma de tipo não suportada: ${JSON.stringify(tipo.getText(fonte))}`);
+}
+
+/** Tipo declarado no campo → domínio primitivo alargado + nulidade declarada. */
+function tipoTs(declarado: string): { ts: string; nulo: boolean } {
+  const bruto = declarado.trim();
+  const analisado = parseTipo(bruto);
+  const resolvido = resolverTipo(analisado.tipo, analisado.fonte);
+  if (resolvido.ts === null) return falhaExtrator(`${JSON.stringify(bruto)} não tem tipo além de null/undefined`);
+  return { ts: resolvido.ts, nulo: resolvido.nulo };
+}
 // ---------------------------------------------------------------------------
 // Régua 2: o cast que desliga a checagem
 // ---------------------------------------------------------------------------
@@ -491,6 +577,35 @@ function sitesComCastDesconhecido(simbolo: string): string[] {
 
 // ---------------------------------------------------------------------------
 
+describe("extrator de tipo: uniões resolvidas sem palpite", () => {
+  it("alarga um alias simples até seu domínio literal", () => {
+    expect(tipoTs("ProvedorComChave")).toEqual({ ts: "string", nulo: false });
+  });
+
+  it("resolve typeof de constante pelo initializer real", () => {
+    expect(tipoTs("typeof CHATGPT_SUBSCRIPTION_PROVIDER")).toEqual({ ts: "string", nulo: false });
+  });
+
+  it("combina alias e typeof quando ambos resolvem para o mesmo domínio", () => {
+    expect(tipoTs("ProvedorComChave | typeof CHATGPT_SUBSCRIPTION_PROVIDER")).toEqual({
+      ts: "string",
+      nulo: false,
+    });
+  });
+
+  it("alarga literais e combina literais com alias e typeof", () => {
+    expect(tipoTs('"openai" | "google" | ProvedorComChave | typeof CHATGPT_SUBSCRIPTION_PROVIDER')).toEqual({
+      ts: "string",
+      nulo: false,
+    });
+  });
+  it("continua recusando membros desconhecidos e uniões de domínios diferentes", () => {
+    expect(() => tipoTs("ProvedorComChave | AliasDesconhecidoDoExtrator")).toThrow(
+      /não achei a declaração do alias/,
+    );
+    expect(() => tipoTs("ProvedorComChave | 42")).toThrow(/mistura domínios/);
+  });
+});
 describe("tipo de coluna: banco × TypeScript", () => {
   it("a lista de coberturas não pode vir vazia", () => {
     // Sem esta guarda, esvaziar COBERTURAS faria a suíte passar sem verificar

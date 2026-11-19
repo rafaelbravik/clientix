@@ -22,10 +22,20 @@ export function getInstanceSession(now = new Date()): InstanceSession {
   return store[INSTANCE_SESSION_KEY]!;
 }
 
-/** A vendor-authorized key rotation ends the old server-side session; attest under a new one. */
+/** Rotates the process session after an explicitly authorized installation recovery. */
 export function rotateInstanceSessionAfterRecovery(now = new Date()): InstanceSession {
   delete processSessionStore()[INSTANCE_SESSION_KEY];
   return getInstanceSession(now);
+}
+
+/** Rotates only the server-confirmed ended session; concurrent callers converge on one new ID. */
+export function rotateInstanceSessionAfterServerTermination(
+  endedSessionId: string,
+  now = new Date(),
+): InstanceSession {
+  const current = getInstanceSession();
+  if (current.instance_session_id !== endedSessionId) return current;
+  return rotateInstanceSessionAfterRecovery(now);
 }
 
 export function resetInstanceSessionForTests(): void {

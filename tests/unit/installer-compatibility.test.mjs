@@ -85,8 +85,9 @@ describe("signed installer compatibility contract", () => {
     const pacingReplyDailyCapMigration = schemaManifest.migrations.find((entry) => entry.sequence === 9061);
     const platformInitializationMigration = schemaManifest.migrations.find((entry) => entry.sequence === 9062);
     const atomicInviteSeatConsumptionMigration = schemaManifest.migrations.find((entry) => entry.sequence === 9063);
-    expect(schemaManifest.schema_target).toBe("9063");
-    expect(schemaManifest.baseline.incorporated_through_sequence).toBe(9063);
+    const agentWorkerReplyDraftAclMigration = schemaManifest.migrations.find((entry) => entry.sequence === 9064);
+    expect(schemaManifest.schema_target).toBe("9065");
+    expect(schemaManifest.baseline.incorporated_through_sequence).toBe(9065);
     expect(webchatMigration).toMatchObject({
       file: "20261010120000_0511_webchat_widget_bootstrap.sql",
       version: "20261010120000",
@@ -190,6 +191,13 @@ describe("signed installer compatibility contract", () => {
       version: "20261104190000",
       sequence: 9063,
       slug: "atomic_team_invite_seat_consumption",
+      transactional: true,
+    });
+    expect(agentWorkerReplyDraftAclMigration).toMatchObject({
+      file: "20261117000700_9064_agent_worker_reply_draft_acl.sql",
+      version: "20261117000700",
+      sequence: 9064,
+      slug: "agent_worker_reply_draft_acl",
       transactional: true,
     });
 
@@ -324,8 +332,9 @@ describe("signed installer compatibility contract", () => {
         { version: pacingReplyDailyCapMigration.version, checksum: pacingReplyDailyCapMigration.checksum },
         { version: platformInitializationMigration.version, checksum: platformInitializationMigration.checksum },
         { version: atomicInviteSeatConsumptionMigration.version, checksum: atomicInviteSeatConsumptionMigration.checksum },
+        { version: agentWorkerReplyDraftAclMigration.version, checksum: agentWorkerReplyDraftAclMigration.checksum },
       ],
-    }, schemaManifest)).toMatchObject({ valid: true, currentSchema: "9063" });
+    }, schemaManifest)).toMatchObject({ valid: true, currentSchema: "9064" });
     expect(deriveCurrentSchema({ type: "FRESH_DATABASE" }, schemaManifest)).toMatchObject({ valid: true, currentSchema: null });
     expect(deriveCurrentSchema({ type: "EXISTING_UNTRACKED_INSTALLATION" }, schemaManifest).valid).toBe(false);
     expect(deriveCurrentSchema({ type: "TRACKED_INSTALLATION", applied: [] }, schemaManifest).valid).toBe(false);

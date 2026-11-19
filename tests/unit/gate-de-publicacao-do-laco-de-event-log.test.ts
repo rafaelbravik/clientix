@@ -123,6 +123,14 @@ describe("o gate de publicação das imagens de fundo (#604)", () => {
     expect(job).toContain("deskcomm-scheduler:pr");
   });
 
+  it("usa origem HTTP de loopback com opt-in local nos dois smoke runs do worker", () => {
+    const job = blocoDoJob(JOB_DE_FUNDO);
+    expect(job.match(/-e CLIENTIX_ALLOW_INSECURE_HTTP=true/g)).toHaveLength(2);
+    expect(job.match(/-e CLIENTIX_INGRESS_MODE=local/g)).toHaveLength(2);
+    expect(job.match(/-e NEXT_PUBLIC_APP_URL=http:\/\/127\.0\.0\.1:3000/g)).toHaveLength(2);
+    expect(job.match(/-e NEXT_PUBLIC_ADMIN_URL=http:\/\/127\.0\.0\.1:3000/g)).toHaveLength(2);
+  });
+
   it("exige o laço carregado e a linha do event-log-drain no crontab — não só contêiner de pé", () => {
     const job = blocoDoJob(JOB_DE_FUNDO);
     expect(job).toContain("sonda-do-laco-de-event-log.ts");

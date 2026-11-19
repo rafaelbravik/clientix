@@ -37,6 +37,12 @@ const CUSTOMER_LOCAL_LICENSE_SOURCE_PATHS = [
   "app/api/v1/admin/license/recover/route.ts",
 ] as const;
 
+const CUSTOMER_OWNER_SOURCE_PATHS = [
+  "app/owner",
+  "app/api/v1/admin/tenants/route.ts",
+  "app/api/v1/admin/users/route.ts",
+] as const;
+
 export const CUSTOMER_ARTIFACT_FORBIDDEN_MARKERS = [
   "control-plane",
   "control_plane.",
@@ -132,13 +138,18 @@ export function isCustomerBuildExcludedPath(path: string): boolean {
   const normalized = normalizeBuildPath(path);
   if (!normalized) return false;
 
-  // Preserve only the local installation-license screen and APIs. Global
-  // administration and the vendor Control Plane remain outside customer builds.
+  // Keep a small, self-host owner surface for tenant and seat management. The
+  // vendor licensing console, broad platform admin UI, and Control Plane remain
+  // outside the customer artifact.
   if (
     CUSTOMER_LOCAL_LICENSE_SOURCE_PATHS.includes(
       normalized as (typeof CUSTOMER_LOCAL_LICENSE_SOURCE_PATHS)[number],
     ) ||
-    CUSTOMER_LOCAL_LICENSE_SOURCE_PATHS.some((allowed) => allowed.startsWith(`${normalized}/`))
+    CUSTOMER_LOCAL_LICENSE_SOURCE_PATHS.some((allowed) => allowed.startsWith(`${normalized}/`)) ||
+    CUSTOMER_OWNER_SOURCE_PATHS.includes(
+      normalized as (typeof CUSTOMER_OWNER_SOURCE_PATHS)[number],
+    ) ||
+    CUSTOMER_OWNER_SOURCE_PATHS.some((allowed) => allowed.startsWith(`${normalized}/`))
   ) {
     return false;
   }
@@ -176,8 +187,15 @@ export function findCustomerVendorRouteEntries(routePaths: string[]): string[] {
       normalized === "admin/license/page" ||
       normalized === "api/v1/admin/license/route" ||
       /^api\/v1\/admin\/license\/(?:validate|update|activate|recover)\/route$/.test(normalized);
-    const billingVendorRoute = /^api\/v1\/billing\/webhooks\/(?:stripe|mercado-pago)\/route$/.test(normalized);
-    return billingVendorRoute || (!localLicenseRoute && vendorRoute.test(`/${normalized}`));
+    const localOwnerApiRoute =
+      normalized === "api/v1/admin/tenants/route" || normalized === "api/v1/admin/users/route";
+    const billingVendorRoute = /^api\/v1\/billing\/webhooks\/(?:stripe|mercado-pago)\/route$/.test(
+      normalized,
+    );
+    return (
+      billingVendorRoute ||
+      (!localLicenseRoute && !localOwnerApiRoute && vendorRoute.test(`/${normalized}`))
+    );
   });
 }
 

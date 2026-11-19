@@ -14,7 +14,16 @@ import { requireOnboardingCtx, patchOnboardingState, OnboardingError } from "./_
 
 export type AcceptWelcomeResult =
   | { ok: true }
-  | { ok: false; error: "auth_required" | "no_active_org" | "invalid_input" | "db_error"; details?: unknown };
+  | {
+      ok: false;
+      error:
+        | "auth_required"
+        | "no_active_org"
+        | "invalid_input"
+        | "legal_acknowledgement_required"
+        | "db_error";
+      details?: unknown;
+    };
 
 export async function acceptWelcome(formData: FormData): Promise<AcceptWelcomeResult> {
   let ctx;
@@ -25,11 +34,19 @@ export async function acceptWelcome(formData: FormData): Promise<AcceptWelcomeRe
     throw err;
   }
 
+  // O estado React e o botão desabilitado são só uma ajuda visual. Server
+  // Actions podem ser chamadas diretamente, então o servidor também precisa
+  // conferir a manifestação que será registrada no onboarding.
+  if (formData.get("aceite_documentos_legais") !== "accepted") {
+    return { ok: false, error: "legal_acknowledgement_required" };
+  }
+
+  const aceiteLegalEm = new Date().toISOString();
   const raw = {
     display_name: String(formData.get("display_name") ?? "").trim(),
     o_que_faz: String(formData.get("o_que_faz") ?? "").trim() || undefined,
     timezone: String(formData.get("timezone") ?? "America/Sao_Paulo"),
-    accepted_terms_at: new Date().toISOString(),
+    accepted_terms_at: aceiteLegalEm,
   };
 
   let input;
@@ -47,7 +64,9 @@ export async function acceptWelcome(formData: FormData): Promise<AcceptWelcomeRe
       ctx.orgId,
       {
         welcome: {
-          accepted_at: input.accepted_terms_at ?? new Date().toISOString(),
+          accepted_at: input.accepted_terms_at ?? aceiteLegalEm,
+          terms_accepted_at: aceiteLegalEm,
+          privacy_notice_acknowledged_at: aceiteLegalEm,
           timezone: input.timezone,
           display_name: input.display_name,
           ...(input.o_que_faz ? { o_que_faz: input.o_que_faz } : {}),
@@ -81,7 +100,12 @@ export async function acceptWelcome(formData: FormData): Promise<AcceptWelcomeRe
     // O ramo NÃO entra no audit: é texto livre que o dono escreveu, e o audit
     // é append-only com retenção de 5 anos — nada que a anonimização da LGPD
     // não alcance depois deve cair lá por conveniência de diagnóstico.
-    metadata: { display_name: input.display_name, timezone: input.timezone },
+    metadata: {
+      display_name: input.display_name,
+      timezone: input.timezone,
+      terms_accepted_at: aceiteLegalEm,
+      privacy_notice_acknowledged_at: aceiteLegalEm,
+    },
   });
 
   redirect("/onboarding");
