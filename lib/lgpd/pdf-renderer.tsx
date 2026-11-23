@@ -12,10 +12,9 @@
  *
  * O motivo: o relatório do Art. 18 II responde a um DIREITO LEGAL do titular.
  * Nomear ali o revendedor — que é OPERADOR, não controlador — inverteria os
- * papéis num documento jurídico. Trocar `DeskcommCRM` por `Vendas Turbo CRM`
- * no rodapé não é "completar o white-label": é piorar o defeito, porque hoje o
- * nome é obviamente o do software, e depois passaria a parecer a declaração de
- * quem responde pelos dados.
+ * papéis num documento jurídico. Incluir o nome do software no rodapé não é
+ * "completar o white-label": é piorar o defeito, porque poderia parecer a
+ * declaração de quem responde pelos dados.
  *
  * Consequência boa e deliberada: a armadilha do @react-pdf não nos alcança.
  * `var(--x)` e `oklch()` renderizam PDF VÁLIDO e descartam a cor em silêncio

@@ -4,26 +4,31 @@
 
 | Arquivo | O que é |
 |---|---|
-| `deskcomm-icon.svg` | O símbolo: D aberto com um módulo quadrado destacado. Quadrado de 216. |
-| `deskcomm-logo.svg` | Logotipo para fundo claro — símbolo em sálvia `#506d48`, nome em `#1c1a16`, "CRM" em `#5d594f`. |
-| `deskcomm-logo-dark.svg` | Logotipo para fundo escuro — sálvia `#82a077`, nome em `#f5f4ef`, "CRM" em `#8e8b7f`. |
+| `Clientix-icon.svg` | Exportação quadrada de alta resolução do símbolo Clientix. |
+| `clientix-logo.svg` | Logotipo vetorial para fundo claro, em verde `#017a32`. |
+| `clientix-logo-dark.svg` | Logotipo para fundo escuro, com letras claras e X verde `#01fa4e`. |
 
-O texto do logotipo já está convertido em caminhos: nenhum arquivo depende de fonte.
+O X da versão clara foi ajustado para `#017a32`: o arquivo recebido o deixava
+branco sobre transparência, invisível em superfícies claras.
 
-**Estes SVGs são a fonte; o app NÃO os lê.** A geometria está copiada em
-`lib/branding/desenho.ts` e é desenhada inline por `components/branding/MarcaDoProduto.tsx`
-(barra lateral, fachada de entrada) e por `app/icon.tsx` (ícone da aba) — e só aparece
-quando ninguém configurou marca própria (`marcaEhADoProduto`, em `lib/branding.ts`).
-Um `.svg` em `public/` seria servido na instalação de todo revendedor, que é o vazamento
-que `tests/unit/branding.test.ts` existe para impedir. Ao revisar a arte, atualize os
-três arquivos aqui **e** o `desenho.ts`; `tests/unit/marca-do-produto.test.tsx` cobra
-que as cores dos dois lados coincidam.
+**Os SVGs são a fonte; o app usa a geometria vetorial de `clientix-logo.svg` em
+`lib/branding/desenho.ts`.** `components/branding/MarcaDoProduto.tsx` desenha o
+logotipo inline na barra lateral e na entrada. `app/icon.tsx` e o ícone do app
+usam o mesmo símbolo vetorial. Ele só aparece quando ninguém configurou marca
+própria (`marcaEhADoProduto`, em `lib/branding.ts`); nenhum logo fixo é publicado
+em `public/`, que serve também as instalações dos revendedores.
 
-Os READMEs (pt, en, es) usam os arquivos diretamente, num `<picture>` que troca para a
-versão escura conforme o tema do GitHub. A LP (`deskcomm-site`) tem a própria cópia em
-`components/Marca.tsx` e `app/icon.svg`.
+O `Clientix-icon.svg` é o export de alta resolução para materiais visuais. A
+interface usa o contorno vetorial compartilhado com o logotipo para manter o
+favicon nítido, leve e compatível com o branding dinâmico por instalação.
+Ao revisar a arte, atualize os três SVGs e a geometria em `desenho.ts`.
 
-Prova pela tela (2026-09-08, Supabase local fresco do `baseline.sql`, marca sem configurar):
+Materiais de marketing e a LP mantêm seus próprios artefatos; eles não são carregados
+pela imagem Docker do sistema nem alteram o white-label da instalação.
+
+Capturas históricas da prova pela tela (2026-09-08, Supabase local fresco do
+`baseline.sql`, marca sem configurar). Elas mostram a geometria anterior e
+precisam ser renovadas para documentar visualmente este novo logotipo:
 
 | Imagem | O que mostra |
 |---|---|
@@ -42,7 +47,9 @@ Prova pela tela (2026-09-08, Supabase local fresco do `baseline.sql`, marca sem 
 ## Social preview (Open Graph)
 
 `og-social-preview.png` — 1280×640, é a imagem que aparece quando um link do
-repositório é compartilhado no X, LinkedIn, WhatsApp, Slack ou Discord.
+repositório é compartilhado no X, LinkedIn, WhatsApp, Slack ou Discord. O PNG
+versionado ainda é uma captura anterior; regenere-o pelo HTML abaixo antes de
+enviá-lo como social preview.
 
 **Como aplicar:** GitHub → Settings → General → *Social preview* → Upload.
 Não existe endpoint público na API para isso; é upload pela interface.
@@ -75,5 +82,5 @@ mentindo, ou é refeito do zero com outra identidade.
 - O painel direito é a doutrina do sistema vivo virando imagem: o rastro que uma
   demanda deixa ao atravessar o sistema, terminando no follow-up — o mecanismo
   anti-morte. É o argumento do produto mostrado, não adjetivado.
-- Card de compartilhamento **sempre** carrega o logotipo (inline no HTML, lido de
-  `deskcomm-logo.svg`). Sem ele, quem vê a imagem não sabe de quem ela é.
+- Card de compartilhamento **sempre** carrega o logotipo (lido de
+  `clientix-logo.svg`). Sem ele, quem vê a imagem não sabe de quem ela é.

@@ -1,4 +1,8 @@
-# LIC-02C — detecção de clones e atestação de instalação
+---
+impacto: capacidade_nova
+secao: adicionado
+titulo: Detecta o uso simultâneo de licença em instalações diferentes
+---
 
 - Gera uma sessão efêmera por processo Clientix e adiciona heartbeat online configurável, sem validação por request.
 - Vincula sessões à chave pública já registrada com desafio Ed25519 aleatório, nonce de uso único e expiração curta.

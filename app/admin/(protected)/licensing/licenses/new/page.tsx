@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
 import { useT } from "@/lib/i18n/IdiomaProvider";
+import { randomId } from "@/lib/random-id";
 import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -103,7 +104,7 @@ export default function NewLicensePage() {
 
       const fingerprint = JSON.stringify(payload);
       if (!lastSubmission.current || lastSubmission.current.fingerprint !== fingerprint) {
-        lastSubmission.current = { fingerprint, key: crypto.randomUUID() };
+        lastSubmission.current = { fingerprint, key: randomId() };
       }
       const res = await fetch("/api/v1/admin/licenses", {
         method: "POST",
@@ -187,7 +188,7 @@ export default function NewLicensePage() {
 
         <div>
           <label className="mb-1 block text-xs font-medium tracking-wider text-muted-foreground uppercase">
-            Plano comercial da instalação
+            {t("Plano comercial da instalação")}
           </label>
           <select
             value={plan}
@@ -199,7 +200,7 @@ export default function NewLicensePage() {
             <option value="enterprise">Escala</option>
           </select>
           <p className="mt-1 text-xs text-muted-foreground">
-            Este plano comercial da instalação é independente dos planos dos tenants.
+            {t("Este plano comercial da instalação é independente dos planos dos tenants.")}
           </p>
         </div>
 
@@ -261,7 +262,7 @@ export default function NewLicensePage() {
               <option value="30d">30 dias</option>
               <option value="90d">90 dias</option>
               <option value="6">6 meses</option>
-              <option value="12">12 meses (padrão)</option>
+              <option value="12">{t("12 meses (padrão)")}</option>
               <option value="24">24 meses</option>
               <option value="custom">Data personalizada</option>
             </select>
@@ -345,7 +346,7 @@ export default function NewLicensePage() {
           </Button>
           <Button type="submit" disabled={submitting || customers.length === 0}>
             {submitting && <CircleNotch className="mr-1.5 h-4 w-4 animate-spin" />}
-            Criar rascunho
+            {t("Criar rascunho")}
           </Button>
         </div>
       </form>

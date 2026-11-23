@@ -327,6 +327,8 @@ describe("o preâmbulo do CI não come o orçamento dos testes", () => {
     const alvos = [...job.matchAll(/matrix\.parte == (\d+)/g)].map((m) => Number(m[1]));
     expect(alvos.length, "nenhum `if: matrix.parte == N` — o regex cegou").toBeGreaterThan(0);
     expect(alvos.filter((n) => !partes!.includes(n)), "passo preso a uma parte que não existe").toEqual([]);
+    expect(job).toMatch(/if: matrix\.parte == 4\s+run: pnpm test:shell:ci 1/);
+    expect(job).toMatch(/if: matrix\.parte == 5\s+run: pnpm test:shell:ci 2/);
   });
 
   it("a action preparada tira o registry npm do caminho crítico", () => {

@@ -43,8 +43,9 @@ test("criar conta: signup → e-mail de confirmação → onboarding → re-logi
 
   // 4. Autenticado no onboarding — tenant provisionado
   await expect(page).toHaveURL(/\/onboarding\/welcome/);
-  await expect(page.getByText("Boas-vindas ao DeskcommCRM")).toBeVisible();
-  await expect(page.getByText("Loja E2E Signup")).toBeVisible();
+  // O título segue a marca resolvida da instalação (não o nome antigo do CRM).
+  await expect(page.getByRole("heading", { name: /Boas-vindas ao/ })).toBeVisible();
+  await expect(page.getByLabel("Como se chama o seu negócio?")).toHaveValue("Loja E2E Signup");
 
   // 5. Sai (limpa sessão) e entra de novo com as credenciais criadas
   await context.clearCookies();

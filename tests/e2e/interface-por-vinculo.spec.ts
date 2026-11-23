@@ -3,6 +3,7 @@ import { mkdirSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 import { test, expect, type Page } from "./helpers/test";
 import { credenciaisSupabaseDeTeste } from "../../scripts/lib/env-de-teste";
+import { insertOrganizationFixture } from "./helpers/organization-fixture";
 const credentials = credenciaisSupabaseDeTeste();
 const db = createClient(credentials.url, credentials.serviceRole, {
   auth: { persistSession: false },
@@ -55,18 +56,13 @@ test("interface por membro atualiza ao vivo, preserva formulário e convite apli
       users.push(data.user.id);
     }
     for (const label of ["A", "B"]) {
-      const { data, error } = await db
-        .from("organizations")
-        .insert({
-          slug: `interface-${label.toLowerCase()}-${suffix}`,
-          display_name: `Interface ${label}`,
-          legal_name: `Interface ${label}`,
-          onboarded_at: new Date().toISOString(),
-        })
-        .select("id")
-        .single();
-      if (error) throw error;
-      orgs.push(data.id);
+      orgs.push(await insertOrganizationFixture({
+        slug: `interface-${label.toLowerCase()}-${suffix}`,
+        display_name: `Interface ${label}`,
+        legal_name: `Interface ${label}`,
+        onboarded_at: new Date().toISOString(),
+        settings: { plan: "enterprise" },
+      }));
     }
     const membership = await db
       .from("user_organizations")

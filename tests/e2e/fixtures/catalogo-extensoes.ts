@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -6,6 +7,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { insertOrganizationFixture } from "../helpers/organization-fixture";
 
 import type { ExtensionManifest } from "../../../lib/extensions/manifest";
 import { credenciaisSupabaseDeTeste } from "../../../scripts/lib/env-de-teste";
@@ -70,6 +72,24 @@ function portaLocal(valor: string, rotulo: string): string {
   return url.port;
 }
 
+function portasDoStackLocal(): string | null {
+  try {
+    const valores = Object.fromEntries(
+      readFileSync(path.join(process.cwd(), ".clientix-local", "supabase-ports"), "utf8")
+        .split(/\r?\n/)
+        .filter(Boolean)
+        .map((linha) => {
+          const separador = linha.indexOf("=");
+          return [linha.slice(0, separador), linha.slice(separador + 1)];
+        }),
+    );
+    if (!valores.API || !valores.DB || !valores.APP) return null;
+    return `${valores.API}:${valores.DB}:${valores.APP}`;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * A fixture só aceita o runner canônico já publicado pelo Playwright. As
  * pré-condições vêm antes de `credenciaisSupabaseDeTeste()` para impedir o
@@ -100,7 +120,11 @@ export function bancoE2eDasExtensoes(): SupabaseClient {
     portaLocal(credenciais.dbUrl, "Postgres"),
     portaLocal(credenciais.appUrl, "Aplicação"),
   ].join(":");
-  if (portas !== "56321:56322:56330" && portas !== "54321:54322:3001") {
+  if (
+    portas !== "56321:56322:56330" &&
+    portas !== "54321:54322:3001" &&
+    portas !== portasDoStackLocal()
+  ) {
     throw new Error(`Perfil de portas E2E inesperado: ${portas}.`);
   }
   if (process.env.EXTENSIONS_LOCAL_CATALOG_ORIGIN !== ORIGEM_CATALOGO) {
@@ -151,7 +175,7 @@ export async function criarAtoresDasExtensoes(): Promise<AtoresDasExtensoes> {
     }
 
     const agora = new Date().toISOString();
-    const organizacaoA = await inserir(db, "organizations", {
+    const organizacaoA = await insertOrganizationFixture({
       display_name: `Extensões A ${sufixo}`,
       legal_name: `Extensões A ${sufixo}`,
       slug: `extensions-a-${sufixo}`,
@@ -159,7 +183,7 @@ export async function criarAtoresDasExtensoes(): Promise<AtoresDasExtensoes> {
       settings: { security: { mfa_required: false } },
     });
     organizacoesCriadas.push(organizacaoA);
-    const organizacaoB = await inserir(db, "organizations", {
+    const organizacaoB = await insertOrganizationFixture({
       display_name: `Extensões B ${sufixo}`,
       legal_name: `Extensões B ${sufixo}`,
       slug: `extensions-b-${sufixo}`,

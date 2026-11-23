@@ -22,8 +22,14 @@ import { PROVEDOR_POR_ID } from "@/lib/ai/pontos/provedores";
 
 import { generateTotp, msUntilNextTotpWindow } from "./utils/totp";
 
-const OWNER_EMAIL = "dono@qa.local";
-const OWNER_PASSWORD = "QaVps!2026#Dono";
+// O bootstrap e a jornada precisam compartilhar a mesma fonte. Quando a senha
+// era repetida aqui, o `.env.e2e` podia evoluir e deixar o primeiro login da
+// instalação fresca testando uma credencial diferente da criada pelo install.
+const OWNER_EMAIL = process.env.OWNER_EMAIL ?? "";
+const OWNER_PASSWORD = process.env.OWNER_PASSWORD ?? "";
+if (!OWNER_EMAIL || !OWNER_PASSWORD) {
+  throw new Error("OWNER_EMAIL/OWNER_PASSWORD ausentes no ambiente E2E da instalação fresca.");
+}
 const OWNER_STATE_PATH = path.join(process.cwd(), ".e2e-owner.json");
 const EVIDENCE_DIR = path.join(process.cwd(), "evidence/vps-qa");
 

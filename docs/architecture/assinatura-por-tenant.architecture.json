@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Assinatura comercial por tenant",
+    "subtitle": "A assinatura do Customer controla as cotas da organização; ACT continua controlando a instalação",
+    "output": "assinatura-por-tenant.html",
+    "quality_profile": "standard"
+  },
+  "lanes": [
+    { "id": "owner", "label": "Platform Owner" },
+    { "id": "customer", "label": "Customer Runtime" },
+    { "id": "db", "label": "Banco Customer" },
+    { "id": "tenant", "label": "Operação da empresa" }
+  ],
+  "mainPath": ["ownerui", "ownerapi", "subscription", "resolver", "guards", "tenantapi"],
+  "nodes": [
+    { "id": "ownerui", "lane": "owner", "col": 0, "type": "frontend", "label": "/owner", "sublabel": "Cria empresas e administra plano, preço manual e período" },
+    { "id": "ownerapi", "lane": "customer", "col": 1, "type": "api", "label": "Rotas protegidas do Platform Owner", "sublabel": "Zod · owner · MFA/scope para escrita · audit" },
+    { "id": "org", "lane": "db", "col": 0, "type": "table", "label": "organizations", "sublabel": "Tenant, estado operacional e plano espelhado" },
+    { "id": "subscription", "lane": "db", "col": 1, "type": "table", "label": "tenant_plan_subscriptions", "sublabel": "Um registro comercial corrente por organização" },
+    { "id": "catalog", "lane": "db", "col": 2, "type": "table", "label": "platform_plan_catalog", "sublabel": "Cotas e módulos existentes" },
+    { "id": "resolver", "lane": "customer", "col": 3, "type": "lib", "label": "Resolvedor canônico de cotas", "sublabel": "Plano, estado e datas da assinatura" },
+    { "id": "guards", "lane": "customer", "col": 4, "type": "lib", "label": "Guards de quota", "sublabel": "Usuários, canais e módulos com entitlement" },
+    { "id": "tenantapi", "lane": "tenant", "col": 5, "type": "api", "label": "APIs da empresa", "sublabel": "Mantém leitura e dados; recusa novas operações fora do plano" },
+    { "id": "audit", "lane": "db", "col": 3, "type": "table", "label": "api_audit_log", "sublabel": "Ator, organização e mutações de assinatura" },
+    { "id": "act", "lane": "customer", "col": 2, "type": "config", "label": "Licença ACT_...", "sublabel": "Regra separada que limita a instalação self-hosted inteira" }
+  ],
+  "edges": [
+    { "id": "ui-write", "from": "ownerui", "to": "ownerapi", "label": "criar ou atualizar" },
+    { "id": "api-result", "from": "ownerapi", "to": "ownerui", "label": "resultado e estado atual" },
+    { "id": "atomic-create-org", "from": "ownerapi", "to": "org", "label": "RPC transacional" },
+    { "id": "atomic-create-sub", "from": "ownerapi", "to": "subscription", "label": "cria junto com a organização" },
+    { "id": "org-subscription", "from": "org", "to": "subscription", "label": "organization_id" },
+    { "id": "sub-org", "from": "subscription", "to": "org", "label": "FK com cascade" },
+    { "id": "sub-plan", "from": "subscription", "to": "catalog", "label": "plan_slug" },
+    { "id": "catalog-resolve", "from": "catalog", "to": "resolver", "label": "limites e features" },
+    { "id": "subscription-resolve", "from": "subscription", "to": "resolver", "label": "estado e período" },
+    { "id": "org-resolve", "from": "org", "to": "resolver", "label": "settings e overrides" },
+    { "id": "resolve-guards", "from": "resolver", "to": "guards", "label": "cotas efetivas" },
+    { "id": "guards-api", "from": "guards", "to": "tenantapi", "label": "permitir ou recusar" },
+    { "id": "api-guards", "from": "tenantapi", "to": "guards", "label": "validar cada operação" },
+    { "id": "api-audit", "from": "ownerapi", "to": "audit", "label": "registrar leitura e escrita" },
+    { "id": "audit-owner", "from": "audit", "to": "ownerui", "label": "trilha consultável pelo proprietário" },
+    { "id": "act-boundary", "from": "act", "to": "ownerapi", "label": "limite da instalação continua separado" },
+    { "id": "act-selfhost", "from": "ownerapi", "to": "act", "label": "não substitui a licença ACT" }
+  ],
+  "cards": [
+    {
+      "title": "Fronteira Cloud e self-host",
+      "items": [
+        "Assinatura no Customer controla uma organização.",
+        "ACT_... no Vendor controla a instalação self-hosted inteira.",
+        "Vencimento bloqueia apenas operações protegidas por quotas; os dados existentes permanecem acessíveis.",
+        "Esta fase não processa pagamentos automaticamente."
+      ]
+    }
+  ]
+}

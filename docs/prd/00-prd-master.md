@@ -21,7 +21,7 @@ Este PRD nasceu (v0.1, abril/2026) com o produto posicionado como **CRM operacio
 
 Implicações de leitura deste documento e dos sub-PRDs:
 - **E-commerce passa de definição do produto a primeiro vertical.** Referências a Nuvemshop, pipeline de pedidos e vocabulário de e-commerce continuam válidas como o template do vertical de origem — o mecanismo que as generaliza é o `vocabulary` configurável por pipeline (Sub-PRD 02 §3.7).
-- **O modelo comercial é open source + infraestrutura** (parceria HostGator para self-host em VPS), não venda de assinatura. Menções a "modo SaaS" descrevem uma opção arquitetural preservada, não o plano comercial corrente.
+- **Há dois modelos comerciais compatíveis com o código open source:** acesso Cloud gerenciado pelo projeto, com assinatura e limites por tenant; e self-host em VPS própria, cuja licença `ACT_...` autoriza a instalação inteira. O proprietário de uma instalação self-host pode cobrar seus tenants pela capacidade descrita na [ADR-0004](../adr/0004-cobranca-do-revendedor.md). As assinaturas por tenant ficam no banco Customer e não substituem a licença da instalação.
 - Requisitos, contratos e decisões técnicas dos sub-PRDs permanecem válidos — a arquitetura multi-tenant com `vocabulary` configurável foi o que permitiu a expansão multi-nicho sem refactor.
 
 ---
@@ -78,9 +78,9 @@ Em três anos: ser a resposta padrão pra "melhor CRM open source com agentes de
 **Dores.** Diagnosticar uma organização sem assumir a identidade de cliente, deixar uma sessão privilegiada aberta ou perder a autoria real das ações.
 **Precisa.** Gestão de organizações, entrada e saída explícitas do acompanhamento, prazo limitado, MFA conforme a política vigente, modo somente leitura que prevalece sobre vínculos físicos e auditoria com o ator real.
 
-### 3.3 Tenant — gestor do e-commerce (lojista) — *persona secundária no MVP, primária no SaaS*
+### 3.3 Tenant — gestor da empresa — *cliente Cloud ou da instalação do parceiro*
 **Quem.** Dono ou gerente do e-commerce cliente. Acessa o sistema via super-admin do tenant.
-**Dores.** Saber se a empresa BPO está atendendo bem (no MVP) ou operar atendimento próprio (no SaaS). Configurar políticas de IA, FAQ, base RAG. Ver métricas (NPS, tempo de resposta, taxa de resolução por IA).
+**Dores.** Operar atendimento próprio, configurar políticas de IA, FAQ e base RAG, e acompanhar métricas (NPS, tempo de resposta e taxa de resolução por IA).
 **Precisa.** Painel do tenant com KPIs operacionais, configuração de chatbot/RAG, gestão de atendentes do tenant, exports LGPD.
 
 ### 3.4 Cliente final — comprador do e-commerce
@@ -88,8 +88,8 @@ Em três anos: ser a resposta padrão pra "melhor CRM open source com agentes de
 **Dores.** Esperar 30+ minutos por resposta. Repetir histórico toda vez que troca de atendente. Não conseguir falar com humano quando o bot trava.
 **Precisa.** Resposta em <30s pra dúvidas simples, transição transparente pra humano quando complexo, contexto preservado entre interações.
 
-### 3.5 Atendente do tenant (modo SaaS, fase 2+)
-**Quem.** Funcionário do e-commerce cliente que opera o CRM próprio (no modo SaaS).
+### 3.5 Atendente do tenant (Cloud ou self-host)
+**Quem.** Funcionário da empresa que opera o CRM dentro do seu tenant.
 **Dores.** Similar ao Operador BPO, mas escopo de 1 tenant.
 **Precisa.** Mesma UI do Operador BPO, mas sem cross-tenant.
 

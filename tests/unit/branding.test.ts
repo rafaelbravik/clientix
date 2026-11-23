@@ -12,7 +12,7 @@ describe("resolveBranding", () => {
     expect(resolveBranding(undefined, undefined)).toEqual({
       name: DEFAULT_APP_NAME,
       logoUrl: null,
-      initial: "D",
+      initial: "C",
     });
   });
 
@@ -131,7 +131,7 @@ describe("nome do arquivo de códigos de recuperação", () => {
   it("deriva o prefixo da marca, sem acento e sem espaço", () => {
     expect(prefixoDoArquivo("Vendas Turbo")).toBe("vendas-turbo");
     expect(prefixoDoArquivo("Ótima Gestão")).toBe("otima-gestao");
-    expect(prefixoDoArquivo(DEFAULT_APP_NAME)).toBe("deskcommcrm");
+    expect(prefixoDoArquivo(DEFAULT_APP_NAME)).toBe("clientix");
   });
 
   it("não devolve hífen pendurado nem repetido", () => {
@@ -239,6 +239,24 @@ const MARCA_CONGELADA: Record<string, EntradaDeMarca> = {
       "`X-Client-Info` enviado ao Supabase — identifica o cliente nos logs e na telemetria DELES. Não é texto de interface e nunca chega ao usuário",
     marcas: ["deskcomm-crm"],
   },
+  "lib/licensing/license-server-client.ts": {
+    categoria: "INFRA",
+    motivo:
+      "chave de ambiente lida apenas para permitir HTTP ao serviço Vendor interno no compose local; não é exibida nem enviada como marca",
+    marcas: ["process.env.deskcomm_env_mode"],
+  },
+  "lib/licensing/license-server-client.test.ts": {
+    categoria: "DEV",
+    motivo:
+      "fixture local que ativa o modo de serviço Vendor interno para testar a política de URL; não embarca na imagem",
+    marcas: ["deskcomm_env_mode", "deskcomm_env_mode"],
+  },
+  "lib/licensing/license-server-client-reactivation.test.ts": {
+    categoria: "DEV",
+    motivo:
+      "fixture local que ativa o modo de serviço Vendor interno no teste de reativação; não embarca na imagem",
+    marcas: ["deskcomm_env_mode"],
+  },
   "lib/wacalls/events-bridge.ts": {
     categoria: "PROTOCOLO",
     motivo:
@@ -301,14 +319,6 @@ const MARCA_CONGELADA: Record<string, EntradaDeMarca> = {
   },
 
   // ─── DIVIDA — vazamento real. Cada linha declara a fase que a apaga. ───
-  "lib/email/templates/ai-budget-alarm.tsx": {
-    categoria: "DIVIDA",
-    fase: 7,
-    motivo:
-      "template sem caminho de produção: sem rota em app/api/v1/cron/, sem linha no docker/scheduler/entrypoint.sh e, desde a limpeza do teto de orçamento (0159), sem chamador NENHUM — o único era workers/ai-budget-checker.cron.ts, que foi apagado por nunca ter tido agendador. Marcar isto não muda nada que um usuário veja, e a única 'prova' possível seria invocar a função à mão — o que prova a função, não o produto. Sai quando o alarme ganhar cron de verdade (ou quando o template for apagado junto)",
-    marcas: ["deskcommcrm"],
-  },
-
   // ─── DEV — fixture de teste; não embarca. ───
   "lib/agent-engine/agent/draft-reply.test.ts": {
     categoria: "DEV",
@@ -322,13 +332,6 @@ const MARCA_CONGELADA: Record<string, EntradaDeMarca> = {
     marcas: ["deskcommcrm", "deskcommcrm", "deskcommcrm"],
   },
 
-  // ─── PADRAO — a marca padrão precisa existir em algum lugar. ───
-  "lib/branding.ts": {
-    categoria: "PADRAO",
-    motivo:
-      "é a DEFINIÇÃO de DEFAULT_APP_NAME — o valor que aparece quando o operador não configurou marca nenhuma. Se esta linha sumir, some o padrão",
-    marcas: ["deskcommcrm"],
-  },
 };
 
 /**
@@ -604,7 +607,7 @@ describe("catraca de marca hardcoded", () => {
     expect(ruins, `entrada sem categoria válida ou sem justificativa escrita:\n  ${ruins.join("\n  ")}`).toEqual([]);
   });
 
-  it("a Fase 4 fechou: sobra uma dívida, e ela declara por que sobrou", () => {
+  it("a Fase 4 fechou: não há dívida de marca", () => {
     // As três regras acima forçam a lista a ENCOLHER, mas nada impedia que ela
     // voltasse a CRESCER: uma `DIVIDA` nova entra sem ninguém notar, porque
     // acrescentar linha à allowlist é o caminho de menor resistência de quem
@@ -615,10 +618,9 @@ describe("catraca de marca hardcoded", () => {
       .map(([arquivo]) => arquivo);
     expect(
       dividas,
-      "a Fase 4 zerou as dívidas de marca, exceto o alarme de orçamento de IA " +
-        "(que não tem caminho de produção). Dívida nova aqui precisa de decisão, " +
+      "a Fase 4 zerou as dívidas de marca. Dívida nova aqui precisa de decisão, " +
         "não de mais uma linha na lista.",
-    ).toEqual(["lib/email/templates/ai-budget-alarm.tsx"]);
+    ).toEqual([]);
   });
 
   it("toda DIVIDA nomeia a fase que a resolve, e só DIVIDA tem fase", () => {
@@ -638,7 +640,7 @@ describe("catraca de marca hardcoded", () => {
  * o código que embarca na imagem. Ela é cega para `supabase/templates/*.html` e
  * `supabase/config.toml`, e essa cegueira tinha consequência medida: dava para
  * zerar a lista de dívidas, ver a suíte inteira verde, e o cliente do
- * revendedor continuar recebendo "Confirme seu e-mail — DeskcommCRM" no
+ * revendedor continuar recebendo "Confirme seu e-mail — Clientix" no
  * PRIMEIRO e-mail que ele abre na vida.
  *
  * Estes arquivos não são renderizados por nenhum TypeScript nosso: quem os
@@ -682,8 +684,8 @@ describe("catraca de marca no que o GoTrue renderiza", () => {
     "supabase/config.toml": {
       categoria: "DEV",
       motivo:
-        "config do Supabase LOCAL (o `supabase start` de dev e do CI). NÃO embarca na imagem e NÃO alcança clone nenhum: um self-hoster usa um projeto na nuvem do Supabase, cuja config de auth vem do marca-emails.sh, ou um GoTrue próprio, que lê env. `project_id` ainda nomeia os contêineres locais (supabase_auth_deskcomm-crm) e os assuntos são o que a suíte local envia",
-      marcas: ["deskcomm-crm", "deskcommcrm", "deskcommcrm"],
+        "config do Supabase LOCAL (o `supabase start` de dev e do CI). NÃO embarca na imagem e NÃO alcança clone nenhum: um self-hoster usa um projeto na nuvem do Supabase, cuja config de auth vem do marca-emails.sh, ou um GoTrue próprio, que lê env. `project_id` mantém o identificador dos contêineres locais (supabase_auth_deskcomm-crm); os assuntos dos e-mails usam a marca configurável do produto",
+      marcas: ["deskcomm-crm"],
     },
   };
 

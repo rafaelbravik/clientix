@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "generated_at": "2026-11-04T19:08:24.200Z",
-  "schema_target": "9063",
+  "generated_at": "2026-11-20T21:44:58.771Z",
+  "schema_target": "9067",
   "baseline": {
     "file": "baseline.sql",
-    "checksum": "d9f18414a1b63fd4e3a45dfffcbeed9380883e52e4b9761dc3c917058d30907a",
-    "size_bytes": 2572417,
-    "incorporated_through_sequence": 9063
+    "checksum": "f8df3d3e0400cc9fe4e93e6493e2833cde1cc6dbccc399e7ba241eced343939b",
+    "size_bytes": 2589993,
+    "incorporated_through_sequence": 9067
   },
   "migrations": [
     {
@@ -3482,7 +3482,43 @@
       "checksum": "1d0684d9141339069354a02ef6a393400f08b503934e6c6af91ecd951f452387",
       "transactional": true,
       "size_bytes": 4843
+    },
+    {
+      "file": "20261117000700_9064_agent_worker_reply_draft_acl.sql",
+      "version": "20261117000700",
+      "sequence": 9064,
+      "slug": "agent_worker_reply_draft_acl",
+      "checksum": "0f46e60e945c490ce48b68c397396bff4010ef3682d1f6f6b44fe30cffe6f44c",
+      "transactional": true,
+      "size_bytes": 821
+    },
+    {
+      "file": "20261117002000_9065_tenant_plan_subscriptions.sql",
+      "version": "20261117002000",
+      "sequence": 9065,
+      "slug": "tenant_plan_subscriptions",
+      "checksum": "35bdd52d1e19cd2dd282aea688b9d90be9001095abdd91ff92ab1e34bd30a0cc",
+      "transactional": true,
+      "size_bytes": 10309
+    },
+    {
+      "file": "20261118090000_9066_tenant_appearance_palettes.sql",
+      "version": "20261118090000",
+      "sequence": 9066,
+      "slug": "tenant_appearance_palettes",
+      "checksum": "f689d005e6a5aa6902218bdb5ae6aa7ff03825bc1a0a29160916dd642c287402",
+      "transactional": true,
+      "size_bytes": 3264
+    },
+    {
+      "file": "20261118100000_9067_tenant_green_palette.sql",
+      "version": "20261118100000",
+      "sequence": 9067,
+      "slug": "tenant_green_palette",
+      "checksum": "c04f5a30d2b280f187aea56953299e004c4e49d091d650f5edf1c50d13b1c490",
+      "transactional": true,
+      "size_bytes": 3693
     }
   ],
-  "updated_at": "2026-11-04T19:08:24.200Z"
+  "updated_at": "2026-11-20T21:44:58.771Z"
 }

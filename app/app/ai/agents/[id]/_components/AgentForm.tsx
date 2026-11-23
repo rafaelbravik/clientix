@@ -77,6 +77,7 @@ import type { CredentialRow } from "@/hooks/ai/useCredentials";
 import { credentialStatus } from "@/hooks/ai/useCredentials";
 import type { FunilDaResposta } from "@/hooks/pipelines/usePipelines";
 import { callbacksHabilitados } from "@/lib/followup/callback-policy";
+import { avisoDeLimiteDeEtapas } from "@/lib/ai/agents/max-steps-notice";
 
 /**
  * O canal oferecido no seletor é exatamente o que `listSelectableChannels`
@@ -668,6 +669,7 @@ export function AgentForm(props: Props) {
   }
 
   const disabled = readOnly || saving || publishing;
+  const avisoEtapas = avisoDeLimiteDeEtapas(form.max_steps);
 
   // Status badge
   const statusBadge = (() => {
@@ -1086,6 +1088,11 @@ export function AgentForm(props: Props) {
                   onChange={(e) => patch({ max_steps: Number(e.target.value) })}
                   disabled={disabled}
                 />
+                {avisoEtapas ? (
+                  <p role="status" className="text-xs text-amber-700 dark:text-amber-300">
+                    {t(avisoEtapas)}
+                  </p>
+                ) : null}
               </div>
               <div className="space-y-1">
                 <Label htmlFor="token_budget">{t("Volume de texto por atendimento")}</Label>

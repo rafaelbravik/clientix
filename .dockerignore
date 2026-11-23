@@ -62,6 +62,8 @@ scratchpad
 .opencode
 .specs
 .changes
+github-history.bundle
+CONTINUACAO-LINUX-MINT.md
 
 # Artefatos locais de QA não fazem parte do runtime.
 .clientix-local

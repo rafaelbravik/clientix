@@ -28,6 +28,7 @@ import pg from "pg";
 import { expect, test, type Page } from "./helpers/test";
 
 import { credenciaisSupabaseDeTeste } from "../../scripts/lib/env-de-teste";
+import { insertOrganizationFixture } from "./helpers/organization-fixture";
 import { seedPlatformPlaybook } from "../../lib/agent-engine/agent/playbook-seed";
 
 const credenciais = credenciaisSupabaseDeTeste();
@@ -45,6 +46,7 @@ test.skip(
 test.describe.configure({ timeout: 240_000 });
 
 async function inserir(tabela: string, valor: Record<string, unknown>): Promise<string> {
+  if (tabela === "organizations") return insertOrganizationFixture(valor);
   const { data, error } = await db.from(tabela).insert(valor).select("id").single();
   if (error) throw error;
   return data.id as string;

@@ -208,14 +208,14 @@ verificar_arquitetura_do_kit() {
       # recusa logo abaixo). O aviso vai para o STDERR, como a recusa: o
       # agent.sh manda a saída do update.sh para arquivo e o dono lê o fim dela.
       printf '%s\n' \
-        "⚠ $(t "Este servidor usa arquitetura '{1}', e as imagens publicadas do DeskcommCRM são linux/amd64 e linux/arm64." "$arch")" \
+        "⚠ $(t "Este servidor usa arquitetura '{1}', e as imagens publicadas do Clientix são linux/amd64 e linux/arm64." "$arch")" \
         "  $(t "Como esta instalação JÁ EXISTE, sigo em frente: as imagens da versão alvo serão construídas nesta própria VPS.")" \
         "  $(t "Leva de 15 a 25 minutos. Uma instalação NOVA exige x86_64/amd64 ou ARM64/aarch64 com imagens publicadas.")" >&2
       return 0 ;;
   esac
 
   printf '%s\n' \
-    "✖ $(t "Este servidor usa arquitetura '{1}', mas o DeskcommCRM não publica imagens para ela (linux/amd64 e linux/arm64 estão disponíveis)." "$arch")" \
+    "✖ $(t "Este servidor usa arquitetura '{1}', mas o Clientix não publica imagens para ela (linux/amd64 e linux/arm64 estão disponíveis)." "$arch")" \
     "  $(t '  Use uma VPS x86_64/amd64 ou ARM64/aarch64. Repetir o download não resolve.' | sed 's/^  //')" >&2
   return 1
 }
@@ -224,7 +224,7 @@ verificar_arquitetura_do_kit() {
 # deve bloquear os dois caminhos que realmente instalam/atualizam contêineres.
 # update.sh sourceia aqui antes de qualquer trabalho; install.sh sourceia depois
 # de localizar/clonar o repo, mas ainda antes de consultar ou baixar imagens do
-# DeskcommCRM.
+# Clientix.
 _deskcomm_chamador="${BASH_SOURCE[1]:-}"
 _deskcomm_chamador="${_deskcomm_chamador##*/}"
 case "$_deskcomm_chamador" in
@@ -375,7 +375,7 @@ sincronizar_smtp_do_gotrue() {
   set_env_var "$env_sb" SMTP_USER "$(valor_compose "$usuario")"
   set_env_var "$env_sb" SMTP_PASS "$(valor_compose "$senha")"
   set_env_var "$env_sb" SMTP_ADMIN_EMAIL "$(valor_compose "$remetente")"
-  set_env_var "$env_sb" SMTP_SENDER_NAME "$(valor_compose "${nome:-${APP_NAME:-DeskcommCRM}}")"
+  set_env_var "$env_sb" SMTP_SENDER_NAME "$(valor_compose "${nome:-${APP_NAME:-Clientix}}")"
 }
 
 # ── `so_convite` fecha o caminho DIRETO do GoTrue (#1653) ────────────────────
@@ -1371,7 +1371,7 @@ IMG_VOICE_AGENT="${IMG_NS}/clientix-voice-agent"
 # alguém porque não deu para resolver um número de versão seria trocar um
 # problema de previsibilidade por um de disponibilidade.
 ultima_versao_publicada() {
-  local url="${1:-https://github.com/rafaelbravik/clientix-agencia.git}" ref
+  local url="${1:-https://github.com/rafaelbravik/clientix.git}" ref
   command -v git >/dev/null 2>&1 || return 0
   # `grep -v -- -` descarta PRERELEASE (v1.11.0-rc1, v1.1.1-jmpo.1 — esta última
   # existe de verdade neste repo). O `--sort=-v:refname` do git põe o prerelease
@@ -2051,8 +2051,24 @@ ultima_release_estavel() {
 
   # `-f` faz o curl falhar em 404 (repo sem release nenhuma) em vez de devolver
   # o corpo de erro, que o sed abaixo interpretaria como ausência de tag_name.
-  tag="$(curl -fsSL --max-time 20 -H 'Accept: application/vnd.github+json' "${auth_args[@]}" "$url" 2>/dev/null \
-    | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)"
+  if [ "${DESKCOMM_RELEASE_DIAGNOSTICS:-}" = "1" ]; then
+    local response response_body http_status curl_status
+    if response="$(curl -fsSL --max-time 20 -H 'Accept: application/vnd.github+json' "${auth_args[@]}" \
+      -w $'\n__HTTP_STATUS__:%{http_code}' "$url" 2>/dev/null)"; then
+      curl_status=0
+    else
+      curl_status=$?
+    fi
+    http_status="$(printf '%s\n' "$response" | sed -n 's/^__HTTP_STATUS__://p' | tail -1)"
+    response_body="$(printf '%s\n' "$response" | sed '$d')"
+    tag="$(printf '%s\n' "$response_body" \
+      | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)"
+    printf 'DIAGNÓSTICO: release API curl_exit=%s http_status=%s tag=%s.\n' \
+      "$curl_status" "${http_status:-unknown}" "$([ -n "$tag" ] && printf found || printf empty)" >&2
+  else
+    tag="$(curl -fsSL --max-time 20 -H 'Accept: application/vnd.github+json' "${auth_args[@]}" "$url" 2>/dev/null \
+      | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)"
+  fi
 
   # Sem jq de propósito: o kit não pode exigir jq numa VPS de cliente. O
   # `tag_name` é o primeiro campo desse formato no JSON de uma release e não

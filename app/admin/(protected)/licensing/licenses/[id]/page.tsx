@@ -22,6 +22,7 @@ import {
   X,
 } from "@/lib/ui/icons";
 import { useTagDeIdioma } from "@/hooks/i18n/useLocaleDeData";
+import { randomId } from "@/lib/random-id";
 
 interface ActivationCodeItem {
   id: string;
@@ -165,7 +166,7 @@ export default function LicenseDetailPage() {
     if (!renewalTerm || (renewalNeedsBasis && !renewalBasis)) return;
     setActionLoading(true);
     try {
-      const idempotencyKey = renewalIdempotencyKey ?? crypto.randomUUID();
+      const idempotencyKey = renewalIdempotencyKey ?? randomId();
       setRenewalIdempotencyKey(idempotencyKey);
       const renewalPayload: Record<string, unknown> = {};
       if (renewalTerm === "custom")
@@ -426,7 +427,7 @@ export default function LicenseDetailPage() {
         <div className="flex flex-wrap items-center gap-2">
           {license.status === "DRAFT" ? (
             <Button size="sm" onClick={handleIssue} disabled={actionLoading}>
-              Emitir licença
+              {t("Emitir licença")}
             </Button>
           ) : (
             <>
@@ -537,7 +538,9 @@ export default function LicenseDetailPage() {
             <div className="flex justify-between py-1">
               <span className="text-muted-foreground">Emitida em:</span>
               <span>
-                {license.issued_at ? new Date(license.issued_at).toLocaleString(tag) : "Rascunho"}
+                {license.issued_at
+                  ? new Date(license.issued_at).toLocaleString(tag)
+                  : t("Rascunho")}
               </span>
             </div>
           </div>
@@ -776,13 +779,13 @@ export default function LicenseDetailPage() {
 
       <section className="space-y-4 rounded-lg border bg-card p-6">
         <div>
-          <h2 className="text-base font-semibold">Histórico de eventos</h2>
+          <h2 className="text-base font-semibold">{t("Histórico de eventos")}</h2>
           <p className="text-xs text-muted-foreground">
-            Eventos administrativos e validações registradas para esta licença.
+            {t("Eventos administrativos e validações registradas para esta licença.")}
           </p>
         </div>
         {events.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nenhum evento registrado.</p>
+          <p className="text-sm text-muted-foreground">{t("Nenhum evento registrado.")}</p>
         ) : (
           <ol className="space-y-3">
             {events.map((event) => (
@@ -911,11 +914,12 @@ export default function LicenseDetailPage() {
           >
             <div>
               <h3 id="renew-license-title" className="text-lg font-bold">
-                Renovar licença
+                {t("Renovar licença")}
               </h3>
               <p className="text-sm text-muted-foreground">
-                Renovação sem cobrança. A nova licença será assinada novamente. Informe o motivo
-                para auditoria.
+                {t(
+                  "Renovação sem cobrança. A nova licença será assinada novamente. Informe o motivo para auditoria.",
+                )}
               </p>
             </div>
             <div>
@@ -933,7 +937,7 @@ export default function LicenseDetailPage() {
                 <option value="6m">+6 meses</option>
                 <option value="12m">+12 meses</option>
                 <option value="24m">+24 meses</option>
-                <option value="custom">Data específica</option>
+                <option value="custom">{t("Data específica")}</option>
               </select>
             </div>
             {renewalTerm === "custom" && (
@@ -952,7 +956,7 @@ export default function LicenseDetailPage() {
             {renewalNeedsBasis && (
               <fieldset className="space-y-2 rounded-md border p-3">
                 <legend className="px-1 text-sm font-medium">
-                  Licença vencida: escolha a base do novo prazo
+                  {t("Licença vencida: escolha a base do novo prazo")}
                 </legend>
                 <label className="flex items-start gap-2 text-sm">
                   <input
@@ -987,7 +991,7 @@ export default function LicenseDetailPage() {
             )}
             <div>
               <label className="mb-1 block text-sm font-medium" htmlFor="renewal-reason">
-                Motivo obrigatório
+                {t("Motivo obrigatório")}
               </label>
               <textarea
                 id="renewal-reason"
@@ -1015,7 +1019,7 @@ export default function LicenseDetailPage() {
                   (renewalNeedsBasis && !renewalBasis)
                 }
               >
-                {actionLoading ? "Renovando…" : "Confirmar renovação"}
+                {actionLoading ? "Renovando…" : t("Confirmar renovação")}
               </Button>
             </div>
           </section>
@@ -1031,13 +1035,13 @@ export default function LicenseDetailPage() {
             className="max-h-[90vh] w-full max-w-md space-y-4 overflow-y-auto rounded-lg border bg-card p-6 shadow-xl"
           >
             <h3 id="suspend-license-title" className="text-lg font-bold">
-              Suspender licença
+              {t("Suspender licença")}
             </h3>
             <p className="text-sm text-muted-foreground">
-              A suspensão é reversível e encerra as sessões ativas registradas.
+              {t("A suspensão é reversível e encerra as sessões ativas registradas.")}
             </p>
             <label className="block text-sm font-medium">
-              Motivo obrigatório
+              {t("Motivo obrigatório")}
               <Input
                 className="mt-1"
                 value={suspendReason}
@@ -1046,7 +1050,7 @@ export default function LicenseDetailPage() {
               />
             </label>
             <label className="block text-sm font-medium">
-              Observação interna opcional
+              {t("Observação interna opcional")}
               <textarea
                 className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 rows={3}
@@ -1064,7 +1068,7 @@ export default function LicenseDetailPage() {
                 disabled={actionLoading || !suspendReason.trim()}
                 onClick={() => void handleSuspend()}
               >
-                {actionLoading ? "Suspending…" : "Suspender licença"}
+                {actionLoading ? "Suspending…" : t("Suspender licença")}
               </Button>
             </div>
           </section>
@@ -1075,15 +1079,15 @@ export default function LicenseDetailPage() {
       {showTransferModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="w-full max-w-xl space-y-4 rounded-lg border bg-card p-6 shadow-xl">
-            <h3 className="text-lg font-bold">Transferir instalação</h3>
+            <h3 className="text-lg font-bold">{t("Transferir instalação")}</h3>
             <p className="text-sm text-muted-foreground">
-              A instalação atual será marcada como transferida e a instalação de destino será
-              ativada na mesma transação. Informe o ID e a chave pública que o novo runtime gerou
-              localmente.
+              {t(
+                "A instalação atual será marcada como transferida e a instalação de destino será ativada na mesma transação. Informe o ID e a chave pública que o novo runtime gerou localmente.",
+              )}
             </p>
             <div>
               <label className="mb-1 block text-xs font-medium text-muted-foreground">
-                Instalação atual
+                {t("Instalação atual")}
               </label>
               <select
                 value={transferFrom}
@@ -1102,7 +1106,7 @@ export default function LicenseDetailPage() {
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-muted-foreground">
-                ID da nova instalação
+                {t("ID da nova instalação")}
               </label>
               <Input
                 value={transferTo}
@@ -1112,7 +1116,7 @@ export default function LicenseDetailPage() {
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-muted-foreground">
-                Chave pública Ed25519 da nova instalação
+                {t("Chave pública Ed25519 da nova instalação")}
               </label>
               <textarea
                 value={transferPublicKey}
@@ -1124,7 +1128,7 @@ export default function LicenseDetailPage() {
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-muted-foreground">
-                Motivo da transferência
+                {t("Motivo da transferência")}
               </label>
               <Input
                 value={transferReason}
@@ -1146,7 +1150,7 @@ export default function LicenseDetailPage() {
                   !transferReason.trim()
                 }
               >
-                Transferir com confirmação
+                {t("Transferir com confirmação")}
               </Button>
             </div>
           </div>
@@ -1167,7 +1171,7 @@ export default function LicenseDetailPage() {
             </p>
             <div>
               <label className="mb-1 block text-xs font-medium text-muted-foreground">
-                Motivo da revogação
+                {t("Motivo da revogação")}
               </label>
               <Input
                 value={revokeReason}

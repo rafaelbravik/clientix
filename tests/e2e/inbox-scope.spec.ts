@@ -12,6 +12,7 @@ import * as path from "node:path";
 
 import { createClient } from "@supabase/supabase-js";
 import { test, expect, type Page } from "./helpers/test";
+import { insertOrganizationFixture } from "./helpers/organization-fixture";
 
 import { credenciaisSupabaseDeTeste } from "../../scripts/lib/env-de-teste";
 
@@ -50,6 +51,7 @@ let orgAlheia = "";
 let conversaDeOutraOrg = "";
 
 async function insere(tabela: string, valores: Record<string, unknown>): Promise<string> {
+  if (tabela === "organizations") return insertOrganizationFixture(valores);
   const { data, error } = await db.from(tabela).insert(valores).select("id").single();
   if (error) throw new Error(`${tabela}: ${error.message}`);
   return (data as { id: string }).id;

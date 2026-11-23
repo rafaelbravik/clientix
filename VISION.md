@@ -1,20 +1,17 @@
-# 🧭 Visão — DeskcommCRM
+# 🧭 Visão — Clientix
 
 > **O sistema operacional de vendas com agentes de IA, open source, nativo no WhatsApp.**
 > Este documento é a fonte da verdade do posicionamento do projeto. Tudo que for público (README, site, docs, descrições) deriva daqui.
 
 ---
 
-## O nome
+## A marca
 
-**Deskcomm** vem de **Desk** (mesa) + **comm** (comércio): **o comercial de mesa**.
-A ideia que o nome carrega: toda a operação comercial de um negócio — atendimento, qualificação, funil, pós-venda — operada a partir de uma única mesa, por pessoas e por agentes de IA trabalhando juntos.
-
-O "CRM" no nome é a categoria de entrada, não o teto. O DeskcommCRM é **mais que um CRM**: é o sistema onde a venda acontece.
+**Clientix** é o nome do produto. CRM é a categoria de entrada, não o teto: o Clientix é **mais que um CRM** — é o sistema onde a venda acontece.
 
 ## De onde viemos, pra onde vamos
 
-O projeto nasceu em 2026 como um CRM operacional para **e-commerce brasileiro** — WhatsApp via WAHA, integração Nuvemshop, LGPD nativa. Quando abrimos o código, a comunidade decidiu outra coisa: a maioria dos adopters passou a rodar o Deskcomm em **clínicas, infoprodutos, imobiliárias, agências e prestadores de serviço** — qualquer negócio que vende conversando.
+O projeto nasceu em 2026 como um CRM operacional para **e-commerce brasileiro** — WhatsApp via WAHA, integração Nuvemshop, LGPD nativa. Quando abrimos o código, a comunidade decidiu outra coisa: a maioria dos adopters passou a rodar o Clientix em **clínicas, infoprodutos, imobiliárias, agências e prestadores de serviço** — qualquer negócio que vende conversando.
 
 Os pedidos de feature dessa comunidade empurraram o produto na direção que hoje é a nossa identidade: **agentes de IA cada vez mais capazes, integrados ao sistema via MCP, operando o CRM de verdade**. O e-commerce continua sendo um caso de uso de primeira classe (foi nosso berço e a integração Nuvemshop prova isso) — mas ele é **um** vertical, não **o** produto.
 
@@ -26,7 +23,7 @@ Os pedidos de feature dessa comunidade empurraram o produto na direção que hoj
 
 2. **Agentes que se auto-aprimoram.** O sistema é desenhado como um flywheel: conversas resolvidas viram conhecimento novo na base RAG; handoffs pro humano marcam onde o agente ainda não alcança; métricas e budget por tenant fecham o loop. Cada dia de operação torna o agente melhor — com **gate humano** nas decisões que importam. Essa é a aposta central do roadmap.
 
-3. **MCP como sistema nervoso.** O CRM inteiro é exposto como tools MCP — primeiro para os agentes internos, depois como contrato público. Um negócio deve poder plugar o agente que quiser (Claude, o que vier) e ele **opera** o Deskcomm: cria lead, responde cliente, agenda, consulta pedido. O CRM vira infraestrutura para agentes.
+3. **MCP como sistema nervoso.** O CRM inteiro é exposto como tools MCP — primeiro para os agentes internos, depois como contrato público. Um negócio deve poder plugar o agente que quiser (Claude, o que vier) e ele **opera** o Clientix: cria lead, responde cliente, agenda, consulta pedido. O CRM vira infraestrutura para agentes.
 
 4. **Humano no comando.** Handoff auditado, escopo por papel (RBAC), fila com posição, budget de IA por organização. Autonomia do agente cresce na medida em que a governança prova que ele acerta.
 
@@ -49,7 +46,7 @@ Os pedidos de feature dessa comunidade empurraram o produto na direção que hoj
 **Categoria própria (bandeira):** **sistema operacional de vendas com agentes de IA** — *AI Sales OS*. É pra onde a âncora nos leva: os incumbentes vendem assinatura de chat com bot acoplado; nós entregamos um sistema onde o agente de IA é operador nativo e o código é seu.
 
 **Uma frase (pt-br):**
-> DeskcommCRM é o sistema operacional de vendas open source com agentes de IA nativos e WhatsApp — self-hosted, multi-tenant, para qualquer negócio que vende conversando.
+> Clientix é o sistema operacional de vendas open source com agentes de IA nativos e WhatsApp — self-hosted, multi-tenant, para qualquer negócio que vende conversando.
 
 **One-liner (en):**
 > Open-source AI sales OS: a self-hosted CRM where AI agents natively operate sales and support over WhatsApp — an open alternative to Kommo, Octadesk and Intercom.
@@ -58,8 +55,9 @@ Os pedidos de feature dessa comunidade empurraram o produto na direção que hoj
 
 ## Modelo do projeto (sem letra miúda)
 
-- **O software é 100% open source (MIT), completo, sem versão paga.** Nós não vendemos assinatura; quem instala pode cobrar os próprios clientes ([ADR-0004](docs/adr/0004-cobranca-do-revendedor.md)). Não existe feature travada.
-- **A monetização é por infraestrutura:** o projeto é desenvolvido em parceria com a **HostGator** — o caminho recomendado de produção é a VPS deles (datacenter em São Paulo), instalada pelo `hostgator-setup-kit` com 1 comando. Assinar pelo link de parceiro apoia o projeto e sai mais barato pra quem assina.
+- **O software é 100% open source (MIT), completo e sem recursos pagos no código.** O projeto pode oferecer o acesso Cloud diretamente; empresas que instalam por conta própria ou como parceiras continuam podendo operar e cobrar seus tenants. A decisão atual está em [ADR-0005](docs/adr/0005-cloud-direto-e-assinatura-por-tenant.md), que preserva a cobrança do instalador definida na [ADR-0004](docs/adr/0004-cobranca-do-revendedor.md).
+- **Dois caminhos de operação:** empresas que compram diretamente usam uma instalação Cloud gerenciada pelo projeto, com plano por tenant; empresas e parceiros podem instalar o sistema na própria infraestrutura. A licença `ACT_...` controla a instalação self-hosted inteira, enquanto a assinatura do tenant controla as cotas daquela empresa.
+- **A infraestrutura recomendada para self-host continua aberta:** o projeto é desenvolvido em parceria com a **HostGator** — a VPS deles (datacenter em São Paulo), instalada pelo `hostgator-setup-kit`, é um caminho recomendado. A parceria não é requisito para usar o código ou instalar em outra VPS.
 - **O caminho genérico nunca é sabotado:** `docker compose` e o kit self-host funcionam em qualquer VPS. A parceria é o caminho recomendado, nunca o único. (Regra de ouro do open source sustentável: percepção de pegadinha mata a marca.)
 
 ## Princípios de comunicação

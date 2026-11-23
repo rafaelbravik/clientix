@@ -19,7 +19,11 @@
 #      anunciar o preparo (`==>`);
 #   2. a mensagem nomeia o binário ausente e diz o que fazer (`pnpm install`);
 #   3. CONTROLE POSITIVO: com um `next` no lugar, a guarda NÃO dispara — sem este
-#      caso, uma guarda que recusasse sempre passaria no caso 1 e quebraria o CI.
+#      caso, uma guarda que recusasse sempre passaria no caso 1 e quebraria o CI;
+#   4. uma URL local dinâmica, igual no `.env.e2e` e `.env.local`, não é tratada
+#      como produção;
+#   5. se o bundle incluir o host diferente que veio do `.env.local`, a suíte é
+#      recusada antes de poder escrever nesse banco.
 #
 # A cópia roda num diretório de mentira: é o jeito de medir "sem o binário" sem
 # mexer no `node_modules` de quem executa o teste.
@@ -42,11 +46,16 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/scripts"
 cp "$RAIZ/scripts/e2e-build.sh" "$tmp/scripts/"
+mkdir -p "$tmp/lib/licensing"
+cat > "$tmp/lib/licensing/e2e-test-trusted-key.ts" <<'KEY'
+export const E2E_TEST_LICENSE_KEY_ID = "clientix-e2e-ephemeral";
+export const E2E_TEST_LICENSE_PUBLIC_KEY: string | null = null;
+KEY
 # O `.env.e2e` existe para o caso 1 não poder ser confundido: o que falta ali é
 # só o binário.
 printf 'NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321\nNEXT_PUBLIC_SUPABASE_ANON_KEY=probe\n' > "$tmp/.env.e2e"
 
-echo "== 1/3 · sem next instalado, recusa antes de anunciar o build"
+echo "== 1/5 · sem next instalado, recusa antes de anunciar o build"
 saida="$(env -i PATH="/usr/bin:/bin" HOME="$tmp" bash "$tmp/scripts/e2e-build.sh" 2>&1 || true)"
 codigo="$(env -i PATH="/usr/bin:/bin" HOME="$tmp" bash "$tmp/scripts/e2e-build.sh" >/dev/null 2>&1; echo $?)"
 checar "recusa com exit 1" "1" "$codigo"
@@ -61,17 +70,17 @@ case "$saida" in
   *) echo "  ok: recusou antes de qualquer anúncio do preparo";;
 esac
 
-echo "== 2/3 · a mensagem manda rodar \`pnpm install\`"
+echo "== 2/5 · a mensagem manda rodar \`pnpm install\`"
 case "$saida" in
   *"pnpm install"*) echo "  ok: aponta o comando certo";;
   *) echo "  FALHOU: não aponta \`pnpm install\` — saída: $saida" >&2; falhas=$((falhas + 1));;
 esac
 
-echo "== 3/3 · CONTROLE POSITIVO: com next no lugar, a guarda NÃO dispara"
+echo "== 3/5 · CONTROLE POSITIVO: com next no lugar, a guarda NÃO dispara"
 mkdir -p "$tmp/node_modules/.bin"
 printf '#!/bin/sh\nexit 0\n' > "$tmp/node_modules/.bin/next"
 chmod +x "$tmp/node_modules/.bin/next"
-saida_ok="$(env -i PATH="/usr/bin:/bin" HOME="$tmp" bash "$tmp/scripts/e2e-build.sh" 2>&1 || true)"
+saida_ok="$(env -i PATH="/usr/bin:/bin" HOME="$tmp" E2E_ENABLE_SIGNED_LICENSE=false bash "$tmp/scripts/e2e-build.sh" 2>&1 || true)"
 case "$saida_ok" in
   *"node_modules/.bin/next"*)
     echo "  FALHOU: a guarda disparou COM o next no lugar — ela reprovaria o CI" >&2
@@ -84,6 +93,60 @@ esac
 case "$saida_ok" in
   *"==> Buildando contra"*) echo "  ok: chegou ao passo do build (o que vem depois é outro assunto)";;
   *) echo "  FALHOU: não chegou ao passo do build — saída: $saida_ok" >&2; falhas=$((falhas + 1));;
+esac
+
+echo "== 4/5 · aceita a URL dinâmica local copiada para .env.local"
+mkdir -p "$tmp/bin"
+cat > "$tmp/bin/pnpm" <<'MOCK'
+#!/usr/bin/env bash
+set -euo pipefail
+case "$*" in
+  "exec tsx scripts/prepare-e2e-license.ts")
+    cat > lib/licensing/e2e-test-trusted-key.ts <<'KEY'
+export const E2E_TEST_LICENSE_KEY_ID = "clientix-e2e-ephemeral";
+export const E2E_TEST_LICENSE_PUBLIC_KEY: string | null = "ephemeral-test-public-key";
+KEY
+    ;;
+  "exec next build")
+    mkdir -p .next/static
+    printf '%s\n%s\n' "$NEXT_PUBLIC_SUPABASE_URL" "${MOCK_BUNDLE_HOST:-}" > .next/static/bundle.js
+    ;;
+  *) echo "comando inesperado: $*" >&2; exit 2 ;;
+esac
+MOCK
+chmod +x "$tmp/bin/pnpm"
+printf 'NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54635\nNEXT_PUBLIC_SUPABASE_ANON_KEY=probe\n' > "$tmp/.env.e2e"
+printf 'NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54635\n' > "$tmp/.env.local"
+if env -i PATH="$tmp/bin:/usr/bin:/bin" HOME="$tmp" bash "$tmp/scripts/e2e-build.sh" > "$tmp/saida-dinamica" 2>&1; then
+  codigo_dinamico=0
+else
+  codigo_dinamico=$?
+fi
+saida_dinamica="$(cat "$tmp/saida-dinamica")"
+checar "URL E2E local dinâmica não foi recusada" "0" "$codigo_dinamico"
+case "$saida_dinamica" in
+  *"host local (127.0.0.1:54635) ESTÁ no bundle"*) echo "  ok: confirmou a URL local dinâmica no bundle";;
+  *) echo "  FALHOU: não confirmou a URL dinâmica — saída: $saida_dinamica" >&2; falhas=$((falhas + 1));;
+esac
+if grep -q 'E2E_TEST_LICENSE_PUBLIC_KEY: string | null = null' "$tmp/lib/licensing/e2e-test-trusted-key.ts"; then
+  echo "  ok: restaurou o slot de chave após o build"
+else
+  echo "  FALHOU: deixou chave efêmera no arquivo de confiança" >&2
+  falhas=$((falhas + 1))
+fi
+
+echo "== 5/5 · recusa se o bundle reutilizar o host diferente de .env.local"
+printf 'NEXT_PUBLIC_SUPABASE_URL=https://crm.example.test\n' > "$tmp/.env.local"
+if env -i PATH="$tmp/bin:/usr/bin:/bin" HOME="$tmp" MOCK_BUNDLE_HOST=crm.example.test bash "$tmp/scripts/e2e-build.sh" > "$tmp/saida-vazamento" 2>&1; then
+  codigo_vazamento=0
+else
+  codigo_vazamento=$?
+fi
+saida_vazamento="$(cat "$tmp/saida-vazamento")"
+checar "recusa o host do .env.local presente no bundle" "1" "$codigo_vazamento"
+case "$saida_vazamento" in
+  *"bundle do browser contém o host de .env.local (crm.example.test)"*) echo "  ok: identificou o host que não deve chegar ao bundle";;
+  *) echo "  FALHOU: não identificou o host diferente — saída: $saida_vazamento" >&2; falhas=$((falhas + 1));;
 esac
 
 if [ "$falhas" -ne 0 ]; then

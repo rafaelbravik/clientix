@@ -87,7 +87,10 @@ async function compensateAuthUser(
 
 export async function POST(request: Request) {
   const requestId = randomUUID();
-  if (!isSameOrigin(request.headers.get("origin"), new URL(request.url).origin)) {
+  // Next.js pode receber a URL interna do container mesmo quando o navegador
+  // abriu a origem pública configurada. Use a origem canônica validada pelo
+  // ambiente para não recusar o formulário atrás do port mapping/proxy.
+  if (!isSameOrigin(request.headers.get("origin"), env.NEXT_PUBLIC_APP_URL)) {
     return fail("forbidden", "Origem da solicitação não permitida.", 403, { requestId, headers });
   }
   if (request.headers.get("sec-fetch-site") === "cross-site") {

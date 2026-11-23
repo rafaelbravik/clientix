@@ -149,6 +149,7 @@ sem_lib="$TMP/c2-sem-lib"
 rm -rf "$sem_lib"; git clone -q "$principal" "$sem_lib"
 cfg "$sem_lib" user.email "alguem@fork.dev"; cfg "$sem_lib" user.name "Pessoa"
 cfg "$sem_lib" core.hooksPath ".agents/skills/deskcomm-contribuir/scripts/hooks"
+cfg "$sem_lib" core.filemode true # mantém o fixture equivalente ao runner Linux também no Windows
 chmod +x "$sem_lib"/.agents/skills/deskcomm-contribuir/scripts/*.sh \
           "$sem_lib"/.agents/skills/deskcomm-contribuir/scripts/hooks/*
 cd "$sem_lib" || exit 1; git switch -q -c fix/sem-lib
@@ -177,6 +178,10 @@ printf 'select 7;\n' > supabase/migrations/20260909120000_0301_colide.sql
 printf -- '-- y\n' >> supabase/baseline.sql
 printf '| y | `0301_colide` |\n' >> supabase/migrations/MANIFEST.md
 git add -A
+# O checkout restaura o modo 100644 do fixture; rearmar os hooks depois da troca
+# de branch para que este commit realmente exercite o guard no Linux.
+chmod +x "$sem_lib"/.agents/skills/deskcomm-contribuir/scripts/*.sh \
+          "$sem_lib"/.agents/skills/deskcomm-contribuir/scripts/hooks/*
 saida="$(git commit -q -m "colisao com arquivo que nao e o primeiro da ref" 2>&1)"; code=$?
 assert_exit "$code" 1 "sem a biblioteca, colisão com o 3º arquivo de outra branch AINDA é bloqueada"
 assert_contains "$saida" "NNNN=0301" "e o NNNN acusado é o do 3º arquivo"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# DeskcommCRM — instalador self-host para VPS (HostGator).
+# Clientix — instalador self-host para VPS (HostGator).
 #
 # Idempotente: pode rodar de novo sem estragar nada. Dependências no host:
 # só docker, docker compose, git, openssl, curl. psql/bootstrap rodam via Docker.
@@ -15,7 +15,7 @@ set -euo pipefail
 # de qualquer 'cd' (step 2 pode entrar num repo clonado à parte).
 KIT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 
-REPO_URL="${REPO_URL:-https://github.com/rafaelbravik/clientix-agencia.git}"
+REPO_URL="${REPO_URL:-https://github.com/rafaelbravik/clientix.git}"
 # Uma constante, dois usos (o fim feliz e o fim travado) — e o comecar.sh tem a
 # gêmea. Link repetido à mão vira link divergente na primeira troca.
 COMUNIDADE_URL="https://lp-comunidade.automatiklabs.com.br"
@@ -213,6 +213,21 @@ v_domain() {
     *.*)   return 0;;
     *)     echo "$(t "Isso não parece um domínio (falta o ponto) — ex.: crm.suaempresa.com.br")"; return 1;;
   esac
+}
+
+# Endereço base do License Server do fornecedor. O valor não é segredo, mas é
+# sensível à forma: o runtime aceita somente HTTPS em produção, sem credenciais,
+# query ou fragmento. O caminho base é permitido para instalações atrás de proxy.
+# Vazio mantém a instalação possível; a ativação online fica indisponível até
+# que uma URL seja informada e o install.sh seja reexecutado.
+v_license_server_url() {
+  local value="$1"
+  [ -z "$value" ] && return 0
+  if [[ "$value" =~ ^https://[^/@?#[:space:]]+(/[^?#[:space:]]*)?$ ]]; then
+    return 0
+  fi
+  echo "$(t "Use a URL base HTTPS do fornecedor, sem usuário/senha, query ou fragmento (ex.: https://licencas.suaempresa.com.br)")"
+  return 1
 }
 
 v_email() {
@@ -1064,9 +1079,9 @@ e, se for mesmo um Traefik, ponha REVERSE_PROXY=traefik no .env e rode de novo."
     # à instalação que está no ar — foi assim que uma aula subiu por cima de uma
     # produção. Aqui o nome das DUAS pastas aparece.
     if [ -n "$dono_arvore" ] && [ "$dono_projeto" = "$proj_atual" ] && [ "$dono_arvore" != "$_minha_arvore" ]; then
-      c_red "$(t "✖ Já existe um DeskcommCRM NO AR nesta VPS, instalado em {1}." "$dono_arvore")"
+      c_red "$(t "✖ Já existe um Clientix NO AR nesta VPS, instalado em {1}." "$dono_arvore")"
       printf '\n%s\n'   "$(t "  Esta pasta ({1}) é outra cópia do repo. As duas se chamam" "$_minha_arvore")"
-      printf '%s\n'     "$(t "  DeskcommCRM, então o Docker dá às duas o MESMO nome de projeto")"
+      printf '%s\n'     "$(t "  Clientix, então o Docker dá às duas o MESMO nome de projeto")"
       printf '%s\n\n'   "$(t "  ('{1}') — e instalar aqui recriaria os contêineres daquela." "$proj_atual")"
       printf '%s\n'     "$(t "  Na prática: o CRM que está no ar passaria a rodar com o .env DESTA pasta")"
       printf '%s\n\n'   "$(t "  (outro banco, outras chaves), e as conexões de WhatsApp cairiam.")"
@@ -1075,7 +1090,7 @@ e, se for mesmo um Traefik, ponha REVERSE_PROXY=traefik no .env e rode de novo."
       printf '%s\n'     "$(t "  Quer mesmo uma SEGUNDA instalação nesta VPS? Ela precisa de nome de")"
       printf '%s\n'     "$(t "  projeto e domínio próprios — ponha no .env desta pasta, antes de rodar:")"
       printf '%s\n\n'   "       COMPOSE_PROJECT_NAME=deskcomm-$(basename "${_minha_arvore}" | tr 'A-Z' 'a-z')-2"
-      die "$(t "Instalação interrompida para não derrubar o DeskcommCRM que está no ar em {1}." "$dono_arvore")"
+      die "$(t "Instalação interrompida para não derrubar o Clientix que está no ar em {1}." "$dono_arvore")"
     fi
     # Concordância com o número de portas: "A porta 80 e 443 já está ocupada"
     # saiu na prova real e denuncia texto montado sem olhar o próprio dado.
@@ -1087,7 +1102,7 @@ e, se for mesmo um Traefik, ponha REVERSE_PROXY=traefik no .env e rode de novo."
     printf '\n%s\n'   "$(t "  O CRM precisa dessas duas portas para publicar o site com HTTPS. Subir um")"
     printf '%s\n\n'   "$(t "  segundo proxy nelas não funciona: o Docker recusa e a instalação para.")"
     printf '%s\n'     "$(t "  Como resolver, na ordem do mais provável:")"
-    printf '\n%s\n'   "$(t "  1. Já é outro DeskcommCRM neste servidor? Então use aquele — entre na")"
+    printf '\n%s\n'   "$(t "  1. Já é outro Clientix neste servidor? Então use aquele — entre na")"
     printf '%s\n'     "$(t "     pasta dele e rode: bash hostgator-setup-kit/update.sh")"
     printf '\n%s\n'   "$(t "  2. Não usa mais o que está ocupando? Desligue e rode este instalador de novo:")"
     [ -n "$dono_portas" ] && printf '%s\n' "$(t "       docker stop {1}" "$dono_portas")"
@@ -1132,7 +1147,7 @@ fi
 # colar. Sem o token, nada muda: seguem as perguntas de sempre.
 if [ -z "${NEXT_PUBLIC_SUPABASE_URL:-}" ] && [ -n "${SUPABASE_ACCESS_TOKEN:-}" ]; then
   step "$(t "Criando o projeto Supabase automaticamente")"
-  _sb_out="$(bash "$KIT_DIR/supabase-provision.sh" "${APP_NAME:-DeskcommCRM}" "${SUPABASE_REGION:-sa-east-1}")" \
+  _sb_out="$(bash "$KIT_DIR/supabase-provision.sh" "${APP_NAME:-Clientix}" "${SUPABASE_REGION:-sa-east-1}")" \
     || die "$(t "Não consegui criar o projeto Supabase. Crie no painel e rode de novo sem SUPABASE_ACCESS_TOKEN.")"
   # O script imprime `CHAVE='valor'` em stdout (o visual dele vai para stderr).
   # A leitura é por parse, não por `eval` — o porquê está em
@@ -1316,6 +1331,7 @@ FIELDS=(
   # comportamento de sempre para quem não tem marca própria.
   "APP_ACCENT_HEX|Cor da sua marca em hex, ex.: #7a5cd6 (Enter usa a cor do sistema)||v_hex||opcional"
   "SUPPORT_EMAIL|E-mail de suporte que SEUS clientes veem (Enter pula)||v_email||opcional"
+  "CLIENTIX_LICENSE_SERVER_URL|URL base HTTPS do Vendor (sem /api/v1; necessária para ativar e validar a licença online; Enter deixa para depois)||v_license_server_url||opcional"
   "RESEND_API_KEY|Chave da Resend — envia convite e e-mail de LGPD (resend.com/api-keys, Enter pula)|||secret|opcional"
   "RESEND_FROM_EMAIL|Remetente dos e-mails, de um domínio verificado na Resend (Enter pula)||v_email||opcional"
 )
@@ -1629,6 +1645,8 @@ esac
   # Persista a política estrita no arquivo, além do override explícito do app.
   envq CLIENTIX_INGRESS_MODE "production"
   envq CLIENTIX_ALLOW_INSECURE_HTTP "false"
+  printf '# URL base HTTPS do Vendor. Vazia = ativação e validação online desabilitadas.\n'
+  envq CLIENTIX_LICENSE_SERVER_URL "${CLIENTIX_LICENSE_SERVER_URL:-}"
   envq DOMAIN "$DOMAIN"
   envq ACME_EMAIL "$ACME_EMAIL"
   printf '# Proxy reverso: "caddy" (o kit sobe o dele nas portas 80/443), "traefik"\n'
@@ -2090,14 +2108,37 @@ $(c_ylw "  ─── $(t "A IA ainda não atende — falta cadastrar a chave") �
 PEND
 }
 
+# A licença comercial é ativada contra o Vendor configurado pelo revendedor.
+# Não esconder a ausência da URL: sem ela, o botão de ativação do Customer não
+# consegue alcançar o License Server e as operações protegidas seguem restritas.
+pendencia_da_licenca() {
+  [ -n "${CLIENTIX_LICENSE_SERVER_URL:-}" ] && return 0
+
+  cat <<PEND
+
+$(c_ylw "  ─── $(t "A licença online ainda não foi configurada") ───────────────")
+
+  $(t "Sem o endereço HTTPS do Vendor, esta instalação não consegue ativar nem")
+  $(t "renovar a licença online. As operações protegidas por licença ficam")
+  $(t "restritas até a ativação; login, administração e backup continuam disponíveis.")
+
+  $(t "Peça a URL base HTTPS ao fornecedor e rode de novo:")
+
+      bash hostgator-setup-kit/install.sh
+
+  $(t "Informe CLIENTIX_LICENSE_SERVER_URL quando o instalador perguntar;")
+  $(t "depois abra /admin/license e use o código ACT_ recebido do fornecedor.")
+PEND
+}
+
 PENDENCIA_EMAIL="$(mktemp)"
 PENDENCIA_ARQUIVO="$PENDENCIA_EMAIL" \
   SUPABASE_ACCESS_TOKEN="${SUPABASE_ACCESS_TOKEN:-}" \
   bash "$KIT_DIR/marca-emails.sh" --projeto "$PROJECT_DIR" || true
 
 # ── 8. Primeiro acesso ──────────────────────────────────────────────────────
-step "$(t "Token de configuração inicial protegido em {1}" ".clientix-bootstrap-token")
-c_dim "$(t "A criação do proprietário e da primeira empresa acontece no assistente /setup.")"
+step "$(t "Token de configuração inicial protegido em {1}" ".clientix-bootstrap-token")"
+c_dim "$(t "O assistente /setup cria apenas o proprietário global. Depois, com a licença ativa, cadastre as empresas em /owner.")"
 
 # ── 9. Sobe a stack ─────────────────────────────────────────────────────────
 fase 4 "$(t "Colocando o CRM no ar")"
@@ -2274,13 +2315,14 @@ $(c_grn "═══════════════════════�
 
 $(pendencia_dos_emails)
 $(pendencia_da_ia)
+$(pendencia_da_licenca)
   1. $(t "Acesse:")  https://${DOMAIN}/setup
      $(t "(o SSL leva ~1min pra emitir no primeiro acesso)")
 
   2. $(t "Informe o token protegido em:") .clientix-bootstrap-token
      $(t "O valor não foi exibido no terminal. Consulte o arquivo somente no servidor.")
 
-  3. $(t "Crie o proprietário global e a primeira empresa pelo assistente.")
+  3. $(t "Crie o proprietário global em /setup; depois, com a licença ativa, cadastre as empresas em /owner.")
 
   4. $(t "Conecte o WhatsApp:")
        $(t "Deixe o WhatsApp JÁ ABERTO em Configurações → Aparelhos conectados")

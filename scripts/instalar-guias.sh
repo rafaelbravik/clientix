@@ -6,7 +6,7 @@ ajuda() {
   cat <<'AJUDA'
 instalar-guias.sh — deixa os guias do assistente (deskcomm-instalar, deskcomm-cliente-novo,
 deskcomm-metricas, deskcomm-prompt, deskcomm-contribuir, deskcomm-doutrina) disponíveis
-em QUALQUER pasta, não só dentro de um clone do DeskcommCRM.
+em QUALQUER pasta, não só dentro de um clone do Clientix.
 
 ── Por que existe ────────────────────────────────────────────────────────────
 
@@ -171,7 +171,7 @@ fi
 # ── A fonte dos guias ────────────────────────────────────────────────────────
 if [ -n "$fonte" ]; then
   origem="$(cd "$fonte" && pwd)/.agents/skills"
-  [ -d "$origem" ] || { echo "não achei $origem — --fonte deve ser a raiz de um clone do DeskcommCRM" >&2; exit 1; }
+  [ -d "$origem" ] || { echo "não achei $origem — --fonte deve ser a raiz de um clone do Clientix" >&2; exit 1; }
   echo "fonte: $origem (seu clone)"
 else
   command -v git >/dev/null 2>&1 || { echo "precisa do git instalado" >&2; exit 1; }

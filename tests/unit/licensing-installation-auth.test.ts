@@ -9,6 +9,7 @@ import {
   isValidInstallationPublicKey,
   deriveInstallationPublicKey,
   getOrCreateInstallationPrivateKey,
+  DEFAULT_INSTALLATION_KEY_PATH,
   getOrCreatePendingInstallationKeyPair,
   commitPendingInstallationPrivateKey,
   generateActivationCode,
@@ -54,6 +55,10 @@ describe("L8.1B Installation Auth & Crypto Primitives", () => {
   });
 
   describe("2. Keypair generation and validation", () => {
+    it("stores the production Customer installation key under the writable licenses mount", () => {
+      expect(DEFAULT_INSTALLATION_KEY_PATH).toBe("/opt/clientix/licenses/installation.key");
+    });
+
     it("generates valid Ed25519 PKCS8 private key and SPKI public key", () => {
       const pair = generateInstallationKeyPair();
       expect(isValidInstallationPrivateKey(pair.privateKeyPem)).toBe(true);

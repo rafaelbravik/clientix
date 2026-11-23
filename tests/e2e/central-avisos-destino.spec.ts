@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 import { test, expect, type Page, type TestInfo } from "./helpers/test";
 import { credenciaisSupabaseDeTeste } from "../../scripts/lib/env-de-teste";
+import { insertOrganizationFixture } from "./helpers/organization-fixture";
 const credentials = credenciaisSupabaseDeTeste();
 const db = createClient(credentials.url, credentials.serviceRole, { auth: { persistSession: false } });
 const password = `Local-${randomUUID()}!`;
@@ -11,6 +12,7 @@ const conversations: string[] = [], leads: string[] = [], contacts: string[] = [
 let channel = "";
 test.use({ trace: "on" });
 async function insert(table: string, value: Record<string, unknown>) {
+  if (table === "organizations") return insertOrganizationFixture(value);
   const { data, error } = await db.from(table).insert(value).select("id").single();
   if (error) throw error;
   return data.id as string;
@@ -49,7 +51,7 @@ test.beforeAll(async () => {
     users.push({ id: data.user.id, email, role });
   }
   for (const n of [0, 1]) {
-    const org = await insert("organizations", { slug: `avisos-${randomUUID()}`, legal_name: `Avisos ${n}`, display_name: `Avisos ${n}`, onboarded_at: new Date().toISOString(), settings: { visibility_mode: "own_and_unassigned" } });
+    const org = await insert("organizations", { slug: `avisos-${randomUUID()}`, legal_name: `Avisos ${n}`, display_name: `Avisos ${n}`, onboarded_at: new Date().toISOString(), settings: { plan: "enterprise", visibility_mode: "own_and_unassigned" } });
     orgs.push(org);
     if (n === 0) for (const u of users) {
       const { error } = await db.from("user_organizations").insert({ organization_id: org, user_id: u.id, role: u.role === "other" ? "agent" : u.role, accepted_at: new Date().toISOString(), ...(u.role === "agent" ? { interface_settings: { preset: "simplificada", destinos: ["/app/ai/inbox"] } } : {}) });

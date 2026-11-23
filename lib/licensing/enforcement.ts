@@ -596,7 +596,11 @@ export async function installLicenseFile(
         }
         // O app recebe GID 1001 como grupo suplementar no Compose. Fixar o GID
         // no inode temporário antes do rename mantém o contrato após rotação.
-        await file.chown(runtimeUid, LICENSE_RUNTIME_READER_GID);
+        const canSetReaderGid =
+          runtimeUid === 0 || process.getgroups?.().includes(LICENSE_RUNTIME_READER_GID);
+        if (canSetReaderGid) {
+          await file.chown(runtimeUid, LICENSE_RUNTIME_READER_GID);
+        }
       }
       await file.chmod(LICENSE_FILE_MODE);
       await file.sync();

@@ -23,6 +23,7 @@ import { createClient } from "@supabase/supabase-js";
 import { expect, test } from "./helpers/test";
 
 import { credenciaisSupabaseDeTeste } from "../../scripts/lib/env-de-teste";
+import { insertOrganizationFixture } from "./helpers/organization-fixture";
 
 const credentials = credenciaisSupabaseDeTeste();
 const db = createClient(credentials.url, credentials.serviceRole, {
@@ -34,6 +35,7 @@ test.use({ trace: "on" });
 test.describe.configure({ timeout: 180_000 });
 
 async function insert(table: string, value: Record<string, unknown>): Promise<string> {
+  if (table === "organizations") return insertOrganizationFixture(value);
   const { data, error } = await db.from(table).insert(value).select("id").single();
   if (error) throw error;
   return data.id as string;

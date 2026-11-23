@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { channelBrand } from "@/lib/channels/presentation";
 
 export type TenantPlan = "standard" | "pro" | "enterprise";
+export type TenantSubscriptionStatus = "trialing" | "active" | "past_due" | "canceled" | "suspended" | "expired";
 
 export interface PlanFeatureMatrix {
   campaigns: boolean;
@@ -16,6 +17,9 @@ export interface PlanLimits {
   max_channels: number | null; // null = ilimitado
   allowed_channels: string[] | null; // null = todos
   features: PlanFeatureMatrix;
+  /** undefined = organização legada sem assinatura; false bloqueia novos usos sujeitos ao plano. */
+  subscription_allows_usage?: boolean;
+  subscription_status?: TenantSubscriptionStatus;
 }
 
 export const DEFAULT_PLAN_LIMITS: Record<TenantPlan, PlanLimits> = {
@@ -139,8 +143,66 @@ export function resolveTenantPlanLimits(
 export async function resolveTenantPlanLimitsFromCatalog(
   admin: SupabaseClient,
   settings: Record<string, unknown> | null | undefined,
+  organizationId?: string,
 ): Promise<PlanLimits | null> {
-  const slug = tenantPlanFromSettings(settings);
+  let slug = tenantPlanFromSettings(settings);
+  let subscriptionAllowsUsage: boolean | undefined;
+  let subscriptionStatus: TenantSubscriptionStatus | undefined;
+
+  if (organizationId) {
+    type SubscriptionResult = { data: unknown; error: unknown };
+    type LimitedSubscriptionQuery = { maybeSingle?: () => Promise<SubscriptionResult> };
+    type OrderedSubscriptionQuery = {
+      limit?: (count: number) => LimitedSubscriptionQuery;
+      order?: (column: string, options: { ascending: boolean }) => OrderedSubscriptionQuery;
+    };
+    type FilteredSubscriptionQuery = {
+      order?: (column: string, options: { ascending: boolean }) => OrderedSubscriptionQuery;
+    };
+    type SelectedSubscriptionQuery = {
+      eq?: (column: string, value: string) => FilteredSubscriptionQuery;
+    };
+
+    try {
+      const relation = admin.from("tenant_plan_subscriptions") as unknown as {
+        select?: (columns: string) => SelectedSubscriptionQuery;
+      };
+      const selected = relation.select?.(
+        "plan_slug, status, current_period_starts_at, current_period_ends_at, trial_ends_at",
+      );
+      const filtered = selected?.eq?.("organization_id", organizationId);
+      const ordered = filtered?.order?.("created_at", { ascending: false });
+      const limited = ordered?.limit?.(1);
+
+      // Older partial PostgREST test doubles do not model this relation; real
+      // clients expose the full query chain. A database error still fails closed.
+      if (typeof limited?.maybeSingle === "function") {
+        const { data, error } = await limited.maybeSingle();
+        if (error) return null;
+        if (data && typeof data === "object") {
+          const row = data as {
+            plan_slug?: unknown;
+            status?: unknown;
+            current_period_starts_at?: unknown;
+            current_period_ends_at?: unknown;
+            trial_ends_at?: unknown;
+          };
+          if (
+            (row.plan_slug !== "standard" && row.plan_slug !== "pro" && row.plan_slug !== "enterprise") ||
+            !["trialing", "active", "past_due", "canceled", "suspended", "expired"].includes(String(row.status))
+          ) {
+            return null;
+          }
+          slug = row.plan_slug;
+          subscriptionStatus = row.status as TenantSubscriptionStatus;
+          subscriptionAllowsUsage = subscriptionAllowsPlanUse(row, new Date());
+        }
+      }
+    } catch {
+      return null;
+    }
+  }
+
   const query = admin.from("platform_plan_catalog");
   if (typeof query?.select !== "function") {
     return resolveTenantPlanLimits(settings);
@@ -195,7 +257,35 @@ export async function resolveTenantPlanLimitsFromCatalog(
       comment_to_dm: commentToDm,
     },
   };
-  return mergePlanOverrides(settings, catalogPlan);
+  return {
+    ...mergePlanOverrides(settings, catalogPlan),
+    ...(subscriptionAllowsUsage === undefined ? {} : { subscription_allows_usage: subscriptionAllowsUsage }),
+    ...(subscriptionStatus === undefined ? {} : { subscription_status: subscriptionStatus }),
+  };
+}
+
+function subscriptionAllowsPlanUse(
+  subscription: {
+    status?: unknown;
+    current_period_starts_at?: unknown;
+    current_period_ends_at?: unknown;
+    trial_ends_at?: unknown;
+  },
+  now: Date,
+): boolean {
+  const status = subscription.status;
+  if (status !== "active" && status !== "trialing" && status !== "past_due") return false;
+
+  const startsAt = Date.parse(String(subscription.current_period_starts_at ?? ""));
+  const periodEndsAt = Date.parse(String(subscription.current_period_ends_at ?? ""));
+  if (!Number.isFinite(startsAt) || !Number.isFinite(periodEndsAt) || startsAt > now.getTime() || periodEndsAt <= now.getTime()) {
+    return false;
+  }
+  if (status === "trialing") {
+    const trialEndsAt = Date.parse(String(subscription.trial_ends_at ?? ""));
+    return Number.isFinite(trialEndsAt) && trialEndsAt > now.getTime();
+  }
+  return true;
 }
 
 export interface QuotaCheckResult {
@@ -224,9 +314,12 @@ export async function checkUserQuota(
       return { allowed: false, reason: "Falha ao carregar configurações do plano da organização." };
     }
 
-    const limits = await resolveTenantPlanLimitsFromCatalog(admin, org.settings as Record<string, unknown>);
+    const limits = await resolveTenantPlanLimitsFromCatalog(admin, org.settings as Record<string, unknown>, orgId);
     if (!limits) {
       return { allowed: false, reason: "Não foi possível validar o catálogo de planos da instalação." };
+    }
+    if (limits.subscription_allows_usage === false) {
+      return { allowed: false, reason: "A assinatura desta empresa não está ativa para novos usuários." };
     }
     if (limits.max_users === null) {
       return { allowed: true, max: null };
@@ -305,9 +398,12 @@ export async function checkChannelQuota(
   // Se a organização não tiver linha retornada (ex: dublê de teste sem tabela organizations),
   // assume settings vazias (que resolve para plano standard), garantindo segurança fail-closed sem quebrar dublês parciais.
   const settings = org ? (org.settings as Record<string, unknown>) : {};
-  const limits = await resolveTenantPlanLimitsFromCatalog(admin, settings);
+  const limits = await resolveTenantPlanLimitsFromCatalog(admin, settings, orgId);
   if (!limits) {
     return { allowed: false, reason: "Não foi possível validar o catálogo de planos da instalação." };
+  }
+  if (limits.subscription_allows_usage === false) {
+    return { allowed: false, reason: "A assinatura desta empresa não está ativa para novos canais." };
   }
 
   // 1. Verifica se o canal está permitido no plano
@@ -378,9 +474,12 @@ export async function checkFeatureQuota(
       return { allowed: false, reason: "Falha ao carregar configurações do plano da organização." };
     }
 
-    const limits = await resolveTenantPlanLimitsFromCatalog(admin, org.settings as Record<string, unknown>);
+    const limits = await resolveTenantPlanLimitsFromCatalog(admin, org.settings as Record<string, unknown>, orgId);
     if (!limits) {
       return { allowed: false, reason: "Não foi possível validar o catálogo de planos da instalação." };
+    }
+    if (limits.subscription_allows_usage === false) {
+      return { allowed: false, reason: "A assinatura desta empresa não está ativa para usar módulos do plano." };
     }
     const isEnabled = limits.features[feature] ?? true;
 

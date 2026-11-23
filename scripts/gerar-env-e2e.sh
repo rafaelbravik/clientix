@@ -28,15 +28,19 @@ CHAVE_CPF=""; CHAVE_WAHA=""; CHAVE_AI=""
 
 cd "$(dirname "$0")/.."
 
-# `supabase` do PATH quando existe (é o que o CI instala, via supabase/setup-cli),
-# `npx supabase` como plano B para a máquina do dev. Insistir no `npx` custaria um
-# download do registry a cada uma das três chamadas abaixo — a CLI não é
-# dependência deste projeto.
-SUPABASE="supabase"
-command -v supabase >/dev/null 2>&1 || SUPABASE="npx supabase"
-
-if ! $SUPABASE status >/dev/null 2>&1; then
-  echo "==> O Supabase local não está de pé. Rode 'npx supabase start' antes." >&2
+# O stack local de desenvolvimento é iniciado pelo wrapper, que seleciona
+# project_id e portas próprios do checkout. O workflow de GitHub Actions inicia
+# o CLI direto sobre `supabase/config.toml`; se o wrapper não enxergar esse
+# stack, consulte a mesma CLI pinada que o workflow acabou de instalar.
+if STATUS_JSON="$(bash ./scripts/local-supabase.sh status 2>/dev/null)"; then
+  :
+elif [[ "${GITHUB_ACTIONS:-}" == "true" ]] && command -v supabase >/dev/null 2>&1; then
+  STATUS_JSON="$(supabase status -o json 2>/dev/null)" || {
+    echo "==> O Supabase local do job do GitHub não está de pé." >&2
+    exit 1
+  }
+else
+  echo "==> O Supabase local deste checkout não está de pé. Rode 'pnpm local:up' antes." >&2
   exit 1
 fi
 
@@ -52,11 +56,23 @@ fi
 [ "${#CHAVE_WAHA}" -ge 44 ] || CHAVE_WAHA="$(openssl rand -base64 32)"
 [ "${#CHAVE_AI}" -ge 44 ] || CHAVE_AI="$(openssl rand -base64 32)"
 
-ENVOUT="$($SUPABASE status -o env 2>/dev/null)"
-# O `|| true` no fim não é decoração: sob `set -e` + `pipefail`, um `grep` sem
-# casamento (chave que o stack não devolveu) derruba o script AQUI, calado, antes
-# das guardas abaixo. Quem não tem a chave precisa chegar na recusa explicada.
-ler() { printf '%s\n' "$ENVOUT" | grep "^$1=" | cut -d= -f2- | tr -d '"' || true; }
+# A saída JSON vem do wrapper do próprio checkout. Parsear por chave evita
+# depender do formato textual do `supabase status -o env` e mantém valores
+# sensíveis apenas em memória, sem despejá-los no terminal.
+ler() {
+  printf '%s' "$STATUS_JSON" | node -e '
+let s = "";
+process.stdin.on("data", (chunk) => { s += chunk; });
+process.stdin.on("end", () => {
+  try {
+    const value = JSON.parse(s)[process.argv[1]];
+    if (typeof value === "string") process.stdout.write(value);
+  } catch {
+    process.exitCode = 2;
+  }
+});
+' "$1"
+}
 
 API_URL="$(ler API_URL)"
 ANON="$(ler ANON_KEY)"
@@ -70,7 +86,7 @@ SERVICE="$(ler SERVICE_ROLE_KEY)"
 DB_URL="$(ler DB_URL)"
 
 if [ -z "$API_URL" ] || [ -z "$ANON" ] || [ -z "$SERVICE" ]; then
-  echo "==> Não consegui ler as chaves do stack local (API_URL/ANON_KEY/SERVICE_ROLE_KEY)." >&2
+  echo "==> O status do Supabase local não trouxe API_URL/ANON_KEY/SERVICE_ROLE_KEY." >&2
   exit 1
 fi
 
@@ -92,7 +108,7 @@ esac
 # é o caro: um `.env.e2e` plausível apontando para o banco errado não dá erro
 # nenhum.
 if [ -z "$DB_URL" ]; then
-  echo "==> Não consegui ler a DB_URL do stack local (o 'supabase status -o env' não trouxe DB_URL)." >&2
+  echo "==> O status do Supabase local não trouxe DB_URL." >&2
   echo "    Sem ela, a alternativa seria chutar a porta padrão e semear o banco de outro stack." >&2
   exit 1
 fi
@@ -120,20 +136,73 @@ esac
 # reprovam assim mesmo com token_hash válido — o defeito independe de PKCE.
 E2E_PORT="${E2E_PORT:-3001}"
 
+# O Supabase pode remapear cada serviço para uma porta diferente quando a
+# configurada está ocupada. Não derive o Mailpit da porta da API: no run
+# 45238739566, a API foi para 55080, mas o Mailpit permaneceu em 54324.
+# Supabase CLI v3 exporta MAILPIT_URL; versões anteriores exportavam
+# INBUCKET_URL. O endpoint do próprio status é a fonte de verdade.
+MAILPIT_URL="$(ler MAILPIT_URL)"
+if [ -z "$MAILPIT_URL" ]; then
+  MAILPIT_URL="$(ler INBUCKET_URL)"
+fi
+if [ -z "$MAILPIT_URL" ]; then
+  echo "==> O status do Supabase não trouxe MAILPIT_URL nem o nome legado INBUCKET_URL." >&2
+  exit 1
+fi
+if ! MAILPIT_URL="$(node - "$MAILPIT_URL" <<'NODE'
+const value = process.argv[2] || "";
+try {
+  const url = new URL(value);
+  const localHosts = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
+  if (
+    url.protocol !== "http:" ||
+    !localHosts.has(url.hostname) ||
+    !/^\d+$/.test(url.port) ||
+    url.username ||
+    url.password ||
+    (url.pathname !== "/" && url.pathname !== "") ||
+    url.search ||
+    url.hash
+  ) process.exit(2);
+  process.stdout.write(url.origin);
+} catch {
+  process.exit(2);
+}
+NODE
+)"; then
+  echo "==> O Mailpit do status não aponta para uma URL HTTP local válida." >&2
+  exit 1
+fi
+
+E2E_LICENSE_DIR="$PWD/.clientix-local/e2e/licensing"
+CLIENTIX_LICENSE_PATH="$E2E_LICENSE_DIR/license.json"
+CLIENTIX_INSTALLATION_ID_PATH="$E2E_LICENSE_DIR/installation_id"
+
 cat > .env.e2e <<EOF
 # ── Ambiente do E2E — LOCAL, nunca a nuvem ──────────────────────────────────
 # GERADO por 'pnpm e2e:env'. Não versionado (.gitignore cobre '.env*').
 # Antes de rodar a suíte: pnpm e2e:build && pnpm test:e2e
 NEXT_PUBLIC_SUPABASE_URL=$API_URL
+# O Playwright inicia o Next no host, não dentro da rede Docker do stack. Fixar
+# também a URL server-only impede que o arquivo local empreste um endereço interno
+# de outro ambiente e faça o proxy falhar ao validar a RPC pública de setup.
+SUPABASE_SERVER_URL=$API_URL
 NEXT_PUBLIC_SUPABASE_ANON_KEY=$ANON
 SUPABASE_SERVICE_ROLE_KEY=$SERVICE
 # Vem do stack que está de pé (ver o comentário do \`ler DB_URL\` acima), não de
 # um literal: é isto que mantém duas sessões locais escrevendo cada uma no seu
 # banco.
 SUPABASE_DB_URL=$DB_URL
+MAILPIT_URL=$MAILPIT_URL
+CLIENTIX_LICENSE_PATH=$CLIENTIX_LICENSE_PATH
+CLIENTIX_INSTALLATION_ID_PATH=$CLIENTIX_INSTALLATION_ID_PATH
 
 # Precisa bater com o baseURL real do Playwright (ver comentário acima).
 NEXT_PUBLIC_APP_URL=http://localhost:$E2E_PORT
+# O servidor Next roda com NODE_ENV=production. Declare o modo local para
+# que as origens HTTP em loopback da bancada sejam aceitas pelo validador.
+CLIENTIX_INGRESS_MODE=local
+CLIENTIX_ALLOW_INSECURE_HTTP=true
 
 # Catálogo servido pelas provas de extensões. A exceção HTTP só é aceita
 # quando o aplicativo também é local; o ambiente do produto deixa isto vazio.
@@ -179,8 +248,9 @@ UPSTASH_REDIS_REST_TOKEN=e2e-placeholder-nao-e-segredo
 # Ficam AQUI, e não redigitados no workflow, porque este arquivo é a fonte
 # única do ambiente da suíte: o passo "Publicar o .env.e2e no ambiente do job"
 # o leva inteiro para o job, então o CI e quem roda local leem o MESMO dono.
-# Mesmos valores de \`docs/testing/HANDOFF-vps-qa.md\` (a receita local da
-# jornada) e do cabeçalho da spec.
+# O e-mail e o nome da organização também aparecem em
+# \`docs/testing/HANDOFF-vps-qa.md\`. A senha é consumida do ambiente pela spec:
+# não mantenha uma cópia fixa dela no código de teste.
 #
 # Backtick escapado neste heredoc não é estilo: ele é \`<<EOF\` sem aspas, então
 # crase crua vira SUBSTITUIÇÃO DE COMANDO — o comentário chega no arquivo
@@ -199,7 +269,7 @@ UPSTASH_REDIS_REST_TOKEN=e2e-placeholder-nao-e-segredo
 # Nome de organização aqui é um token só. A guarda que cobra isso está em
 # \`tests/unit/e2e-cria-o-dono-que-a-spec-exige.test.ts\` (carrega o arquivo).
 OWNER_EMAIL=dono@qa.local
-OWNER_PASSWORD=QaVps!2026#Dono
+OWNER_PASSWORD=QaVps!2026Dono
 OWNER_ORG_NAME=Loja-QA-VPS
 INSTALLATION_ID=inst_00000000-0000-4000-8000-000000000001
 

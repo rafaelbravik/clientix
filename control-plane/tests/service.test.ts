@@ -20,6 +20,7 @@ interface MockCustomer {
   legal_name?: string;
   billing_email: string;
   country: string;
+  status: "ACTIVE" | "DISABLED";
 }
 
 interface MockLicense {
@@ -42,6 +43,7 @@ interface MockLicense {
   white_label: boolean;
   features: string[];
   issued_at: string;
+  license_revision: number;
 }
 
 interface MockActivationCode {
@@ -61,9 +63,25 @@ interface MockInstallation {
   public_key_fingerprint: string;
   activation_code_id?: string | null;
   status: string;
+  clone_status: string;
   environment: string;
   app_version?: string;
   last_heartbeat_at: string;
+}
+
+interface MockLicenseArtifact {
+  artifact_id: string;
+  license_id: string;
+  installation_id: string;
+  license_revision: number;
+  key_id: string;
+  issued_at: string | null;
+  expires_at: string;
+  status: "PENDING" | "PROCESSING" | "ISSUED" | "SUPERSEDED";
+  source: string;
+  idempotency_key: string;
+  signed_document: unknown;
+  lease_owner: string | null;
 }
 
 import { verifyLicense } from "@/lib/licensing/verify";
@@ -73,6 +91,7 @@ class InProcessDatabaseClient implements DatabaseClient {
   public licenses = new Map<string, MockLicense>();
   public activationCodes = new Map<string, MockActivationCode>();
   public installations = new Map<string, MockInstallation>();
+  public licenseArtifacts = new Map<string, MockLicenseArtifact>();
   public nonces = new Set<string>();
   public events: Record<string, unknown>[] = [];
   public inTransaction = false;
@@ -118,6 +137,7 @@ class InProcessDatabaseClient implements DatabaseClient {
         legal_name: params[2] as string | undefined,
         billing_email: (params[3] as string) || "billing@example.com",
         country: (params[4] as string) || "BR",
+        status: "ACTIVE",
       };
       this.customers.set(id, customer);
       return { rows: [{ id } as unknown as R], rowCount: 1 };
@@ -146,9 +166,135 @@ class InProcessDatabaseClient implements DatabaseClient {
         white_label: Boolean(params[10]),
         features: (params[11] as string[]) || [],
         issued_at: new Date().toISOString(),
+        license_revision: 1,
       };
       this.licenses.set(id, lic);
       return { rows: [{ id } as unknown as R], rowCount: 1 };
+    }
+
+    // License artifact context SELECT: preserve the active-installation contract in this mock.
+    if (trimmed.includes("join control_plane.licensing_installations i")) {
+      const lic = this.licenses.get(params[0] as string);
+      const installation = this.installations.get(params[1] as string);
+      if (!lic || !installation || installation.license_id !== lic.id) return { rows: [] };
+      const customer = this.customers.get(lic.customer_id);
+      if (!customer) return { rows: [] };
+      return {
+        rows: [
+          {
+            license_id: lic.id,
+            serial: lic.serial,
+            customer_id: lic.customer_id,
+            customer_name: customer.name,
+            customer_email: customer.billing_email,
+            customer_country: customer.country,
+            customer_status: customer.status,
+            license_status: lic.status,
+            installation_id: installation.id,
+            installation_status: installation.status,
+            clone_status: installation.clone_status,
+            product: lic.product,
+            deployment: lic.deployment,
+            plan: lic.plan,
+            license_type: lic.license_type,
+            signing_key_id: lic.signing_key_id,
+            license_revision: lic.license_revision,
+            max_installations: lic.max_installations,
+            max_tenants: lic.max_tenants,
+            resale_allowed: lic.resale_allowed,
+            white_label: lic.white_label,
+            features: lic.features,
+            issued_at: lic.issued_at,
+            valid_from: lic.valid_from,
+            expires_at: lic.expires_at,
+            maintenance_until: lic.maintenance_until ?? null,
+            grace_days: lic.grace_days,
+          } as unknown as R,
+        ],
+      };
+    }
+
+    // Licensing artifact INSERT / SELECT / claim / issue used by LicenseArtifactService.
+    if (trimmed.startsWith("insert into control_plane.licensing_license_artifacts")) {
+      const licenseId = params[0] as string;
+      const installationId = params[1] as string;
+      const revision = Number(params[2]);
+      const existing = [...this.licenseArtifacts.values()].find(
+        (artifact) =>
+          artifact.license_id === licenseId &&
+          artifact.installation_id === installationId &&
+          artifact.license_revision === revision,
+      );
+      if (!existing) {
+        const artifactId = crypto.randomUUID();
+        this.licenseArtifacts.set(artifactId, {
+          artifact_id: artifactId,
+          license_id: licenseId,
+          installation_id: installationId,
+          license_revision: revision,
+          key_id: params[3] as string,
+          issued_at: params[4] as string | null,
+          expires_at: params[5] as string,
+          status: "PENDING",
+          source: params[6] as string,
+          idempotency_key: params[7] as string,
+          signed_document: null,
+          lease_owner: null,
+        });
+      }
+      return { rows: [], rowCount: existing ? 0 : 1 };
+    }
+
+    if (
+      trimmed.includes("from control_plane.licensing_license_artifacts") &&
+      trimmed.includes("where license_id = $1::uuid and installation_id = $2")
+    ) {
+      const artifact = [...this.licenseArtifacts.values()].find(
+        (candidate) =>
+          candidate.license_id === (params[0] as string) &&
+          candidate.installation_id === (params[1] as string) &&
+          candidate.license_revision === Number(params[2]),
+      );
+      return { rows: artifact ? [artifact as unknown as R] : [] };
+    }
+
+    if (
+      trimmed.includes("with candidate as (") &&
+      trimmed.includes("update control_plane.licensing_license_artifacts a")
+    ) {
+      const artifact = this.licenseArtifacts.get(params[0] as string);
+      if (!artifact || !["PENDING", "PROCESSING"].includes(artifact.status)) return { rows: [] };
+      artifact.status = "PROCESSING";
+      artifact.lease_owner = params[1] as string;
+      return { rows: [artifact as unknown as R], rowCount: 1 };
+    }
+
+    if (
+      trimmed.includes("with stored as (") &&
+      trimmed.includes("update control_plane.licensing_license_artifacts a")
+    ) {
+      const artifact = this.licenseArtifacts.get(params[0] as string);
+      if (!artifact || artifact.lease_owner !== params[1] || artifact.status !== "PROCESSING") {
+        return { rows: [] };
+      }
+      artifact.status = "ISSUED";
+      artifact.key_id = params[2] as string;
+      artifact.issued_at = params[3] as string;
+      artifact.expires_at = params[4] as string;
+      artifact.signed_document = JSON.parse(params[7] as string) as unknown;
+      artifact.lease_owner = null;
+      this.events.push({
+        license_id: artifact.license_id,
+        installation_id: artifact.installation_id,
+        event_type: "LICENSE_ARTIFACT_SIGNED",
+        actor: "billing-artifact-issuer",
+      });
+      return {
+        rows: [
+          { artifact_id: artifact.artifact_id, license_id: artifact.license_id } as unknown as R,
+        ],
+        rowCount: 1,
+      };
     }
 
     // Licenses SELECT
@@ -285,6 +431,7 @@ class InProcessDatabaseClient implements DatabaseClient {
         public_key_fingerprint: params[3] as string,
         activation_code_id: params[4] as string,
         status: "ACTIVE",
+        clone_status: "NORMAL",
         environment: "production",
         app_version: params[5] as string | undefined,
         last_heartbeat_at: new Date().toISOString(),
@@ -380,6 +527,7 @@ describe("L8.1F Control Plane Core Endpoints & Licensing Lifecycle", () => {
       legal_name: "Alpha LTDA",
       billing_email: "alpha@exemplo.com.br",
       country: "BR",
+      status: "ACTIVE",
     });
 
     // Create active license for testing

@@ -165,16 +165,20 @@ test.describe("acervo de conhecimento", () => {
 
     // Um dos dois tem de estar na tela; qual, depende de a organização já ter
     // chave. Afirmar só o negativo passaria com a tela em branco.
-    const semChave = page.getByTestId("conhecimento-sem-chave");
-    const comChave = page.getByTestId("conhecimento-chave-ok");
-    await expect(semChave.or(comChave)).toBeVisible();
+    // Não conte a cópia de SSR que ainda está escondida durante a revelação.
+    const main = page.getByRole("main");
+    const semChave = main.getByTestId("conhecimento-sem-chave");
+    const comChave = main.getByTestId("conhecimento-chave-ok");
+    await expect
+      .poll(async () => Number(await semChave.isVisible()) + Number(await comChave.isVisible()))
+      .toBe(1);
 
     if (await semChave.isVisible()) {
       // O aviso não é um beco: o conserto abre na própria tela.
-      await page.getByTestId("conhecimento-cadastrar-chave").click();
-      await expect(page.getByTestId("conhecimento-chave-input")).toBeVisible();
-      await page.getByTestId("conhecimento-provedor-openrouter").check();
-      await expect(page.getByTestId("conhecimento-chave-input")).toHaveAttribute("placeholder", "sk-or-…");
+      await main.getByTestId("conhecimento-cadastrar-chave").click();
+      await expect(main.getByTestId("conhecimento-chave-input")).toBeVisible();
+      await main.getByTestId("conhecimento-provedor-openrouter").check();
+      await expect(main.getByTestId("conhecimento-chave-input")).toHaveAttribute("placeholder", "sk-or-…");
     }
   });
 
@@ -188,11 +192,14 @@ test.describe("acervo de conhecimento", () => {
     // como "pulado", que se lê igual a "não se aplica aqui". Cobertura parcial
     // silenciosa é o modo de falha que este repo mais persegue, e foi medido
     // exatamente assim nesta bateria.
-    const semChaveLoc = page.getByTestId("conhecimento-sem-chave");
+    // Durante o streaming do App Router a tela pode coexistir por alguns ms
+    // numa caixa SSR escondida. A tela viva fica dentro de main.
+    const main = page.getByRole("main");
+    const semChaveLoc = main.locator('[data-testid="conhecimento-sem-chave"]:visible');
+    const comChaveLoc = main.locator('[data-testid="conhecimento-chave-ok"]:visible');
+    const conferindoLoc = main.locator('[data-testid="conhecimento-chave-conferindo"]:visible');
     await expect(
-      semChaveLoc.or(page.getByTestId("conhecimento-chave-ok")).or(
-        page.getByTestId("conhecimento-chave-conferindo"),
-      ),
+      semChaveLoc.or(comChaveLoc).or(conferindoLoc),
     ).toBeVisible({ timeout: 30_000 });
 
     const semChave = await semChaveLoc.isVisible();
@@ -201,7 +208,7 @@ test.describe("acervo de conhecimento", () => {
       "esta organização já tem chave de embedding — o estado 'esperando' não é alcançável aqui",
     );
 
-    await page.getByTestId("acervo-adicionar").click();
+    await main.locator('[data-testid="acervo-adicionar"]:visible').click();
     // O diálogo AVISA antes de aceitar: descobrir depois de subir é a pior ordem.
     await expect(page.getByTestId("material-aviso-sem-chave")).toBeVisible();
 

@@ -9,7 +9,7 @@ FROM alpine:3.20
 
 ARG SOURCE_HEAD=unknown
 ARG SOURCE_DIRTY=true
-LABEL org.opencontainers.image.source="https://github.com/rafaelbravik/clientix-agencia" \
+LABEL org.opencontainers.image.source="https://github.com/rafaelbravik/clientix" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.title="Clientix Agência scheduler" \
       com.clientix.artifact="scheduler-production" \

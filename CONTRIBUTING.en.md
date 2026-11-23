@@ -1,4 +1,4 @@
-# Contributing — DeskcommCRM
+# Contributing — Clientix
 
 [🇧🇷 Português](CONTRIBUTING.md) · 🇺🇸 English
 

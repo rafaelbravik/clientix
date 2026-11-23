@@ -13,6 +13,7 @@ services:
       CLIENTIX_ALLOW_INSECURE_HTTP: "false"
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:?NEXT_PUBLIC_APP_URL must use the configured HTTPS domain}
       NEXT_PUBLIC_ADMIN_URL: ${NEXT_PUBLIC_ADMIN_URL:?NEXT_PUBLIC_ADMIN_URL must use the configured HTTPS domain}
+      CLIENTIX_ADMIN_ORIGIN: ${CLIENTIX_ADMIN_ORIGIN:-${NEXT_PUBLIC_ADMIN_URL:?NEXT_PUBLIC_ADMIN_URL must use the configured HTTPS domain}}
       PORT: "3000"
       SUPABASE_DB_ADMIN_URL: ""
     # GID 1001 é o grupo leitor de licença preparado pelo instalador.

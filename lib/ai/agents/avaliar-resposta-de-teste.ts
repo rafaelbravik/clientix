@@ -55,11 +55,15 @@ export interface AvaliacaoDaRespostaDeTeste {
 }
 
 /**
- * Gates que dependem de estado do turno real. A lista é DADO, não prosa, para a
- * tela renderizar sem reescrever o motivo — e para que acrescentar um gate à
- * cadeia force alguém a decidir de que lado ele cai.
+ * Verificações que a prévia não realiza. Algumas dependem do estado de um turno
+ * real; outras ainda não têm avaliação automática. A lista é DADO, não prosa,
+ * para a tela renderizar sem reescrever o motivo.
  */
-const NAO_AVALIAVEIS_SEM_TURNO: ReadonlyArray<{ gate: string; porque: string }> = [
+const NAO_AVALIADAS_PELA_PREVIA: ReadonlyArray<{ gate: string; porque: string }> = [
+  {
+    gate: "knowledge_grounding",
+    porque: "o teste não confirma se fatos sobre a empresa têm uma fonte aprovada; revise o material e a resposta",
+  },
   { gate: "stop", porque: "depende de o contato ter pedido para sair — não há contato real no teste" },
   { gate: "lgpd", porque: "depende da base legal registrada para o contato" },
   { gate: "pacing", porque: "depende de quantas mensagens o número já enviou hoje e do horário do envio" },
@@ -89,6 +93,6 @@ export function avaliarRespostaDeTeste(texto: string | undefined): AvaliacaoDaRe
     passou: !achado.achou,
     categorias: [...achado.categorias],
     termos: [...achado.termos],
-    naoAvaliados: NAO_AVALIAVEIS_SEM_TURNO,
+    naoAvaliados: NAO_AVALIADAS_PELA_PREVIA,
   };
 }

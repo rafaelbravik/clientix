@@ -46,6 +46,7 @@ ser fonte sem ninguém decidir isso.
 | `control-plane-customer-boundary.architecture.json` | build self-host sem rotas/licença global; trust root local, suporte por instalação e pool vendor separado |
 | `chatgpt-subscription-login.architecture.json` | vínculo SIWC por organização: state/PKCE, nonce único, ID token validado, envelope cifrado e revogação; publicação e runtime de agentes continuam desligados nesta etapa |
 | `first-run-platform-owner.architecture.json` | first-run com token do instalador, status booleano, reserva atômica, owner global e fronteira entre papel de plataforma e papel de organização |
+| `assinatura-por-tenant.architecture.json` | plano comercial por organização no Customer, quotas existentes, vencimento e fronteira separada da licença `ACT_...` |
 
 > **Esta tabela já apodreceu uma vez:** ela listava 8 mapas quando o disco tinha 9 — faltava
 > `indice-de-atrito`. Nenhum teste lê este README (o gate lê os `.json`), então mapa novo que

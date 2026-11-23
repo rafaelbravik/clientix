@@ -53,18 +53,27 @@
  *   PDF_ESPERADO  texto exato que ele deve render     (default: DeskcommCRM RAG fixture)
  */
 
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
-import { join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join, relative, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 export const TEXTO_ESPERADO_PADRAO = "DeskcommCRM RAG fixture";
 
 /** Onde ficam o runtime e os chunks do servidor no `output: standalone`. */
 export const DIR_CHUNKS = join(".next", "server", "chunks");
 
-/** O runtime do Turbopack que registra as fábricas dos chunks. */
-export const RUNTIME = join(DIR_CHUNKS, "[turbopack]_runtime.js");
+/** Runtime principal usado pelos artefatos Next construídos com Webpack. */
+export const RUNTIME_WEBPACK = join(".next", "server", "webpack-runtime.js");
+
+/** Layouts de runtime emitidos pelo Next/Turbopack nas versões suportadas. */
+export const RUNTIMES = [
+  join(DIR_CHUNKS, "[turbopack]_runtime.js"),
+  join(DIR_CHUNKS, "ssr", "[turbopack]_runtime.js"),
+];
+
+/** A cópia do worker preservada pelo output standalone em node_modules. */
+export const WORKER_PACOTE = join("node_modules", "pdfjs-dist", "legacy", "build", "pdf.worker.mjs");
 
 /**
  * Os chunks que carregam o pdfjs empacotado (nome gerado no build a partir do
@@ -110,7 +119,7 @@ export function procurarWorker(raiz) {
     join(raiz, "node_modules", "pdfjs-dist", "legacy", "build", "pdf.worker.mjs"),
   ];
   for (const caminho of diretos) {
-    if (existsSync(caminho)) achados.push(caminho);
+    if (arquivoMaterializado(caminho)) achados.push(caminho);
   }
 
   const raizesPnpm = [
@@ -128,10 +137,19 @@ export function procurarWorker(raiz) {
     for (const entrada of entradas) {
       if (!entrada.startsWith("pdfjs-dist@")) continue;
       const caminho = join(base, entrada, "node_modules", "pdfjs-dist", "legacy", "build", "pdf.worker.mjs");
-      if (existsSync(caminho)) achados.push(caminho);
+      if (arquivoMaterializado(caminho)) achados.push(caminho);
     }
   }
   return achados;
+}
+
+function arquivoMaterializado(caminho) {
+  try {
+    const info = statSync(caminho);
+    return info.isFile() && info.size > 0;
+  } catch {
+    return false;
+  }
 }
 
 /** Configuração da execução, sempre por variável de ambiente (default: a imagem). */
@@ -166,17 +184,20 @@ export async function extrairTexto(pdfjs, dados) {
 }
 
 /**
- * Carrega o pdfjs EMPACOTADO, pelo runtime do Turbopack, como a rota o carrega.
+ * Carrega o pdfjs pelo runtime que o build realmente produziu.
  *
- * Devolve `{ pdfjs, id, chunk }`. Lança quando não consegue nem chegar no módulo —
- * o que também é veredito RED: num build assim a rota não extrairia texto nenhum.
+ * Builds Turbopack registram pdfjs num chunk e usam `c()`/`m()`; o build Customer
+ * isolado usa Webpack e materializa pdfjs em `node_modules`, que é o caminho ESM
+ * usado por `lib/ai/rag/extractors/pdf.ts`. Não tratar a ausência do runtime
+ * Turbopack como falha quando o artefato tem o runtime Webpack.
  */
-export function carregarPdfjsEmpacotado({ raiz }) {
+export async function carregarPdfjsEmpacotado({ raiz }) {
   const dirChunks = join(raiz, DIR_CHUNKS);
-  const caminhoRuntime = join(raiz, RUNTIME);
+  const runtimes = RUNTIMES.map((caminho) => join(raiz, caminho)).filter(arquivoMaterializado);
+  const caminhoRuntime = runtimes[0];
 
-  if (!existsSync(caminhoRuntime)) {
-    throw new Error(`não achei o runtime do Turbopack em ${caminhoRuntime}`);
+  if (!caminhoRuntime) {
+    return carregarPdfjsComWebpack({ raiz });
   }
   if (!existsSync(dirChunks)) {
     throw new Error(`não achei os chunks do servidor em ${dirChunks}`);
@@ -190,12 +211,17 @@ export function carregarPdfjsEmpacotado({ raiz }) {
     );
   }
   const chunk = candidatos[0];
+  const caminhoWorkerPacote = join(raiz, WORKER_PACOTE);
+  if (!arquivoMaterializado(caminhoWorkerPacote)) {
+    throw new Error(`dependência pdfjs worker não materializada em ${caminhoWorkerPacote}`);
+  }
 
   // O contrato do runtime (lido do próprio arquivo):
   //   module.exports = (sourcePath) => ({ m: (id) => modulo, c: (chunkPath) => carregaChunk }) 
   // `c` faz `path.resolve(RUNTIME_ROOT, chunkPath)` e `require`, então o caminho
   // absoluto do chunk passa direto.
-  const runtime = createRequire(import.meta.url)(caminhoRuntime)("server/chunks/[turbopack]_runtime.js");
+  const caminhoPublicoRuntime = relative(join(raiz, ".next"), caminhoRuntime).replaceAll("\\", "/");
+  const runtime = createRequire(import.meta.url)(caminhoRuntime)(caminhoPublicoRuntime);
   runtime.c(join(dirChunks, chunk));
 
   const ids = idsDoChunk(readFileSync(join(dirChunks, chunk), "utf8"));
@@ -207,7 +233,7 @@ export function carregarPdfjsEmpacotado({ raiz }) {
       continue;
     }
     if (exportado && typeof exportado.getDocument === "function") {
-      return { pdfjs: exportado, id, chunk };
+      return { pdfjs: exportado, id, chunk, runtime: caminhoRuntime, carregamento: "turbopack" };
     }
   }
 
@@ -215,6 +241,54 @@ export function carregarPdfjsEmpacotado({ raiz }) {
     `nenhum dos ${ids.length} módulos do chunk ${chunk} exporta getDocument ` +
       `(ids: ${ids.join(", ") || "(nenhum)"})`,
   );
+}
+
+/**
+ * O build Customer usa `next build --webpack`. Nesse artefato o pdfjs não tem
+ * runtime/chunk Turbopack: a aplicação resolve o mesmo import ESM que o
+ * extrator usa, a partir dos pacotes materializados no standalone.
+ */
+async function carregarPdfjsComWebpack({ raiz }) {
+  const caminhoRuntime = join(raiz, RUNTIME_WEBPACK);
+  const entradaStandalone = join(raiz, "server.js");
+  if (!arquivoMaterializado(caminhoRuntime) || !arquivoMaterializado(entradaStandalone)) {
+    throw new Error(
+      `não achei runtime suportado: Turbopack (${RUNTIMES.map((caminho) => join(raiz, caminho)).join(", ")}) ` +
+        `ou Webpack (${caminhoRuntime} e ${entradaStandalone})`,
+    );
+  }
+
+  const caminhoWorkerPacote = join(raiz, WORKER_PACOTE);
+  if (!arquivoMaterializado(caminhoWorkerPacote)) {
+    throw new Error(`dependência pdfjs worker não materializada em ${caminhoWorkerPacote}`);
+  }
+
+  const requererDoStandalone = createRequire(entradaStandalone);
+  let caminhoPdfjs;
+  try {
+    caminhoPdfjs = requererDoStandalone.resolve("pdfjs-dist/legacy/build/pdf.mjs");
+  } catch (erro) {
+    throw new Error("dependência pdfjs-dist/legacy/build/pdf.mjs não materializada no standalone", {
+      cause: erro,
+    });
+  }
+  if (!arquivoMaterializado(caminhoPdfjs)) {
+    throw new Error(`dependência PDF do extrator não materializada em ${caminhoPdfjs}`);
+  }
+
+  const pdfjs = await import(pathToFileURL(caminhoPdfjs).href);
+  if (typeof pdfjs.getDocument !== "function") {
+    throw new Error(`módulo PDF do standalone não exporta getDocument: ${caminhoPdfjs}`);
+  }
+
+  return {
+    pdfjs,
+    id: null,
+    chunk: null,
+    runtime: caminhoRuntime,
+    modulo: caminhoPdfjs,
+    carregamento: "webpack",
+  };
 }
 
 /** Roda a sonda e devolve o relatório (não imprime, não sai do processo). */
@@ -236,9 +310,17 @@ export async function rodar(env = process.env) {
       );
     }
 
-    const { pdfjs, id, chunk } = carregarPdfjsEmpacotado(config);
+    const { pdfjs, id, chunk, runtime, modulo, carregamento } = await carregarPdfjsEmpacotado(config);
     relatorio.chunkPdfjs = chunk;
     relatorio.idEmpacotado = id;
+    relatorio.carregamentoPdfjs = carregamento;
+    if (carregamento === "turbopack") {
+      relatorio.runtimeTurbopack = relative(config.raiz, runtime).replaceAll("\\", "/");
+    } else {
+      relatorio.runtimeWebpack = relative(config.raiz, runtime).replaceAll("\\", "/");
+      relatorio.moduloPdfjs = relative(config.raiz, modulo).replaceAll("\\", "/");
+    }
+    relatorio.workersEncontrados = procurarWorker(config.raiz);
 
     relatorio.etapa = "extrair";
     const texto = await extrairTexto(pdfjs, readFileSync(config.fixture));
@@ -272,10 +354,11 @@ export function relatar(relatorio) {
   console.log(`  fixture: ${relatorio.fixture} (esperado: "${relatorio.esperado}")`);
 
   if (relatorio.veredito === "GREEN") {
-    console.log(
-      `  extraiu ${relatorio.caracteres} caracteres pelo módulo empacotado ` +
-        `(chunk ${relatorio.chunkPdfjs}, id ${relatorio.idEmpacotado})`,
-    );
+    const via =
+      relatorio.carregamentoPdfjs === "webpack"
+        ? `pacote runtime ${relatorio.moduloPdfjs}`
+        : `chunk ${relatorio.chunkPdfjs}, id ${relatorio.idEmpacotado}`;
+    console.log(`  extraiu ${relatorio.caracteres} caracteres pelo módulo ${via}`);
     console.log(`  texto: "${relatorio.textoExtraido}"`);
   } else {
     console.log(`  FALHOU na etapa "${relatorio.etapa}": ${relatorio.erro}`);
@@ -288,7 +371,7 @@ export function relatar(relatorio) {
       `  pdf.worker.mjs nesta imagem: ${achados.length > 0 ? achados.join(", ") : "(não encontrado em lugar nenhum)"}`,
     );
     console.log(
-      "  a extração da rota depende desse arquivo estar onde o pdfjs empacotado o procura",
+      "  o worker precisa estar materializado onde o runtime PDF selecionado o resolve",
     );
   }
 

@@ -45,7 +45,7 @@ const org = {
 let contexto: { user: AuthUser; activeOrg: ActiveOrg | null } = { user: usuario, activeOrg: org };
 vi.mock("@/hooks/auth/AuthProvider", () => ({ useAuth: () => contexto }));
 
-const PADRAO: Branding = { name: DEFAULT_APP_NAME, logoUrl: null, initial: "D" };
+const PADRAO: Branding = { name: DEFAULT_APP_NAME, logoUrl: null, initial: "C" };
 
 function renderSidebar(marca: Branding, collapsed: boolean) {
   return render(
@@ -84,14 +84,14 @@ describe("o desenho na barra lateral", () => {
     // O e2e `marca-logo.spec.ts` lê "barra sem <img>" como "sem logo do
     // revendedor"; um <img> do produto aqui faria a spec medir a coisa errada.
     expect(document.querySelector("img")).toBeNull();
-    // Nem o nome em texto: o logotipo já o escreve.
-    expect(screen.queryByText(DEFAULT_APP_NAME)).toBeNull();
+    // O nome é texto dentro do SVG da marca, não uma legenda ao lado.
+    expect(logotipo.querySelector("text")?.textContent).toBe(DEFAULT_APP_NAME);
   });
 
   it("recolhida, mostra só o símbolo — e não a inicial em texto", () => {
     renderSidebar(PADRAO, true);
     expect(screen.getByRole("img", { name: DEFAULT_APP_NAME }).tagName.toLowerCase()).toBe("svg");
-    expect(screen.queryByText("D")).toBeNull();
+    expect(screen.queryByText("C")).toBeNull();
   });
 
   it("com nome da instalação, segue em texto — o desenho do produto não vaza", () => {

@@ -31,6 +31,7 @@ import { audit } from "@/lib/audit";
 import { requireRole } from "@/lib/auth/require-role";
 import { createCallSchema, listCallsQuerySchema } from "@/lib/schemas/calls";
 import { validateRequest } from "@/lib/schemas/_validate";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { checkFeatureQuota } from "@/lib/tenant/plan-limits";
 import { originateCall } from "@/lib/voip/ariClient";
@@ -158,7 +159,7 @@ export async function POST(req: NextRequest): Promise<Response> {
   // Esta rota SIP é uma segunda entrada de voz, fora do fluxo WaCalls. Ela
   // precisa consultar o mesmo entitlement de plano antes de ler o trunk,
   // gravar a chamada ou iniciar a discagem.
-  const entitlement = await checkFeatureQuota(supabase, activeOrg.orgId, "voice_calls");
+  const entitlement = await checkFeatureQuota(createAdminClient(), activeOrg.orgId, "voice_calls");
   if (!entitlement.allowed) {
     return fail(
       "feature_not_available",

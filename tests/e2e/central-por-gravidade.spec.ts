@@ -13,6 +13,7 @@ import { createClient } from "@supabase/supabase-js";
 import { test, expect, type Page } from "./helpers/test";
 
 import { credenciaisSupabaseDeTeste } from "../../scripts/lib/env-de-teste";
+import { insertOrganizationFixture } from "./helpers/organization-fixture";
 
 const credentials = credenciaisSupabaseDeTeste();
 const db = createClient(credentials.url, credentials.serviceRole, {
@@ -47,18 +48,12 @@ test.beforeAll(async () => {
   if (error || !data.user) throw error;
   usuario = { id: data.user.id, email };
 
-  const o = await db
-    .from("organizations")
-    .insert({
-      slug: `gravidade-${randomUUID()}`,
-      legal_name: "Gravidade",
-      display_name: "Gravidade",
-      onboarded_at: new Date().toISOString(),
-    })
-    .select("id")
-    .single();
-  if (o.error) throw o.error;
-  org = o.data.id;
+  org = await insertOrganizationFixture({
+    slug: `gravidade-${randomUUID()}`,
+    legal_name: "Gravidade",
+    display_name: "Gravidade",
+    onboarded_at: new Date().toISOString(),
+  });
   const m = await db.from("user_organizations").insert({
     organization_id: org,
     user_id: usuario.id,

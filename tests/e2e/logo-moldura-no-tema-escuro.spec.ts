@@ -516,9 +516,18 @@ test.describe("a moldura do logo no tema escuro", () => {
 
   test("(5) A FRONTEIRA: no escuro, a marca do PRODUTO não recebe moldura", async ({ page }) => {
     await loginComTotp(page, creds.users.dono!.email, secret());
-    // Tira o logo enviado: sem ele, e com o nome padrão, a barra cai no ramo
-    // `marcaDoProduto` — o `<svg>` inline desenhado para os dois temas.
+    // Tira qualquer logo enviado nas duas camadas: sem eles, e com o nome
+    // padrão, a barra cai no ramo `marcaDoProduto` — o `<svg>` inline desenhado
+    // para os dois temas. O bootstrap do E2E grava um nome próprio para a
+    // instalação; limpá-lo pela tela reproduz o retorno ao padrão que o caso
+    // quer medir. A org também pode ter sido personalizada pela spec anterior.
+    await removerLogoSeHouver(page, "/app/settings/marca", "organizacao");
     await removerLogoSeHouver(page, "/admin/marca", "instalacao");
+
+    await page.goto("/admin/marca");
+    await page.locator("#app_name").fill("");
+    await page.getByRole("button", { name: "Salvar", exact: true }).click();
+    await expect(page.getByText("Marca salva.", { exact: true })).toBeVisible();
 
     await page.goto("/app/inbox");
     await escolherTemaPelaTela(page, "dark");
@@ -530,7 +539,7 @@ test.describe("a moldura do logo no tema escuro", () => {
       "ainda há um <img> na barra — o logo enviado não foi removido, e o caso mediria outra coisa",
     ).toHaveCount(0, { timeout: 15_000 });
 
-    const marca = barra.getByRole("img", { name: "DeskcommCRM" });
+    const marca = barra.getByRole("img", { name: "Clientix" });
     await expect(
       marca,
       "a barra não caiu no ramo `marcaDoProduto` — sem ele não há fronteira para medir",
@@ -663,6 +672,34 @@ test.describe("a moldura do logo no tema escuro", () => {
     );
   });
 
+  test("(8) a paleta Verde salva e adapta os fundos nos dois temas", async ({ page }) => {
+    await loginComTotp(page, creds.users.dono!.email, secret());
+    await page.goto("/app/settings/marca");
+
+    await expect(page.getByText("Escolha uma paleta", { exact: true })).toBeVisible();
+    await page.getByText("Verde natural", { exact: true }).click();
+    await expect(page.locator('input[name="appearance_preset"][value="forest"]')).toBeChecked();
+    await page.getByRole("button", { name: "Salvar", exact: true }).click();
+    await expect(page.getByText("Marca salva.", { exact: true })).toBeVisible();
+
+    await page.goto("/app/inbox");
+    await expect(page.locator('[data-marca-org][data-appearance-preset="forest"]')).toHaveCount(1);
+
+    await escolherTemaPelaTela(page, "light");
+    const fundoClaro = await page.locator("body").evaluate((el) =>
+      getComputedStyle(el).getPropertyValue("--color-bg").trim(),
+    );
+    expect(fundoClaro, "a paleta Verde não chegou ao fundo do tema claro").toBe("#f3f7f3");
+    await page.screenshot({ path: evidencia("8-paleta-verde-claro.png") });
+
+    await escolherTemaPelaTela(page, "dark");
+    const fundoEscuro = await page.locator("body").evaluate((el) =>
+      getComputedStyle(el).getPropertyValue("--color-bg").trim(),
+    );
+    expect(fundoEscuro, "a paleta Verde não chegou ao fundo do tema escuro").toBe("#101813");
+    await page.screenshot({ path: evidencia("8-paleta-verde-escuro.png") });
+  });
+
   /**
    * A restauração. Num `afterAll` porque ele roda mesmo quando um caso estoura —
    * medido: com A→B(estouro)→C, a ordem observada é ["A","B","afterAll"], ou
@@ -674,6 +711,13 @@ test.describe("a moldura do logo no tema escuro", () => {
     try {
       const pagina = await contexto.newPage();
       await loginComTotp(pagina, creds.users.dono!.email, secret());
+      await pagina.goto("/app/settings/marca");
+      const padrao = pagina.locator('input[name="appearance_preset"][value="original"]');
+      if (!(await padrao.isChecked())) {
+        await pagina.getByText("Padrão atual", { exact: true }).click();
+        await pagina.getByRole("button", { name: "Salvar", exact: true }).click();
+        await expect(pagina.getByText("Marca salva.", { exact: true })).toBeVisible();
+      }
       await removerLogoSeHouver(pagina, "/admin/marca", "instalacao");
     } finally {
       await contexto.close();

@@ -145,8 +145,11 @@ alteram a precedência.
 - O instalador comercial exige `DOMAIN` como hostname DNS público sem esquema,
   porta ou caminho, `ACME_EMAIL` e as origens públicas `NEXT_PUBLIC_APP_URL`,
   `NEXT_PUBLIC_ADMIN_URL` e `WAHA_WEBHOOK_BASE_URL` exatamente como
-  `https://DOMAIN`. Se `META_WEBHOOK_BASE_URL` for definida, ela pode usar um
-  hostname dedicado, mas precisa ser uma origem HTTPS pública sem porta ou caminho.
+  `https://DOMAIN`. O Compose entrega `NEXT_PUBLIC_ADMIN_URL` também como
+  `CLIENTIX_ADMIN_ORIGIN` server-only em runtime, para que o guard same-origin não
+  dependa do valor `NEXT_PUBLIC_*` embutido durante o build. Se `META_WEBHOOK_BASE_URL`
+  for definida, ela pode usar um hostname dedicado, mas precisa ser uma origem HTTPS
+  pública sem porta ou caminho.
 - O Caddy do instalador publica TCP 80 e 443, redireciona HTTP para HTTPS,
   provisiona/renova certificados ACME e persiste o estado em `caddy-data` e
   `caddy-config`. HSTS é `max-age=31536000`, sem subdomínios ou preload.
@@ -163,3 +166,16 @@ alteram a precedência.
 - HTTP local só é aceito com `CLIENTIX_INGRESS_MODE=local`,
   `CLIENTIX_ALLOW_INSECURE_HTTP=true` e origem de loopback. O instalador
   comercial fixa production e não oferece esse modo.
+
+## Servidor de licenças
+
+- Uma instalação comercial nova exige `CLIENTIX_LICENSE_SERVER_URL` como URL
+  base HTTPS pública do Vendor, sem credenciais, query ou fragmento. O cliente
+  usa esse endereço para ativação e validações online; o prefixo de caminho é
+  permitido quando o Vendor está atrás de um proxy. A URL é configuração
+  pública, não uma chave privada. O artefato Customer recebe apenas essa URL e
+  a chave pública confiável do emissor.
+- Atualizações aceitam `.env` legado sem essa variável para não bloquear a
+  migração, mas a ausência impede ativação e atualização online da licença até
+  que a URL seja configurada. A licença local assinada continua sendo aplicada
+  conforme o contrato LIC-01 e sua tolerância offline.

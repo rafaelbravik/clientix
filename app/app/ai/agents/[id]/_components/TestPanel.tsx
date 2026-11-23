@@ -98,6 +98,14 @@ function Verificacoes({ g }: { g: NonNullable<TestResponse["data"]["guardrails"]
         </div>
       )}
 
+      <p
+        role="note"
+        data-testid="teste-fatos-nao-verificados"
+        className="rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-xs"
+      >
+        {t("O teste não confirma se fatos sobre a empresa têm uma fonte aprovada.")}
+      </p>
+
       {/*
         A lista do que NÃO foi checado. Ela é o que separa este conserto de uma
         mentira mais bonita: as verificações que dependem do turno real não podem
@@ -126,7 +134,7 @@ function Verificacoes({ g }: { g: NonNullable<TestResponse["data"]["guardrails"]
         </ul>
         <p className="mt-2">
           {t(
-            "Estas só acontecem numa conversa real, com um cliente de verdade do outro lado. Para ver a lista inteira do que é conferido — e o que cada verificação protege — abra a aba",
+            "Algumas dependem de uma conversa real; outras ainda não têm verificação automática. Para ver a lista inteira do que é conferido — e o que cada verificação protege — abra a aba",
           )}{" "}
           <span className="font-medium text-foreground">{t("Confere antes de enviar")}</span>.
         </p>
@@ -353,9 +361,8 @@ export function TestPanel({ agent, draft, published, readOnly }: Props) {
                   </div>
                 )}
               </div>
-            ) : result.guardrails ? (
-              <Verificacoes g={result.guardrails} />
             ) : null}
+            {result.guardrails ? <Verificacoes g={result.guardrails} /> : null}
           </>
         ) : null}
       </div>

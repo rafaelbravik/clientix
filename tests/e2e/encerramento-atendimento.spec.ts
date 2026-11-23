@@ -5,6 +5,7 @@ import { mkdirSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 import { test, expect, type Page } from "./helpers/test";
 import { credenciaisSupabaseDeTeste } from "../../scripts/lib/env-de-teste";
+import { insertOrganizationFixture } from "./helpers/organization-fixture";
 
 const credentials = credenciaisSupabaseDeTeste();
 const db = createClient(credentials.url, credentials.serviceRole, {
@@ -13,6 +14,7 @@ const db = createClient(credentials.url, credentials.serviceRole, {
 const evidence = "evidence/comunidade-360";
 test.use({ trace: "on" });
 async function insert(table: string, values: Record<string, unknown>) {
+  if (table === "organizations") return insertOrganizationFixture(values);
   const { data, error } = await db.from(table).insert(values).select("id").single();
   if (error) throw error;
   return data.id as string;
@@ -76,6 +78,7 @@ test("fechar canal preserva demanda, desfecho explícito e nova entrada volta à
       legal_name: "Atendimento local",
       slug: `service-${randomUUID()}`,
       onboarded_at: new Date().toISOString(),
+      settings: { plan: "pro" },
     });
     const membership = await db
       .from("user_organizations")

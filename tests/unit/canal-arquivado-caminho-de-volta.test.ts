@@ -51,6 +51,9 @@ vi.mock("@/lib/auth/server", () => ({
 }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
+vi.mock("@/lib/tenant/plan-limits", () => ({
+  checkChannelQuota: vi.fn().mockResolvedValue({ allowed: true }),
+}));
 vi.mock("@/lib/grupos/sincronizar-filtro", () => ({ sincronizarRecebimentoDeGrupos: vi.fn(async () => "sincronizado") }));
 vi.mock("@/lib/audit", () => ({ audit: vi.fn(async () => undefined) }));
 vi.mock("@/lib/webhooks/secrets", () => ({ encryptWebhookSecret: vi.fn() }));

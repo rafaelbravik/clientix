@@ -73,7 +73,8 @@ while IFS= read -r caminho || [ -n "$caminho" ]; do
     # ↓ espelho do .dockerignore — os arquivos da raiz.
     .env | .env/* | .env.* | .env.*/amostra | .npmrc | .npmrc/* | .pypirc | .pypirc/* \
       | .netrc | .netrc/* | .e2e-creds.json | playwright.config.ts \
-      | ubuntu-local-installer.sh | *.png | *.log | *.tsbuildinfo) ;;
+      | ubuntu-local-installer.sh | github-history.bundle | CONTINUACAO-LINUX-MINT.md \
+      | *.png | *.log | *.tsbuildinfo) ;;
     *.md) ;;
     *) echo sim; exit 0 ;;
   esac

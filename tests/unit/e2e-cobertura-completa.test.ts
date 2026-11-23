@@ -83,6 +83,13 @@ const noDisco = readdirSync(DIR_SPECS)
   .sort();
 
 describe("cobertura do e2e no CI", () => {
+  it("checkout do agregador inclui o workflow e as specs que ele conta", () => {
+    const agregador = yml.slice(yml.lastIndexOf("\n  e2e:\n"));
+    expect(agregador).toContain("sparse-checkout:");
+    expect(agregador).toContain(".github/workflows/e2e.yml");
+    expect(agregador).toContain("tests/e2e/*.spec.ts");
+  });
+
   it("o parser está vivo — controle positivo antes de qualquer conclusão", () => {
     // Sem isto, um regex que parou de casar devolveria listas vazias e a
     // asserção de vigência passaria por vacuidade, enquanto a de completude

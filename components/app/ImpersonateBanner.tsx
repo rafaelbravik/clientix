@@ -35,6 +35,10 @@ export function ImpersonateBanner({ impersonating, ended = false }: {
     try {
       const res = await fetch("/api/v1/admin/impersonate/end", { method: "POST" });
       if (!res.ok) throw new Error("Não foi possível encerrar o acompanhamento. Tente novamente.");
+      // Consome a resposta antes da navegação para a requisição terminar no
+      // navegador. O endpoint já encerrou a sessão no banco; deixar o corpo
+      // JSON sem leitura fazia o redirecionamento abortar a resposta em voo.
+      await res.arrayBuffer();
       notifySupportTransition();
       window.location.assign("/app/inbox");
     } catch (error) {

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# DeskcommCRM - Instalador Automático (Local Ubuntu VM)
+# Clientix - Instalador Automático (Local Ubuntu VM)
 # Este script prepara a VM, sobe o Supabase local (PostgreSQL + Auth +
 # PostgREST + Storage + Realtime), inicializa os serviços da aplicação e cria
 # o usuário Admin.
@@ -36,7 +36,7 @@ fi
 
 # Se não estivermos na raiz do projeto, clona e entra nele.
 if [ ! -f "package.json" ]; then
-  step "Clonando o repositório DeskcommCRM..."
+  step "Clonando o repositório do Clientix..."
   git clone https://github.com/melgarafael/DeskcommCRM.git
   cd DeskcommCRM
 fi
@@ -52,15 +52,17 @@ pnpm install --frozen-lockfile
 step "Inicializando Supabase Local (PostgreSQL e serviços oficiais)..."
 # O helper inicia a infraestrutura sem a cadeia histórica quebrada e aplica o
 # baseline, que é a fonte de verdade para uma instalação nova.
-./scripts/local-supabase.sh start
+bash ./scripts/local-supabase.sh start
 
 step "Coletando credenciais do Supabase..."
 # Pega as chaves da API geradas dinamicamente
-SUPA_STATUS=$(./scripts/local-supabase.sh status)
+SUPA_STATUS=$(bash ./scripts/local-supabase.sh status)
+API_URL=$(printf '%s' "$SUPA_STATUS" | node -e 'let s=""; process.stdin.on("data", c => s += c).on("end", () => process.stdout.write(JSON.parse(s).API_URL || ""))')
 ANON_KEY=$(printf '%s' "$SUPA_STATUS" | node -e 'let s=""; process.stdin.on("data", c => s += c).on("end", () => process.stdout.write(JSON.parse(s).ANON_KEY || ""))')
 SERVICE_ROLE_KEY=$(printf '%s' "$SUPA_STATUS" | node -e 'let s=""; process.stdin.on("data", c => s += c).on("end", () => process.stdout.write(JSON.parse(s).SERVICE_ROLE_KEY || ""))')
 DB_URL=$(printf '%s' "$SUPA_STATUS" | node -e 'let s=""; process.stdin.on("data", c => s += c).on("end", () => process.stdout.write(JSON.parse(s).DB_URL || ""))')
 
+[[ -n "$API_URL" && "$API_URL" != "null" ]] || error "Supabase não retornou API_URL"
 [[ -n "$ANON_KEY" && "$ANON_KEY" != "null" ]] || error "Supabase não retornou ANON_KEY"
 [[ -n "$SERVICE_ROLE_KEY" && "$SERVICE_ROLE_KEY" != "null" ]] || error "Supabase não retornou SERVICE_ROLE_KEY"
 [[ -n "$DB_URL" && "$DB_URL" != "null" ]] || error "Supabase não retornou DB_URL"
@@ -75,17 +77,13 @@ fi
 # aplicação precisam alcançar a porta publicada pelo host usando o IP da VM.
 DB_URL="${DB_URL/127.0.0.1/$VM_IP}"
 
-# 3000 é o padrão, mas não deve impedir a instalação quando outra aplicação já
-# a utiliza na VM. O operador pode fixar APP_PORT antes de chamar o script.
-APP_PORT="${APP_PORT:-3000}"
-if command -v ss >/dev/null 2>&1; then
-  while ss -ltn | awk '{print $4}' | grep -Eq "(^|:)${APP_PORT}$"; do
-    APP_PORT=$((APP_PORT + 1))
-  done
-fi
+# O Supabase local escolheu a porta do app junto com as demais e gravou a
+# configuração em .clientix-local/supabase-ports. Reutilize a mesma porta aqui.
+APP_PORT=$(awk -F= '$1 == "APP" { print $2; exit }' .clientix-local/supabase-ports)
+[[ "$APP_PORT" =~ ^[0-9]+$ ]] && (( 10#$APP_PORT >= 1 && 10#$APP_PORT <= 65535 )) || error "Supabase não retornou APP_PORT válido"
 
 # Reescrevendo as URLs para apontar para o IP local (para comunicação Host -> Container)
-API_URL="http://$VM_IP:54321"
+API_URL="${API_URL/127.0.0.1/$VM_IP}"
 APP_URL="http://$VM_IP:$APP_PORT"
 
 step "Gerando chaves de segurança..."
@@ -119,8 +117,13 @@ if [[ -s .env.local ]] && ! grep -q '^DESKCOMM_ENV_MODE=local$' .env.local; then
     paint 33 "⚠ O .env.local existente NÃO era local; copiei para $BACKUP antes de substituir."
   fi
 fi
-umask 077
-cat <<EOF > .env.local
+
+write_local_env() {
+if [[ -s .env.local ]] && grep -q '^DESKCOMM_ENV_MODE=local$' .env.local; then
+  paint 32 "Preservando .env.local local existente e as credenciais já geradas."
+else
+  umask 077
+  cat <<EOF > .env.local
 DESKCOMM_ENV_MODE=local
 NODE_ENV=production
 NEXT_PUBLIC_SUPABASE_URL=$API_URL
@@ -154,9 +157,12 @@ APP_PORT=$APP_PORT
 
 SENTRY_DSN=
 EOF
+fi
+}
+write_local_env
 
-step "Subindo os serviços do DeskcommCRM (App, Worker, WAHA, Redis)..."
-./scripts/local-stack.sh up
+step "Subindo os serviços do Clientix (App, Worker, WAHA, Redis)..."
+bash ./scripts/local-stack.sh up
 
 step "Criando usuário Administrador..."
 export NEXT_PUBLIC_SUPABASE_URL="$API_URL"
@@ -180,7 +186,7 @@ if [[ -z "${OWNER_PASSWORD:-}" ]]; then
   printf "\n"
 fi
 export OWNER_PASSWORD
-export OWNER_ORG_NAME="Deskcomm Local"
+export OWNER_ORG_NAME="Clientix Local"
 export APP_LOCALE="pt-BR"
 
 # Instala a dependência para rodar o bootstrap e executa
@@ -190,8 +196,8 @@ printf '\n\n\033[32m============================================================
 paint 32 "✅ Instalação concluída com sucesso!"
 echo ""
 echo "🌐 Acesse o sistema em: $APP_URL"
-echo "🧭 Status: ./scripts/local-stack.sh status"
-echo "🛑 Parar:  ./scripts/local-stack.sh down"
+echo "🧭 Status: pnpm local:status"
+echo "🛑 Parar:  pnpm local:down"
 echo ""
 echo "🔑 Credenciais do Administrador:"
 echo "   E-mail: $OWNER_EMAIL"

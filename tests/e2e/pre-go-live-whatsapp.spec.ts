@@ -1,30 +1,56 @@
-import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { test, expect } from "./helpers/test";
 import { createClient } from "@supabase/supabase-js";
 import { metadataInicialDoCanal } from "../../lib/ai/elegibilidade/pre-go-live";
 import { nomeDaSessaoCabeNoWaha } from "../../lib/channels/nome-da-sessao";
+import { insertOrganizationFixture } from "./helpers/organization-fixture";
+
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+if (!["localhost", "127.0.0.1"].includes(new URL(url).hostname)) {
+  throw new Error("Somente Supabase local");
+}
+const admin = createClient(url, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+  auth: { persistSession: false },
+});
+let userId = "";
+let orgId = "";
 
 // Banco e auth reais, sem interceptar a API da feature. Não envia WhatsApp real.
 test.use({ locale: "pt-BR" });
+test.afterAll(async () => {
+  if (orgId) await admin.from("organizations").delete().eq("id", orgId);
+  if (userId) await admin.auth.admin.deleteUser(userId);
+});
+
 test("admin configura testes, remove número, confirma abertura e volta a restringir", async ({ page }, testInfo) => {
   test.setTimeout(120_000);
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  if (!["localhost", "127.0.0.1"].includes(new URL(url).hostname)) throw new Error("Somente Supabase local");
-  const admin = createClient(url, process.env.SUPABASE_SERVICE_ROLE_KEY!);
   const suffix = randomUUID().slice(0, 8);
   const email = `prego-${suffix}@example.test`;
   const password = `E2e-${randomUUID()}!`;
   const orgName = `pre-go-live-${suffix}`;
-  execFileSync("pnpm", ["exec", "tsx", "scripts/bootstrap-owner.ts"], {
-    env: { ...process.env, OWNER_EMAIL: email, OWNER_PASSWORD: password, OWNER_ORG_NAME: orgName },
-    stdio: "pipe",
+  const { data: criado, error: erroUsuario } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
   });
-  const { data: org, error: orgError } = await admin.from("organizations").select("id").eq("slug", orgName).single();
-  expect(orgError).toBeNull();
-  const orgId = org!.id;
-  // Esta spec cobre a configuração do canal após onboarding, não o wizard.
-  expect((await admin.from("organizations").update({ onboarded_at: new Date().toISOString() }).eq("id", orgId)).error).toBeNull();
+  if (erroUsuario || !criado.user) throw erroUsuario ?? new Error("sem usuário de teste");
+  userId = criado.user.id;
+  orgId = await insertOrganizationFixture({
+    slug: orgName,
+    display_name: orgName,
+    legal_name: orgName,
+    status: "active",
+    created_by: userId,
+    // Esta spec cobre a configuração do canal após onboarding, não o wizard.
+    onboarded_at: new Date().toISOString(),
+  });
+  const { error: erroVinculo } = await admin.from("user_organizations").insert({
+    organization_id: orgId,
+    user_id: userId,
+    role: "admin",
+    accepted_at: new Date().toISOString(),
+  });
+  if (erroVinculo) throw erroVinculo;
   // Este spec monta o nome à mão (#686) e nunca chama o gerador: o que ele
   // monta tem de caber no que o WAHA aceita, senão a prova de tela continua
   // passando ao lado do mesmo defeito que o invariante passava.
@@ -43,7 +69,9 @@ test("admin configura testes, remove número, confirma abertura e volta a restri
   await page.getByRole("button", { name: "Entrar", exact: true }).click();
   await page.waitForURL(/\/app/);
   await page.goto("/app/connections");
-  await expect(page.getByText("Canal de validação", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("tabpanel", { name: "Números por QR" }).getByText("Canal de validação"),
+  ).toBeVisible();
   await expect(page.getByText("IA em modo de teste", { exact: true })).toBeVisible();
   const openPanel = () => page.getByRole("button", { name: "Configurar acesso da IA" }).click();
   const input = page.getByLabel("Números autorizados para teste");

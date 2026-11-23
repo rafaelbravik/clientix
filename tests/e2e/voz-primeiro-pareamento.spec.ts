@@ -19,6 +19,7 @@ import type { AddressInfo } from "node:net";
 
 import { expect, test } from "./helpers/test";
 import { createClient } from "@supabase/supabase-js";
+import { insertOrganizationFixture } from "./helpers/organization-fixture";
 
 test("a primeira sessão mostra o QR depois de aceitar e ligar a voz", async ({
   page,
@@ -94,7 +95,7 @@ test("a primeira sessão mostra o QR depois de aceitar e ligar a voz", async ({
   });
 
   try {
-    const org = await db.from("organizations").insert({
+    await insertOrganizationFixture({
       id,
       slug: `voz-${id}`,
       display_name: "Empresa de teste de voz",
@@ -102,8 +103,8 @@ test("a primeira sessão mostra o QR depois de aceitar e ligar a voz", async ({
       timezone: "America/Sao_Paulo",
       locale: "pt-BR",
       onboarded_at: new Date().toISOString(),
+      settings: { plan: "enterprise" },
     });
-    expect(org.error).toBeNull();
     const usuario = await db.auth.admin.createUser({
       email,
       password,

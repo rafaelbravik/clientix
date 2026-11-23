@@ -88,11 +88,11 @@ test.describe("o ícone e o título carregam a marca da instalação", () => {
     const marcaNoTitulo = casou?.[1] ?? "";
     expect(marcaNoTitulo.length).toBeGreaterThan(0);
 
-    // Cruza DUAS resoluções independentes: o título vem de `generateMetadata`
-    // (que lê `platform_branding` no banco) e o texto sob o "Entrar" vem de
-    // `branding()` (que lê o `.env`). Divergirem é defeito de verdade — foi
-    // por não cruzar isso que "trocar o nome pela tela e a aba não acompanhar"
-    // passou despercebido antes.
-    await expect(page.getByText(marcaNoTitulo, { exact: true }).first()).toBeVisible();
+    // O título e o texto sob "Entrar" precisam resolver a mesma marca da
+    // instalação (banco → `.env` → padrão). Divergirem faria uma edição pela
+    // tela aparecer só em um dos dois lugares.
+    // O SVG da marca contém o texto em um nó `aria-hidden`; selecionar a
+    // primeira ocorrência escolhe esse nó invisível em vez do subtítulo.
+    await expect(page.locator("p").getByText(marcaNoTitulo, { exact: true })).toBeVisible();
   });
 });

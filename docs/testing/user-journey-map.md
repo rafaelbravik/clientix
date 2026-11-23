@@ -372,7 +372,7 @@ Evidência: `.superpowers/evidence/ia-360-w3/`.
 | J8.7 | A **ida** aparece na linha do tempo | atividade "Passou para humano" também pelo caminho do harness/casos | FAIL(BUG-05) → PASS |
 | J8.8 | O agente retoma **sabendo** o que a pessoa fez | a abertura do turno (`ritualBlocks`) cita a decisão dela, sem apagar o acumulado anterior | PASS |
 | J8.9 | Status da conversa escalada em português | o cabeçalho mostrava `pending` cru | FAIL → PASS |
-| J8.10 | **O cliente é AVISADO antes de a IA sair de campo** | mensagem ao lead dizendo que uma pessoa vai assumir, ANTES do silêncio | FAIL(BUG-06) → PASS |
+| J8.10 | **O cliente é AVISADO antes de a IA sair de campo** | dentro da janela de resposta, a mensagem informa que uma pessoa vai assumir, antes do silêncio; fora dela, o envio é bloqueado e o cartão informa o motivo | FAIL(BUG-06) → PASS (janela aberta); motivo fora da janela coberto em 2026-11-16 |
 | J8.11 | O aviso respeita o motivo | quem pediu para PARAR recebe confirmação da parada, não oferta de atendente | FAIL(BUG-06) → PASS |
 | J8.12 | O aviso respeita a equipe real | conta sem ninguém configurado não recebe promessa de contato | FAIL(BUG-06) → PASS |
 | J8.13 | A passagem por SENTIMENTO abre item na Central | `triggerHandoff` não abria nenhum — cliente sem resposta E time sem sinal | FAIL(BUG-07) → PASS |
@@ -409,6 +409,21 @@ sentimento disparou a passagem numa organização sem agente publicado e o clien
 recebeu "já acionei o time" do nada; a exceção é a passagem pedida por agente
 externo via MCP, cujas falas são gravadas como `system` —, e no máximo um aviso
 por conversa a cada 24 h, contado no banco, sem contar aviso `failed`).
+
+**Validação manual local (2026-11-16):** o pedido explícito chegou pelo canal de
+teste às 22:03 (America/Sao_Paulo), a passagem foi registrada e a IA ficou
+pausada. Às 22:04, a janela do canal vetou corretamente o aviso com o código
+`outside_window`; nenhum envio foi criado. A tela mostrou que o cliente não foi
+avisado, mas sem o motivo porque o emissor só reconhecia `messaging_window_closed`.
+O mapeamento agora também reconhece `outside_window`. A entrega de um aviso dentro
+da janela permaneceu não medida nesta execução.
+
+**Reteste local (2026-11-16):** a janela de resposta foi ampliada temporariamente
+de 7h–22h para 7h–24h, mantendo a janela de disparo em 7h–22h. Um novo pedido às
+22:50 gerou outra passagem, mas o aviso ainda foi vetado como fora do horário.
+O emissor do handoff não marcava o envio como resposta (`resposta: true`), então o
+motor consultava a janela de disparo. A configuração foi restaurada para 7h–22h;
+o fio do emissor foi corrigido localmente e o envio real precisa ser revalidado.
 
 ---
 

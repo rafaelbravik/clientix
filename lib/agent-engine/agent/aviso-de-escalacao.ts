@@ -68,6 +68,9 @@ export const SEQ_DO_AVISO = 0;
  * gate novo só para não mentir.
  */
 const CODIGO_DO_VETO: Readonly<Record<string, CodigoDeAvisoNaoEntregue>> = {
+  // A cadeia expõe os dois nomes: o pacing responde `outside_window`; o gate
+  // de janela do before-send responde `messaging_window_closed`.
+  outside_window: 'fora_da_janela',
   messaging_window_closed: 'fora_da_janela',
   pre_go_live: 'pre_go_live',
   pre_go_live_indisponivel: 'pre_go_live',
@@ -152,6 +155,9 @@ export async function avisarLeadDaEscalacao(
       channelSessionId: ids.channelSessionId,
       body,
       optedOutThisTurn: opts.optedOutThisTurn,
+      // O aviso responde ao inbound que acabou de pedir atendimento humano.
+      // Precisa usar a janela de resposta, não a janela de disparo/retomada.
+      resposta: true,
       // Ver `GateContext.spinningEnforced`: com o gate armado, a terceira pessoa
       // a ser escalada na mesma janela do número receberia silêncio — pelo
       // guardrail. Este é o ÚNICO chamador que o desarma.

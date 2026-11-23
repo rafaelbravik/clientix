@@ -33,6 +33,7 @@ import { requireAuth, resolveActiveOrg } from "@/lib/auth/server";
 import { ROLE_RANK } from "@/lib/auth/types";
 import { marcaDaInstalacao } from "@/lib/branding/instalacao";
 import { marcaDaOrganizacaoDeSettings } from "@/lib/branding/organizacao";
+import { paletaVisualDaOrganizacao } from "@/lib/branding/paleta-organizacao";
 import { env } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import { traduzir } from "@/lib/i18n/dicionario";
@@ -62,6 +63,7 @@ export default async function MarcaDaOrganizacaoPage() {
     .maybeSingle();
 
   const gravada = marcaDaOrganizacaoDeSettings(data?.settings ?? null);
+  const paletaGravada = paletaVisualDaOrganizacao(data?.settings ?? null);
   const linha = await marcaDaInstalacao();
   const idioma = user.idioma;
 
@@ -78,6 +80,7 @@ export default async function MarcaDaOrganizacaoPage() {
         gravada={{
           app_name: gravada?.app_name ?? null,
           accent_hex: gravada?.accent_hex ?? null,
+          appearance_preset: paletaGravada,
           // O CAMINHO no bucket, não a URL: quem converte é `logoDaCamada`, do
           // lado do navegador, com a base do Storage injetada em runtime. Mandar
           // a URL pronta do servidor faria a tela ter uma segunda regra de

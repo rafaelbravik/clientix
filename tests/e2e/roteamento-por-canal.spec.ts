@@ -6,6 +6,7 @@ import { createClient } from "@supabase/supabase-js";
 import { expect, test, type BrowserContext, type Page } from "./helpers/test";
 
 import { credenciaisSupabaseDeTeste } from "../../scripts/lib/env-de-teste";
+import { insertOrganizationFixture } from "./helpers/organization-fixture";
 
 const credentials = credenciaisSupabaseDeTeste();
 const db = createClient(credentials.url, credentials.serviceRole, {
@@ -17,6 +18,7 @@ test.use({ trace: "on" });
 test.describe.configure({ timeout: 180_000 });
 
 async function insert(table: string, value: Record<string, unknown>): Promise<string> {
+  if (table === "organizations") return insertOrganizationFixture(value);
   const { data, error } = await db.from(table).insert(value).select("id").single();
   if (error) throw error;
   return data.id as string;
@@ -135,6 +137,7 @@ test("configura responsáveis por canal e o cron distribui sem misturar números
       legal_name: "Roteamento por canal local",
       onboarded_at: new Date().toISOString(),
       settings: {
+        plan: "pro",
         routing: { mode: "round_robin", max_retries: 0, backoff_seconds: 1 },
         visibility_mode: "all",
       },

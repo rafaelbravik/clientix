@@ -41,7 +41,7 @@ WORKDIR /app
 
 ARG SOURCE_HEAD=unknown
 ARG SOURCE_DIRTY=true
-LABEL org.opencontainers.image.source="https://github.com/rafaelbravik/clientix-agencia" \
+LABEL org.opencontainers.image.source="https://github.com/rafaelbravik/clientix" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.title="Clientix Agência worker (certificação)" \
       com.clientix.artifact="worker-certification" \
@@ -69,7 +69,7 @@ WORKDIR /app
 
 ARG SOURCE_HEAD=unknown
 ARG SOURCE_DIRTY=true
-LABEL org.opencontainers.image.source="https://github.com/rafaelbravik/clientix-agencia" \
+LABEL org.opencontainers.image.source="https://github.com/rafaelbravik/clientix" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.title="Clientix Agência worker" \
       com.clientix.artifact="worker-production" \

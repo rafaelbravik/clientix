@@ -40,6 +40,7 @@ import { randomUUID } from "node:crypto";
 
 import { test, expect, type Page } from "./helpers/test";
 import { createClient } from "@supabase/supabase-js";
+import { insertOrganizationFixture } from "./helpers/organization-fixture";
 
 const svc = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -79,20 +80,14 @@ test.beforeAll(async () => {
   if (e2 || !comOrg.user) throw e2 ?? new Error("sem usuário de controle");
   idComOrg = comOrg.user.id;
 
-  const { data: org, error: e3 } = await svc
-    .from("organizations")
-    .insert({
-      slug: `primeiro-acesso-${randomUUID().slice(0, 8)}`,
-      display_name: "Empresa Que Já Existe",
-      legal_name: "Empresa Que Já Existe",
-      status: "active",
-      created_by: idComOrg,
-      onboarded_at: new Date().toISOString(),
-    })
-    .select("id")
-    .single();
-  if (e3 || !org) throw e3 ?? new Error("sem org de controle");
-  orgId = org.id as string;
+  orgId = await insertOrganizationFixture({
+    slug: `primeiro-acesso-${randomUUID().slice(0, 8)}`,
+    display_name: "Empresa Que Já Existe",
+    legal_name: "Empresa Que Já Existe",
+    status: "active",
+    created_by: idComOrg,
+    onboarded_at: new Date().toISOString(),
+  });
 
   await svc.from("user_organizations").insert({
     organization_id: orgId,

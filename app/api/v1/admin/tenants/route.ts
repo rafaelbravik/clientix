@@ -189,6 +189,9 @@ export async function POST(req: NextRequest) {
       details: parsed.error.flatten(),
     });
   }
+  if (parsed.data.subscription && adminCtx.platformAdmin.platform_role !== "owner") {
+    return fail("forbidden", "Somente o proprietário global pode iniciar a assinatura da empresa.", 403, { requestId });
+  }
 
   const admin = createAdminClient();
   const tenantLimit = await getInstallationTenantLimit();
@@ -208,7 +211,10 @@ export async function POST(req: NextRequest) {
     // body. The SQL RPC applies it in the same transaction as organization creation.
     default_llm_provider: env.AI_PROVIDER || "anthropic",
   };
-  const { data: org, error } = await admin.rpc("fn_create_tenant_with_owner_limited", {
+  const createTenantFunction = request.subscription
+    ? "fn_create_tenant_with_owner_subscription_limited"
+    : "fn_create_tenant_with_owner_limited";
+  const { data: org, error } = await admin.rpc(createTenantFunction as never, {
     p_actor: adminCtx.user.id,
     p_key: key,
     p_request: request,
@@ -252,6 +258,26 @@ export async function POST(req: NextRequest) {
         creator_role: "admin",
       },
     });
+    if (request.subscription) {
+      await audit({
+        action: "tenant.subscription_created",
+        actorUserId: adminCtx.user.id,
+        actingAsPlatformAdmin: true,
+        bypassedRls: true,
+        organizationId: org.id,
+        resourceType: "tenant_plan_subscription",
+        resourceId: null,
+        requestId,
+        metadata: {
+          plan_slug: request.plan,
+          status: request.subscription.status,
+          billing_interval: request.subscription.billing_interval,
+          price_cents: request.subscription.price_cents,
+          currency: request.subscription.currency,
+          current_period_ends_at: request.subscription.current_period_ends_at,
+        },
+      });
+    }
   }
   const ownerInvitation =
     request.owner_email === adminCtx.user.email?.trim().toLowerCase()

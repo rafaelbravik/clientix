@@ -9,6 +9,7 @@
 import { z } from "zod";
 
 import { ehHexValido } from "@/lib/branding/rampa";
+import { PALETAS_VISUAIS_ORGANIZACAO } from "@/lib/branding/paleta-organizacao";
 import { IDIOMAS } from "@/lib/i18n/idiomas";
 import { MOEDAS_SERVIDAS } from "@/lib/money";
 import { DIAS_MAXIMO_DO_RECORTE } from "@/lib/kanban/recorte-de-encerrados";
@@ -331,6 +332,7 @@ export const marcaDaOrganizacaoSchema = z.object({
     .trim()
     .refine(ehHexValido, { message: "Use uma cor no formato #rrggbb" })
     .nullable(),
+  appearance_preset: z.enum(PALETAS_VISUAIS_ORGANIZACAO).nullable(),
 });
 export type MarcaDaOrganizacaoInput = z.infer<typeof marcaDaOrganizacaoSchema>;
 

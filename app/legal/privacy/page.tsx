@@ -115,14 +115,21 @@ export default async function PrivacyPage() {
         <h2 className="text-base font-semibold">{t("6. Seus direitos")}</h2>
         <p>
           {t(
-            "A LGPD garante a você confirmar se há tratamento, acessar seus dados, corrigir dados incompletos ou desatualizados, pedir anonimização ou eliminação, saber com quem foram compartilhados e revogar consentimento.",
+            "A LGPD prevê, entre outros, o direito de confirmar a existência de tratamento, acessar e corrigir dados, solicitar anonimização, bloqueio ou eliminação de dados desnecessários, excessivos ou tratados em desconformidade, além de portabilidade conforme a regulamentação e eliminação dos dados tratados com consentimento, ressalvadas hipóteses legais de conservação.",
           )}
         </p>
         <p>
           {t(
-            "O sistema atende esses pedidos por um fluxo próprio: a exportação reúne o que existe sobre a pessoa, e a anonimização remove a identificação preservando o histórico de atendimento — por isso ela",
+            "Também é possível pedir informações sobre compartilhamento, conhecer as consequências de não fornecer consentimento quando ele for solicitado, revogá-lo e, quando cabível, solicitar revisão de decisões tomadas unicamente de forma automatizada que afetem seus interesses.",
+          )}
+        </p>
+        <p>
+          {t(
+            "Esta instalação oferece recursos de exportação e anonimização para apoiar esses pedidos. O controlador avalia cada solicitação e as obrigações legais de guarda; quando a anonimização remove a identificação e preserva o histórico de atendimento, ela",
           )}{" "}
           <strong>{t("não pode ser desfeita")}</strong>.
+          {" "}
+          {t("Esses recursos não substituem a análise dos demais direitos aplicáveis ao caso.")}
         </p>
       </section>
 

@@ -41,7 +41,7 @@ export function TenantLimitsCard({ organizationId }: { organizationId: string })
         const res = await apiClient.get<{
           data: {
             plan: "standard" | "pro" | "enterprise";
-            plan_limits: {
+            limits: {
               max_users?: number | null;
               max_channels?: number | null;
               allowed_channels?: string[] | null;
@@ -52,11 +52,11 @@ export function TenantLimitsCard({ organizationId }: { organizationId: string })
 
         const d = res.data;
         setPlan(d.plan || "standard");
-        setMaxUsers(d.plan_limits.max_users ?? "");
-        setMaxChannels(d.plan_limits.max_channels ?? "");
-        setAllowedChannels(d.plan_limits.allowed_channels ?? ["whatsapp", "telegram", "email", "instagram", "tiktok", "widget"]);
-        if (d.plan_limits.features) {
-          setFeatures((prev) => ({ ...prev, ...d.plan_limits.features }));
+        setMaxUsers(d.limits.max_users ?? "");
+        setMaxChannels(d.limits.max_channels ?? "");
+        setAllowedChannels(d.limits.allowed_channels ?? ["whatsapp", "telegram", "email", "instagram", "tiktok", "widget"]);
+        if (d.limits.features) {
+          setFeatures((prev) => ({ ...prev, ...d.limits.features }));
         }
       } catch {
         // Valores default caso novo

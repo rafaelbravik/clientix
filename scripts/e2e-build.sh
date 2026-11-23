@@ -51,6 +51,26 @@ set -a
 . ./.env.e2e
 set +a
 
+# As partes comuns do E2E exercitam operações que devem continuar protegidas
+# pela licença. Gere uma licença válida assinada por uma chave efêmera em
+# memória; só a chave pública entra neste build de teste. A parte 4, que mede a
+# instalação fresca, define E2E_ENABLE_SIGNED_LICENSE=false e segue sem licença.
+E2E_ENABLE_SIGNED_LICENSE="${E2E_ENABLE_SIGNED_LICENSE:-true}"
+if [[ "$E2E_ENABLE_SIGNED_LICENSE" == "true" ]]; then
+  test_key_module="lib/licensing/e2e-test-trusted-key.ts"
+  test_key_backup="$(mktemp "${TMPDIR:-/tmp}/clientix-e2e-key.XXXXXX")"
+  cp "$test_key_module" "$test_key_backup"
+  restore_test_key() {
+    cp "$test_key_backup" "$test_key_module"
+    rm -f "$test_key_backup"
+  }
+  trap restore_test_key EXIT
+  pnpm exec tsx scripts/prepare-e2e-license.ts
+elif [[ "$E2E_ENABLE_SIGNED_LICENSE" != "false" ]]; then
+  echo "ERRO: E2E_ENABLE_SIGNED_LICENSE deve ser 'true' ou 'false'." >&2
+  exit 1
+fi
+
 echo "==> Buildando contra ${NEXT_PUBLIC_SUPABASE_URL}"
 pnpm exec next build
 
@@ -59,23 +79,24 @@ pnpm exec next build
 # metade cliente. Falhar aqui é barato; descobrir depois de escrever no banco
 # real, não.
 #
-# O host vem do PRÓPRIO .env.local, então a guarda continua valendo se alguém
-# apontar aquele arquivo para outro projeto.
+# O `.env.local` pode ser uma cópia do `.env.e2e` (como no CI), inclusive com a
+# porta dinâmica escolhida pelo wrapper local. Só é suspeito se o host que ele
+# informa for diferente do stack E2E e aparecer no bundle.
+HOST_LOCAL="$(printf '%s' "$NEXT_PUBLIC_SUPABASE_URL" | sed -E 's#https?://##; s#/.*##')"
 if [ -f .env.local ]; then
-  HOST_PROD="$(grep -E '^NEXT_PUBLIC_SUPABASE_URL=' .env.local | cut -d= -f2- | sed -E 's#https?://##; s#/.*##' || true)"
-  if [ -n "$HOST_PROD" ] && [ "$HOST_PROD" != "127.0.0.1:54321" ]; then
-    if grep -rqF "$HOST_PROD" .next/static 2>/dev/null; then
-      echo "==> FALHOU: o bundle do browser contém o host de produção ($HOST_PROD)." >&2
+  HOST_CHECKOUT="$(grep -E '^NEXT_PUBLIC_SUPABASE_URL=' .env.local | cut -d= -f2- | sed -E 's#https?://##; s#/.*##' || true)"
+  if [ -n "$HOST_CHECKOUT" ] && [ "$HOST_CHECKOUT" != "$HOST_LOCAL" ]; then
+    if grep -rqF "$HOST_CHECKOUT" .next/static 2>/dev/null; then
+      echo "==> FALHOU: o bundle do browser contém o host de .env.local ($HOST_CHECKOUT)." >&2
       echo "    O build pegou o .env.local. NÃO rode a suíte — ela escreveria em produção." >&2
       exit 1
     fi
-    echo "==> OK: o host de produção ($HOST_PROD) não aparece no bundle do browser."
+    echo "==> OK: o host de .env.local não aparece no bundle do browser."
   fi
 fi
 
 # Controle POSITIVO do mesmo grep: se a URL local também não aparecesse, o
 # "não achei produção" acima não valeria nada — seria um grep que não acha nada.
-HOST_LOCAL="$(printf '%s' "$NEXT_PUBLIC_SUPABASE_URL" | sed -E 's#https?://##; s#/.*##')"
 if grep -rqF "$HOST_LOCAL" .next/static 2>/dev/null; then
   echo "==> OK (controle): o host local ($HOST_LOCAL) ESTÁ no bundle — o grep está vivo."
 else

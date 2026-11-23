@@ -50,6 +50,7 @@ import {
   type LeadContextResult,
 } from '../edge/crm/get-lead-context';
 import { citationsFromHits, searchKnowledge } from './search-knowledge';
+import { blocoLimiteDeConhecimento } from './limite-conhecimento';
 import type { CrmEdgeConfig } from '../edge/crm/mcp-client';
 import { WahaChannelAdapter } from '../edge/channel/waha-adapter';
 // applySendOutcome é disposição de FILA (cancel/reschedule + cache de opt-out), não
@@ -2308,6 +2309,10 @@ async function executarTurnoDoAgente(
   // tools publicadas — ver comentário de `agendaSystemBlock`. `TRANSPARENCIA_SYSTEM_BLOCK`
   // não depende de nenhuma feature — todo agente publicado o recebe.
   const blocosResidentes = [systemWithMemory, TRANSPARENCIA_SYSTEM_BLOCK];
+  if (agentConfig !== null) {
+    const limiteDeConhecimento = blocoLimiteDeConhecimento(agentConfig);
+    if (limiteDeConhecimento !== null) blocosResidentes.push(limiteDeConhecimento);
+  }
   if (agentConfig !== null && agentConfig.casesEnabled) blocosResidentes.push(CASES_SYSTEM_BLOCK);
   // Spec 15 §5.2 / doutrina da Agenda: a régua é o que o agente TEM — ver
   // `blocosDeAgendaResidentes`, que decidiu isto num lugar só para poder ser

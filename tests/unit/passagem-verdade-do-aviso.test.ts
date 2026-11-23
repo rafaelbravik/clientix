@@ -178,9 +178,11 @@ describe("o motor de conversa traduz o MESMO desfecho", () => {
     expect(d).toEqual({ avisado: true });
   });
 
-  it("janela fechada vira o motivo fechado que a tela traduz", async () => {
-    const d = await desfechoDaCadeia({ status: "vetoed", code: "messaging_window_closed" });
-    expect(d).toMatchObject({ avisado: false, motivoCodigo: "fora_da_janela" });
+  it("veto da janela (em qualquer camada) vira o motivo fechado que a tela traduz", async () => {
+    for (const code of ["messaging_window_closed", "outside_window"]) {
+      const d = await desfechoDaCadeia({ status: "vetoed", code });
+      expect(d, `código ${code}`).toMatchObject({ avisado: false, motivoCodigo: "fora_da_janela" });
+    }
   });
 
   it("veto sem par no vocabulário NÃO inventa motivo", async () => {
@@ -189,5 +191,40 @@ describe("o motor de conversa traduz o MESMO desfecho", () => {
     const d = await desfechoDaCadeia({ status: "vetoed", code: "lgpd_anonymized" });
     expect(d.avisado).toBe(false);
     expect(d).not.toHaveProperty("motivoCodigo");
+  });
+});
+
+describe("o aviso da passagem usa a janela de resposta do canal", () => {
+  it("marca o aviso como resposta ao inbound que pediu uma pessoa", async () => {
+    vi.resetModules();
+    const runBeforeSend = vi.fn(async () => ({
+      status: "sent" as const,
+      outcome: { kind: "sent" as const, idempotencyKey: "k", messageId: "m" },
+      trace: [],
+    }));
+    vi.doMock("@/lib/agent-engine/guardrails/before-send", () => ({ runBeforeSend }));
+    vi.doMock("@/lib/escalacao/disponibilidade", () => ({
+      expectativaDeAtendimento: vi.fn(async () => ({ quem: null, frase: "" })),
+    }));
+    const { avisarLeadDaEscalacao } = await import(
+      "@/lib/agent-engine/agent/aviso-de-escalacao"
+    );
+
+    const desfecho = await avisarLeadDaEscalacao({} as never, {
+      tenantId: ORG,
+      leadId: CONTATO,
+      conversationId: CONVERSA,
+      channelSessionId: CONVERSA,
+      jobId: "job-1",
+    }, {
+      motivo: "pediu_humano",
+      channel: { send: vi.fn() } as never,
+      optedOutThisTurn: false,
+      now: new Date("2026-09-18T12:00:00Z"),
+      log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } as never,
+    });
+
+    expect(desfecho).toEqual({ avisado: true });
+    expect(runBeforeSend).toHaveBeenCalledWith(expect.objectContaining({ resposta: true }));
   });
 });

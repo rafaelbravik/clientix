@@ -1,7 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_TRUSTED_KEYS, verifyLicense } from "@/lib/licensing/verify";
+import { DEFAULT_TRUSTED_KEYS, resolveTrustedKeys, verifyLicense } from "@/lib/licensing/verify";
+import {
+  E2E_TEST_LICENSE_KEY_ID,
+  E2E_TEST_LICENSE_PUBLIC_KEY,
+} from "@/lib/licensing/e2e-test-trusted-key";
 import type { SignedLicenseDocument } from "@/lib/licensing/types";
 
 const licenseKeyId = "clientix-license-2026-01";
@@ -81,5 +85,11 @@ describe("production licensing trust roots", () => {
 
     expect(result.state).toBe("UNKNOWN_KEY");
     expect(result.cryptographic_valid).toBe(false);
+  });
+
+  it("does not include the ephemeral E2E signer in a normal build", () => {
+    expect(E2E_TEST_LICENSE_PUBLIC_KEY).toBeNull();
+    expect(DEFAULT_TRUSTED_KEYS).not.toHaveProperty(E2E_TEST_LICENSE_KEY_ID);
+    expect(resolveTrustedKeys()).toEqual(DEFAULT_TRUSTED_KEYS);
   });
 });

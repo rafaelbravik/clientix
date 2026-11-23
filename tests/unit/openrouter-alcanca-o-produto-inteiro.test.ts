@@ -123,7 +123,8 @@ describe("o provedor escolhido no instalador chega à primeira organização", (
     expect(instalador).toMatch(/envq AI_PROVIDER \"\$\{AI_PROVIDER:-anthropic\}\"/);
     expect(envExample).toContain("AI_PROVIDER=anthropic");
     expect(rota).toMatch(/default_llm_provider: env\.AI_PROVIDER \|\| \"anthropic\"/);
-    expect(rota).toMatch(/admin\.rpc\(\"fn_create_tenant_with_owner_limited\"/);
+    expect(rota).toMatch(/const createTenantFunction = request\.subscription[\s\S]*?"fn_create_tenant_with_owner_subscription_limited"[\s\S]*?"fn_create_tenant_with_owner_limited"/);
+    expect(rota).toMatch(/admin\.rpc\(createTenantFunction as never/);
   });
 
   it("a RPC aplica provider e modelo dentro da criação atômica da organização", () => {

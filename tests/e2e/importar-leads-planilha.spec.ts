@@ -67,6 +67,19 @@ const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL!, env.SUPABASE_SERVICE_R
 const SUFIXO = `${Date.now()}`.slice(-7);
 const NOME_DO_NEGOCIO = `Importado E2E ${SUFIXO}`;
 
+async function nomeDoFunilFixture(): Promise<string> {
+  const { data, error } = await admin
+    .from("crm_pipelines")
+    .select("name")
+    .eq("organization_id", creds.org_id)
+    .eq("id", creds.kanban!.pipeline_id)
+    .single();
+  if (error || !data) {
+    throw new Error(`Não foi possível localizar o funil da fixture E2E: ${error?.message ?? "sem resultado"}`);
+  }
+  return data.name;
+}
+
 async function captura(page: Page, nome: string): Promise<void> {
   fs.mkdirSync(EVIDENCIA, { recursive: true });
   await page.screenshot({ path: path.join(EVIDENCIA, `${nome}.png`), fullPage: true });
@@ -93,7 +106,13 @@ test("importa uma planilha sem escolher etapa (não há esse seletor) e o negóc
 
   // ⚠️ NÃO há campo de etapa nesta tela — só o de funil. O form real do
   // produto nunca manda `stage_id`; é exatamente o que este spec reproduz.
-  await expect(dialogo.getByLabel("Funil de destino")).toBeVisible();
+  const seletorDeFunil = dialogo.getByLabel("Funil de destino");
+  await expect(seletorDeFunil).toBeVisible();
+  await seletorDeFunil.click();
+  const nomeDoFunil = await nomeDoFunilFixture();
+  const opcaoDoFunil = page.getByRole("option", { name: nomeDoFunil, exact: true });
+  await expect(opcaoDoFunil).toBeVisible();
+  await opcaoDoFunil.click();
   await expect(dialogo.getByText(/há escolha de etapa|escolha de etapa/i)).toHaveCount(0);
 
   const csv = `nome\n${NOME_DO_NEGOCIO}\n`;

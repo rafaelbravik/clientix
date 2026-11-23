@@ -221,7 +221,7 @@ backup is the last resort.
 
 **Clientix Agência** is a complete commercial operations and omnichannel customer service platform for agencies, clinics, companies, and service providers, operated by human teams and autonomous AI agents.
 
-> *Note on technical lineage: This project evolved from the open-source DeskcommCRM foundation, consolidating multi-tenant architecture, multi-channel automations, and advanced security.*
+> *Technical lineage: Clientix builds on an earlier open-source foundation and continues its community work, while adding multi-tenant architecture, multi-channel automations, and advanced security.*
 
 The project serves **agencies, clinics, real estate, info-products, e-commerce, and service businesses** — any modern sales and support operation. The platform delivers a **complete commercial operating system**: AI agents with per-tenant RAG qualify leads, move deals in the pipeline, trigger automations and know when to hand off to human agents — with the whole CRM exposed via **MCP** for agents to operate with real tools. The strategic vision is detailed in [`VISION.md`](VISION.md).
 

@@ -192,7 +192,7 @@ export default function CustomerDetailPage() {
               <span>{customer.phone || "—"}</span>
             </div>
             <div className="border-b border-border/50 py-2">
-              <span className="text-muted-foreground">Observações internas:</span>
+              <span className="text-muted-foreground">{t("Observações internas:")}</span>
               <p className="mt-1 break-words whitespace-pre-wrap">
                 {customer.internal_notes || "—"}
               </p>
@@ -366,7 +366,7 @@ export default function CustomerDetailPage() {
 
               <div>
                 <label className="mb-1 block text-xs font-medium tracking-wider text-muted-foreground uppercase">
-                  Observações internas
+                  {t("Observações internas")}
                 </label>
                 <textarea
                   value={internalNotes}

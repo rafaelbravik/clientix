@@ -57,6 +57,7 @@ const LEAD_TITLE = "Demanda E2E do retorno";
 const CONTACT_NAME = "Cliente Retorno E2E";
 const AGENT_NAME = "Agente Retorno E2E";
 const MOTIVO = "reconfirmar a proposta que o cliente pediu para pensar";
+const CHANNEL_SESSION_NAME = "e2e-retorno-anti-morte-session";
 
 interface Creds {
   org_id: string;
@@ -81,6 +82,33 @@ async function ensureAgent(orgId: string): Promise<string> {
     .select("id")
     .single();
   if (error || !data) throw new Error(`insert ai_agent: ${error?.message}`);
+  return (data as { id: string }).id;
+}
+
+async function ensureChannelSession(orgId: string): Promise<string> {
+  const { data: existing, error: selectError } = await admin
+    .from("channel_sessions")
+    .select("id")
+    .eq("organization_id", orgId)
+    .eq("waha_session_name", CHANNEL_SESSION_NAME)
+    .maybeSingle();
+  if (selectError) throw new Error(`select channel_sessions: ${selectError.message}`);
+  if (existing) return (existing as { id: string }).id;
+
+  // A capacidade real de agendar retorno abre ou localiza uma conversa e, para
+  // isso, exige um canal associado à organização. A fixture não depende da
+  // ordem em que outros specs deixaram sessões no banco compartilhado.
+  const { data, error } = await admin
+    .from("channel_sessions")
+    .insert({
+      organization_id: orgId,
+      waha_session_name: CHANNEL_SESSION_NAME,
+      display_name: "Canal retorno E2E",
+      webhook_secret_encrypted: "\\x00",
+    } as never)
+    .select("id")
+    .single();
+  if (error || !data) throw new Error(`insert channel_sessions: ${error?.message}`);
   return (data as { id: string }).id;
 }
 
@@ -170,6 +198,7 @@ async function main(): Promise<void> {
   const orgId = creds.org_id;
 
   const agentId = await ensureAgent(orgId);
+  await ensureChannelSession(orgId);
   const contactId = await ensureContact(orgId);
   const { leadId, pipelineId } = await ensureLead(orgId, contactId, agentId);
 

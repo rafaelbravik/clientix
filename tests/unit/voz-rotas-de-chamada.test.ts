@@ -19,12 +19,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { requireRole } from "@/lib/auth/require-role";
 import { createClient } from "@/lib/supabase/server";
+import { checkFeatureQuota } from "@/lib/tenant/plan-limits";
 import { getWacallsClient } from "@/lib/wacalls/client";
 import { podeEncerrar, type VoiceCallWithSession } from "@/lib/wacalls/calls";
 
 vi.mock("@/lib/auth/require-role", () => ({ requireRole: vi.fn() }));
 vi.mock("@/lib/impersonate/support", () => ({ requireSupportWrite: vi.fn(async () => null) }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
+vi.mock("@/lib/tenant/plan-limits", () => ({
+  checkFeatureQuota: vi.fn(async () => ({ allowed: true })),
+}));
 vi.mock("@/lib/audit", () => ({ audit: vi.fn(async () => undefined) }));
 vi.mock("@/lib/logger", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
@@ -145,6 +149,7 @@ async function corpo(res: Response): Promise<Record<string, unknown>> {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(checkFeatureQuota).mockResolvedValue({ allowed: true } as never);
   respostas = {};
   escritas = [];
   inseridas = [];
@@ -537,6 +542,10 @@ describe("o discador exige o consentimento da organização", () => {
   });
 
   it("plano sem voice_calls recusa mesmo com consentimento e serviço pareado", async () => {
+    vi.mocked(checkFeatureQuota).mockResolvedValue({
+      allowed: false,
+      reason: "voice_calls indisponível neste plano",
+    } as never);
     respostas["organizations"] = { data: { settings: { plan: "standard" } }, error: null };
     respostas["org_voice_calls"] = { data: { enabled: true, risco_aceito_em: null }, error: null };
     respostas["channel_sessions"] = SESSAO_PAREADA;

@@ -64,14 +64,19 @@ describe("avaliação da resposta no botão Testar", () => {
     }
   });
 
-  it("a lista de não-avaliados cobre os gates da cadeia REAL — não uma lista inventada", () => {
+  it("declara os gates reais e separa o aviso adicional sobre grounding", () => {
     // Amarra a declaração à cadeia de verdade: se alguém acrescentar um gate a
     // `BEFORE_SEND_GATES`, este teste vermelha e força a decisão de que lado ele
     // cai — avaliável no teste, ou declarado como não-avaliável.
     const declarados = new Set(avaliarRespostaDeTeste("oi").naoAvaliados.map((n) => n.gate));
     // `internal_vocabulary` é o único que o teste consegue avaliar; todos os
-    // outros da cadeia têm de estar declarados.
+    // outros da cadeia têm de estar declarados. `knowledge_grounding` é um
+    // aviso manual adicional da prévia, não um gate de before_send.
     const esperados = BEFORE_SEND_GATES.map((g) => g.name).filter((n) => n !== "internal_vocabulary");
-    expect([...declarados].sort()).toEqual([...esperados].sort());
+    const gatesDaCadeiaDeclarados = [...declarados].filter((gate) => esperados.includes(gate));
+    const avisosAdicionais = [...declarados].filter((gate) => !esperados.includes(gate));
+
+    expect(gatesDaCadeiaDeclarados.sort()).toEqual([...esperados].sort());
+    expect(avisosAdicionais.sort()).toEqual(["knowledge_grounding"]);
   });
 });

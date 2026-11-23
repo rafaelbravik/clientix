@@ -95,7 +95,7 @@ function agenteDeTeste(): string {
 /** Abre o agente semeado e vai para a aba do papel que organiza o sistema. */
 async function abrirAbaDoOperador(): Promise<void> {
   await pagina.goto(`/app/ai/agents/${agenteDeTeste()}`);
-  await pagina.getByTestId("papel-operacao").click();
+  await pagina.locator('[data-testid="papel-operacao"]:visible').click();
 }
 
 test.describe("A aba do papel que organiza o sistema", () => {
@@ -106,7 +106,7 @@ test.describe("A aba do papel que organiza o sistema", () => {
     // vocabulário nosso; quem tem uma clínica pensa em quem fala com o cliente
     // e em quem mantém a casa em ordem.
     await expect(pagina.getByTestId("papel-conversa")).toHaveText(/conversa com o cliente/i);
-    await expect(pagina.getByTestId("papel-operacao")).toHaveText(/organiza o sistema/i);
+    await expect(pagina.locator('[data-testid="papel-operacao"]:visible')).toHaveText(/organiza o sistema/i);
     // O TERCEIRO. O épico se chama "os três papéis" e foi entregue com dois na
     // tela — a cadeia de conferências rodava e ninguém que configura sabia.
     await expect(pagina.getByTestId("papel-seguranca")).toHaveText(/confere antes de enviar/i);
@@ -228,7 +228,7 @@ test.describe("A aba do papel que organiza o sistema", () => {
     // o Zod, o VERSION_COLUMNS e o SELECT que relê. É onde um campo que ninguém
     // propagou some em silêncio.
     await pagina.reload();
-    await pagina.getByTestId("papel-operacao").click();
+    await pagina.locator('[data-testid="papel-operacao"]:visible').click();
 
     await expect(
       pagina.getByTestId("operador-capacidades"),
@@ -250,7 +250,7 @@ test.describe("A aba do papel que organiza o sistema", () => {
     await expect(pagina.getByText(/rascunho v\d+ salvo/i)).toBeVisible({ timeout: 20_000 });
 
     await pagina.reload();
-    await pagina.getByTestId("papel-operacao").click();
+    await pagina.locator('[data-testid="papel-operacao"]:visible').click();
     // `operator_model` NULL = herda o do Conversador. Se o refresh trouxesse
     // uma string vazia virando "modelo escolhido", o botão apareceria — e o
     // usuário veria uma escolha que ele não fez.

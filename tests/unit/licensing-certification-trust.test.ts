@@ -74,9 +74,13 @@ describe("trust root de licença de certificação", () => {
     expect(generatedModule).toContain(publicKeyPem.replace(/\n/g, "\\n"));
 
     vi.stubEnv("NODE_ENV", "production");
-    vi.doMock("@/lib/licensing/trusted-keys", () => ({
-      DEFAULT_TRUSTED_KEYS: { [keyId]: publicKeyPem },
-    }));
+    vi.doMock("@/lib/licensing/trusted-keys", () => {
+      const trustedKeys = { [keyId]: publicKeyPem };
+      return {
+        DEFAULT_TRUSTED_KEYS: trustedKeys,
+        trustedKeysForBuild: () => trustedKeys,
+      };
+    });
     vi.resetModules();
     const { verifyLicense } = await import("@/lib/licensing/verify");
     const expectedInstallationId = "e3b0992b-450c-40f0-9b07-4c5c6dc98f10";

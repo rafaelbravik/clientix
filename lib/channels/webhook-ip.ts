@@ -3,7 +3,7 @@
  *
  * ─── Topologia de Proxies do Repositório (Caddy e Traefik) ───────────────────
  *
- * Nas instalações self-host suportadas pelo DeskcommCRM:
+ * Nas instalações self-host suportadas pelo Clientix:
  * 1. Caddy (`Caddyfile`): opera na borda da VPS (portas 80/443). Ao fazer
  *    `reverse_proxy app:3000`, o Caddy anexa o endereço IP remoto da conexão TCP
  *    ao final da cadeia do cabeçalho `X-Forwarded-For`.
