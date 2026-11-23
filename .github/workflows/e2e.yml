@@ -1942,6 +1942,10 @@ jobs:
         run: pnpm exec tsx scripts/bootstrap-owner.ts
 
       - if: matrix.parte != 4
+        name: Inicializar a plataforma para as suítes comuns
+        run: pnpm exec tsx scripts/bootstrap-owner.ts
+
+      - if: matrix.parte != 4
         name: Semear credenciais de teste
         run: |
           cp .env.e2e .env.local

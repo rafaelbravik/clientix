@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { createClient } from "@supabase/supabase-js";
+import { insertOrganizationFixture } from "./helpers/organization-fixture";
 import { expect, test, type Page } from "./helpers/test";
 
 import { credenciaisSupabaseDeTeste } from "../../scripts/lib/env-de-teste";
@@ -37,6 +38,7 @@ let canalId = "";
 let email = "";
 
 async function insere(tabela: string, valores: Record<string, unknown>): Promise<string> {
+  if (tabela === "organizations") return insertOrganizationFixture(valores);
   const { data, error } = await db.from(tabela).insert(valores).select("id").single();
   if (error) throw error;
   return (data as { id: string }).id;

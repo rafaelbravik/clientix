@@ -24,6 +24,12 @@ import { test, expect, type Page } from "./helpers/test";
 const APP_URL = `http://localhost:${process.env.E2E_PORT ?? "3001"}`;
 const CREDS_PATH = path.join(process.cwd(), ".e2e-creds.json");
 const SAIDA = path.join(process.cwd(), "evidence", "ia-360-w4");
+const CONFIG_SUPABASE_LOCAL = path.join(process.cwd(), ".clientix-local", "supabase", "config.toml");
+const PROJECT_ID = /^project_id\s*=\s*"([^"]+)"/m.exec(
+  fs.readFileSync(CONFIG_SUPABASE_LOCAL, "utf8"),
+)?.[1];
+if (!PROJECT_ID) throw new Error("project_id ausente na configuração do Supabase E2E local.");
+const DB_CONTAINER = `supabase_db_${PROJECT_ID}`;
 
 interface Creds {
   password: string;
@@ -35,7 +41,7 @@ const creds = JSON.parse(fs.readFileSync(CREDS_PATH, "utf8")) as Creds;
 function sql(query: string): string {
   return execFileSync(
     "docker",
-    ["exec", "-i", "supabase_db_deskcomm-crm", "psql", "-U", "postgres", "-d", "postgres", "-t", "-c", query],
+    ["exec", "-i", DB_CONTAINER, "psql", "-U", "postgres", "-d", "postgres", "-t", "-c", query],
     { encoding: "utf8" },
   );
 }

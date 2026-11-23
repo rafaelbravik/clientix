@@ -32,6 +32,7 @@ import { createClient } from "@supabase/supabase-js";
 
 import { test, expect, type Page } from "./helpers/test";
 import { credenciaisSupabaseDeTeste } from "../../scripts/lib/env-de-teste";
+import { insertOrganizationFixture } from "./helpers/organization-fixture";
 
 const credenciais = credenciaisSupabaseDeTeste();
 const db = createClient(credenciais.url, credenciais.serviceRole, { auth: { persistSession: false } });
@@ -96,13 +97,12 @@ test.beforeAll(async () => {
     if (error || !data.user) throw error ?? new Error("usuário não nasceu");
     usuarios[papel] = { id: data.user.id, email };
   }
-  const { data: org, error } = await db
-    .from("organizations")
-    .insert({ slug: `sons-${SUFIXO}`, legal_name: `Loja ${SUFIXO}`, display_name: `Loja ${SUFIXO}`, onboarded_at: new Date().toISOString() })
-    .select("id")
-    .single();
-  if (error) throw error;
-  orgId = (org as { id: string }).id;
+  orgId = await insertOrganizationFixture({
+    slug: `sons-${SUFIXO}`,
+    legal_name: `Loja ${SUFIXO}`,
+    display_name: `Loja ${SUFIXO}`,
+    onboarded_at: new Date().toISOString(),
+  });
   for (const papel of ["manager", "viewer"] as const) {
     const { error: e } = await db.from("user_organizations").insert({
       organization_id: orgId, user_id: usuarios[papel].id, role: papel, accepted_at: new Date().toISOString(),

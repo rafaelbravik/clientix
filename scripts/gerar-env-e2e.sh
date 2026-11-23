@@ -129,6 +129,22 @@ esac
 # reprovam assim mesmo com token_hash válido — o defeito independe de PKCE.
 E2E_PORT="${E2E_PORT:-3001}"
 
+# O helper de autenticação consulta o Mailpit pela porta publicada no host.
+# O wrapper local escolhe uma faixa por checkout e registra o mapeamento em
+# `.clientix-local/supabase-ports`; em um Supabase iniciado fora desse wrapper,
+# o padrão do config.toml continua sendo API + 3 (54321 → 54324).
+MAILPIT_PORT="$(awk -F= '$1 == "SMTP" { print $2 }' .clientix-local/supabase-ports 2>/dev/null || true)"
+if ! [[ "$MAILPIT_PORT" =~ ^[0-9]+$ ]]; then
+  API_PORT="$(node -e 'process.stdout.write(new URL(process.argv[1]).port)' "$API_URL")"
+  if ! [[ "$API_PORT" =~ ^[0-9]+$ ]]; then
+    echo "==> Não foi possível determinar a porta HTTP do Supabase para localizar o Mailpit." >&2
+    exit 1
+  fi
+  MAILPIT_PORT=$((API_PORT + 3))
+fi
+MAILPIT_HOST="$(node -e 'process.stdout.write(new URL(process.argv[1]).hostname)' "$API_URL")"
+MAILPIT_URL="http://$MAILPIT_HOST:$MAILPIT_PORT"
+
 cat > .env.e2e <<EOF
 # ── Ambiente do E2E — LOCAL, nunca a nuvem ──────────────────────────────────
 # GERADO por 'pnpm e2e:env'. Não versionado (.gitignore cobre '.env*').
@@ -144,6 +160,7 @@ SUPABASE_SERVICE_ROLE_KEY=$SERVICE
 # um literal: é isto que mantém duas sessões locais escrevendo cada uma no seu
 # banco.
 SUPABASE_DB_URL=$DB_URL
+MAILPIT_URL=$MAILPIT_URL
 
 # Precisa bater com o baseURL real do Playwright (ver comentário acima).
 NEXT_PUBLIC_APP_URL=http://localhost:$E2E_PORT
@@ -196,8 +213,9 @@ UPSTASH_REDIS_REST_TOKEN=e2e-placeholder-nao-e-segredo
 # Ficam AQUI, e não redigitados no workflow, porque este arquivo é a fonte
 # única do ambiente da suíte: o passo "Publicar o .env.e2e no ambiente do job"
 # o leva inteiro para o job, então o CI e quem roda local leem o MESMO dono.
-# Mesmos valores de \`docs/testing/HANDOFF-vps-qa.md\` (a receita local da
-# jornada) e do cabeçalho da spec.
+# O e-mail e o nome da organização também aparecem em
+# \`docs/testing/HANDOFF-vps-qa.md\`. A senha é consumida do ambiente pela spec:
+# não mantenha uma cópia fixa dela no código de teste.
 #
 # Backtick escapado neste heredoc não é estilo: ele é \`<<EOF\` sem aspas, então
 # crase crua vira SUBSTITUIÇÃO DE COMANDO — o comentário chega no arquivo
@@ -216,7 +234,7 @@ UPSTASH_REDIS_REST_TOKEN=e2e-placeholder-nao-e-segredo
 # Nome de organização aqui é um token só. A guarda que cobra isso está em
 # \`tests/unit/e2e-cria-o-dono-que-a-spec-exige.test.ts\` (carrega o arquivo).
 OWNER_EMAIL=dono@qa.local
-OWNER_PASSWORD=QaVps!2026#Dono
+OWNER_PASSWORD=QaVps!2026Dono
 OWNER_ORG_NAME=Loja-QA-VPS
 INSTALLATION_ID=inst_00000000-0000-4000-8000-000000000001
 

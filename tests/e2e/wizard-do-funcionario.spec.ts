@@ -18,6 +18,7 @@ import { randomUUID } from "node:crypto";
 
 import { test, expect, type Page } from "./helpers/test";
 import { createClient } from "@supabase/supabase-js";
+import { insertOrganizationFixture } from "./helpers/organization-fixture";
 
 const svc = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -44,20 +45,14 @@ test.beforeAll(async () => {
   if (errUser || !criado.user) throw errUser ?? new Error("sem usuário");
   userId = criado.user.id;
 
-  const { data: org, error: errOrg } = await svc
-    .from("organizations")
-    .insert({
-      slug: `minha-empresa-${randomUUID().slice(0, 8)}`,
-      display_name: "Minha Empresa",
-      legal_name: "Minha Empresa",
-      status: "active",
-      created_by: userId,
-      settings: { llm: { provider: "anthropic" } },
-    })
-    .select("id")
-    .single();
-  if (errOrg || !org) throw errOrg ?? new Error("sem org");
-  orgId = org.id as string;
+  orgId = await insertOrganizationFixture({
+    slug: `minha-empresa-${randomUUID().slice(0, 8)}`,
+    display_name: "Minha Empresa",
+    legal_name: "Minha Empresa",
+    status: "active",
+    created_by: userId,
+    settings: { llm: { provider: "anthropic" } },
+  });
 
   await svc.from("user_organizations").insert({
     organization_id: orgId,

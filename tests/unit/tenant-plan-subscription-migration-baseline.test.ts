@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 const ROOT = process.cwd();
 const MIGRATION_FILE = "20261117002000_9065_tenant_plan_subscriptions.sql";
 const BLOCK_HEADER = "-- ---- 9065 — tenant plan subscriptions (migration 9065) ----";
-const FINAL_SCAN = "-- ---- VARREDURA anon:";
+const NEXT_MIGRATION = "-- ---- paletas visuais por organização (migration 9066) ----";
 const sha256 = (content: Buffer | string) => createHash("sha256").update(content).digest("hex");
 
 describe("migration 9065 — assinatura comercial por tenant", () => {
@@ -15,7 +15,7 @@ describe("migration 9065 — assinatura comercial por tenant", () => {
     const migration = readFileSync(resolve(ROOT, "supabase/migrations", MIGRATION_FILE), "utf8");
     const baselineText = baseline.toString("utf8");
     const start = baselineText.lastIndexOf(BLOCK_HEADER);
-    const end = baselineText.indexOf(FINAL_SCAN, start);
+    const end = baselineText.indexOf(NEXT_MIGRATION, start);
 
     expect(start).toBeGreaterThanOrEqual(0);
     expect(end).toBeGreaterThan(start);
@@ -34,8 +34,8 @@ describe("migration 9065 — assinatura comercial por tenant", () => {
     };
     const entry = manifest.migrations.find((item) => item.sequence === 9065);
 
-    expect(manifest.schema_target).toBe("9065");
-    expect(manifest.baseline.incorporated_through_sequence).toBe(9065);
+    expect(manifest.schema_target).toBe("9067");
+    expect(manifest.baseline.incorporated_through_sequence).toBe(9067);
     expect(manifest.baseline.checksum).toBe(sha256(baseline));
     expect(manifest.baseline.size_bytes).toBe(baseline.byteLength);
     expect(entry).toMatchObject({

@@ -6,7 +6,9 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
   if (denied) return denied;
   const body: unknown = await req.json().catch(() => null);
   return resolve(
-    new Request(req, {
+    new Request(req.url, {
+      method: req.method,
+      headers: req.headers,
       body: JSON.stringify({
         ...(typeof body === "object" && body !== null ? body : {}),
         choice: "retry",

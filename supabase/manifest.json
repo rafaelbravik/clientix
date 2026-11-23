@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "generated_at": "2026-11-09T17:50:46.665Z",
-  "schema_target": "9065",
+  "generated_at": "2026-11-20T21:44:58.771Z",
+  "schema_target": "9067",
   "baseline": {
     "file": "baseline.sql",
-    "checksum": "98085062cdb6dd7571db9fd8bd017d182faf6bef5c0959a7318a63ff8733c5ad",
-    "size_bytes": 2582876,
-    "incorporated_through_sequence": 9065
+    "checksum": "f8df3d3e0400cc9fe4e93e6493e2833cde1cc6dbccc399e7ba241eced343939b",
+    "size_bytes": 2589993,
+    "incorporated_through_sequence": 9067
   },
   "migrations": [
     {
@@ -3500,7 +3500,25 @@
       "checksum": "35bdd52d1e19cd2dd282aea688b9d90be9001095abdd91ff92ab1e34bd30a0cc",
       "transactional": true,
       "size_bytes": 10309
+    },
+    {
+      "file": "20261118090000_9066_tenant_appearance_palettes.sql",
+      "version": "20261118090000",
+      "sequence": 9066,
+      "slug": "tenant_appearance_palettes",
+      "checksum": "f689d005e6a5aa6902218bdb5ae6aa7ff03825bc1a0a29160916dd642c287402",
+      "transactional": true,
+      "size_bytes": 3264
+    },
+    {
+      "file": "20261118100000_9067_tenant_green_palette.sql",
+      "version": "20261118100000",
+      "sequence": 9067,
+      "slug": "tenant_green_palette",
+      "checksum": "c04f5a30d2b280f187aea56953299e004c4e49d091d650f5edf1c50d13b1c490",
+      "transactional": true,
+      "size_bytes": 3693
     }
   ],
-  "updated_at": "2026-11-17T16:32:11.972Z"
+  "updated_at": "2026-11-20T21:44:58.771Z"
 }

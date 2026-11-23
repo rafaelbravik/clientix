@@ -34,6 +34,7 @@ import { decidirElegibilidadeDaConversaViaSupabase } from "@/lib/ai/elegibilidad
 
 import { test, expect, type BrowserContext, type Page } from "./helpers/test";
 import { credenciaisSupabaseDeTeste } from "../../scripts/lib/env-de-teste";
+import { insertOrganizationFixture } from "./helpers/organization-fixture";
 
 const credenciais = credenciaisSupabaseDeTeste();
 const db = createClient(credenciais.url, credenciais.serviceRole, { auth: { persistSession: false } });
@@ -42,6 +43,7 @@ const sufixo = randomUUID().slice(0, 8);
 const EVIDENCIA = "evidence/suspensao-administrativa";
 
 async function inserir(tabela: string, valor: Record<string, unknown>): Promise<string> {
+  if (tabela === "organizations") return insertOrganizationFixture(valor);
   const { data, error } = await db.from(tabela).insert(valor).select("id").single();
   if (error) throw error;
   return data.id as string;

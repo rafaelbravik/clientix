@@ -14535,7 +14535,9 @@ export const DICIONARIO: Traducoes = {
   "Standard (Básico)": { es: "Standard (Básico)" },
   // Inbox e Chat Widget
   "Clique para copiar o protocolo": { es: "Haz clic para copiar el protocolo" },
-  "Buscar por protocolo, nome ou telefone…": { es: "Buscar por protocolo, nombre o teléfono…" },
+  "Buscar por protocolo, nome, telefone ou última mensagem…": {
+    es: "Buscar por protocolo, nombre, teléfono o último mensaje…",
+  },
   "Personalizar abas visíveis": { es: "Personalizar pestañas visibles" },
   "Abas visíveis no Inbox": { es: "Pestañas visibles en el Inbox" },
   "Atendimento indisponível": { es: "Atención no disponible" },

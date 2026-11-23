@@ -126,8 +126,10 @@ export async function POST(req: NextRequest): Promise<Response> {
     organization_id: orgId,
     name,
     description,
-    vocabulary: parsed.data.vocabulary ?? null,
-    settings: parsed.data.settings ?? null,
+    // As colunas têm defaults não nulos. Enviar `null` quando a pessoa não
+    // personaliza esses campos substitui o default e faz a criação falhar.
+    ...(parsed.data.vocabulary !== undefined ? { vocabulary: parsed.data.vocabulary } : {}),
+    ...(parsed.data.settings !== undefined ? { settings: parsed.data.settings } : {}),
     // Arquivados entram na conta do slug: `uniq_crm_pipelines_org_slug` não é parcial.
     slug: slugDeFunil(name, funis.map((f) => f.slug)),
     // No fim da lista: funil novo aparecendo no meio seria a tela decidindo por

@@ -242,18 +242,22 @@ describe("catraca: `branding()` é server-only", () => {
     expect(semComentarios(`const nome = branding().name; // usa a marca`)).toMatch(/\bbranding\(\)/);
   });
 
-  it("os call sites REAIS de `branding()` continuam visíveis à varredura", () => {
+  it("os call sites REAIS de marca continuam visíveis à varredura", () => {
     // A guarda contra o erro NOVO que o corte por bloco introduz: se o regex de
     // `/* … */` engolisse código, esta lista esvaziaria e a catraca ficaria verde
     // por cegueira — o mesmo defeito que ela existe para impedir, do lado do
-    // instrumento. Estes quatro são servidores e DEVEM chamar `branding()`.
-    const esperados = [
-      "app/(public)/login/page.tsx",
-      "app/(public)/signup/page.tsx",
-      "lib/legal/operador.ts",
-    ];
+    // instrumento. Login e cadastro resolvem a marca com `marcaDaSaida()`;
+    // o operador legal ainda consulta diretamente `branding()`.
     const vistos = varridos.filter(chamaBranding).map((f) => relativoEmBarraNormal(RAIZ, f));
-    expect(esperados.filter((e) => !vistos.includes(e))).toEqual([]);
+    expect(vistos).toContain("lib/legal/operador.ts");
+
+    const chamaMarcaDaSaida = (arquivo: string) =>
+      /\bmarcaDaSaida\(/.test(codigoSemComentarios.get(arquivo) ?? "");
+    const saidasVistas = varridos
+      .filter(chamaMarcaDaSaida)
+      .map((f) => relativoEmBarraNormal(RAIZ, f));
+    const saidasDaTelaPublica = ["app/(public)/login/page.tsx", "app/(public)/signup/page.tsx"];
+    expect(saidasDaTelaPublica.filter((arquivo) => !saidasVistas.includes(arquivo))).toEqual([]);
   });
 
   it("nenhum componente `\"use client\"` chama `branding()`", () => {

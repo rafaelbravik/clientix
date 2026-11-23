@@ -20,9 +20,9 @@ os bugs achados na causa raiz.
   pela matriz do job `invariants` (`pnpm test:db` em pg15 e pg17), não por este
   ambiente.
 - **Primeiro usuário:** `scripts/bootstrap-owner.ts` (como o `install.sh`):
-  `dono@qa.local` / `QaVps!2026#Dono`, org `Loja-QA-VPS` — nome de organização
-  **sem espaço**, porque o `.env.e2e` é carregado por `source` (espaço vira
-  comando) e publicado literal no `$GITHUB_ENV` (aspa viraria parte do nome).
+  `dono@qa.local`, com senha fornecida pelo `.env.e2e` gerado, org
+  `Loja-QA-VPS`. O nome não tem espaço porque o arquivo é carregado por
+  `source` e publicado literal no `$GITHUB_ENV`.
 - **Deps:** WAHA Core local (`deskcomm-waha`, :3030), Redis + serverless-redis-http
   (`qa-redis`/`qa-srh`, :8079), cron drain via endpoint.
 - **App:** `next build` + `next start` na :3001, `NODE_ENV=production`.

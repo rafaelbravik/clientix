@@ -356,7 +356,9 @@ describe("guardas de mecanismo", () => {
     // para a página, e nenhum pixel muda. Falha sem sintoma, do tipo que se
     // descobre pelo cliente reclamando que "a cor não funciona".
     const layout = fs.readFileSync(path.join(RAIZ, "app/app/layout.tsx"), "utf8");
-    expect(layout).toMatch(/<div data-marca-org="" className="contents">/);
+    expect(layout).toMatch(
+      /<div\s+data-marca-org=""\s+data-appearance-preset=\{paletaVisual \?\? undefined\}\s+className="contents"\s*>/,
+    );
     // `contents` porque o elemento não pode gerar caixa: com uma div normal, o
     // shell (`flex min-h-screen`) passaria a ter um ancestral a mais no box tree
     // e a altura de tela inteira deixaria de valer.
@@ -371,7 +373,7 @@ describe("guardas de mecanismo", () => {
 
   it("o bloco da organização é emitido DENTRO da subárvore, não na raiz", () => {
     const layout = fs.readFileSync(path.join(RAIZ, "app/app/layout.tsx"), "utf8");
-    const marcador = layout.indexOf('<div data-marca-org=""');
+    const marcador = /<div\s+data-marca-org=""/.exec(layout)?.index ?? -1;
     const estilo = layout.indexOf("<EstiloDaMarcaDaOrganizacao");
     // Vacuidade: sem o marcador, `-1 < estilo` seria verde e este caso passaria
     // a não ordenar coisa nenhuma.

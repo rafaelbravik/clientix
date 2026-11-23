@@ -86,8 +86,10 @@ describe("signed installer compatibility contract", () => {
     const platformInitializationMigration = schemaManifest.migrations.find((entry) => entry.sequence === 9062);
     const atomicInviteSeatConsumptionMigration = schemaManifest.migrations.find((entry) => entry.sequence === 9063);
     const agentWorkerReplyDraftAclMigration = schemaManifest.migrations.find((entry) => entry.sequence === 9064);
-    expect(schemaManifest.schema_target).toBe("9065");
-    expect(schemaManifest.baseline.incorporated_through_sequence).toBe(9065);
+    const tenantAppearancePalettesMigration = schemaManifest.migrations.find((entry) => entry.sequence === 9066);
+    const tenantGreenPaletteMigration = schemaManifest.migrations.find((entry) => entry.sequence === 9067);
+    expect(schemaManifest.schema_target).toBe("9067");
+    expect(schemaManifest.baseline.incorporated_through_sequence).toBe(9067);
     expect(webchatMigration).toMatchObject({
       file: "20261010120000_0511_webchat_widget_bootstrap.sql",
       version: "20261010120000",
@@ -198,6 +200,20 @@ describe("signed installer compatibility contract", () => {
       version: "20261117000700",
       sequence: 9064,
       slug: "agent_worker_reply_draft_acl",
+      transactional: true,
+    });
+    expect(tenantAppearancePalettesMigration).toMatchObject({
+      file: "20261118090000_9066_tenant_appearance_palettes.sql",
+      version: "20261118090000",
+      sequence: 9066,
+      slug: "tenant_appearance_palettes",
+      transactional: true,
+    });
+    expect(tenantGreenPaletteMigration).toMatchObject({
+      file: "20261118100000_9067_tenant_green_palette.sql",
+      version: "20261118100000",
+      sequence: 9067,
+      slug: "tenant_green_palette",
       transactional: true,
     });
 

@@ -8,6 +8,7 @@ import { credenciaisSupabaseDeTeste } from "../../scripts/lib/env-de-teste";
 import { reconcileAppointment } from "../../lib/agenda/google/sync-executor";
 import { createMeetDeliveryHandler } from "../../lib/agent-engine/agent/meet-delivery";
 import { escolherDiaDesenhado, irParaASemanaSeguinte } from "./helpers/agenda-semana-integra";
+import { insertOrganizationFixture } from "./helpers/organization-fixture";
 
 const credentials = credenciaisSupabaseDeTeste();
 const db = createClient(credentials.url, credentials.serviceRole, {
@@ -20,6 +21,7 @@ const link = "https://meet.google.com/abc-defg-hij";
 test.use({ trace: "on", timezoneId: "America/Sao_Paulo", viewport: { width: 1440, height: 1000 } });
 test.describe.configure({ timeout: 180_000 });
 async function insert(table: string, value: Record<string, unknown>) {
+  if (table === "organizations") return insertOrganizationFixture(value);
   const { data, error } = await db.from(table).insert(value).select("id").single();
   if (error) throw error;
   return data.id as string;

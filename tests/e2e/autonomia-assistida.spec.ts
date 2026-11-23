@@ -7,6 +7,7 @@ import { test, expect, type Page, type TestInfo, type Locator } from "./helpers/
 import { credenciaisSupabaseDeTeste } from "../../scripts/lib/env-de-teste";
 import { createApprovedReplyHandler } from "../../lib/agent-engine/agent/approved-reply";
 import { seedPlatformPlaybook } from "../../lib/agent-engine/agent/playbook-seed";
+import { insertOrganizationFixture } from "./helpers/organization-fixture";
 
 const credentials = credenciaisSupabaseDeTeste();
 const db = createClient(credentials.url, credentials.serviceRole, {
@@ -18,6 +19,7 @@ const orgs: string[] = [],
 test.use({ trace: "on", timezoneId: "America/Sao_Paulo", viewport: { width: 1440, height: 1000 } });
 test.describe.configure({ timeout: 180_000 });
 async function insert(table: string, value: Record<string, unknown>) {
+  if (table === "organizations") return insertOrganizationFixture(value);
   const { data, error } = await db.from(table).insert(value).select("id").single();
   if (error) throw error;
   return data.id as string;

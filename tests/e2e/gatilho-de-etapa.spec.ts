@@ -157,8 +157,9 @@ test.describe("gatilho de etapa do funil", () => {
       const funilRes = await page.request.post("/api/v1/pipelines", {
         data: { name: `E2E Funil Gatilho ${marca}` },
       });
-      expect(funilRes.status()).toBe(201);
-      const { data: funis } = (await funilRes.json()) as { data: { pipelines: Array<{ id: string; name: string }> } };
+      const corpoDoFunil = await funilRes.text();
+      expect(funilRes.status(), corpoDoFunil).toBe(201);
+      const { data: funis } = JSON.parse(corpoDoFunil) as { data: { pipelines: Array<{ id: string; name: string }> } };
       const funil = funis.pipelines.find((p) => p.name === `E2E Funil Gatilho ${marca}`)!;
       expect(funil, "o funil recém-criado tem que voltar na lista").toBeTruthy();
       funilId = funil.id;

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { createClient } from "@supabase/supabase-js";
 import { expect, test, type Page, type TestInfo } from "./helpers/test";
+import { insertOrganizationFixture } from "./helpers/organization-fixture";
 
 import { credenciaisSupabaseDeTeste } from "../../scripts/lib/env-de-teste";
 import { escolherDiaDesenhado, irParaASemanaSeguinte } from "./helpers/agenda-semana-integra";
@@ -50,7 +51,7 @@ async function organizacaoDeTeste() {
   if (error || !data.user) throw error ?? new Error("usuário não criado");
   const usuario = data.user.id;
   usuarios.push(usuario);
-  const org = await inserir("organizations", {
+  const org = await insertOrganizationFixture({
     slug: `cliente-agenda-${randomUUID()}`,
     display_name: "Estúdio Cliente pela Agenda",
     legal_name: "Estúdio Cliente pela Agenda",

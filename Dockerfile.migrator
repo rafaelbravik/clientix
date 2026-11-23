@@ -62,7 +62,7 @@ COPY --from=customer-schema /build/manifest.customer.json ./manifest/manifest.js
 
 ARG SOURCE_HEAD=unknown
 ARG SOURCE_DIRTY=true
-LABEL org.opencontainers.image.source="https://github.com/rafaelbravik/clientix-agencia" \
+LABEL org.opencontainers.image.source="https://github.com/rafaelbravik/clientix" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.title="Clientix database migrator" \
       com.clientix.artifact="migrator-customer" \

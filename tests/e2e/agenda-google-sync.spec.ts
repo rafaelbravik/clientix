@@ -7,6 +7,7 @@ import { credenciaisSupabaseDeTeste } from "../../scripts/lib/env-de-teste";
 import { reconcileAppointment } from "../../lib/agenda/google/sync-executor";
 import { googlePushCandidates } from "../../lib/agenda/google/candidates";
 import { irParaASemanaSeguinte, irParaASemanaDoCompromisso } from "./helpers/agenda-semana-integra";
+import { insertOrganizationFixture } from "./helpers/organization-fixture";
 import type { EventoDoGoogle } from "../../lib/agenda/google/evento";
 const credentials = credenciaisSupabaseDeTeste();
 const db = createClient(credentials.url, credentials.serviceRole, {
@@ -18,6 +19,7 @@ const orgs: string[] = [],
 test.use({ trace: "on", timezoneId: "America/Sao_Paulo" });
 test.describe.configure({ timeout: 120000 });
 async function insert(table: string, value: Record<string, unknown>) {
+  if (table === "organizations") return insertOrganizationFixture(value);
   const { data, error } = await db.from(table).insert(value).select("id").single();
   if (error) throw error;
   return data.id as string;
@@ -458,7 +460,15 @@ test("retry pela tela usa filtro PostgREST real; conflito exige escolha e conser
     expect((await candidates()).some((a) => a.id === id)).toBe(false);
     await login(page, f.email);
     await detail(page, id);
-    await page.getByRole("button", { name: "Tentar sincronizar novamente" }).click();
+    const [retry] = await Promise.all([
+      page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname.endsWith(`/agenda/agendamentos/${id}/google/retry`) &&
+          response.request().method() === "POST",
+      ),
+      page.getByRole("button", { name: "Tentar sincronizar novamente" }).click(),
+    ]);
+    expect(retry.status()).toBe(200);
     await expect.poll(async () => (await candidates()).some((a) => a.id === id)).toBe(true);
     expect(await run()).toBe("processed");
     const published = await row(f, id);

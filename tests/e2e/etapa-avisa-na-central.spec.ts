@@ -27,6 +27,7 @@ import * as path from "node:path";
 import { createClient } from "@supabase/supabase-js";
 
 import { test, expect, type Page } from "./helpers/test";
+import { insertOrganizationFixture } from "./helpers/organization-fixture";
 import { credenciaisSupabaseDeTeste } from "../../scripts/lib/env-de-teste";
 
 const credenciais = credenciaisSupabaseDeTeste();
@@ -91,7 +92,7 @@ test.beforeAll(async () => {
   if (error || !data.user) throw error ?? new Error("usuário não nasceu");
   userId = data.user.id;
 
-  orgId = await inserir("organizations", {
+  orgId = await insertOrganizationFixture({
     slug: `etapa-avisa-${SUFIXO}`,
     legal_name: `Loja ${SUFIXO}`,
     display_name: `Loja ${SUFIXO}`,

@@ -16,6 +16,7 @@ import { randomUUID } from "node:crypto";
 
 import { test, expect, type Page } from "./helpers/test";
 import { createClient } from "@supabase/supabase-js";
+import { insertOrganizationFixture } from "./helpers/organization-fixture";
 
 const svc = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -38,21 +39,15 @@ test.beforeAll(async () => {
   if (error || !criado.user) throw error ?? new Error("sem usuário");
   userId = criado.user.id;
 
-  const { data: org, error: e2 } = await svc
-    .from("organizations")
-    .insert({
-      slug: `mfa-opcional-${randomUUID().slice(0, 8)}`,
-      display_name: "Empresa Sem MFA",
-      legal_name: "Empresa Sem MFA",
-      status: "active",
-      created_by: userId,
-      // Já onboardada: o que se mede aqui é a entrada no app, não o wizard.
-      onboarded_at: new Date().toISOString(),
-    })
-    .select("id")
-    .single();
-  if (e2 || !org) throw e2 ?? new Error("sem org");
-  orgId = org.id as string;
+  orgId = await insertOrganizationFixture({
+    slug: `mfa-opcional-${randomUUID().slice(0, 8)}`,
+    display_name: "Empresa Sem MFA",
+    legal_name: "Empresa Sem MFA",
+    status: "active",
+    created_by: userId,
+    // Já onboardada: o que se mede aqui é a entrada no app, não o wizard.
+    onboarded_at: new Date().toISOString(),
+  });
 
   await svc.from("user_organizations").insert({
     organization_id: orgId,

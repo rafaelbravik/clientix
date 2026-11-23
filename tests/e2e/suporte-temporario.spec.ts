@@ -4,10 +4,12 @@ import { createServer } from "node:http";
 import { createClient } from "@supabase/supabase-js";
 import { test, expect, type BrowserContext, type Page, type Request } from "./helpers/test";
 import { credenciaisSupabaseDeTeste } from "../../scripts/lib/env-de-teste";
+import { insertOrganizationFixture } from "./helpers/organization-fixture";
 const credentials=credenciaisSupabaseDeTeste();
 const db=createClient(credentials.url,credentials.serviceRole,{auth:{persistSession:false}});
 const password=`Local-${randomUUID()}!`;
 async function insert(table:string,value:Record<string,unknown>) {
+ if(table==="organizations")return insertOrganizationFixture(value);
  const {data,error}=await db.from(table).insert(value).select("id").single(); if(error)throw error; return data.id as string;
 }
 async function login(page:Page,email:string){await page.goto("/login");await page.getByLabel(/e-?mail/i).fill(email);await page.getByLabel(/senha/i).fill(password);await page.getByRole("button",{name:"Entrar",exact:true}).click();await page.waitForURL(/\/app(\/|$)/,{timeout:60000});}
@@ -233,7 +235,7 @@ test("suporte mantém identidade, opera B e encerra sem misturar A; readonly/exp
     }else await route.continue();
    })));
    await expect.poll(()=>pendingMutations.size,{timeout:20000,
-    message:"Mutações enviadas devem concluir antes de fechar contextos ou apagar fixtures"}).toBe(0);
+    message:`Mutações enviadas devem concluir antes de fechar contextos ou apagar fixtures: ${JSON.stringify(pendingMutationDescriptions())}`}).toBe(0);
    const closing = await Promise.allSettled([
     ...page.context().pages().map(ownedPage => ownedPage.close()),
     ...(second ? [second.close()] : []),

@@ -9,6 +9,7 @@
  */
 import { test, expect } from "./helpers/test";
 import { createClient } from "@supabase/supabase-js";
+import { insertOrganizationFixture } from "./helpers/organization-fixture";
 
 import {
   waitForEmail,
@@ -40,22 +41,17 @@ test.beforeAll(async () => {
   if (error || !data.user) throw new Error(`seed createUser: ${error?.message}`);
 
   const slug = `e2e-recovery-${Date.now()}`;
-  const { data: org, error: orgError } = await admin
-    .from("organizations")
-    .insert({
-      slug,
-      display_name: "Loja E2E Recovery",
-      legal_name: "Loja E2E Recovery",
-      status: "active",
-      created_by: data.user.id,
-    })
-    .select("id")
-    .single();
-  if (orgError || !org) throw new Error(`seed org: ${orgError?.message}`);
+  const organizationId = await insertOrganizationFixture({
+    slug,
+    display_name: "Loja E2E Recovery",
+    legal_name: "Loja E2E Recovery",
+    status: "active",
+    created_by: data.user.id,
+  });
 
   const { error: memberError } = await admin.from("user_organizations").insert({
     user_id: data.user.id,
-    organization_id: org.id,
+    organization_id: organizationId,
     role: "admin",
     accepted_at: new Date().toISOString(),
   });

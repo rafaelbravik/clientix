@@ -12,6 +12,7 @@ import { test, expect, type Page, type TestInfo } from "./helpers/test";
 import { credenciaisSupabaseDeTeste } from "../../scripts/lib/env-de-teste";
 import { escolherDiaDesenhado, irParaASemanaSeguinte } from "./helpers/agenda-semana-integra";
 import { enviarTextoFixoPendente } from "../../lib/followup/enviar-texto-fixo";
+import { insertOrganizationFixture } from "./helpers/organization-fixture";
 const credentials = credenciaisSupabaseDeTeste();
 const db = createClient(credentials.url, credentials.serviceRole, {
   auth: { persistSession: false },
@@ -22,6 +23,7 @@ test.describe.configure({ timeout: 180_000 });
 const orgs: string[] = [],
   users: string[] = [];
 async function insert(table: string, value: Record<string, unknown>) {
+  if (table === "organizations") return insertOrganizationFixture(value);
   const { data, error } = await db.from(table).insert(value).select("id").single();
   if (error) throw error;
   return data.id as string;
@@ -979,6 +981,11 @@ test("Radar recorta demandas pela RLS real, alÃ©m do pool frio, e preserva gestÃ
   page,
 }) => {
   const f = await fixture();
+  const plano = await db
+    .from("organizations")
+    .update({ settings: { plan: "enterprise" } })
+    .eq("id", f.org);
+  if (plano.error) throw plano.error;
   const members: Record<string, { id: string; email: string }> = {};
   for (const role of ["agent", "other", "manager", "viewer"]) {
     const email = `radar-${role}-${randomUUID()}@invariant.test`;

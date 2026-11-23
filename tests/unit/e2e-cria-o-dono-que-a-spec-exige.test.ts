@@ -29,7 +29,7 @@
  *
  * Que o passo exista, que ele valha para a parte 4, que ele venha ANTES de a
  * suíte rodar, e que as credenciais do dono continuem tendo UMA fonte — o
- * `.env.e2e`, que o job publica — CONCORDANDO com o que a spec declara. Duas
+ * `.env.e2e`, que o job publica e a spec lê do ambiente. Duas
  * fontes que divergem é o defeito que já custou 8 specs em 401 neste mesmo
  * workflow; duas fontes que concordam por coincidência é o mesmo defeito com
  * data marcada.
@@ -55,11 +55,11 @@ function indiceDe(pred: (linha: string) => boolean): number {
   return COMANDOS.findIndex(pred);
 }
 
-/** A declaração da constante na spec: é ela quem nomeia o dono. */
-function constanteDaSpec(nome: string): string {
-  const m = spec.match(new RegExp(`const ${nome} = "([^"]+)";`));
-  expect(m, `a spec deixou de declarar ${nome} — este guard virou peso morto`).toBeTruthy();
-  return m![1]!;
+/** A spec e o bootstrap consomem a mesma variável carregada do `.env.e2e`. */
+function specUsaVariavelDoAmbiente(nome: string): boolean {
+  return new RegExp(
+    `const ${nome} = process\\.env\\.${nome}(?:\\s*\\?\\?\\s*["']{2})?;`,
+  ).test(spec);
 }
 
 /** A linha do gerador, lida DENTRO do heredoc que escreve o `.env.e2e`. */
@@ -75,8 +75,10 @@ describe("o CI cria o dono que a spec da instalação fresca exige", () => {
     // Sem isto, o dia em que a spec parar de exigir o dono os casos abaixo
     // continuariam verdes vigiando uma regra que não existe mais.
     expect(spec).toMatch(/scripts\/bootstrap-owner\.ts/);
-    expect(constanteDaSpec("OWNER_EMAIL")).toContain("@");
-    expect(constanteDaSpec("OWNER_PASSWORD").length).toBeGreaterThanOrEqual(12);
+    expect(specUsaVariavelDoAmbiente("OWNER_EMAIL")).toBe(true);
+    expect(specUsaVariavelDoAmbiente("OWNER_PASSWORD")).toBe(true);
+    expect(linhaDoGerador("OWNER_EMAIL")).toContain("@");
+    expect(linhaDoGerador("OWNER_PASSWORD").length).toBeGreaterThanOrEqual(12);
   });
 
   it("o workflow publica o .env.e2e no job — é de lá que o dono sai", () => {
@@ -92,23 +94,39 @@ describe("o CI cria o dono que a spec da instalação fresca exige", () => {
     ).toBeGreaterThan(-1);
   });
 
-  it("o passo do dono vale para a parte 4 — as outras três já nascem semeadas", () => {
-    // Fora de comentário: a menção em prosa (`SPECS_PARTE_4`, este arquivo) não é passo.
-    const i = LINHAS.findIndex(
-      (l) => l.includes("scripts/bootstrap-owner.ts") && !l.trim().startsWith("#"),
+  it("inicializa a plataforma em todas as partes antes dos seeds e da suíte", () => {
+    const passos = LINHAS.map((linha, indice) => ({ linha, indice }))
+      .filter(
+        ({ linha }) =>
+          linha.includes("scripts/bootstrap-owner.ts") && !linha.trim().startsWith("#"),
+      )
+      .map(({ indice }) => ({
+        indice,
+        guarda: LINHAS.slice(0, indice)
+          .reverse()
+          .find((linha) => /^\s*-?\s*if:/.test(linha))
+          ?.trim(),
+      }));
+
+    expect(passos, "as partes comuns e a instalação fresca precisam de bootstrap").toHaveLength(2);
+    const comum = passos.find(({ guarda }) => guarda?.includes("matrix.parte != 4"));
+    const fresca = passos.find(({ guarda }) => guarda?.includes("matrix.parte == 4"));
+    expect(comum, "as partes comuns devem inicializar o first-run").toBeDefined();
+    expect(fresca, "a parte 4 deve criar o dono da instalação fresca").toBeDefined();
+
+    const credenciais = LINHAS.findIndex(
+      (linha) =>
+        linha.includes("scripts/seed-e2e-credentials.ts") && !linha.trim().startsWith("#"),
     );
-    expect(i, "nenhum passo cria o dono — o caso acima já reprovou por este motivo").toBeGreaterThan(
-      -1,
+    const suite = LINHAS.findIndex(
+      (linha) => /playwright test/.test(linha) && !/install/.test(linha),
     );
-    const guarda = LINHAS.slice(0, i)
-      .reverse()
-      .find((l) => /^\s*-?\s*if:/.test(l));
-    expect(
-      guarda,
-      "o passo do dono ficou sem `if:` — rodaria também nas partes 1 a 3, cujo banco tem os " +
-        "donos semeados e NÃO tem o dono do bootstrap",
-    ).toBeTruthy();
-    expect(guarda).toMatch(/matrix\.parte == 4/);
+    expect(credenciais, "as fixtures comuns devem continuar explícitas").toBeGreaterThan(-1);
+    expect(suite, "nenhum passo roda a suíte — o padrão envelheceu").toBeGreaterThan(-1);
+    expect(comum!.indice, "a plataforma deve ser inicializada antes de semear usuários").toBeLessThan(
+      credenciais,
+    );
+    expect(fresca!.indice, "a instalação fresca deve ser criada antes da suíte").toBeLessThan(suite);
   });
 
   it("o dono nasce ANTES de a suíte rodar — existir não basta, tem de vir antes", () => {
@@ -123,17 +141,13 @@ describe("o CI cria o dono que a spec da instalação fresca exige", () => {
     ).toBeLessThan(suite);
   });
 
-  it("as credenciais do dono têm uma fonte só, e ela concorda com a spec", () => {
+  it("as credenciais do dono têm uma fonte só, lida pelo bootstrap e pela spec", () => {
     for (const nome of ["OWNER_EMAIL", "OWNER_PASSWORD"]) {
       expect(
         workflow,
         `${nome} redigitado no workflow — a fonte única é o .env.e2e, que o job publica`,
       ).not.toMatch(new RegExp(`^\\s*-?\\s*${nome}[:=]`, "m"));
-      expect(
-        linhaDoGerador(nome),
-        `${nome} diverge entre o gerador do .env.e2e e a spec — duas fontes que concordam por ` +
-          "coincidência duram até a primeira divergência",
-      ).toBe(constanteDaSpec(nome));
+      expect(specUsaVariavelDoAmbiente(nome), `${nome} deixou de vir do ambiente da suíte`).toBe(true);
     }
   });
 
@@ -181,6 +195,13 @@ describe("o CI cria o dono que a spec da instalação fresca exige", () => {
       linhaDoGerador("OWNER_PASSWORD"),
       linhaDoGerador("OWNER_ORG_NAME"),
     ]);
+  });
+
+  it("a senha não vira comentário inline para o parser Node do bootstrap", () => {
+    // `tsx --env-file` (bootstrap) e o parser da spec tratam `#` de formas
+    // diferentes quando ele aparece sem aspas no valor. A senha não deve
+    // depender dessa divergência para o primeiro login funcionar.
+    expect(linhaDoGerador("OWNER_PASSWORD")).not.toContain("#");
   });
 
   it("os comentários do heredoc não expandem nada — ele é `<<EOF` sem aspas", () => {

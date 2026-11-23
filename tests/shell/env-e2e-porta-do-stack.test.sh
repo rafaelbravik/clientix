@@ -44,7 +44,7 @@ falha(){ printf '  FALHA  %s\n' "$1"; falhas=$((falhas + 1)); }
 # Monta o diretório do caso com o gerador REAL e um wrapper local de dublê.
 # uso: preparar <caso> <JSON de status>
 preparar() {
-  local caso="$1" status_json="$2"
+  local caso="$1" status_json="$2" smtp_port="${3:-}"
   mkdir -p "$TMP/$caso/scripts"
   cp "$GERADOR_REAL" "$TMP/$caso/scripts/gerar-env-e2e.sh"
   printf '%s\n' "$status_json" > "$TMP/$caso/status.json"
@@ -60,6 +60,10 @@ MOCK
   local chave="chave-de-teste-com-mais-de-44-caracteres-000000000000"
   printf 'CPF_ENCRYPTION_KEY=%s\nWAHA_BYO_ENCRYPTION_KEY=%s\nAI_CRED_AES_KEY=%s\n' \
     "$chave" "$chave" "$chave" > "$TMP/$caso/.env.e2e"
+  if [ -n "$smtp_port" ]; then
+    mkdir -p "$TMP/$caso/.clientix-local"
+    printf 'SMTP=%s\n' "$smtp_port" > "$TMP/$caso/.clientix-local/supabase-ports"
+  fi
 }
 
 # uso: rodar <caso>  → SAIDA recebe stdout+stderr e RC o código de saída
@@ -74,7 +78,7 @@ nao_contem() { ! grep -qF -- "$2" "$1"; }
 # ── 1 e 2. Stack fora das portas padrão: é o cenário da #1091 ────────────────
 casos=$((casos + 1))
 printf 'caso 1: o stack está com o banco em 55312 — o .env.e2e tem que acompanhar\n'
-preparar fora '{"API_URL":"http://127.0.0.1:55321","ANON_KEY":"anon-sintetico","SERVICE_ROLE_KEY":"service-sintetico","DB_URL":"postgresql://postgres:senha-do-stack@127.0.0.1:55312/postgres"}'
+preparar fora '{"API_URL":"http://127.0.0.1:55321","ANON_KEY":"anon-sintetico","SERVICE_ROLE_KEY":"service-sintetico","DB_URL":"postgresql://postgres:senha-do-stack@127.0.0.1:55312/postgres"}' 55324
 rodar fora
 if [ "$RC" -eq 0 ]; then
   ok "o gerador saiu 0"
@@ -95,11 +99,16 @@ case "$SAIDA" in
   *55312*) ok "o recado final diz em qual Postgres os seeds escrevem" ;;
   *)       falha "o recado final não diz onde os seeds escrevem — saída: $SAIDA" ;;
 esac
+if contem "$TMP/fora/.env.e2e" 'MAILPIT_URL=http://127.0.0.1:55324'; then
+  ok "MAILPIT_URL acompanha a porta SMTP publicada pelo stack"
+else
+  falha "MAILPIT_URL não acompanhou a porta SMTP publicada pelo stack"
+fi
 
 # ── 3. Stack nas portas padrão continua funcionando ─────────────────────────
 casos=$((casos + 1))
 printf 'caso 2: o stack está nas portas padrão — o .env.e2e segue o status\n'
-preparar padrao '{"API_URL":"http://127.0.0.1:54321","ANON_KEY":"anon-sintetico","SERVICE_ROLE_KEY":"service-sintetico","DB_URL":"postgresql://postgres:senha-do-stack@127.0.0.1:54322/postgres"}'
+preparar padrao '{"API_URL":"http://127.0.0.1:54321","ANON_KEY":"anon-sintetico","SERVICE_ROLE_KEY":"service-sintetico","DB_URL":"postgresql://postgres:senha-do-stack@127.0.0.1:54322/postgres"}' 54324
 rodar padrao
 if [ "$RC" -eq 0 ]; then
   ok "o gerador saiu 0"
@@ -110,6 +119,11 @@ if contem "$TMP/padrao/.env.e2e" 'SUPABASE_DB_URL=postgresql://postgres:senha-do
   ok "SUPABASE_DB_URL veio do status, não de um 'tudo menos a porta padrão'"
 else
   falha "SUPABASE_DB_URL não bateu com o status — arquivo: $(grep -n '^SUPABASE_DB_URL=' "$TMP/padrao/.env.e2e" || echo 'sem a linha')"
+fi
+if contem "$TMP/padrao/.env.e2e" 'MAILPIT_URL=http://127.0.0.1:54324'; then
+  ok "o Mailpit do Supabase padrão continua em 54324"
+else
+  falha "MAILPIT_URL não preservou a porta padrão 54324"
 fi
 
 # ── 4. Sem DB_URL no status, recusa — nunca o chute da porta padrão ─────────
