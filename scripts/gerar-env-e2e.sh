@@ -28,14 +28,21 @@ CHAVE_CPF=""; CHAVE_WAHA=""; CHAVE_AI=""
 
 cd "$(dirname "$0")/.."
 
-# O stack deste checkout é iniciado pelo wrapper local, que seleciona o
-# project_id e as portas próprios do diretório. Consultar `supabase status` na
-# raiz usa a configuração compartilhada e pode não reconhecer esse stack — ou
-# apontar para outro checkout da mesma máquina.
-STATUS_JSON="$(bash ./scripts/local-supabase.sh status 2>/dev/null)" || {
+# O stack local de desenvolvimento é iniciado pelo wrapper, que seleciona
+# project_id e portas próprios do checkout. O workflow de GitHub Actions inicia
+# o CLI direto sobre `supabase/config.toml`; se o wrapper não enxergar esse
+# stack, consulte a mesma CLI pinada que o workflow acabou de instalar.
+if STATUS_JSON="$(bash ./scripts/local-supabase.sh status 2>/dev/null)"; then
+  :
+elif [[ "${GITHUB_ACTIONS:-}" == "true" ]] && command -v supabase >/dev/null 2>&1; then
+  STATUS_JSON="$(supabase status -o json 2>/dev/null)" || {
+    echo "==> O Supabase local do job do GitHub não está de pé." >&2
+    exit 1
+  }
+else
   echo "==> O Supabase local deste checkout não está de pé. Rode 'pnpm local:up' antes." >&2
   exit 1
-}
+fi
 
 # Chaves de cifra de 32 bytes. Reaproveita as do .env.e2e atual quando ele já
 # existe: regenerá-las a cada chamada tornaria ilegível toda credencial que o

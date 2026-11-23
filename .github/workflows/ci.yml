@@ -372,9 +372,13 @@ jobs:
       # (issue #191): dois defeitos que tornavam a instalação impossível —
       # escolher OpenRouter travava o instalador num laço, escolher OpenAI
       # deixava o .env pela metade — passaram por todos os checks verdes. 15s.
-      - name: Kit self-host (bash)
+      - name: Kit self-host (bash, parte 1/2)
         if: matrix.parte == 4
-        run: pnpm test:shell
+        run: pnpm test:shell:ci 1
+
+      - name: Kit self-host (bash, parte 2/2)
+        if: matrix.parte == 5
+        run: pnpm test:shell:ci 2
 
       - name: Orçamento de tempo do verify-parte
         if: always()

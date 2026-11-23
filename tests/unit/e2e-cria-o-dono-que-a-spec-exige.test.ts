@@ -71,6 +71,12 @@ function linhaDoGerador(nome: string): string {
 }
 
 describe("o CI cria o dono que a spec da instalação fresca exige", () => {
+  it("no GitHub, consulta a CLI que iniciou o stack se o wrapper local não o reconhecer", () => {
+    expect(gerador).toMatch(/scripts\/local-supabase\.sh status/);
+    expect(gerador).toMatch(/\[\[ "\$\{GITHUB_ACTIONS:-\}" == "true" \]\]/);
+    expect(gerador).toMatch(/supabase status -o json/);
+  });
+
   it("a spec exige mesmo o dono do bootstrap (guarda de vacuidade)", () => {
     // Sem isto, o dia em que a spec parar de exigir o dono os casos abaixo
     // continuariam verdes vigiando uma regra que não existe mais.

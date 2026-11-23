@@ -146,6 +146,34 @@ case "$SAIDA" in
   *)        falha "a recusa não diz o motivo — saída: $SAIDA" ;;
 esac
 
+# ── 5. GitHub inicia a CLI direto; o gerador usa esse stack como fallback ────
+casos=$((casos + 1))
+printf 'caso 4: GitHub Actions iniciou o stack com a CLI direta — o gerador a consulta\n'
+preparar github-cli '{"API_URL":"http://127.0.0.1:55321","ANON_KEY":"anon-sintetico","SERVICE_ROLE_KEY":"service-sintetico","DB_URL":"postgresql://postgres:senha-do-stack@127.0.0.1:55312/postgres"}' 55324
+cat > "$TMP/github-cli/scripts/local-supabase.sh" <<'MOCK'
+#!/usr/bin/env bash
+exit 1
+MOCK
+mkdir -p "$TMP/github-cli/bin"
+cat > "$TMP/github-cli/bin/supabase" <<'MOCK'
+#!/usr/bin/env bash
+if [ "$*" != "status -o json" ]; then exit 2; fi
+cat "$(dirname "${BASH_SOURCE[0]}")/../status.json"
+MOCK
+chmod +x "$TMP/github-cli/scripts/local-supabase.sh" "$TMP/github-cli/bin/supabase"
+SAIDA="$(cd "$TMP/github-cli" && GITHUB_ACTIONS=true PATH="$TMP/github-cli/bin:$PATH" bash scripts/gerar-env-e2e.sh 2>&1)"
+RC=$?
+if [ "$RC" -eq 0 ]; then
+  ok "o fallback do CLI do GitHub saiu 0"
+else
+  falha "esperava rc 0, veio $RC — saída: $SAIDA"
+fi
+if contem "$TMP/github-cli/.env.e2e" 'SUPABASE_DB_URL=postgresql://postgres:senha-do-stack@127.0.0.1:55312/postgres'; then
+  ok "o .env.e2e recebeu o Postgres da CLI iniciada pelo workflow"
+else
+  falha "o gerador não usou o status da CLI direta"
+fi
+
 printf '\n%s caso(s), %s falha(s)\n' "$casos" "$falhas"
 if [ "$falhas" -ne 0 ]; then
   echo "==> O .env.e2e não está seguindo o stack de pé (issue #1091)."

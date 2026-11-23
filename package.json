@@ -47,7 +47,8 @@
     "local:status": "node scripts/local-stack-launcher.mjs status",
     "local:logs": "node scripts/local-stack-launcher.mjs logs",
     "dev:crons": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/dev-crons.ts",
-    "flywheel:judge": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/flywheel-judge-live.ts"
+    "flywheel:judge": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/flywheel-judge-live.ts",
+    "test:shell:ci": "bash scripts/test-shell-ci-partition.sh"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.16",
