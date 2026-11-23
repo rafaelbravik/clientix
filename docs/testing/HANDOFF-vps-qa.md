@@ -11,6 +11,14 @@ onboarding, WhatsApp, agentes de IA, CRM/pipelines, convites/atendentes,
 webhooks (receber + automações) — pelo frontend, com recursos reais, corrigindo
 os bugs achados na causa raiz.
 
+## Evidência visual — paleta Verde
+
+As capturas registram a paleta Verde natural aplicada à interface nos modos
+claro e escuro:
+
+- [Verde natural — modo claro](../../evidence/vps-qa/20261120-paleta-verde-claro.png)
+- [Verde natural — modo escuro](../../evidence/vps-qa/20261120-paleta-verde-escuro.png)
+
 ## Ambiente montado (reproduzível)
 
 - **Banco:** Supabase local **pg15** (`config.toml major_version = 15`) do
