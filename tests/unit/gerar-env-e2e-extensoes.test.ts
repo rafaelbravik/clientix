@@ -20,7 +20,7 @@ describe("o preparo habitual do E2E usa o stack do checkout e inclui o catálogo
         `#!/usr/bin/env bash
 set -eu
 [ "$*" = 'status' ] || exit 2
-printf '%s\\n' '{"API_URL":"http://127.0.0.1:54321","ANON_KEY":"synthetic-anon","SERVICE_ROLE_KEY":"synthetic-service","DB_URL":"postgresql://postgres:senha-sintetica@127.0.0.1:54322/postgres"}'
+printf '%s\\n' '{"API_URL":"http://127.0.0.1:54321","ANON_KEY":"synthetic-anon","SERVICE_ROLE_KEY":"synthetic-service","DB_URL":"postgresql://postgres:senha-sintetica@127.0.0.1:54322/postgres","MAILPIT_URL":"http://127.0.0.1:54324"}'
 `,
         { mode: 0o700 },
       );
@@ -46,6 +46,7 @@ printf '%s\\n' '{"API_URL":"http://127.0.0.1:54321","ANON_KEY":"synthetic-anon",
       expect(ambiente).toContain("CLIENTIX_ALLOW_INSECURE_HTTP=true\n");
       expect(ambiente).toContain("NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321\n");
       expect(ambiente).toContain("SUPABASE_SERVER_URL=http://127.0.0.1:54321\n");
+      expect(ambiente).toContain("MAILPIT_URL=http://127.0.0.1:54324\n");
       expect(ambiente).toContain("EXTENSIONS_LOCAL_CATALOG_ORIGIN=http://127.0.0.1:56331\n");
       // A spec do Jev sobe o dublê nesta porta; o servidor sob teste só o
       // alcança se o gerador a escrever.
