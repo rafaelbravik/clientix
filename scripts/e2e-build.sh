@@ -51,6 +51,26 @@ set -a
 . ./.env.e2e
 set +a
 
+# As partes comuns do E2E exercitam operações que devem continuar protegidas
+# pela licença. Gere uma licença válida assinada por uma chave efêmera em
+# memória; só a chave pública entra neste build de teste. A parte 4, que mede a
+# instalação fresca, define E2E_ENABLE_SIGNED_LICENSE=false e segue sem licença.
+E2E_ENABLE_SIGNED_LICENSE="${E2E_ENABLE_SIGNED_LICENSE:-true}"
+if [[ "$E2E_ENABLE_SIGNED_LICENSE" == "true" ]]; then
+  test_key_module="lib/licensing/e2e-test-trusted-key.ts"
+  test_key_backup="$(mktemp "${TMPDIR:-/tmp}/clientix-e2e-key.XXXXXX")"
+  cp "$test_key_module" "$test_key_backup"
+  restore_test_key() {
+    cp "$test_key_backup" "$test_key_module"
+    rm -f "$test_key_backup"
+  }
+  trap restore_test_key EXIT
+  pnpm exec tsx scripts/prepare-e2e-license.ts
+elif [[ "$E2E_ENABLE_SIGNED_LICENSE" != "false" ]]; then
+  echo "ERRO: E2E_ENABLE_SIGNED_LICENSE deve ser 'true' ou 'false'." >&2
+  exit 1
+fi
+
 echo "==> Buildando contra ${NEXT_PUBLIC_SUPABASE_URL}"
 pnpm exec next build
 

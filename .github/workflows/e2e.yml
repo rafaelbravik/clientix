@@ -1695,6 +1695,10 @@ jobs:
           # Medido em 2026-08-10 capturando a URL: /monitoring?o=4509908078559232,
           # que é o org id do DEFAULT_SENTRY_DSN (lib/sentry/dsn.ts:17).
           SENTRY_DSN: "off"
+          # As partes comuns simulam uma licença válida com uma chave
+          # efêmera de teste. A parte 4 preserva o estado sem licença da VPS
+          # recém-instalada.
+          E2E_ENABLE_SIGNED_LICENSE: ${{ matrix.parte != 4 }}
 
       # ─── O browser não pesa; o espelho do apt é que pesa ───────────────────
       #

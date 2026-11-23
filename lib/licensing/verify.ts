@@ -8,7 +8,7 @@ import {
 import { canonicalizeToBuffer } from "./canonicalize";
 import { verifyEd25519Signature } from "./crypto";
 import { computeTemporalLicenseState } from "./state";
-import { DEFAULT_TRUSTED_KEYS } from "./trusted-keys";
+import { trustedKeysForBuild } from "./trusted-keys";
 
 export { DEFAULT_TRUSTED_KEYS } from "./trusted-keys";
 
@@ -16,9 +16,12 @@ export { DEFAULT_TRUSTED_KEYS } from "./trusted-keys";
  * Resolves trusted keys.
  *
  * THREAT MODEL & TRUST ROOT POLICY:
- * In production (NODE_ENV === "production"), the vendor trust root (DEFAULT_TRUSTED_KEYS)
- * is authoritative. Arbitrary environment injection of public keys is restricted to development
- * and test environments, preventing an unauthorized VPS root operator from overriding the trust root.
+ * In production (NODE_ENV === "production"), only build-time trusted keys are
+ * accepted. Arbitrary environment injection is restricted to development and
+ * test environments, preventing a VPS environment variable from overriding
+ * the trust root. Standard customer builds have only the vendor key; the
+ * E2E build script temporarily embeds a per-run public key and restores the
+ * checked-in null slot after building.
  */
 export function resolveTrustedKeys(
   optionsTrustedKeys?: Record<string, string>,
@@ -30,19 +33,20 @@ export function resolveTrustedKeys(
 
   // Environment override is permitted ONLY outside production
   const isProduction = process.env.NODE_ENV === "production";
+  const buildTrustedKeys = trustedKeysForBuild();
   if (!isProduction) {
     const envKeysRaw = process.env.CLIENTIX_TRUSTED_LICENSE_KEYS;
     if (envKeysRaw) {
       try {
         const parsed = JSON.parse(envKeysRaw) as Record<string, string>;
-        return { ...DEFAULT_TRUSTED_KEYS, ...parsed };
+        return { ...buildTrustedKeys, ...parsed };
       } catch {
         // Ignore malformed env JSON
       }
     }
   }
 
-  return DEFAULT_TRUSTED_KEYS;
+  return buildTrustedKeys;
 }
 
 /**

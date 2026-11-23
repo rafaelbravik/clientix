@@ -24,6 +24,8 @@
 #      não de um "qualquer coisa menos a porta padrão";
 #   4. sem `DB_URL` na resposta do stack, o gerador RECUSA (exit 1) em vez de
 #      chutar a porta padrão — o modo de falha silencioso é o caro.
+#   5. MAILPIT_URL vem do status do Supabase, mesmo quando a API foi remapeada;
+#      uma URL remota ou ausente é recusada.
 #
 # Não precisa de Docker, de Supabase de verdade nem de rede: o wrapper
 # `scripts/local-supabase.sh` é um dublê que responde `status` com JSON, e o
@@ -44,7 +46,7 @@ falha(){ printf '  FALHA  %s\n' "$1"; falhas=$((falhas + 1)); }
 # Monta o diretório do caso com o gerador REAL e um wrapper local de dublê.
 # uso: preparar <caso> <JSON de status>
 preparar() {
-  local caso="$1" status_json="$2" smtp_port="${3:-}"
+  local caso="$1" status_json="$2"
   mkdir -p "$TMP/$caso/scripts"
   cp "$GERADOR_REAL" "$TMP/$caso/scripts/gerar-env-e2e.sh"
   printf '%s\n' "$status_json" > "$TMP/$caso/status.json"
@@ -60,10 +62,6 @@ MOCK
   local chave="chave-de-teste-com-mais-de-44-caracteres-000000000000"
   printf 'CPF_ENCRYPTION_KEY=%s\nWAHA_BYO_ENCRYPTION_KEY=%s\nAI_CRED_AES_KEY=%s\n' \
     "$chave" "$chave" "$chave" > "$TMP/$caso/.env.e2e"
-  if [ -n "$smtp_port" ]; then
-    mkdir -p "$TMP/$caso/.clientix-local"
-    printf 'SMTP=%s\n' "$smtp_port" > "$TMP/$caso/.clientix-local/supabase-ports"
-  fi
 }
 
 # uso: rodar <caso>  → SAIDA recebe stdout+stderr e RC o código de saída
@@ -77,8 +75,8 @@ nao_contem() { ! grep -qF -- "$2" "$1"; }
 
 # ── 1 e 2. Stack fora das portas padrão: é o cenário da #1091 ────────────────
 casos=$((casos + 1))
-printf 'caso 1: o stack está com o banco em 55312 — o .env.e2e tem que acompanhar\n'
-preparar fora '{"API_URL":"http://127.0.0.1:55321","ANON_KEY":"anon-sintetico","SERVICE_ROLE_KEY":"service-sintetico","DB_URL":"postgresql://postgres:senha-do-stack@127.0.0.1:55312/postgres"}' 55324
+printf 'caso 1: as portas da API e do Mailpit são independentes — ambas vêm do status\n'
+preparar fora '{"API_URL":"http://127.0.0.1:55321","ANON_KEY":"anon-sintetico","SERVICE_ROLE_KEY":"service-sintetico","DB_URL":"postgresql://postgres:senha-do-stack@127.0.0.1:55312/postgres","MAILPIT_URL":"http://127.0.0.1:54324"}'
 rodar fora
 if [ "$RC" -eq 0 ]; then
   ok "o gerador saiu 0"
@@ -99,16 +97,16 @@ case "$SAIDA" in
   *55312*) ok "o recado final diz em qual Postgres os seeds escrevem" ;;
   *)       falha "o recado final não diz onde os seeds escrevem — saída: $SAIDA" ;;
 esac
-if contem "$TMP/fora/.env.e2e" 'MAILPIT_URL=http://127.0.0.1:55324'; then
-  ok "MAILPIT_URL acompanha a porta SMTP publicada pelo stack"
+if contem "$TMP/fora/.env.e2e" 'MAILPIT_URL=http://127.0.0.1:54324'; then
+  ok "MAILPIT_URL veio do status mesmo sem acompanhar a porta da API"
 else
-  falha "MAILPIT_URL não acompanhou a porta SMTP publicada pelo stack"
+  falha "MAILPIT_URL não veio do status do Supabase"
 fi
 
 # ── 3. Stack nas portas padrão continua funcionando ─────────────────────────
 casos=$((casos + 1))
 printf 'caso 2: o stack está nas portas padrão — o .env.e2e segue o status\n'
-preparar padrao '{"API_URL":"http://127.0.0.1:54321","ANON_KEY":"anon-sintetico","SERVICE_ROLE_KEY":"service-sintetico","DB_URL":"postgresql://postgres:senha-do-stack@127.0.0.1:54322/postgres"}' 54324
+preparar padrao '{"API_URL":"http://127.0.0.1:54321","ANON_KEY":"anon-sintetico","SERVICE_ROLE_KEY":"service-sintetico","DB_URL":"postgresql://postgres:senha-do-stack@127.0.0.1:54322/postgres","MAILPIT_URL":"http://127.0.0.1:54324"}'
 rodar padrao
 if [ "$RC" -eq 0 ]; then
   ok "o gerador saiu 0"
@@ -129,7 +127,7 @@ fi
 # ── 4. Sem DB_URL no status, recusa — nunca o chute da porta padrão ─────────
 casos=$((casos + 1))
 printf 'caso 3: o stack não diz a DB_URL — o gerador tem que recusar\n'
-preparar sem-dburl '{"API_URL":"http://127.0.0.1:54321","ANON_KEY":"anon-sintetico","SERVICE_ROLE_KEY":"service-sintetico"}'
+preparar sem-dburl '{"API_URL":"http://127.0.0.1:54321","ANON_KEY":"anon-sintetico","SERVICE_ROLE_KEY":"service-sintetico","MAILPIT_URL":"http://127.0.0.1:54324"}'
 rodar sem-dburl
 if [ "$RC" -eq 1 ]; then
   ok "recusou com exit 1"
@@ -146,10 +144,32 @@ case "$SAIDA" in
   *)        falha "a recusa não diz o motivo — saída: $SAIDA" ;;
 esac
 
-# ── 5. GitHub inicia a CLI direto; o gerador usa esse stack como fallback ────
+# ── 5. Nome legado continua aceito pelo gerador ─────────────────────────────
 casos=$((casos + 1))
-printf 'caso 4: GitHub Actions iniciou o stack com a CLI direta — o gerador a consulta\n'
-preparar github-cli '{"API_URL":"http://127.0.0.1:55321","ANON_KEY":"anon-sintetico","SERVICE_ROLE_KEY":"service-sintetico","DB_URL":"postgresql://postgres:senha-do-stack@127.0.0.1:55312/postgres"}' 55324
+printf 'caso 4: o campo legado INBUCKET_URL continua aceito\n'
+preparar legado '{"API_URL":"http://127.0.0.1:55321","ANON_KEY":"anon-sintetico","SERVICE_ROLE_KEY":"service-sintetico","DB_URL":"postgresql://postgres:senha-do-stack@127.0.0.1:55312/postgres","INBUCKET_URL":"http://127.0.0.1:55325"}'
+rodar legado
+if [ "$RC" -eq 0 ] && contem "$TMP/legado/.env.e2e" 'MAILPIT_URL=http://127.0.0.1:55325'; then
+  ok "o alias legado é convertido para MAILPIT_URL"
+else
+  falha "o gerador não converteu INBUCKET_URL — rc=$RC, saída: $SAIDA"
+fi
+
+# ── 6. URL remota é recusada ────────────────────────────────────────────────
+casos=$((casos + 1))
+printf 'caso 5: uma URL de Mailpit remota é recusada\n'
+preparar remoto '{"API_URL":"http://127.0.0.1:55321","ANON_KEY":"anon-sintetico","SERVICE_ROLE_KEY":"service-sintetico","DB_URL":"postgresql://postgres:senha-do-stack@127.0.0.1:55312/postgres","MAILPIT_URL":"https://mailpit.example.com"}'
+rodar remoto
+if [ "$RC" -eq 1 ] && nao_contem "$TMP/remoto/.env.e2e" 'MAILPIT_URL='; then
+  ok "recusou o endpoint remoto antes de gravar o ambiente"
+else
+  falha "esperava recusa sem gravar Mailpit, veio rc=$RC — saída: $SAIDA"
+fi
+
+# ── 7. GitHub inicia a CLI direta; o gerador usa esse stack como fallback ────
+casos=$((casos + 1))
+printf 'caso 6: GitHub Actions iniciou a CLI direta — o gerador a consulta\n'
+preparar github-cli '{"API_URL":"http://127.0.0.1:55321","ANON_KEY":"anon-sintetico","SERVICE_ROLE_KEY":"service-sintetico","DB_URL":"postgresql://postgres:senha-do-stack@127.0.0.1:55312/postgres","MAILPIT_URL":"http://127.0.0.1:54324"}'
 cat > "$TMP/github-cli/scripts/local-supabase.sh" <<'MOCK'
 #!/usr/bin/env bash
 exit 1
@@ -172,6 +192,11 @@ if contem "$TMP/github-cli/.env.e2e" 'SUPABASE_DB_URL=postgresql://postgres:senh
   ok "o .env.e2e recebeu o Postgres da CLI iniciada pelo workflow"
 else
   falha "o gerador não usou o status da CLI direta"
+fi
+if contem "$TMP/github-cli/.env.e2e" 'MAILPIT_URL=http://127.0.0.1:54324'; then
+  ok "o .env.e2e recebeu a URL do Mailpit da CLI direta"
+else
+  falha "o gerador não usou MAILPIT_URL retornada pela CLI direta"
 fi
 
 printf '\n%s caso(s), %s falha(s)\n' "$casos" "$falhas"

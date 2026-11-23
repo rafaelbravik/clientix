@@ -136,21 +136,47 @@ esac
 # reprovam assim mesmo com token_hash válido — o defeito independe de PKCE.
 E2E_PORT="${E2E_PORT:-3001}"
 
-# O helper de autenticação consulta o Mailpit pela porta publicada no host.
-# O wrapper local escolhe uma faixa por checkout e registra o mapeamento em
-# `.clientix-local/supabase-ports`; em um Supabase iniciado fora desse wrapper,
-# o padrão do config.toml continua sendo API + 3 (54321 → 54324).
-MAILPIT_PORT="$(awk -F= '$1 == "SMTP" { print $2 }' .clientix-local/supabase-ports 2>/dev/null || true)"
-if ! [[ "$MAILPIT_PORT" =~ ^[0-9]+$ ]]; then
-  API_PORT="$(node -e 'process.stdout.write(new URL(process.argv[1]).port)' "$API_URL")"
-  if ! [[ "$API_PORT" =~ ^[0-9]+$ ]]; then
-    echo "==> Não foi possível determinar a porta HTTP do Supabase para localizar o Mailpit." >&2
-    exit 1
-  fi
-  MAILPIT_PORT=$((API_PORT + 3))
+# O Supabase pode remapear cada serviço para uma porta diferente quando a
+# configurada está ocupada. Não derive o Mailpit da porta da API: no run
+# 45238739566, a API foi para 55080, mas o Mailpit permaneceu em 54324.
+# Supabase CLI v3 exporta MAILPIT_URL; versões anteriores exportavam
+# INBUCKET_URL. O endpoint do próprio status é a fonte de verdade.
+MAILPIT_URL="$(ler MAILPIT_URL)"
+if [ -z "$MAILPIT_URL" ]; then
+  MAILPIT_URL="$(ler INBUCKET_URL)"
 fi
-MAILPIT_HOST="$(node -e 'process.stdout.write(new URL(process.argv[1]).hostname)' "$API_URL")"
-MAILPIT_URL="http://$MAILPIT_HOST:$MAILPIT_PORT"
+if [ -z "$MAILPIT_URL" ]; then
+  echo "==> O status do Supabase não trouxe MAILPIT_URL nem o nome legado INBUCKET_URL." >&2
+  exit 1
+fi
+if ! MAILPIT_URL="$(node - "$MAILPIT_URL" <<'NODE'
+const value = process.argv[2] || "";
+try {
+  const url = new URL(value);
+  const localHosts = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
+  if (
+    url.protocol !== "http:" ||
+    !localHosts.has(url.hostname) ||
+    !/^\d+$/.test(url.port) ||
+    url.username ||
+    url.password ||
+    (url.pathname !== "/" && url.pathname !== "") ||
+    url.search ||
+    url.hash
+  ) process.exit(2);
+  process.stdout.write(url.origin);
+} catch {
+  process.exit(2);
+}
+NODE
+)"; then
+  echo "==> O Mailpit do status não aponta para uma URL HTTP local válida." >&2
+  exit 1
+fi
+
+E2E_LICENSE_DIR="$PWD/.clientix-local/e2e/licensing"
+CLIENTIX_LICENSE_PATH="$E2E_LICENSE_DIR/license.json"
+CLIENTIX_INSTALLATION_ID_PATH="$E2E_LICENSE_DIR/installation_id"
 
 cat > .env.e2e <<EOF
 # ── Ambiente do E2E — LOCAL, nunca a nuvem ──────────────────────────────────
@@ -168,6 +194,8 @@ SUPABASE_SERVICE_ROLE_KEY=$SERVICE
 # banco.
 SUPABASE_DB_URL=$DB_URL
 MAILPIT_URL=$MAILPIT_URL
+CLIENTIX_LICENSE_PATH=$CLIENTIX_LICENSE_PATH
+CLIENTIX_INSTALLATION_ID_PATH=$CLIENTIX_INSTALLATION_ID_PATH
 
 # Precisa bater com o baseURL real do Playwright (ver comentário acima).
 NEXT_PUBLIC_APP_URL=http://localhost:$E2E_PORT
