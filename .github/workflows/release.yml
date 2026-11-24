@@ -82,7 +82,7 @@ jobs:
             echo '```'
             echo
             echo "Ao fazer merge deste PR, a tag \`v${VERSAO}\` é criada automaticamente e as seis imagens são publicadas."
-            echo "O corte mantém em \.changes/\` os fragmentos que não couberam; após esta versão, execute o workflow de novo para a release seguinte."
+            echo "O corte mantém em \`.changes/\` os fragmentos que não couberam; após esta versão, execute o workflow de novo para a release seguinte."
             echo "Se algo aqui estiver errado, **feche o PR** em vez de editar o número: corrija o fragmento e dispare o workflow de novo."
           } > /tmp/corpo.md
           gh pr create --base main --head "${BRANCH}" \
