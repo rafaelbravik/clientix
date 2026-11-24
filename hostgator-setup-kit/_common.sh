@@ -1485,6 +1485,14 @@ garantir_acesso_ghcr() {
   local nao_interativo="${1:-0}" usuario
   DOCKER_CONFIG="${HOME:-/root}/.docker"
   export DOCKER_CONFIG
+  if ! mkdir -p "$DOCKER_CONFIG" || ! chmod 700 "$DOCKER_CONFIG"; then
+    c_red "$(t "Não consegui preparar o diretório seguro do Docker.")"
+    return 1
+  fi
+  if [ -f "$DOCKER_CONFIG/config.json" ] && ! chmod 600 "$DOCKER_CONFIG/config.json"; then
+    c_red "$(t "Não consegui proteger o arquivo de credenciais do Docker.")"
+    return 1
+  fi
   ghcr_imagens_acessiveis "stable" && return 0
   ghcr_requer_autenticacao || return 0
 

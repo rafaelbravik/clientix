@@ -51,7 +51,9 @@ O instalador comercial usa as credenciais Docker do usuário que executa seus co
 de instalar ou atualizar, faça login e use o mesmo usuário para executar a operação:
 
 ```bash
+install -d -m 700 "$HOME/.docker"
 docker login ghcr.io --username SEU_USUARIO_GITHUB
+chmod 600 "$HOME/.docker/config.json"
 bash distribution/installer/install.sh install
 # nas próximas atualizações, com a mesma conta:
 bash distribution/installer/install.sh update
@@ -61,7 +63,9 @@ Se a operação usa `sudo`, faça o login e rode o instalador com `sudo` nos doi
 para que ambos usem o mesmo `/root/.docker/config.json`:
 
 ```bash
+sudo install -d -m 700 /root/.docker
 sudo docker login ghcr.io --username SEU_USUARIO_GITHUB
+sudo chmod 600 /root/.docker/config.json
 sudo bash distribution/installer/install.sh install
 ```
 

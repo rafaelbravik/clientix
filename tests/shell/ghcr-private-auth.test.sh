@@ -4,8 +4,14 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 source hostgator-setup-kit/_common.sh
 
-log="$(mktemp)"
-trap 'rm -f "$log"' EXIT
+tmp="$(mktemp -d)"
+log="$tmp/docker.log"
+mkdir -m 755 "$tmp/.docker"
+printf '{}\n' > "$tmp/.docker/config.json"
+chmod 644 "$tmp/.docker/config.json"
+HOME="$tmp"
+export HOME
+trap 'rm -rf "$tmp"' EXIT
 
 docker() {
   if [ "${GHCR_DOCKER_MODE:-ok}" = "ok" ]; then
@@ -35,6 +41,8 @@ esac
 
 grep -Fq 'read -r -s -p' hostgator-setup-kit/_common.sh
 grep -Fq -- '--password-stdin' hostgator-setup-kit/_common.sh
+[ "$(stat -c '%a' "$HOME/.docker")" = "700" ]
+[ "$(stat -c '%a' "$HOME/.docker/config.json")" = "600" ]
 grep -Fq 'chmod 700 "$docker_config_dir"' hostgator-setup-kit/_common.sh
 grep -Fq 'chmod 600 "$DOCKER_CONFIG/config.json"' hostgator-setup-kit/_common.sh
 
