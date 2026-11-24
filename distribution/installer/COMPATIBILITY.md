@@ -179,3 +179,13 @@ alteram a precedência.
   migração, mas a ausência impede ativação e atualização online da licença até
   que a URL seja configurada. A licença local assinada continua sendo aplicada
   conforme o contrato LIC-01 e sua tolerância offline.
+
+## Acesso às imagens do GHCR
+
+As imagens de produção são privadas. Antes de instalar ou atualizar, autentique o Docker com
+uma conta GitHub que recebeu permissão **Read** nos seis pacotes e um PAT clássico com
+`read:packages`. Rode o login e o instalador com o mesmo usuário e a mesma configuração
+Docker. Se usar `sudo`, faça ambos com `sudo`. Assim, os pulls por digest do manifesto assinado
+e as atualizações futuras reutilizam a credencial do Docker sem gravá-la no `.env`.
+
+Passo a passo para o operador: [runbook de acesso privado ao GHCR](../../docs/runbooks/ghcr-privado.md).

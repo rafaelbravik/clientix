@@ -36,6 +36,7 @@ done
 # parque com o .env DELA. Foi o que deixou o WhatsApp de uma VPS real três dias
 # em 401. Ver `recusar_projeto_de_outra_arvore` em _common.sh.
 recusar_projeto_de_outra_arvore || die "Atualização interrompida para não quebrar a instalação que está no ar."
+garantir_acesso_ghcr || die "Atualização interrompida: falta acesso às imagens privadas do Clientix."
 
 # Single-server: o Supabase desta VPS também tem dono. E o e-mail de acesso
 # (GoTrue) acompanha o SMTP do CRM AQUI, antes da decisão de versão: é este

@@ -1401,24 +1401,116 @@ ultima_versao_publicada() {
 # — a sonda mede um caminho e o usuário usa outro, que é a falha-em-verde do
 # passe 5 da triagem.
 #
-# E o literal escapava da catraca por acidente: `namespace-das-imagens.test.ts`
-# procura a string contígua `ghcr.io/melgarafael`, e a URL do token a parte em
-# `ghcr.io/token?scope=repository:melgarafael/`.
+# O teste da sonda usa um dublê do Docker CLI e verifica que a referência é
+# derivada de IMG_NS; a autenticação real vem do config.json do usuário.
 ghcr_status() {
-  local img="$1" tag="$2" tok registry owner
-  registry="${IMG_NS%%/*}"
-  owner="${IMG_NS#*/}"
-  tok="$(curl -fsS --max-time 6 \
-          "https://${registry}/token?scope=repository:${owner}/${img}:pull&service=${registry}" 2>/dev/null \
-        | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')" || true
-  if [ -z "$tok" ]; then printf '000'; return 0; fi
-  curl -s -o /dev/null --max-time 6 -w '%{http_code}' \
-    -H "Authorization: Bearer $tok" \
-    -H 'Accept: application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json,application/vnd.docker.distribution.manifest.v2+json' \
-    "https://${registry}/v2/${owner}/${img}/manifests/${tag}" 2>/dev/null || printf '000'
+  local img="$1" tag="$2" output lowered
+  if output="$(docker manifest inspect "${IMG_NS}/${img}:${tag}" 2>&1)"; then
+    printf '200'
+    return 0
+  fi
+  lowered="$(printf '%s' "$output" | tr '[:upper:]' '[:lower:]')"
+  case "$lowered" in
+    *unauthorized*|*denied*|*"no basic auth credentials"*|*"authentication required"*|*insufficient_scope*|*401*unauthorized*|*403*forbidden*)
+      printf '403'
+      ;;
+    *manifest\ unknown*|*no\ such\ manifest*|*not\ found*)
+      printf '404'
+      ;;
+    *)
+      printf '000'
+      ;;
+  esac
 }
 
-# As TRÊS imagens existem e são públicas nesta referência?
+# O instalador precisa saber se há credenciais de leitura para as imagens
+# privadas, mas não deve pedir login quando a falha é só uma tag ausente/rede.
+ghcr_requer_autenticacao() {
+  local imagem status
+  for imagem in clientix-app clientix-worker clientix-scheduler clientix-voice-agent; do
+    status="$(ghcr_status "$imagem" "stable")"
+    [ "$status" = "403" ] && return 0
+  done
+  return 1
+}
+
+ghcr_imagens_acessiveis() {
+  local tag="${1:-stable}" imagem
+  for imagem in clientix-app clientix-worker clientix-scheduler clientix-voice-agent; do
+    [ "$(ghcr_status "$imagem" "$tag")" = "200" ] || return 1
+  done
+  return 0
+}
+
+# Guarda a credencial no Docker do mesmo usuário que instala/atualiza. O
+# token só passa por stdin, nunca por argumento, log ou .env.
+ghcr_login() {
+  local username="$1" token="" docker_config_dir="${HOME:-/root}/.docker" rc=0 xtrace=0
+  [ -n "$username" ] || return 1
+  [ -r /dev/tty ] && [ -w /dev/tty ] || return 1
+  mkdir -p "$docker_config_dir" || return 1
+  chmod 700 "$docker_config_dir" || return 1
+  DOCKER_CONFIG="$docker_config_dir"
+  export DOCKER_CONFIG
+
+  case "$-" in *x*) xtrace=1; set +x ;; esac
+  if ! IFS= read -r -s -p "$(t "Token pessoal clássico do GitHub (escopo read:packages): ")" token </dev/tty; then
+    rc=1
+  fi
+  printf '\n' >/dev/tty
+  if [ "$rc" -eq 0 ] && [ -n "$token" ]; then
+    if ! printf '%s' "$token" | docker login ghcr.io --username "$username" --password-stdin >/dev/null; then
+      rc=1
+    fi
+  else
+    rc=1
+  fi
+  unset token
+  if [ -f "$DOCKER_CONFIG/config.json" ]; then
+    chmod 600 "$DOCKER_CONFIG/config.json" || rc=1
+  else
+    rc=1
+  fi
+  if [ "$xtrace" -eq 1 ]; then set -x; fi
+  if [ "$rc" -ne 0 ]; then
+    c_red "$(t "Não consegui autenticar no GHCR. Verifique o usuário, o token e o acesso de leitura aos pacotes.")"
+    return 1
+  fi
+  return 0
+}
+
+# Só pede credenciais quando o GHCR confirma que o pacote é privado e não há
+# acesso. No --yes e no cron, falha fechado e informa como autenticar antes.
+garantir_acesso_ghcr() {
+  local nao_interativo="${1:-0}" usuario
+  DOCKER_CONFIG="${HOME:-/root}/.docker"
+  export DOCKER_CONFIG
+  ghcr_imagens_acessiveis "stable" && return 0
+  ghcr_requer_autenticacao || return 0
+
+  c_ylw "$(t "As imagens do Clientix são privadas e exigem acesso de leitura no GitHub.")"
+  c_dim "$(t "O titular precisa liberar o usuário nos pacotes e usar um token clássico com read:packages.")"
+  c_dim "$(t "O Docker salva a credencial em ~/.docker/config.json; sem um credential helper, esse arquivo não é criptografado.")"
+  if [ "$nao_interativo" = "1" ] || [ ! -r /dev/tty ] || [ ! -w /dev/tty ]; then
+    c_red "$(t "Não posso continuar sem autenticação no GHCR.")"
+    c_dim "$(t "Antes de repetir, rode: docker login ghcr.io --username SEU_USUARIO")"
+    return 1
+  fi
+
+  IFS= read -r -p "$(t "Usuário GitHub com acesso de leitura aos pacotes: ")" usuario </dev/tty || return 1
+  [ -n "$usuario" ] || return 1
+  ghcr_login "$usuario" || return 1
+  if ! ghcr_imagens_acessiveis "stable"; then
+    c_red "$(t "A autenticação funcionou, mas este usuário ainda não consegue ler todas as imagens necessárias.")"
+    c_dim "$(t "Peça ao dono do Clientix acesso Read aos pacotes Clientix e tente novamente.")"
+    return 1
+  fi
+  c_grn "$(t "✓ acesso às imagens privadas do Clientix confirmado")"
+  c_dim "$(t "O Docker guardou o acesso para as atualizações futuras deste mesmo usuário.")"
+  return 0
+}
+
+# As quatro imagens de runtime do kit estão acessíveis nesta referência?
 #
 # Perguntar pelas três juntas, e não só pela do app, é o ponto: `deskcomm-worker`
 # e `deskcomm-scheduler` nasceram depois das releases que já existem, então
