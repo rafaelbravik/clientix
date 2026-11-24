@@ -137,17 +137,22 @@ esac
 E2E_PORT="${E2E_PORT:-3001}"
 
 # O Supabase pode remapear cada serviço para uma porta diferente quando a
-# configurada está ocupada. Não derive o Mailpit da porta da API: no run
-# 45238739566, a API foi para 55080, mas o Mailpit permaneceu em 54324.
-# Supabase CLI v3 exporta MAILPIT_URL; versões anteriores exportavam
-# INBUCKET_URL. O endpoint do próprio status é a fonte de verdade.
+# configurada está ocupada. Use primeiro o endpoint que o status informou;
+# versões antigas chamavam o campo de INBUCKET_URL. O wrapper local também
+# persiste a porta SMTP real em `.clientix-local/supabase-ports`.
 MAILPIT_URL="$(ler MAILPIT_URL)"
 if [ -z "$MAILPIT_URL" ]; then
   MAILPIT_URL="$(ler INBUCKET_URL)"
 fi
 if [ -z "$MAILPIT_URL" ]; then
-  echo "==> O status do Supabase não trouxe MAILPIT_URL nem o nome legado INBUCKET_URL." >&2
-  exit 1
+  MAILPIT_PORT="$(awk -F= '$1 == "SMTP" { print $2 }' .clientix-local/supabase-ports 2>/dev/null || true)"
+  if [[ "$MAILPIT_PORT" =~ ^[0-9]+$ ]]; then
+    MAILPIT_HOST="$(node -e 'process.stdout.write(new URL(process.argv[1]).hostname)' "$API_URL")"
+    MAILPIT_URL="http://$MAILPIT_HOST:$MAILPIT_PORT"
+  else
+    echo "==> O status do Supabase não trouxe MAILPIT_URL/INBUCKET_URL e o wrapper não registrou a porta SMTP local." >&2
+    exit 1
+  fi
 fi
 if ! MAILPIT_URL="$(node - "$MAILPIT_URL" <<'NODE'
 const value = process.argv[2] || "";
@@ -157,7 +162,7 @@ try {
   if (
     url.protocol !== "http:" ||
     !localHosts.has(url.hostname) ||
-    !/^\d+$/.test(url.port) ||
+    !/^[0-9]+$/.test(url.port) ||
     url.username ||
     url.password ||
     (url.pathname !== "/" && url.pathname !== "") ||
@@ -170,7 +175,7 @@ try {
 }
 NODE
 )"; then
-  echo "==> O Mailpit do status não aponta para uma URL HTTP local válida." >&2
+  echo "==> O Mailpit do status/stack não aponta para uma URL HTTP local válida." >&2
   exit 1
 fi
 

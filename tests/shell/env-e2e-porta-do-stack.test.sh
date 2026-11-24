@@ -25,7 +25,8 @@
 #   4. sem `DB_URL` na resposta do stack, o gerador RECUSA (exit 1) em vez de
 #      chutar a porta padrão — o modo de falha silencioso é o caro.
 #   5. MAILPIT_URL vem do status do Supabase, mesmo quando a API foi remapeada;
-#      uma URL remota ou ausente é recusada.
+#      uma URL remota é recusada;
+#   6. o wrapper local cobre versões de status sem MAILPIT_URL registrando SMTP.
 #
 # Não precisa de Docker, de Supabase de verdade nem de rede: o wrapper
 # `scripts/local-supabase.sh` é um dublê que responde `status` com JSON, e o
@@ -44,9 +45,9 @@ ok()   { printf '  ok     %s\n' "$1"; }
 falha(){ printf '  FALHA  %s\n' "$1"; falhas=$((falhas + 1)); }
 
 # Monta o diretório do caso com o gerador REAL e um wrapper local de dublê.
-# uso: preparar <caso> <JSON de status>
+# uso: preparar <caso> <JSON de status> [porta SMTP do wrapper]
 preparar() {
-  local caso="$1" status_json="$2"
+  local caso="$1" status_json="$2" smtp_port="${3:-}"
   mkdir -p "$TMP/$caso/scripts"
   cp "$GERADOR_REAL" "$TMP/$caso/scripts/gerar-env-e2e.sh"
   printf '%s\n' "$status_json" > "$TMP/$caso/status.json"
@@ -62,6 +63,10 @@ MOCK
   local chave="chave-de-teste-com-mais-de-44-caracteres-000000000000"
   printf 'CPF_ENCRYPTION_KEY=%s\nWAHA_BYO_ENCRYPTION_KEY=%s\nAI_CRED_AES_KEY=%s\n' \
     "$chave" "$chave" "$chave" > "$TMP/$caso/.env.e2e"
+  if [ -n "$smtp_port" ]; then
+    mkdir -p "$TMP/$caso/.clientix-local"
+    printf 'SMTP=%s\n' "$smtp_port" > "$TMP/$caso/.clientix-local/supabase-ports"
+  fi
 }
 
 # uso: rodar <caso>  → SAIDA recebe stdout+stderr e RC o código de saída
@@ -197,6 +202,17 @@ if contem "$TMP/github-cli/.env.e2e" 'MAILPIT_URL=http://127.0.0.1:54324'; then
   ok "o .env.e2e recebeu a URL do Mailpit da CLI direta"
 else
   falha "o gerador não usou MAILPIT_URL retornada pela CLI direta"
+fi
+
+# ── 7. Wrapper informa SMTP quando uma versão antiga omite a URL ────────────
+casos=$((casos + 1))
+printf 'caso 7: o wrapper fornece a porta SMTP se o status omitir a URL\n'
+preparar wrapper-smtp '{"API_URL":"http://127.0.0.1:55321","ANON_KEY":"anon-sintetico","SERVICE_ROLE_KEY":"service-sintetico","DB_URL":"postgresql://postgres:senha-do-stack@127.0.0.1:55312/postgres"}' 55326
+rodar wrapper-smtp
+if [ "$RC" -eq 0 ] && contem "$TMP/wrapper-smtp/.env.e2e" 'MAILPIT_URL=http://127.0.0.1:55326'; then
+  ok "usou a porta SMTP registrada pelo wrapper"
+else
+  falha "não usou a porta SMTP do wrapper — rc=$RC, saída: $SAIDA"
 fi
 
 printf '\n%s caso(s), %s falha(s)\n' "$casos" "$falhas"
