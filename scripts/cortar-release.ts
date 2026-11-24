@@ -1,6 +1,6 @@
 /**
- * Corta a release: lê os fragmentos de `.changes/`, calcula o número, monta a
- * seção do CHANGELOG e apaga os fragmentos consumidos.
+ * Corta a release: lê os fragmentos de `.changes/`, seleciona o maior lote que
+ * cabe no limite da VPS, calcula o número, monta a seção e apaga só os escolhidos.
  *
  * Ninguém digita o número. Essa é a propriedade que faz duas sessões de
  * trabalho paralelas não colidirem: enquanto a escolha era humana, ela dependia
@@ -12,7 +12,7 @@
  * verde na `main` sem `tsc` nunca a ter olhado).
  *
  *   pnpm release:conferir     # não escreve; diz que número sairia
- *   pnpm release:cortar       # escreve o CHANGELOG e apaga os fragmentos
+ *   pnpm release:cortar       # escreve o CHANGELOG e apaga só os escolhidos
  */
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
@@ -20,10 +20,12 @@ import path from "node:path";
 
 import { calcularBump, type Fragmento, parseFragmento, proximaVersao } from "../lib/release/fragmento";
 import { aplicarNoChangelog, montarSecao } from "../lib/release/montar-secao";
+import { selecionarLoteDeRelease } from "../lib/release/cabe-na-tela";
 
 const RAIZ = path.resolve(__dirname, "..");
 const DIR_FRAGMENTOS = path.join(RAIZ, ".changes");
 const CHANGELOG = path.join(RAIZ, "CHANGELOG.md");
+const AGENT_SH = path.join(RAIZ, "hostgator-setup-kit", "agent.sh");
 const REPO = "melgarafael/DeskcommCRM";
 
 const compararUrl = (de: string, para: string) => `https://github.com/${REPO}/compare/${de}...${para}`;
@@ -116,9 +118,9 @@ function main(argv: readonly string[]): number {
 
   if (fragmentos.length === 0) {
     const tag = maiorTagLocal();
-    // Terceiro desfecho, e não uma recusa: depois de `--escrever` o estado
-    // normal da branch de release é exatamente este — `.changes/` vazio e a
-    // seção nova à frente da última tag, porque a tag só nasce no merge.
+    // Terceiro desfecho, e não uma recusa: depois de `--escrever` que consumiu
+    // todo o acervo, a seção nova aguarda a tag. Um corte em lotes pode deixar
+    // fragmentos pendentes, que são consumidos por execuções seguintes.
     if (tag && tag !== base) {
       process.stdout.write(`já cortado: ${base} aguarda a tag (última publicada: ${tag})\n`);
       return 0;
@@ -130,13 +132,24 @@ function main(argv: readonly string[]): number {
     return 1;
   }
 
-  const bump = calcularBump(fragmentos.map((f) => f.impacto));
+  const lote = selecionarLoteDeRelease(changelog, fragmentos, fs.readFileSync(AGENT_SH, "utf8"));
+  const selecionados = lote.selecionados;
+  const bump = calcularBump(selecionados.map((f) => f.impacto));
   const versao = proximaVersao(base, bump);
-  const secao = montarSecao(fragmentos, versao, hoje());
+  const secao = montarSecao(selecionados, versao, hoje());
 
-  process.stdout.write(`${base} + ${bump} = ${versao}  (${fragmentos.length} fragmento(s))\n`);
-  for (const f of fragmentos) {
+  process.stdout.write(
+    `${base} + ${bump} = ${versao}  (${selecionados.length} de ${fragmentos.length} fragmentos; ` +
+      `seção até ${lote.medida.fim}/${lote.medida.teto} bytes)\n`,
+  );
+  for (const f of selecionados) {
     process.stdout.write(`  ${f.impacto.padEnd(16)} ${f.secao.padEnd(11)} ${f.titulo}\n`);
+  }
+
+  if (lote.pendentes.length > 0) {
+    process.stdout.write(
+      `\n${lote.pendentes.length} fragmento(s) ficam preservados em .changes/ para releases seguintes.\n`,
+    );
   }
 
   if (!escrever) {
@@ -145,8 +158,8 @@ function main(argv: readonly string[]): number {
   }
 
   fs.writeFileSync(CHANGELOG, aplicarNoChangelog(changelog, secao, base, compararUrl));
-  for (const f of fragmentos) fs.rmSync(path.join(DIR_FRAGMENTOS, f.arquivo));
-  process.stdout.write(`\nCHANGELOG.md atualizado; ${fragmentos.length} fragmento(s) consumido(s).\n`);
+  for (const f of selecionados) fs.rmSync(path.join(DIR_FRAGMENTOS, f.arquivo));
+  process.stdout.write(`\nCHANGELOG.md atualizado; ${selecionados.length} fragmento(s) consumido(s).\n`);
   process.stdout.write("A tag NÃO é criada aqui — ela nasce no CI, do merge do PR de release.\n");
   return 0;
 }

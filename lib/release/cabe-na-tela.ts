@@ -241,8 +241,8 @@ export function candidatasDoPr(raw: string): Candidata[] {
 }
 
 /**
- * A candidata da CASA: a seção que os fragmentos acumulados em `.changes/` vão
- * produzir na próxima release.
+ * A candidata da CASA: a seção que todos os fragmentos acumulados em `.changes/`
+ * produziriam se fossem reunidos num único corte. A seleção de lotes limita a seção real.
  *
  * Ela não é do PR e por isso não é cobrada nele. O acervo é dívida coletiva —
  * o 43º fragmento não é mais culpado que o 1º —, e o único remédio é cortar
@@ -253,12 +253,12 @@ export function candidatasDoPr(raw: string): Candidata[] {
 export function candidataDoAcervo(raw: string, fragmentos: readonly Fragmento[]): Candidata | null {
   if (fragmentos.length === 0) return null;
   return {
-    nome: `a seção que os ${fragmentos.length} fragmento(s) de .changes/ vão produzir`,
+    nome: `a seção de um único corte com os ${fragmentos.length} fragmento(s) de .changes/`,
     versao: VERSAO_SIMULADA,
     texto: comSecaoMontada(raw, fragmentos),
     conserto:
-      "O acervo é dívida da casa, não do PR: o conserto é CORTAR RELEASE (`pnpm release:cortar`), " +
-      "que consome os fragmentos. Enxugar fragmento de terceiro é trabalho de quem não o escreveu.",
+      "O acervo é dívida da casa, não do PR: o conserto é cortar release em lotes que caibam na tela. " +
+      "Fragmentos não selecionados permanecem para as versões seguintes.",
   };
 }
 
@@ -343,4 +343,73 @@ export interface VereditoDoAcervo {
 export function vereditoDoAcervo(m: Medida): VereditoDoAcervo {
   const reprova = !m.cabe || m.completa === false || m.avisoSobrevive === false;
   return { reprova, avisa: !reprova && m.folga < m.tamanhoDaSecao };
+}
+
+export interface LoteDeRelease {
+  /** Fragmentos que cabem nesta seção e serão removidos pelo corte. */
+  selecionados: Fragmento[];
+  /** Fragmentos preservados em `.changes/` para cortes seguintes. */
+  pendentes: Fragmento[];
+  /** Medição da seção produzida, incluindo o limite real do instalador. */
+  medida: Medida;
+}
+
+/**
+ * Seleciona o maior prefixo ordenado que cabe numa seção exibida pela VPS.
+ *
+ * Fragmentos `exige_acao` vêm primeiro porque o guardião da tag impede publicar
+ * uma versão enquanto qualquer aviso obrigatório continuar em `.changes/`.
+ * Os demais seguem por nome de arquivo, como a leitura canônica do acervo.
+ * Nenhum fragmento é alterado ou descartado; os que não cabem ficam pendentes.
+ */
+export function selecionarLoteDeRelease(
+  changelog: string,
+  fragmentos: readonly Fragmento[],
+  agentSh: string,
+): LoteDeRelease {
+  if (fragmentos.length === 0) {
+    throw new Error("selecionarLoteDeRelease sem fragmento: não há release a montar");
+  }
+
+  const ordenados = [...fragmentos].sort((a, b) =>
+    a.arquivo < b.arquivo ? -1 : a.arquivo > b.arquivo ? 1 : 0,
+  );
+  const obrigatorios = ordenados.filter((f) => f.impacto === "exige_acao");
+  const demais = ordenados.filter((f) => f.impacto !== "exige_acao");
+  const ordem = [...obrigatorios, ...demais];
+  const selecionados: Fragmento[] = [];
+  let medida: Medida | null = null;
+
+  for (let i = 0; i < ordem.length; i += 1) {
+    const fragmento = ordem[i]!;
+    const tentativa = [...selecionados, fragmento];
+    const candidata = candidataDoAcervo(changelog, tentativa);
+    if (candidata === null) throw new Error("não foi possível medir o lote de release");
+
+    const proximaMedida = medir(candidata, agentSh);
+    if (!vereditoDoAcervo(proximaMedida).reprova) {
+      selecionados.push(fragmento);
+      medida = proximaMedida;
+      continue;
+    }
+
+    if (fragmento.impacto === "exige_acao") {
+      throw new Error(
+        "Os avisos `exige_acao` precisam sair juntos e não cabem numa única tela da VPS; " +
+          "peça aos autores dos avisos que os resumam antes de publicar a versão.",
+      );
+    }
+
+    if (selecionados.length === 0 || medida === null) {
+      throw new Error(
+        `O fragmento ${fragmento.arquivo} sozinho excede o limite da tela da VPS; ` +
+          "resuma-o com seu autor antes de publicar a versão.",
+      );
+    }
+
+    return { selecionados, pendentes: ordem.slice(i), medida };
+  }
+
+  if (medida === null) throw new Error("não foi possível medir o lote de release");
+  return { selecionados, pendentes: [], medida };
 }

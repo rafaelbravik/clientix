@@ -93,7 +93,8 @@ function main(): number {
       );
     }
     process.stdout.write(
-      "\nConserto: CORTAR RELEASE — `pnpm release:cortar`, que consome os fragmentos e esvazia `.changes/`.\n" +
+      "\nConserto: dispare o workflow `release` (Run workflow): ele corta o maior prefixo ordenado que cabe na tela da VPS.\n" +
+        "Os fragmentos restantes ficam preservados em `.changes/`; depois de publicar o lote, dispare o workflow novamente.\n" +
         "Isto é dívida da casa, não de um PR: nenhum autor pode pagá-la enxugando fragmento de terceiro.\n" +
         "NÃO suba o `head -c` do agent.sh: quem corta é o script JÁ instalado na VPS do cliente — subir o\n" +
         "número aqui troca um vermelho honesto por um cliente sem aviso.\n",

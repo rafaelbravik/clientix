@@ -150,6 +150,8 @@ Para conferir o que os fragmentos de agora produziriam, sem escrever nada:
 pnpm release:conferir
 ```
 
+Se o conjunto acumulado exceder o limite em bytes do histórico que a VPS recebe, o corte monta o maior prefixo ordenado que cabe e mantém os demais fragmentos em `.changes/`. Os avisos `exige_acao` entram juntos no primeiro lote, porque a guarda da tag recusa publicar enquanto algum aviso obrigatório continuar pendente. Após mesclar e publicar uma release, execute o workflow `release` novamente para consumir o próximo lote; nenhum fragmento é editado ou descartado pelo cortador.
+
 Três propriedades, e cada uma resolve um defeito medido:
 
 - **Um arquivo por PR, nome único.** Dois PRs paralelos criam dois arquivos diferentes, e o

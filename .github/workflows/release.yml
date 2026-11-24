@@ -69,10 +69,11 @@ jobs:
           set -euo pipefail
           git config user.name  'deskcomm-release[bot]'
           git config user.email '${{ steps.token.outputs.app-slug }}[bot]@users.noreply.github.com'
-          git checkout -b "release/${VERSAO}"
+          BRANCH="release/${VERSAO}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git checkout -b "${BRANCH}"
           git add CHANGELOG.md .changes
           git commit -m "release(${VERSAO}): a versão montada a partir dos fragmentos declarados"
-          git push origin "release/${VERSAO}"
+          git push origin "${BRANCH}"
           {
             echo "Esta versão sai como **${VERSAO}**, e o número foi CALCULADO a partir do que cada PR declarou — ninguém digitou."
             echo
@@ -81,9 +82,10 @@ jobs:
             echo '```'
             echo
             echo "Ao fazer merge deste PR, a tag \`v${VERSAO}\` é criada automaticamente e as seis imagens são publicadas."
+            echo "O corte mantém em `.changes/` os fragmentos que não couberam; após esta versão, execute o workflow de novo para a release seguinte."
             echo "Se algo aqui estiver errado, **feche o PR** em vez de editar o número: corrija o fragmento e dispare o workflow de novo."
           } > /tmp/corpo.md
-          gh pr create --base main --head "release/${VERSAO}" \
+          gh pr create --base main --head "${BRANCH}" \
             --title "Release ${VERSAO}" --body-file /tmp/corpo.md
 
   cortar-tag:
@@ -330,7 +332,7 @@ jobs:
             # forja, ou é engano — e o silêncio é exatamente o que fez a #472
             # passar dias sem ninguém ver.
             echo "::error::Este commit apagou ${removidos} fragmento(s) de .changes/ mas o PR de origem não foi aberto pelo App da release — o GitHub diz: ${quem_abriu}."
-            echo "::error::A tag v${versao} NÃO foi criada. Um corte legítimo sai do workflow 'release' (Run workflow), com o PR aberto pelo App e head release/<versão> deste repositório."
+            echo "::error::A tag v${versao} NÃO foi criada. Um corte legítimo sai do workflow 'release' (Run workflow), com o PR aberto pelo App e head release/* deste repositório."
             exit 1
           elif [ -n "${exigem_acao}" ]; then
             # Alto, e de novo não `notice`: este é o único caso em que NÃO cortar
