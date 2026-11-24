@@ -48,4 +48,11 @@ describe("Resolução de release para repositório privado e padrão de tags", (
     expect(ciWorkflow).toContain('DESKCOMM_RELEASE_DIAGNOSTICS: "1"');
     expect(commonSh).toContain("http_status=%s tag=%s");
   });
+  it("busca a tag histórica v1.63.0 no repositório de origem quando ela não existe no checkout", () => {
+    expect(conferirSh).toContain('ANTES_DO_FILTRO="v1.63.0"');
+    expect(conferirSh).toContain('if [ "$1" = "$ANTES_DO_FILTRO" ]; then');
+    expect(conferirSh).toContain('CONFERENCIA_KIT_ANTES_DO_FILTRO_REPO:-https://github.com/melgarafael/DeskcommCRM.git');
+    expect(conferirSh).toContain('git -C "$ROOT" fetch -q --no-tags $profundidade "$origem"');
+  });
+
 });
