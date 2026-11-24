@@ -33,6 +33,8 @@ describe("trust root de certificação customer", () => {
 
     const moduleSource = createCustomerCertificationTrustModule(keyId, publicKeyBase64);
     expect(moduleSource).toContain("DEFAULT_TRUSTED_KEYS");
+    expect(moduleSource).toContain("export function trustedKeysForBuild()");
+    expect(moduleSource).toContain("return DEFAULT_TRUSTED_KEYS;");
     expect(moduleSource).toContain(keyId);
     expect(moduleSource).toContain("BEGIN PUBLIC KEY");
     expect(moduleSource).not.toContain("PRIVATE KEY");

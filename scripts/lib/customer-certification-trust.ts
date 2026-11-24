@@ -63,6 +63,10 @@ export function createCustomerCertificationTrustModule(keyId: string, publicKeyB
     `  ${JSON.stringify(keyId)}: ${JSON.stringify(publicKeyPem)},`,
     "};",
     "",
+    "export function trustedKeysForBuild(): Record<string, string> {",
+    "  return DEFAULT_TRUSTED_KEYS;",
+    "}",
+    "",
   ].join("\n");
 }
 
