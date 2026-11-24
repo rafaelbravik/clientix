@@ -1,8 +1,10 @@
 # Runbook — Deploy em produção (VPS)
 
-O caminho normal de deploy **não constrói nada na VPS**: o CI publica a imagem no
-GHCR e a VPS só puxa. Construir localmente é exceção de emergência, e tem custo —
-está documentado no fim.
+O caminho normal de deploy **não constrói nada na VPS**: o CI publica as imagens no
+GHCR e a VPS só puxa. Os pacotes Clientix são privados; a conta GitHub usada pelo Docker
+precisa de acesso **Read** e autenticação local. Veja
+[`ghcr-privado.md`](ghcr-privado.md). Construir localmente é exceção de emergência, e tem
+custo — está documentado no fim.
 
 ---
 
@@ -67,12 +69,14 @@ commit → push → PR → merge na main → CI publica imagem → VPS puxa
    VPS não existe: o CI não o vê, some se a VPS for reconstruída, e é invisível
    pra qualquer outra pessoa.
 2. **PR e merge na `main`.** `publish-image.yml` dispara em push na `main` (ou
-   tag `v*`) e publica **três** imagens — `deskcommcrm`, `deskcomm-worker` e
-   `deskcomm-scheduler` — sempre na mesma versão. O build pesado roda nos
+   tag `v*`) e publica **seis** imagens — `clientix-app`, `clientix-worker`,
+   `clientix-scheduler`, `clientix-voice-agent`, `clientix-migrator` e
+   `clientix-ingress` — sempre na mesma versão. O compose HostGator puxa os quatro
+   runtimes; o instalador comercial também usa migrator e ingress. O build roda nos
    runners do GitHub, nunca na VPS do usuário.
 3. **Deploy na VPS.** Numa instalação real isto é `bash hostgator-setup-kit/update.sh`,
-   não um `up -d` na mão: ele puxa a tag publicada, re-aplica o `baseline.sql`,
-   faz backup antes e grava as três imagens no `.env`.
+   não um `up -d` na mão: ele usa a credencial Docker do usuário atual, puxa a tag publicada,
+   re-aplica o `baseline.sql`, faz backup antes e grava os runtimes no `.env`.
 
 > **`latest` não é a última release.** Ele é publicado a partir da branch default, então
 > segue o **topo da `main`** — código ainda não lançado. Quem quer a última release usa

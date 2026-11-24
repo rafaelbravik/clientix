@@ -6,16 +6,17 @@
 > (`CLAUDE.md`).
 
 Esta é a **lei**. O procedimento operacional de deploy vive em
-[`../runbooks/deploy.md`](../runbooks/deploy.md); as decisões estruturais e o que foi
-recusado, em [`../adr/0001-packaging-e-distribuicao.md`](../adr/0001-packaging-e-distribuicao.md).
-Ao mudar um invariante aqui, atualize os dois na mesma sessão.
+[`../runbooks/deploy.md`](../runbooks/deploy.md); as decisões estruturais estão em
+[`../adr/0001-packaging-e-distribuicao.md`](../adr/0001-packaging-e-distribuicao.md) e a
+política atual de acesso privado, em [`../adr/0006-acesso-privado-ghcr.md`](../adr/0006-acesso-privado-ghcr.md).
+Ao mudar um invariante aqui, atualize as decisões e os runbooks na mesma sessão.
 
 | Se você quer… | Vá para |
 |---|---|
 | saber se sua mudança precisa virar imagem publicada | §Os 8 invariantes, nº 1 |
 | escolher a tag que uma instalação de cliente consome | §Política de canais |
 | lançar uma versão | §Checklist de release |
-| entender por que o namespace é `melgarafael` e não uma org | o ADR |
+| entender o histórico do namespace e a política de pacotes privados | ADR-0001 e ADR-0006 |
 
 ---
 
@@ -385,86 +386,55 @@ Um bump de versão **não pode** exigir:
 
 Verificável, na ordem. Nenhum item é "conferir se está tudo bem".
 
-A sonda do registry vem primeiro porque os itens 3 e 6 dependem dela — e porque `curl` cru no
-GHCR responde **401**, que não contém a versão procurada e por isso seria lido como aprovação
-pelo item 3. Um gate que aprova por erro de autenticação é pior que gate nenhum:
+A sonda do registry vem primeiro porque os itens 3 e 6 dependem dela. As imagens são
+privadas: a VPS verifica os manifestos com as credenciais locais do Docker. No corte, o CI
+usa `GITHUB_TOKEN` com permissão somente de leitura (`packages: read`) para conferir
+existência e digest; isso não testa download anônimo.
 
-```bash
-# Cole no shell antes de começar. Funciona anonimamente (o pacote é público).
-ghcr_status() {   # $1=imagem  $2=tag  → 200 existe | 404 não existe | 403 pacote privado
-  local t
-  t=$(curl -s "https://ghcr.io/token?scope=repository:melgarafael/$1:pull&service=ghcr.io" \
-      | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
-  curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $t" \
-    -H 'Accept: application/vnd.oci.image.index.v1+json' \
-    "https://ghcr.io/v2/melgarafael/$1/manifests/$2"
-}
-```
+Antes de instalar, o dono concede **Read** à conta GitHub do cliente em cada pacote necessário.
+A instalação HostGator usa quatro imagens de runtime; a distribuição comercial usa as seis.
+Mantenha **Inherit access from source repository** desligado nos pacotes, pois o repositório
+de código é público. O cliente faz login com PAT clássico `read:packages`; veja
+[`../runbooks/ghcr-privado.md`](../runbooks/ghcr-privado.md).
 
-**403 não é "não existe": é pacote PRIVADO.** Todo pacote recém-criado no GHCR nasce privado,
-e repositório público não muda isso. Enquanto não for tornado público na mão (Package settings
-→ visibility), o `docker compose pull` de **toda VPS** é negado — e, como o `pull` de um
-serviço com `image:` falha a operação inteira, a atualização morre depois do `git checkout` e
-do banco. É o passo que mais trava na estreia de uma imagem nova.
-
+A licença `ACT_...` e o acesso ao GHCR são controles separados. A permissão privada bloqueia
+pulls anônimos, mas uma pessoa com leitura ainda pode copiar as imagens; o código público
+também pode ser clonado e construído.
 ```
 [ ] 1. CHANGELOG.md tem a seção da versão, com o que muda para quem já instalou
 [ ] 2. Nenhuma variável nova é obrigatória sem default (grep no diff de .env.example)
 [ ] 3. O número da versão NUNCA foi publicado antes:
        git tag --list 'vX.Y.Z'                     → vazio
-       ghcr_status deskcommcrm X.Y.Z               → 404
+       source hostgator-setup-kit/_common.sh
+       ghcr_status clientix-app X.Y.Z              → 404
 [ ] 4. Os pins upstream foram revisitados: `waha`, `srh`, `redis`, `caddy`, `postgres`.
        Bumpar ou confirmar que ficam — congelar sem revisar é como o `srh` ficou
        três versões atrás sem ninguém decidir isso
 [ ] 5. `git tag vX.Y.Z && git push origin vX.Y.Z` — a partir de um commit da `main`
 [ ] 6. O run de publicação ficou verde:
        gh run list --workflow=publish-image.yml --limit 3
-[ ] 7. As TRÊS imagens existem E são públicas nesta versão:
-       for i in deskcommcrm deskcomm-worker deskcomm-scheduler; do
-         echo "$i: $(ghcr_status $i X.Y.Z)"; done      → 200 nas três
-       403 em alguma? Torne o pacote público ANTES de seguir
+[ ] 7. As SEIS imagens privadas existem nesta versão (credencial Read ativa):
+       for i in clientix-app clientix-worker clientix-scheduler clientix-voice-agent clientix-migrator clientix-ingress; do
+         echo "$i: $(ghcr_status "$i" X.Y.Z)"; done   → 200 nas seis
+       403 em alguma? Corrija o acesso Read do cliente ao pacote; não altere a visibilidade
 [ ] 8. A imagem reporta a versão certa:
-       docker run --rm ghcr.io/melgarafael/deskcommcrm:X.Y.Z \
+       docker run --rm ghcr.io/rafaelbravik/clientix-app:X.Y.Z \
          node -e 'console.log(process.env.APP_VERSION)'   → X.Y.Z
 [ ] 9. `gh release create vX.Y.Z` com as notas do CHANGELOG
-[ ] 10. SÓ AGORA: `stable` e X.Y.Z são o MESMO digest, nas três imagens:
-        for i in deskcommcrm deskcomm-worker deskcomm-scheduler; do
-          for t in X.Y.Z stable; do
-            echo -n "$i:$t "; docker buildx imagetools inspect \
-              ghcr.io/melgarafael/$i:$t --format '{{.Manifest.Digest}}'; done; done
-        → o par de cada imagem tem que bater
-        Não bateu? Alguma coisa republicou depois do push da tag. NÃO siga:
-        um canal apontando para build diferente da versão é o invariante 3
-        quebrado dentro de casa.
-[ ] 11. Apagar tags de branch dos três pacotes — `docs-doutrina-packaging` e
-        qualquer outra que tenha nascido de um `workflow_dispatch` de ensaio.
-        Tag de branch é artefato de trabalho: se ficar, vira canal órfão que
-        alguém pina por engano achando que é release, e ela nunca mais se move.
-        O registry já carrega uma dessas (`quebrada-teste`) como lembrete.
-
-> **Por que a checagem de `stable` é o item 10 e não o 8.** Ela já foi o 8, antes do
-> `gh release create` — e nessa ordem ela não provava nada. Medido na v1.3.0: o
-> `release: published` estava ligado no workflow, `gh release create` disparou um
-> segundo build do mesmo commit, e esse build **moveu `1.3.0` e `1.3`** sem mover
-> `stable`. A conferência do item 8 tinha passado, verde e honesta, cinco minutos
-> antes do ato que a invalidou. **Verificação que roda antes do passo que pode
-> quebrá-la é verificação de nada.** O gatilho foi removido (guarda em
-> `tests/unit/packaging-artefato-do-cliente.test.ts`), e a conferência foi para
-> depois — cinto e suspensório, porque o próximo jeito de republicar uma tag ainda
-> não foi inventado.
-
-        EXIGE ESCOPO QUE O TOKEN PADRÃO DO `gh` NÃO TEM. Medido no corte da
-        1.3.0: com `gist, read:org, repo, workflow` a API devolve 403 tanto para
-        listar quanto para apagar versão de pacote. Antes de chegar aqui:
-            gh auth refresh -h github.com -s read:packages,delete:packages
-        Sem isso o item fica pendente e a tag de ensaio segue viva — foi o que
-        aconteceu na 1.3.0. (Resolvido em 2026-08-14: as três versions foram
-        apagadas e a tag responde 404 nos três pacotes. Apague a **version**, e
-        só depois de conferir que ela não carrega OUTRA tag junto — no GHCR se
-        apaga version, não tag, e uma version com `1.3.0` ao lado levaria a
-        release embora.)
-[ ] 12. Ensaio de atualização numa instalação real (não fresca): update.sh a partir da
-        versão anterior, e o /api/v1/health responde X.Y.Z
+[ ] 10. SÓ AGORA: `stable` e X.Y.Z são o MESMO digest nas seis imagens:
+         for i in clientix-app clientix-worker clientix-scheduler clientix-voice-agent clientix-migrator clientix-ingress; do
+           for t in X.Y.Z stable; do
+             echo -n "$i:$t "; docker buildx imagetools inspect \
+               ghcr.io/rafaelbravik/$i:$t --format '{{.Manifest.Digest}}'; done; done
+         → o par de cada imagem tem que bater
+         Não bateu? Alguma coisa republicou depois do push da tag. NÃO siga:
+         um canal apontando para build diferente da versão é o invariante 3
+         quebrado dentro de casa.
+[ ] 11. Apagar tags de branch dos seis pacotes — `docs-doutrina-packaging` e
+         qualquer outra que tenha nascido de um `workflow_dispatch` de ensaio.
+         Tag de branch é artefato de trabalho: se ficar, vira canal órfão que
+         alguém pina por engano achando que é release, e ela nunca mais se move.
+         O registry já carrega uma dessas (`quebrada-teste`) como lembrete.
 ```
 
 O item 12 é o único que exige VPS. Ele não é opcional: a atualização é o caminho que **todo o

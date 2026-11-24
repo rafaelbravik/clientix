@@ -193,9 +193,10 @@ describe("o corte da release confere o CANAL, não só a existência da versão"
 
   it("compara DIGEST — `stable` e a versão têm de ser o mesmo manifesto", () => {
     const t = corpo(release, "cortar-tag");
-    expect(t, "a conferência não lê digest: `200` na tag `stable` é satisfeito desde a 1.11.0").toContain(
-      "docker-content-digest",
+    expect(t, "a conferência não consulta mais o digest no GHCR").toContain(
+      "docker buildx imagetools inspect",
     );
+    expect(t, "a sonda não lê o digest OCI").toContain("--format '{{.Manifest.Digest}}'");
     expect(t, "a conferência não olha o canal `stable`").toContain("stable");
     expect(t).toMatch(/::error::/);
   });

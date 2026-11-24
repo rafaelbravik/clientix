@@ -102,6 +102,8 @@ jobs:
       # sem esta linha a resposta é 403 e a guarda recusaria corte legítimo.
       # Leitura só — quem escreve continua sendo o token do App.
       pull-requests: read
+      # Só leitura dos pacotes privados para a sonda da release.
+      packages: read
     steps:
       - uses: actions/create-github-app-token@v3
         id: token
@@ -395,12 +397,13 @@ jobs:
         if: steps.pendente.outputs.cortar == 'sim'
         env:
           VERSAO: ${{ steps.pendente.outputs.versao }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          # A mesma sonda do runbook (docs/runbooks/ativar-packaging.md): token
-          # anônimo de pull do próprio registro. Não usa o GITHUB_TOKEN de
-          # propósito — o que interessa provar é que a imagem está alcançável
-          # para QUEM INSTALA, e quem instala não tem credencial nossa.
+          # A sonda usa o GITHUB_TOKEN, com packages:read e permissão do
+          # repositório concedida ao pacote. Ela prova que o artefato publicado
+          # existe; não verifica visibilidade anônima, que permanece desativada.
           #
           # E ela lê DIGEST, não código de status. A sonda ingênua ("a tag
           # responde 200?") é satisfeita pelo canal `stable` desde a 1.11.0 — ele
@@ -408,16 +411,12 @@ jobs:
           # v1.12.0 saiu com `stable` do app na 1.11.0 e o das outras duas na
           # 1.12.0 sem ninguém ver (issue #488): quem instalava por `stable`
           # recebia um parque MISTURADO, e nenhum gate tinha opinião.
+          # Token do workflow enviado por stdin; o Docker usa o config local
+          # apenas neste runner efêmero para ler os pacotes privados.
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin >/dev/null
           ghcr_digest() {
-            local t
-            t=$(curl -s "https://ghcr.io/token?scope=repository:${GITHUB_REPOSITORY_OWNER}/$1:pull&service=ghcr.io" \
-                | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
-            curl -sI -H "Authorization: Bearer $t" \
-              -H 'Accept: application/vnd.oci.image.index.v1+json' \
-              -H 'Accept: application/vnd.docker.distribution.manifest.list.v2+json' \
-              "https://ghcr.io/v2/${GITHUB_REPOSITORY_OWNER}/$1/manifests/$2" \
-              | tr -d '\r' | tr '[:upper:]' '[:lower:]' \
-              | sed -n 's/^docker-content-digest: //p'
+            docker buildx imagetools inspect "ghcr.io/${GITHUB_REPOSITORY_OWNER}/$1:$2" \
+              --format '{{.Manifest.Digest}}' 2>/dev/null
           }
           echo "esperando a publicação de v${VERSAO}…"
           for _ in $(seq 1 60); do

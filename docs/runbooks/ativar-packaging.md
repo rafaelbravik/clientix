@@ -1,5 +1,10 @@
 # Runbook — ativar a doutrina de packaging (uma vez só)
 
+> **Procedimento histórico, substituído em 2026-11-24.** As instruções abaixo mandavam
+> tornar os pacotes públicos. Não faça isso: a decisão atual é manter as seis imagens
+> privadas. Use [`ghcr-privado.md`](ghcr-privado.md) para conceder leitura e autenticar
+> as instalações.
+>
 > **CONCLUÍDO em 2026-08-14. Este runbook é histórico** — guardado porque descreve o
 > procedimento e as armadilhas de cada passo, não porque haja algo a fazer.
 >

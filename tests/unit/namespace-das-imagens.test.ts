@@ -142,15 +142,9 @@ const RECADO_AO_FORK =
  *
  * Ela dizia "troque em três lugares, e só neles — nenhum OUTRO arquivo do repo
  * repete esse valor". @galeonel seguiu à risca (PR #605) e descobriu que
- * `ghcr_status`, em `_common.sh`, tinha `melgarafael` cravado nas duas URLs: o
- * fork ficava com o pré-voo conferindo os pacotes do UPSTREAM enquanto
- * `gravar_imagens` escrevia no `.env` do cliente as referências do FORK.
- *
- * A catraca não pegava por acidente de forma: ela procura a string contígua
- * `ghcr.io/melgarafael`, e a URL do token parte o valor em
- * `ghcr.io/token?scope=repository:melgarafael/`. Instrução que promete mais do
- * que o gate confere é pior que instrução nenhuma — quem a segue conclui que
- * terminou.
+ * `ghcr_status`, em `_common.sh`, agora usa `docker manifest inspect`, que
+ * consulta as credenciais persistidas pelo Docker, e monta a referência com
+ * `IMG_NS`. O dublê abaixo verifica o mesmo contrato sem rede nem daemon.
  */
 
 function imgNs(): string {
@@ -254,10 +248,10 @@ describe("o kit aponta para o que o CI realmente publica", () => {
   });
 
   it.each([undefined, "registry.example/outro-dono"])(
-    "ghcr_status consulta token e manifesto no IMG_NS (%s)",
+    "ghcr_status inspeciona o manifesto autenticado no IMG_NS (%s)",
     (namespace) => {
       const ns = namespace ?? imgNs();
-      const [registry, owner] = ns.split("/");
+      const ref = `${ns}/clientix-app:1.2.3`;
       const saida = execFileSync(
         "bash",
         [
@@ -265,20 +259,10 @@ describe("o kit aponta para o que o CI realmente publica", () => {
           `
         source hostgator-setup-kit/_common.sh
         if [ -n "$1" ]; then IMG_NS="$1"; fi
-        curl() {
-          local arg
-          for arg in "$@"; do
-            case "$arg" in
-              https://*/token[?]*) printf '%s\\n' "$arg" >> "$log"; printf '{"token":"teste"}'; return;;
-              https://*/v2/*) printf '%s\\n' "$arg" >> "$log"; printf '200'; return;;
-            esac
-          done
-          return 1
-        }
+        docker() { printf '%s\\n' "$*" >> "$log"; return 0; }
         log=$(mktemp)
         trap 'rm -f "$log"' EXIT
-        # O dublê registra em arquivo porque a função captura stdout do curl.
-        ghcr_status deskcommcrm 1.2.3
+        ghcr_status clientix-app 1.2.3
         printf '\\n'
         cat "$log"
       `,
@@ -287,13 +271,37 @@ describe("o kit aponta para o que o CI realmente publica", () => {
         ],
         { cwd: RAIZ, encoding: "utf8" },
       );
-      expect(saida.trim().split("\n")).toEqual([
-        "200",
-        `https://${registry}/token?scope=repository:${owner}/deskcommcrm:pull&service=${registry}`,
-        `https://${registry}/v2/${owner}/deskcommcrm/manifests/1.2.3`,
-      ]);
+      expect(saida.trim().split("\n")).toEqual(["200", `manifest inspect ${ref}`]);
     },
   );
+
+  it("recusa modo não-interativo quando o GHCR exige autenticação", () => {
+    const saida = execFileSync(
+      "bash",
+      [
+        "-c",
+        `
+        source hostgator-setup-kit/_common.sh
+        docker() { printf '%s\\n' 'denied: requested access to the resource is denied' >&2; return 1; }
+        [ "$(ghcr_status clientix-app stable)" = "403" ] || exit 2
+        if garantir_acesso_ghcr 1; then exit 3; fi
+        printf 'FALHOU_FECHADO'
+      `,
+      ],
+      { cwd: RAIZ, encoding: "utf8" },
+    );
+    expect(saida).toContain("FALHOU_FECHADO");
+    expect(saida).toContain("docker login ghcr.io --username SEU_USUARIO");
+  });
+
+  it("lê o PAT sem eco e entrega ao Docker exclusivamente por stdin", () => {
+    expect(COMUM).toContain('read -r -s -p');
+    expect(COMUM).toContain('docker login ghcr.io --username "$username" --password-stdin');
+    expect(COMUM).toContain('chmod 700 "$docker_config_dir"');
+    expect(COMUM).toContain('chmod 600 "$DOCKER_CONFIG/config.json"');
+    expect(COMUM).not.toContain('GHCR_TOKEN=');
+  });
+
 
   it("o registry do kit é o mesmo do workflow de publicação", () => {
     const m = PUBLICA.match(/^\s*REGISTRY:\s*(\S+)$/m);
@@ -356,9 +364,9 @@ describe("catraca: ninguém mais repete o namespace", () => {
     // de `_identidade-deste-repo.ts`). Duplicar o literal nos dois seria o
     // anti-pattern nº 2 do CLAUDE.md e garantiria que voltassem a divergir.
     "tests/unit/_identidade-deste-repo.ts",
-    // Este arquivo continua permitido porque duas PROSAS citam o literal (a
-    // história dos 31 lugares e o caso da URL do token). Prosa que cita o valor
-    // é legítima; asserção que o reescreve à mão não é.
+    // Este arquivo continua permitido porque as PROSAS acima citam o literal.
+    // Prosa histórica que cita o valor é legítima; asserção que o reescreve à mão
+    // não é.
     "tests/unit/namespace-das-imagens.test.ts",
   ]);
 

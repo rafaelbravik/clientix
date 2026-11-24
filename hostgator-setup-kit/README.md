@@ -22,7 +22,7 @@ Este kit sobe o **Clientix** no seu servidor VPS da HostGator. Você tem dois ca
 ## 🤖 Caminho fácil: deixe o assistente de código fazer
 
 1. Contrate um **VPS na HostGator** e acesse-o por SSH.
-2. Clone o repositório (`git clone --depth 1 https://github.com/melgarafael/DeskcommCRM.git deskcommcrm`)
+2. Clone o repositório (`git clone --depth 1 https://github.com/rafaelbravik/clientix.git clientix`)
    e abra a pasta no **Claude Code, Codex, Cursor, OpenCode ou Antigravity** dentro do VPS —
    ou jogue só esta pasta no chat: o `CLAUDE.md` daqui manda clonar e abre o guia.
 3. Diga: *"instala o Clientix pra mim"*. O guia `deskcomm-instalar` conduz tudo —
@@ -42,11 +42,19 @@ bash install.sh
 > contrato desse modo. Se preferir instalar por conta própria, responda `n` e rode
 > `curl -fsSL https://get.docker.com | sh` antes.
 
-O instalador pergunta o que precisa (domínio, chaves do Supabase, provedor de IA
+Antes da primeira instalação, o dono do Clientix precisa conceder acesso **Read** aos pacotes
+privados usados. O instalador pede a conta GitHub e um PAT clássico com `read:packages`; o
+Docker salva o login para atualizações futuras do mesmo usuário. Veja
+[Acesso às imagens privadas do GHCR](../docs/runbooks/ghcr-privado.md). Isso é separado do
+token de ativação `ACT_...`.
+
+O instalador também pergunta o que precisa (domínio, chaves do Supabase, provedor de IA
 — a chave pode ficar para depois —, e-mail/senha do admin), gera o resto e sobe tudo.
 
 > Modo não-interativo: copie `.env.hostgator.example` (do repositório) para `.env`,
-> preencha, e rode `bash install.sh --yes`.
+> preencha, autentique o usuário autorizado com `docker login ghcr.io --username SEU_USUARIO`
+> (digite o PAT quando o Docker pedir), e rode `bash install.sh --yes`. O mesmo login é usado
+> por `update.sh` e pelo agente de atualização.
 
 ## Criar o Supabase automaticamente (opcional)
 

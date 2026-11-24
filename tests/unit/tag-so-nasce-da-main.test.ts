@@ -75,10 +75,14 @@ describe("a tag nasce no CI, e nunca do GITHUB_TOKEN", () => {
 
   it("o corte da tag prova que as imagens saíram — a falha aqui é silenciosa por natureza", () => {
     const t = job(release, "cortar-tag");
-    // A sonda prende o COMPORTAMENTO (consultar o manifesto no registro público),
-    // não o nome da função — que já mudou uma vez, quando a conferência passou a
-    // comparar digest em vez de código de status (issue #488).
-    expect(t, "o corte não consulta mais o registro").toMatch(/ghcr\.io\/v2\//);
+    // A sonda prende o comportamento: usa credencial de leitura do próprio
+    // workflow e consulta digest no registro privado, não só o status da tag.
+    expect(t, "o corte não consulta mais o registro").toMatch(/docker buildx imagetools inspect/);
+    expect(t).toContain("packages: read");
+    expect(t).toContain("GHCR_TOKEN: ${{ github.token }}");
+    expect(t).toContain("docker login ghcr.io --username");
+    expect(t).toContain("--password-stdin");
+    expect(t).toContain("ghcr.io/${GITHUB_REPOSITORY_OWNER}/$1:$2");
     for (const img of ["clientix-app", "clientix-worker", "clientix-scheduler", "clientix-voice-agent", "clientix-migrator", "clientix-ingress"]) {
       expect(t, `a conferência não cobre ${img}`).toContain(img);
     }

@@ -935,6 +935,7 @@ source "$KIT_DIR/_common.sh"
 # árvore é a mesma. `DESKCOMM_ASSUMIR_PROJETO=1` é a saída para quem move a
 # instalação de lugar de propósito, e é a mesma dos outros dois call sites.
 recusar_projeto_de_outra_arvore || die "$(t "Instalação interrompida para não derrubar o CRM que já está no ar nesta VPS.")"
+garantir_acesso_ghcr "$NONINTERACTIVE" || die "$(t "Instalação interrompida: falta acesso às imagens privadas do Clientix.")"
 
 # ── 3. Coleta de config ─────────────────────────────────────────────────────
 fase 2 "$(t "Suas informações")"
