@@ -118,9 +118,16 @@ TMP="$(mktemp -d "${TMPDIR:-/tmp}/deskcomm-update-sh.XXXXXX")"
 trap 'rm -rf "$TMP"' EXIT
 update_sh_da() {  # update_sh_da <tag> — caminho de uma cópia do update.sh da tag
   if ! git -C "$ROOT" rev-parse -q --verify "refs/tags/$1^{commit}" >/dev/null; then
-    local profundidade=""
+    local profundidade="" origem=origin
     [ "$(git -C "$ROOT" rev-parse --is-shallow-repository)" = true ] && profundidade="--depth=1"
-    git -C "$ROOT" fetch -q --no-tags $profundidade origin "+refs/tags/$1:refs/tags/$1"
+    # A tag v1.63.0 antecede o repositório Clientix. Em checkout fresco ela
+    # pode não existir em origin; use o repositório histórico que publicou a tag.
+    # O caminho é configurável para mirrors e testes, sem mudar a origem das
+    # releases atuais conferidas acima.
+    if [ "$1" = "$ANTES_DO_FILTRO" ]; then
+      origem="${CONFERENCIA_KIT_ANTES_DO_FILTRO_REPO:-https://github.com/melgarafael/DeskcommCRM.git}"
+    fi
+    git -C "$ROOT" fetch -q --no-tags $profundidade "$origem" "+refs/tags/$1:refs/tags/$1"
   fi
   git -C "$ROOT" show "$1:hostgator-setup-kit/update.sh" > "$TMP/$1"
   printf '%s' "$TMP/$1"
