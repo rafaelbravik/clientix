@@ -1771,22 +1771,13 @@ montar_vps() {
   cat > "$raiz/bin/docker"
   # Só o v_supabase_url exige resposta online (000 reprova); os outros toleram.
   #
-  # O dublê fala DOIS protocolos porque o install.sh passou a sondar o GHCR
-  # antes de pinar as imagens (`ghcr_status`/`trio_publicado` no _common.sh): o
-  # endpoint de token devolve JSON, o de manifest devolve o código HTTP. Um
-  # dublê que respondesse `200` para tudo faria o `sed` do token sair vazio, a
-  # sonda devolver `000`, e a suíte passaria a exercitar o ramo de fallback
-  # achando que exercita o normal — verde medindo outra coisa.
-  #
-  # `DUBLE_GHCR` permite ao teste escolher o cenário: vazio/`200` = as três
-  # imagens publicadas; `403` = pacote privado; `404` = não existe.
+  # A sonda do GHCR usa `docker manifest inspect` para compartilhar o mesmo
+  # arquivo de credenciais usado pelo `docker compose pull`. Este dublê de curl
+  # atende às demais verificações HTTP do instalador; os cenários de manifesto
+  # ausente ou privado são simulados pelo dublê do Docker de cada teste.
   cat > "$raiz/bin/curl" <<'STUBCURL'
 #!/usr/bin/env bash
-case "$*" in
-  *ghcr.io/token*) printf '{"token":"dublê"}' ;;
-  *ghcr.io/v2/*)   printf '%s' "${DUBLE_GHCR:-200}" ;;
-  *)               printf 200 ;;
-esac
+printf 200
 STUBCURL
   # O install.sh e o update.sh vão até o fim, e no fim eles AGENDAM CRON. Sem
   # dublê a suíte escreveria no crontab de quem a roda — apontando para um
@@ -2202,8 +2193,9 @@ echo "packaging: a tag do git não basta — as imagens têm de existir"
 # cliente receberia referências impossíveis e o kit as construiria aqui EM
 # SILÊNCIO, do topo da main — app de uma release, worker de outro código.
 #
-# 403 é o caso que trava na estreia de uma imagem nova: pacote recém-criado no
-# GHCR nasce privado, e repositório público não muda isso.
+# Um manifesto 404 ainda não publicado permite o caminho de construção local.
+# A ausência de credencial em pacote privado (403) é outro estado: o instalador
+# deve parar antes de iniciar a stack, como valida o teste ghcr-private-auth.
 TMP_PRIV="$(mktemp -d)"
 (
   # O remoto daqui é um FIXTURE local, como no teste de pinagem acima, e não o
@@ -2226,22 +2218,30 @@ TMP_PRIV="$(mktemp -d)"
   montar_vps "$TMP_PRIV/vps" "crmpriv" <<'STUB'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$DOCKER_LOG"
-case "$1" in
+case "${1:-}" in
+  manifest)
+    case "${DUBLE_GHCR:-200}" in
+      200) printf '{"schemaVersion":2}\n'; exit 0 ;;
+      403) printf 'denied: requested access to resource is denied\n' >&2; exit 1 ;;
+      404) printf 'manifest unknown: no such manifest\n' >&2; exit 1 ;;
+      *) printf 'temporary network error\n' >&2; exit 1 ;;
+    esac
+    ;;
   compose) case "$*" in *" exec "*) printf 'healthy\n{"data":{"status":"healthy"}}\n' ;; esac; exit 0 ;;
 esac
 exit 0
 STUB
   export REPO_URL="$origem"
-  export DUBLE_GHCR=403          # pacote existe mas está PRIVADO
+  export DUBLE_GHCR=404          # manifesto ainda não publicado
   saida="$(rodar install.sh --yes)"
   unset DUBLE_GHCR REPO_URL
 
   if ! printf '%s' "$saida" | grep -q "construídas neste servidor"; then
-    printf '  ✗ com as imagens inalcançáveis, o instalador não avisou que ia construir aqui\n'
+    printf '  ✗ com os manifestos ausentes (404), o instalador não avisou que vai construir aqui\n'
     printf '     silêncio aqui é o defeito: o dono não descobre que duas peças saíram do fonte local.\n'
     exit 1
   fi
-  printf '  ✓ imagens inalcançáveis (403): avisa que vai construir no servidor, em vez de calar\n'
+  printf '  ✓ manifestos ausentes (404): avisa que vai construir no servidor, em vez de calar\n'
 
   # E ainda assim a instalação COMPLETA — construir é lento, não é impedimento.
   if ! grep -qE "^APP_IMAGE=" "$VPS_PROJ/.env"; then
