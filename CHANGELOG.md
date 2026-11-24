@@ -8,6 +8,216 @@ Se você roda o DeskcommCRM numa VPS, **leia a seção da versão para a qual es
 
 ## [Não lançado]
 
+## [2.0.0] — 2026-11-24
+
+### ⚠️ Requer atenção
+
+- **O instalador comercial exige ingresso público HTTPS** Antes de atualizar uma instalação do instalador comercial, aponte o DNS público para o servidor, libere TCP 80/443 e configure `DOMAIN`, `ACME_EMAIL`, `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_ADMIN_URL` e `WAHA_WEBHOOK_BASE_URL`. As três origens do app devem ser `https://DOMAIN`; o atualizador valida tudo antes de executar migrations.
+- **Instalador configura o servidor central de licenças** Instalações existentes que usarão licenças do Vendor precisam configurar a URL HTTPS do Vendor no `.env`, executar `bash hostgator-setup-kit/install.sh` novamente e ativar o código em `/admin/license`. Instalações comerciais novas precisam informar essa URL no `.env` antes de instalar.
+
+### Adicionado
+
+- **Assinatura manual por tenant para Cloud e self-host** O Platform Owner pode criar uma empresa já vinculada a plano e período, ou administrar a assinatura de uma empresa existente. O catálogo aplica as cotas de usuários, canais e módulos protegidos pelos guards existentes. Assinatura de tenant no banco Customer permanece separada da licença `ACT_...` de instalação no Vendor. A cobrança é manual e não há gateway ou preço padrão imposto pelo código.
+
+- **Campanhas de texto podem separar parágrafos em mensagens curtas** Ao criar ou editar uma campanha de texto no WhatsApp, você pode enviar cada parágrafo como uma mensagem separada. A opção começa desligada; até três balões são enviados por contato, respeitando o ritmo e os limites diários do número.
+
+- **Vincule uma conta ChatGPT à organização** Quem administra o servidor pode habilitar o painel para cada organização conectar uma conta pelo login oficial do ChatGPT. A conexão fica cifrada e pode ser removida ou reconectada; nesta etapa ela ainda não fica disponível para agentes.
+
+- **O pacote comercial valida as assinaturas oficiais de release e licença** O instalador agora confere a assinatura Ed25519 do manifesto e usa somente as imagens identificadas pelos digests desse manifesto. A aplicação também reconhece a chave pública oficial de licenças. As raízes públicas ficam versionadas; as chaves privadas permanecem fora do repositório e do pacote instalado. Não é necessário configurar chaves manualmente na VPS.
+
+- **Atendimento pelo chat incorporável** Quem já opera o Clientix não precisa alterar a instalação. Agora a equipe pode ativar o
+  WebChat em Conexões, copiar um snippet público e receber visitantes anônimos no Inbox. Cada
+  visitante recebe uma conversa isolada; o atendimento usa o fluxo local de mensagens do CRM.
+
+- **Anexos privados em campos do CRM** Agora um campo personalizado de arquivo pode guardar documentos e imagens privados no dossiê
+  do negócio. Os arquivos passam por validação, usam acesso autenticado e podem ser exigidos
+  antes de mover o negócio para uma etapa configurada.
+
+- **A etapa do negócio pode ser alterada pelo dossiê** Quem tem permissão para mover cards pode escolher uma etapa ativa direto no dossiê. A mudança reutiliza a mutação do Kanban, incluindo concorrência otimista, validação de campos, motivo de ganho ou perda, auditoria e atualização do quadro.
+
+- **A API de contatos pode filtrar quem pediu para não ser incomodado** `GET /api/v1/contacts` aceita `blocked=yes` para listar contatos bloqueados e `blocked=no` para listar os demais. Sem o parâmetro, a listagem mantém o comportamento atual; a supressão de campanhas continua independente desse filtro.
+
+- **Assistente protegido cria o proprietário global da instalação** Quem já opera o Clientix não precisa alterar a instalação existente. Instalações novas passam a ter um assistente de primeira configuração protegido por token, que cria o proprietário global e libera a administração de empresas, planos e usuários sem misturar esse acesso com os papéis das organizações.
+
+- **Oculte do quadro negócios encerrados antigos** Cada funil pode ocultar ganhos e perdas depois do prazo configurado; os registros permanecem intactos e continuam disponíveis na Lista.
+
+- **Importação segura de histórico WhatsApp** Permite habilitar o armazenamento do histórico antes do primeiro pareamento, conferir uma prévia limitada e importar conversas individuais em lotes retomáveis. Mensagens históricas preservam direção e horário, ficam identificadas na timeline e não acionam IA, automações, campanhas, follow-ups ou outbound. A importação ignora grupos, valida a identidade da conversa inteira, deduplica pelo identificador do provedor e respeita tombstones LGPD.
+
+- **Leads do Inbox podem começar em uma etapa configurada** O funil padrão pode escolher uma etapa aberta para os novos leads criados a partir de conversas. Se a configuração estiver desligada ou a etapa deixar de ser válida, o sistema usa a primeira etapa aberta; mensagens seguintes continuam reutilizando o lead existente.
+
+- **O Inbox identifica agentes de IA e revela etiquetas ocultas** Mensagens enviadas por um agente identificado mostram seu nome no balão. Na lista de conversas, o indicador `+N` informa quais etiquetas ficaram ocultas.
+
+- **O instalador comercial aceita ACME DNS-01 Cloudflare** O instalador comercial mantém ACME direto como padrão e oferece DNS-01 Cloudflare quando a rede bloqueia as portas públicas. DNS-01 requer imagem Caddy com módulo Cloudflare referenciada por digest em manifesto assinado e segredo configurado explicitamente. Em produção, o operador administra um arquivo externo root-only que o instalador apenas valida por metadados e monta read-only no Caddy; em laboratório, o segredo pode ser injetado por stdin em tmpfs e precisa ser reinjetado após restart. O valor não é copiado para o Clientix, `.env`, Compose, imagem, backup, manifesto ou logs.
+
+- **Lembretes de casos acompanham cada nova espera humana** Cada entrada de um caso em `awaiting_human` inicia um relógio e um contador próprios. Administradores podem definir intervalo e limite por organização; o verificador horário reivindica os avisos atomicamente e continua notificando somente pela Central.
+
+- **Pedidos de anonimização concluídos disponibilizam recibo operacional** Depois da cascata concluída, o sistema tenta gerar um recibo operacional privado com dados minimizados e código de integridade ou autenticidade claramente identificado. A falha de geração permanece visível no pedido e não desfaz a anonimização.
+
+- **Emissão e validação central de licenças** O Control Plane vendor passa a administrar clientes, licenças, instalações e eventos, emitir e validar documentos Ed25519, renovar, suspender, reativar, revogar e transferir instalações. A trust root pública continua no Clientix self-hosted; a chave privada permanece exclusiva do runtime central. A migração central é separada do banco do cliente e não foi aplicada à stack persistente local. Cobrança e pagamentos continuam fora do escopo.
+
+- **Detecta o uso simultâneo de licença em instalações diferentes** - Gera uma sessão efêmera por processo Clientix e adiciona heartbeat online configurável, sem validação por request.
+  - Vincula sessões à chave pública já registrada com desafio Ed25519 aleatório, nonce de uso único e expiração curta.
+  - Detecta sobreposição de sessões; exige heartbeat renovado de outra sessão para confirmar conflito persistente e evita confirmar boot antigo sem atividade simultânea.
+  - Restringe a licença por resposta online assinada quando o Control Plane confirma clone e preserva a tolerância offline quando o servidor está indisponível.
+  - Dá ao vendor uma ação de recuperação de uso único que encerra sessões e autoriza rotação local da chave; transferência, suspensão e revogação encerram sessões ativas.
+  - Mantém a chave privada da instalação local, mantém a chave privada de emissão exclusivamente no vendor e exclui as rotas centrais do build customer.
+  - Migration `control-plane/migrations/0003_installation_clone_attestation.sql` é somente do Control Plane; não foi aplicada ao banco self-hosted.
+  - Sem fingerprint de hardware, alterações em `deskcomm-crm`, produção, publicação ou push.
+
+- **Administre clientes, licenças e instalações no Control Plane** O Control Plane do fornecedor agora oferece painel comercial, cadastro e busca paginada de clientes, emissão e gestão do ciclo de vida das licenças, acompanhamento de instalações e eventos, alertas de vencimento e exportação CSV. Ações sensíveis usam as proteções administrativas existentes, registram auditoria e aplicam idempotência/serialização transacional quando há risco de repetição ou concorrência.
+
+  A migration `0004_vendor_commercial_admin.sql` pertence somente ao banco separado do Control Plane. O build Customer continua excluindo rotas e módulos Vendor; o artefato é varrido antes de ser entregue. Nenhuma cobrança, integração financeira ou automação externa foi incluída.
+
+- **Automatize o ciclo de cobrança do Control Plane do fornecedor** **LIC-04 — Billing Vendor.**
+
+  - Added Control Plane migration `0005_billing_automation.sql` for subscriptions, invoices, payments, event audit, internal notifications, webhook receipts, settings and reconciliation findings.
+  - Added MANUAL billing with idempotent subscription/invoice creation, explicit payment confirmation, transactional license renewal and reissue audit, nonpayment grace/policy, cancellation, refund recording, internal due alerts, scheduled invoice creation and reconciliation.
+  - Added guarded Vendor billing APIs and `/admin/billing` dashboard, invoice list/detail, manual billing flow and settings. Customer and license pages show Vendor-only billing summaries.
+  - Added migration `0006_signed_license_artifact_versions.sql`: renewals enqueue one durable, idempotent artifact revision per active installation in the payment transaction. The private Vendor issuer signs immediately after confirmation and persists the signed document, payload/artifact hashes, revision and signing event atomically. Failures remain retryable; the next LIC-01 online validation returns the stored signed revision, which LIC-01 verifies and installs with its atomic replace.
+  - Added a Vendor-only scheduler process (`pnpm control-plane:billing-scheduler`) with a 15-minute default interval, one-cycle-at-a-time execution and a PostgreSQL session advisory lock. The scheduler runs maintenance, reconciliation and pending artifact issuance. Configure this long-running command only in the private Control Plane deployment.
+  - Billing provider availability is explicitly `MANUAL` only. Stripe and Mercado Pago stay fail-closed even if secrets or provider metadata are present. The normalized webhook framework is retained but disabled until LIC-05 supplies and validates native provider adapters.
+  - Added no-charge renewal auditing and disallowed it when a billing subscription remains active.
+  - Added scheduler repeat/lock tests and disposable PostgreSQL end-to-end coverage for MANUAL payment, renewal, signed revision delivery, LIC-01 verification/atomic file install, retry idempotency, nonpayment policies and recovery after suspension. No migration was applied to self-hosted `deskcomm-crm`.
+  - Visual QA status and final gates are recorded in `docs/specs/licenciamento-cobranca-vendor.md` after the isolated Vendor QA run.
+
+- **Consulte e atualize a licença comercial da instalação** O proprietário da plataforma pode conferir o estado, a validade e o período de carência da licença local e substituir o arquivo por um documento assinado. A licença é validada antes da troca; o arquivo atual permanece se a nova licença for recusada. Em desenvolvimento, o modo de aviso deixa a situação visível sem restringir operações; produção continua em modo fail-closed.
+
+- **A administração de licenças ganha telas localizadas e bloqueio efetivo para suporte somente leitura** Quem administra licenças da plataforma passa a usar as telas de clientes, instalações, licenças e auditoria em espanhol quando esse idioma está selecionado. Sessões de suporte somente leitura também deixam de alterar esses dados, e a cópia de identificadores funciona com fallback quando a Clipboard API não está disponível.
+
+- **O histórico MCP informa e compartilha mídia privada por link temporário** As integrações MCP autorizadas podem consultar tipo, tamanho e estado das mídias do histórico, além de um link privado com validade limitada quando o arquivo está disponível. O turno do agente recebe apenas os metadados, sem link bearer. Não é necessário alterar a instalação.
+
+- **Contatos da agenda do WhatsApp Business podem entrar no CRM** Em canais oficiais compatíveis com coexistência, os contatos recebidos da agenda do app são identificados pelo telefone e sincronizados sem abrir conversa ou iniciar atendimento. Contatos com pedido de apagamento continuam protegidos pela supressão LGPD.
+
+- **Publique agentes com a assinatura do ChatGPT** Com `login_codex` ativado, administradores podem publicar um agente usando somente um modelo liberado pela conta ChatGPT conectada à mesma organização. A publicação continua validando credencial, tenant e canal pelas regras existentes.
+
+- **Consulte os negócios do funil em uma lista paginada** Abra a visão Lista para consultar os negócios por páginas sem carregar o quadro inteiro, e abra a mesma ficha do negócio usada no Kanban.
+
+- **Provider local de prospecção permanece bloqueado sem fonte aprovada** O provider `local-http` pode ser selecionado por organização e usa o endpoint configurado pela instalação. A instalação mantém Apify como padrão. Nenhuma fonte real foi aprovada nesta wave; buscas locais falham fechadas até que uma fonte passe pela política de aprovação.
+
+- **Verifique sites de empresas com proteção de rede** Na prospecção, administradores podem medir manualmente o site de uma empresa. A verificação valida cada destino e redirecionamento, limita a leitura e preserva um resultado definitivo quando uma nova tentativa não é conclusiva.
+
+- **Gere estratégia e prévia manual para empresas prospectadas** Na prospecção, a auditoria do site alimenta uma estratégia determinística. Administradores podem pedir uma prévia manual com o agente publicado; o texto fica como rascunho revisável, marcado como desatualizado se a auditoria ou a versão do agente mudar, e nunca é enviado automaticamente.
+
+- **Escolha quais respostas rápidas aparecem na barra do Inbox** Templates podem ser ocultados da barra sem desaparecer do atalho `/`; a barra pode ser expandida ou recolhida com a preferência salva por usuário.
+
+- **Ressincronizar webhook social após trocar o domínio** Depois de trocar o domínio da instalação, um administrador pode atualizar o callback do webhook social existente. A ação preserva o canal e seu caminho de autenticação, e informa se já estava sincronizado ou se o provedor não confirmou a atualização.
+
+- **Roteiros de atendimento podem começar pela etapa do negócio** Um roteiro ativo da superfície de atendimento pode ser associado a etapas do funil. O estágio é avaliado no próximo turno e só pode iniciar uma vez por entrada do negócio naquela etapa; roteador e palavra-gatilho mantêm precedência.
+
+- **Tarefas podem ser filtradas e atribuídas por responsável** A tela de Tarefas agora oferece Todas, Minhas, Sem responsável e um membro da organização. “Minhas” é resolvida no servidor pela sessão autenticada; a API valida a participação na organização ao filtrar ou atribuir outra pessoa. O nome do responsável aparece na lista e a edição mantém a atribuição existente. O push de atribuição leva para “Minhas”. O executor de lembretes por prazo não foi criado.
+
+- **Escolha uma aparência por empresa** Cada empresa pode escolher entre a aparência original, Oceano, Areia e Verde natural, em claro e escuro. O administrador pode voltar ao padrão; a escolha não altera a cor nem o logo da marca.
+
+- **Atualização assinada com recuperação segura** O instalador valida assinatura, compatibilidade e digests imutáveis antes de baixar imagens, cria checkpoint e journal e confirma a saúde da nova versão. Se a atualização falhar, restaura aplicação e configuração quando o schema for compatível; migrations destrutivas exigem intervenção do operador.
+
+### Alterado
+
+- **O instalador comercial exige ingresso público HTTPS** Instalações do pacote comercial agora usam Caddy para emitir e renovar certificados automaticamente; o app deixa de publicar sua porta diretamente no host. HTTP simples fica restrito ao modo local explícito.
+
+- **Instalador configura o servidor central de licenças** O kit interativo pergunta a URL base HTTPS do Vendor, grava `CLIENTIX_LICENSE_SERVER_URL` e preserva a configuração ao ser executado novamente. O pacote comercial pede a mesma variável no `.env` e exige uma URL válida em instalações novas; atualizações aceitam `.env` legado sem a variável. Se o kit interativo ficar sem URL, informa que a ativação online não estará disponível e que operações protegidas por licença permanecerão restritas até a configuração.
+
+### Corrigido
+
+- **O calendário de "Novo agendamento" não abre mais num mês sem horário livre** No último dia útil do mês, depois do último horário, "Novo agendamento" abria no mês que estava acabando, com todos os dias apagados e "Nenhum horário livre", e o próximo horário livre, no dia seguinte, ficava escondido atrás da seta de mês. Agora o calendário abre direto no mês seguinte quando o mês de hoje não tem mais nenhum horário livre. Quem quiser marcar um encaixe hoje ainda pode voltar para o mês atual pela seta. Ao trocar de mês, o dia 1º também deixou de aparecer como disponível por um instante antes de os horários do novo mês carregarem. Não é preciso fazer nada na instalação.
+
+- **O worker volta a registrar o desfecho dos turnos** Os eventos de conclusão do agente voltam a ser gravados junto com o trabalho do worker, sem falha de permissão no banco. A atualização aplica os privilégios específicos pela migration 0515; não é necessário ajustar a instalação manualmente.
+
+- **O agente recebe um limite claro quando não há material da empresa** Quando a versão não tem base de conhecimento, o turno passa a instruir o agente a não responder fatos da empresa por suposição. O painel de teste informa que não confere a fonte dos fatos, e a configuração avisa quando uma única etapa pode acabar antes do envio da resposta. Não é necessária nenhuma ação na instalação.
+
+- **As ferramentas do agente acompanham o idioma da conversa** O agente deixa de receber instruções para escrever mensagens, buscar informações ou abrir casos em português fixo. As orientações das ferramentas agora pedem que esses textos acompanhem o idioma usado pela pessoa na conversa. Não é necessário alterar a instalação.
+
+- **Redirects de autenticação e cookie do widget usam origem confiável** Links de confirmação e recuperação usam a origem pública configurada pela instalação. O cookie de sessão do widget segue o critério de HTTPS do runtime.
+
+- **Rascunhos de campanha voltam a salvar com filtros do CRM** Ao criar um rascunho de campanha usando filtros do CRM, os critérios agora seguem o contrato validado pela API e deixam de ser recusados por campos extras.
+
+- **A importação de contatos ignora identificadores que ficaram só na ficha mesclada** Ao importar contatos por CSV, um telefone ou e-mail que ficou apenas no cadastro absorvido por uma mesclagem deixa de ser descartado como duplicado. Se o identificador pertence a um contato ativo da organização, a importação continua pulando a linha como antes.
+
+  Crédito: @samirhvbr (#3620).
+
+- **Descriptografar CPF exige permissão de gestor e prova MFA configurada** A leitura comum de contato permanece disponível segundo o papel existente, mas a resposta que descriptografa CPF passa pelo guard de gestor. Contas com TOTP verificado precisam de sessão AAL2; acesso de suporte somente leitura não ganha permissão para revelar o dado.
+
+- **Entradas SMTP ambíguas não alteram o destinatário** O envio SMTP rejeita CR/LF e entradas não vazias sem mailbox interpretável antes de abrir o transporte. O Nodemailer permanece na versão 10.2.1 já fixada pelo projeto.
+
+- **Envio autorizado em nome de atendente pausa a resposta automática** Um envio por API só recebe a semântica de resposta humana quando o token tem o escopo específico e o usuário representado é membro ativo autorizado da organização. O token continua registrado como ator técnico e a pessoa representada fica identificada separadamente.
+
+- **Workers respeitam o próximo horário de retry ao reivindicar eventos** O claim de um evento revalida o horário de retry no update condicional. Se outro processador reagendar o evento depois da leitura inicial, o worker antigo não o executa antes da hora.
+
+- **Feche a ficha do contato com um alvo touch acessível** O botão de fechar a ficha do Inbox ganhou um alvo de toque de 44 px no mobile.
+
+- **O filtro de palavra-chave não silencia conversas já atendidas** O filtro configurado para o agente passa a decidir se ele entra numa conversa nova. Depois da primeira resposta dele, mensagens seguintes continuam recebendo atendimento mesmo quando não repetem a palavra configurada. Pedidos de ajuda humana e solicitações para parar continuam tendo prioridade. Não é necessário alterar a instalação.
+
+- **É possível cancelar um follow-up aguardando a data do retorno** Um follow-up dormente continua em curso enquanto espera a data programada. Agora pode ser cancelado pela fila ou pelo dossiê sem ser retomado antes; o cancelamento registra o motivo manual e remove o próximo horário. Se o worker já estiver executando o fluxo, a tela recebe um conflito e pode tentar novamente depois.
+
+- **O aviso do handoff usa a janela de resposta e explica quando é bloqueado** O aviso de passagem responde à mensagem recebida e usa a janela de resposta do canal. Se o envio for bloqueado, o cartão mostra o motivo correto. Não é necessária nenhuma ação na instalação. Crédito: @rafaelbravik.
+
+- **Health valida a identidade e a resposta das dependências** O health não segue redirects nem considera páginas HTML ou respostas inválidas como serviços prontos. O diagnóstico informa alcance, identidade, credencial e readiness separadamente.
+
+- **A sonda do banco respeita a RLS de tenants** O health valida o PostgREST por uma relação da própria instância e distingue recusa de permissão de credencial inválida, sem consultar dados de organizações.
+
+- **Health distingue indisponibilidade do projeto Supabase** O diagnóstico de `/api/v1/health` separa respostas que indicam indisponibilidade do projeto Supabase de falhas HTTP genéricas. Respostas 522, PostgREST `PGRST002` e erros explícitos de cache de schema em 5xx recebem um motivo próprio; falhas comuns continuam como resposta inesperada.
+
+- **O instalador fixa a política de ingress de produção** O instalador HostGator grava no ambiente compartilhado a política de ingress de produção e mantém o uso de HTTP inseguro desativado.
+
+- **Preserve a posição do histórico quando chegam mensagens novas** O Inbox acompanha novas mensagens quando a conversa já está no fim e oferece um atalho para voltar sem interromper quem está lendo mensagens anteriores.
+
+- **Edição de fonte de conhecimento valida e substitui FAQ atomicamente** Uma atualização inválida não deixa metadados ou perguntas parcialmente alterados. O Clientix valida o conjunto, troca a FAQ e registra o evento na mesma transação; a trilha de auditoria guarda somente campos alterados e contagem, sem conteúdo.
+
+- **Sincronizações não recriam titulares anonimizados a pedido** Ingressos de contatos consultam a supressão tenant-scoped antes da gravação final. Identidades suprimidas são ignoradas; se a verificação não puder ser concluída, o contato não é criado.
+
+- **Reforça o isolamento entre Customer e Vendor** - Reforça a cópia customer removendo caminhos de Control Plane, emissão, chaves e fixtures privadas.
+  - Varre o standalone, assets públicos e nomes de arquivos em busca de rotas vendor, segredo de emissão e blocos de chave privada PEM.
+  - Exige a trust root pública de produção no build customer e rejeita key IDs de certificação no modo de produção.
+  - Mantém a chave de identidade por instalação do LIC-01 separada da chave privada vendor de emissão.
+  - Desativa source maps de browser, servidor e prerender no build customer e os verifica no artefato; mantém o comportamento do build vendor.
+  - Exclui `.clientix-local` do contexto Docker para impedir que backups, runtime e segredos locais entrem na imagem.
+  - Não cria chave oficial, não aplica migration na stack persistente e não publica imagens.
+
+- **A rotação da licença mantém a leitura nos runtimes autorizados** O instalador e a atualização da licença agora mantêm o arquivo privado legível pelo customer, worker e voice-agent. Erros de acesso ao arquivo também são identificados separadamente de documentos malformados.
+
+- **Corrige e fecha a validação local E2E de licenças** O ensaio local separado do Control Plane Vendor e do runtime Customer foi concluído após corrigir a sessão única por processo e o tratamento de heartbeat concorrente, provar recovery sem restart, emissão assinada no próprio pagamento, bloqueio de uma rota comercial real, e reativação após expiração. As duas falhas unitárias anteriores foram classificadas como preexistentes e corrigidas; o foco terminou em 97/97. Build Vendor, build Customer e boundary da imagem Customer passaram.
+
+  `READY_FOR_VPS_PILOT=YES` significa apenas que os gates locais para planejar um piloto passaram; VPS não foi usada. `PUBLIC_RELEASE_READY=NO`. Não houve acesso à persistente `deskcomm-crm`, produção ou gateway financeiro; sem migrations nesta wave, commit ou push.
+
+- **Limite de tentativas do segundo fator também vale na troca de senha** O limite de tentativas de verificação em duas etapas agora é contado no servidor e é compartilhado entre o login e a troca de senha. O contador do navegador continua como defesa adicional, sem ser a única barreira contra tentativas repetidas.
+
+- **A Lista do funil agora aplica responsável e status** Na aba Lista, os filtros de responsável e status agora atuam nos resultados antes da paginação. Os demais filtros continuam disponíveis no Quadro e a Lista informa claramente quando eles ainda não se aplicam.
+
+- **Framework e MCP recebem atualizações de segurança e limites de entrada** O framework Next.js e o SDK MCP foram atualizados para versões corrigidas. O servidor MCP também passa a rejeitar inputs com mais de mil elementos e corpos HTTP acima de um MiB.
+
+- **A regeneração de recovery codes exige MFA verificado** Regenerar os códigos de recuperação agora exige uma sessão em AAL2 e grava os hashes apenas pelo servidor. Sessões sem a prova MFA precisam concluir o desafio antes de continuar.
+
+- **Facilite ações da ficha de contato em telas touch** Os controles compactos da ficha e das tags passam a ter alvos maiores em telas touch, mantendo a densidade atual em desktop.
+
+- **Valores monetários respeitam a moeda da organização** Os campos monetários interpretam separadores de milhar e decimais conforme a moeda associada ao valor, preservando os formatos existentes em BRL.
+
+- **Nodemailer foi atualizado para a versão corrigida** O transporte de e-mail usa Nodemailer 10.2.1, versão acima da correção do advisory analisado. Os fluxos de SMTP continuam passando pelo wrapper central do Clientix.
+
+- **A instalação nova prepara Customer, Vendor e o first-run do proprietário** O caminho local agora cria bancos isolados, provisiona `agent_worker` antes da ACL da baseline, aplica as seis migrations do Control Plane e inicia Customer e Vendor com credenciais sintéticas. O compose envia explicitamente o modo de ingresso local ao Worker, que executa com `NODE_ENV=production`. O token inicial é gerado e guardado pelo instalador; o proprietário consegue concluir o first-run sem preparar segredo manualmente.
+
+- **Respostas recebidas não consomem o limite diário de disparos** Respostas a mensagens recebidas continuam sujeitas à janela e ao espaçamento configurados, mas não consomem o teto diário destinado a novos disparos e prospecção. A atualização de schema 9061 registra no ledger quais envios são respostas e preserva a classificação das linhas existentes.
+
+- **A Lista aceita páginas além do total** Ao pedir uma página que começa depois do último negócio, a Lista devolve uma página vazia com o total correto em vez de um erro interno.
+
+- **O Customer volta a validar a licença após a reativação** Depois que o Vendor reativa uma licença suspensa, o Customer estabelece uma nova sessão autenticada na próxima validação, sem reinício e sem trocar a identidade da instalação. A sessão encerrada durante a suspensão continua inválida. Não é necessário fazer nada manualmente.
+
+- **Imagens publicáveis registram proveniência verificável** As imagens publicáveis registram o commit de origem e se a árvore estava limpa. As verificações de release de voz e worker compartilham a validação de elegibilidade e proveniência.
+
+- **Falha ao ler SMTP não apaga a senha salva** Ao salvar SMTP sem informar uma nova senha, o Clientix agora aborta se não conseguir confirmar o segredo atual. Uma falha de leitura não apaga a senha cifrada nem salva parcialmente as demais configurações.
+
+- **Suspender uma empresa passa a calar a IA e os envios dela; quem tem acesso só de leitura ao painel deixa de poder alterar dados** Até aqui, suspender uma empresa em Admin › Empresas só tirava as pessoas da tela. A IA continuava respondendo aos clientes, o follow-up e as automações seguiam disparando, e o token de API e o MCP da empresa continuavam funcionando. Agora a suspensão suspende: nada que custe dinheiro ou saia para fora roda enquanto ela durar, e o que estava na fila para sair é descartado na hora em vez de sair depois.
+
+  As mensagens que chegam continuam gravadas, as páginas de anúncio e o link de rastreio seguem no ar, e pelo MCP a consulta aos pedidos de LGPD continua respondendo — as demais ferramentas do MCP recusam, e a API responde com um erro claro (403 `org_suspended`), pelo token ou pela tela. Quem entra numa empresa suspensa, ou já estava com o CRM aberto na hora, cai numa tela que diz o que fazer. Quem administra vê os pedidos de LGPD dos clientes, que não param durante a suspensão (o link do e-mail de prazo abre o pedido ali mesmo), e o contato do suporte quando o e-mail de suporte da instalação estiver configurado (`SUPPORT_EMAIL`); sem ele, a tela orienta a falar com quem administra o sistema. As demais pessoas leem que devem avisar o administrador, e quem participa de outra empresa ativa volta para ela com um clique.
+
+  Ao reativar, nada sai em rajada: a Central mostra um aviso com quantas conversas receberam mensagem durante a suspensão e leva ao Inbox, porque a IA não vai respondê-las sozinha. Os follow-ups em andamento ficam parados enquanto a suspensão durar e, ao reativar, retomam de onde pararam; o passo cujo envio foi descartado na suspensão ganha um envio novo, no ritmo normal da fila. Quem tem acesso só de leitura ao painel da instalação deixa de conseguir suspender, reativar ou alterar o estado de uma empresa, pela tela ou pela API, e também deixa de mudar configurações ou apagar dados de uma empresa em que é só participante. Nenhuma ação é necessária.
+
+- **Mantenha o tipo do campo legível em Funis** O seletor de campos personalizados mostra nomes claros e reserva espaço para rótulos longos em telas maiores, com o texto completo disponível no tooltip.
+
+- **A dica de sugestão de resposta fica disponível no Inbox** O botão ativo “Sugerir resposta” agora explica sua ação ao passar o mouse ou receber foco, sem alterar o fluxo de geração da sugestão.
+
+- **Oferta para falar com a equipe não abre caso automaticamente** Uma pergunta que oferece encaminhar o atendimento, mesmo depois de um reconhecimento curto como “Entendi!”, não é mais tratada como promessa de atendimento humano já executado. Promessas de encaminhamento ou retorno continuam vetadas sem caso aberto.
+
+- **O worker libera a conversa quando uma licença impede a execução** Quando a licença da instalação não permite executar um job, o worker agora devolve o trabalho à fila sem consumir tentativa e libera a lane da conversa para outros jobs. Falhas inesperadas também recebem settlement pelo claim original; o reaper continua como recuperação para encerramento abrupto do processo.
+
 ## [1.69.0] — 2026-09-30
 
 ### Adicionado
@@ -9734,7 +9944,8 @@ Primeira versão marcada do DeskcommCRM. O projeto vinha sendo desenvolvido publ
 
 - **Node 22 é obrigatório para desenvolvimento.** A suíte de invariantes instancia o cliente do Supabase, que exige o `WebSocket` global — nativo apenas a partir do Node 22. Isso não afeta quem apenas hospeda: a VPS roda a imagem pronta.
 
-[Não lançado]: https://github.com/melgarafael/DeskcommCRM/compare/v1.69.0...HEAD
+[Não lançado]: https://github.com/melgarafael/DeskcommCRM/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/melgarafael/DeskcommCRM/compare/v1.69.0...v2.0.0
 [1.69.0]: https://github.com/melgarafael/DeskcommCRM/compare/v1.68.0...v1.69.0
 [1.68.0]: https://github.com/melgarafael/DeskcommCRM/compare/v1.67.0...v1.68.0
 [1.67.0]: https://github.com/melgarafael/DeskcommCRM/compare/v1.66.1...v1.67.0
