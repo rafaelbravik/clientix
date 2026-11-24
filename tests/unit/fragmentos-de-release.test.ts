@@ -12,8 +12,8 @@ import { calcularBump, FragmentoInvalido, parseFragmento } from "@/lib/release/f
  * de um. Cobrar presença dentro de um check obrigatório quebraria três coisas
  * que este repo tem de verdade: os PRs do Dependabot (`.github/dependabot.yml`,
  * dois ecossistemas), os PRs de fork de quem contribui de fora, e — o mais
- * absurdo — o próprio PR de release, que por construção CONSOME os fragmentos e
- * deixa `.changes/` vazio. O gate existiria para produzir esse PR e o reprovaria.
+ * absurdo — o próprio PR de release, que consome só os fragmentos selecionados e pode deixar
+ * `.changes/` com notas para lotes seguintes. O gate existiria para produzir esse PR e o reprovaria.
  *
  * A presença é cobrada onde não trava robô: no item do Definition of Done
  * (`CLAUDE.md`) e na régua de `docs/doctrine/versionamento.md`.

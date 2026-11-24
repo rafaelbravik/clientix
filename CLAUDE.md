@@ -751,7 +751,7 @@ Antes de declarar uma task pronta:
     que duas sessões paralelas não colidem mais. Confira com `pnpm release:conferir`.
     O CI valida a FORMA de todo fragmento, mas **não** cobra a presença de um — cobrar
     presença num check obrigatório reprovaria PR de Dependabot, PR de fork, e o próprio PR
-    de release, que consome os fragmentos e deixa o diretório vazio. A presença é cobrada
+    de release, que consome os selecionados e pode deixar fragmentos para outros lotes.
     aqui, e por quem revisa.
     **Toda versão publicada aparece na página de changelog da LP** (deskcomm.com.br/changelog,
     pt-BR/en/es). Ninguém escreve no site: a LP lê o `CHANGELOG.md` da `main`, e o último passo
