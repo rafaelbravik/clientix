@@ -42,6 +42,7 @@ declare -A _ES=(
   ["Não consegui proteger o arquivo de credenciais do Docker."]="No pude proteger el archivo de credenciales de Docker."
   ["Não posso continuar sem autenticação no GHCR."]="No puedo continuar sin autenticación en GHCR."
   ["Antes de repetir, rode: docker login ghcr.io --username SEU_USUARIO"]="Antes de volver a intentarlo, ejecuta: docker login ghcr.io --username TU_USUARIO"
+  ["Instalação interrompida: falta acesso às imagens privadas do Clientix."]="Instalación interrumpida: faltan permisos para las imágenes privadas de Clientix."
   ["Usuário GitHub com acesso de leitura aos pacotes: "]="Usuario de GitHub con acceso de lectura a los paquetes: "
   ["A autenticação funcionou, mas este usuário ainda não consegue ler todas as imagens necessárias."]="La autenticación funcionó, pero este usuario aún no puede leer todas las imágenes necesarias."
   ["Peça ao dono do Clientix acesso Read aos pacotes Clientix e tente novamente."]="Pide al propietario de Clientix acceso Read a los paquetes Clientix e inténtalo de nuevo."
