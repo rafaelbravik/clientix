@@ -20,6 +20,17 @@ export function resolverRepositorioDaRelease(valor?: string): string {
   return `${proprietario}/${repositorio}`;
 }
 
-export function urlDeComparacaoDaRelease(repositorio: string, de: string, para: string): string {
-  return `https://github.com/${repositorio}/compare/${de}...${para}`;
+export function urlDeComparacaoDaRelease(
+  servidor: string,
+  repositorio: string,
+  de: string,
+  para: string,
+): string {
+  const base = new URL(servidor);
+  if (base.protocol !== "https:" || base.username || base.password || base.search || base.hash) {
+    throw new Error("Origem inválida para link de comparação da release.");
+  }
+
+  const caminho = base.pathname.replace(/\/+$/, "");
+  return `${base.origin}${caminho}/${repositorio}/compare/${de}...${para}`;
 }
