@@ -359,19 +359,16 @@ export function OwnerConsole({ ownerEmail }: { ownerEmail: string }) {
           </button>
         </form>
         {ownerInvitation?.accept_url && (
-          <div
-            className="space-y-3 rounded-md border p-4"
-            aria-label={t("Convite do administrador inicial")}
-          >
+          <div className="space-y-3 rounded-md border p-4">
             <p role="status" className="text-sm">
               {ownerInvitation.email_dispatched
-                ? t("Convite do administrador enviado por e-mail.")
+                ? t("Convite enviado por e-mail.")
                 : t(
-                    "O envio por e-mail não foi confirmado. Copie o link e compartilhe com o administrador.",
+                    "O envio por e-mail não foi confirmado. Copie o link e compartilhe com o responsável.",
                   )}
             </p>
             <label className="grid gap-1 text-sm">
-              {t("Link do convite do administrador")}
+              {t("Link do convite")}
               <input
                 type="url"
                 readOnly
@@ -393,15 +390,13 @@ export function OwnerConsole({ ownerEmail }: { ownerEmail: string }) {
                     ? { kind: "success", message: t("Link do convite copiado.") }
                     : {
                         kind: "error",
-                        message: t(
-                          "Não foi possível copiar o convite. Selecione o link e copie manualmente.",
-                        ),
+                        message: t("Não foi possível copiar — selecione e copie manualmente."),
                       },
                 );
               }}
               className="rounded-md border px-4 py-2 text-sm font-medium"
             >
-              {t("Copiar convite do administrador")}
+              {t("Copiar convite")}
             </button>
           </div>
         )}

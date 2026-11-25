@@ -56,17 +56,17 @@ describe("painel do proprietário: convite do administrador inicial", () => {
     });
     fireEvent.submit(screen.getByRole("button", { name: "Criar empresa" }).closest("form")!);
 
-    const linkInput = await screen.findByLabelText("Link do convite do administrador");
+    const linkInput = await screen.findByLabelText("Link do convite");
     expect(linkInput).toHaveValue(INVITE_URL);
     expect(linkInput).toHaveAttribute("readonly");
     expect(
       screen.getByText(
-        "O envio por e-mail não foi confirmado. Copie o link e compartilhe com o administrador.",
+        "O envio por e-mail não foi confirmado. Copie o link e compartilhe com o responsável.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByText(/Válido até/)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Copiar convite do administrador" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copiar convite" }));
     await waitFor(() => expect(copyMock).toHaveBeenCalledWith(INVITE_URL));
     expect(await screen.findByText("Link do convite copiado.")).toBeInTheDocument();
   });
