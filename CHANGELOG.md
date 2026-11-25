@@ -8,6 +8,34 @@ Se você roda o DeskcommCRM numa VPS, **leia a seção da versão para a qual es
 
 ## [Não lançado]
 
+## [2.1.0] — 2026-11-25
+
+### Adicionado
+
+- **Instalação autenticada de imagens privadas do GHCR** O kit HostGator agora verifica o acesso antes de configurar ou atualizar a instalação e usa o login Docker autorizado para atualizações futuras. O instalador comercial também pode usar um login Docker persistente feito antes de instalar ou atualizar. O PAT fica fora do `.env`; a licença `ACT_...` continua sendo um controle separado.
+
+- **Tarefas podem ser filtradas e atribuídas por responsável** A tela de Tarefas agora oferece Todas, Minhas, Sem responsável e um membro da organização. “Minhas” é resolvida no servidor pela sessão autenticada; a API valida a participação na organização ao filtrar ou atribuir outra pessoa. O nome do responsável aparece na lista e a edição mantém a atribuição existente. O push de atribuição leva para “Minhas”. O executor de lembretes por prazo não foi criado.
+
+- **Escolha uma aparência por empresa** Cada empresa pode escolher entre a aparência original, Oceano, Areia e Verde natural, em claro e escuro. O administrador pode voltar ao padrão; a escolha não altera a cor nem o logo da marca.
+
+- **Atualização assinada com recuperação segura** O instalador valida assinatura, compatibilidade e digests imutáveis antes de baixar imagens, cria checkpoint e journal e confirma a saúde da nova versão. Se a atualização falhar, restaura aplicação e configuração quando o schema for compatível; migrations destrutivas exigem intervenção do operador.
+
+### Corrigido
+
+- **Suspender uma empresa passa a calar a IA e os envios dela; quem tem acesso só de leitura ao painel deixa de poder alterar dados** Até aqui, suspender uma empresa em Admin › Empresas só tirava as pessoas da tela. A IA continuava respondendo aos clientes, o follow-up e as automações seguiam disparando, e o token de API e o MCP da empresa continuavam funcionando. Agora a suspensão suspende: nada que custe dinheiro ou saia para fora roda enquanto ela durar, e o que estava na fila para sair é descartado na hora em vez de sair depois.
+
+  As mensagens que chegam continuam gravadas, as páginas de anúncio e o link de rastreio seguem no ar, e pelo MCP a consulta aos pedidos de LGPD continua respondendo — as demais ferramentas do MCP recusam, e a API responde com um erro claro (403 `org_suspended`), pelo token ou pela tela. Quem entra numa empresa suspensa, ou já estava com o CRM aberto na hora, cai numa tela que diz o que fazer. Quem administra vê os pedidos de LGPD dos clientes, que não param durante a suspensão (o link do e-mail de prazo abre o pedido ali mesmo), e o contato do suporte quando o e-mail de suporte da instalação estiver configurado (`SUPPORT_EMAIL`); sem ele, a tela orienta a falar com quem administra o sistema. As demais pessoas leem que devem avisar o administrador, e quem participa de outra empresa ativa volta para ela com um clique.
+
+  Ao reativar, nada sai em rajada: a Central mostra um aviso com quantas conversas receberam mensagem durante a suspensão e leva ao Inbox, porque a IA não vai respondê-las sozinha. Os follow-ups em andamento ficam parados enquanto a suspensão durar e, ao reativar, retomam de onde pararam; o passo cujo envio foi descartado na suspensão ganha um envio novo, no ritmo normal da fila. Quem tem acesso só de leitura ao painel da instalação deixa de conseguir suspender, reativar ou alterar o estado de uma empresa, pela tela ou pela API, e também deixa de mudar configurações ou apagar dados de uma empresa em que é só participante. Nenhuma ação é necessária.
+
+- **Mantenha o tipo do campo legível em Funis** O seletor de campos personalizados mostra nomes claros e reserva espaço para rótulos longos em telas maiores, com o texto completo disponível no tooltip.
+
+- **A dica de sugestão de resposta fica disponível no Inbox** O botão ativo “Sugerir resposta” agora explica sua ação ao passar o mouse ou receber foco, sem alterar o fluxo de geração da sugestão.
+
+- **Oferta para falar com a equipe não abre caso automaticamente** Uma pergunta que oferece encaminhar o atendimento, mesmo depois de um reconhecimento curto como “Entendi!”, não é mais tratada como promessa de atendimento humano já executado. Promessas de encaminhamento ou retorno continuam vetadas sem caso aberto.
+
+- **O worker libera a conversa quando uma licença impede a execução** Quando a licença da instalação não permite executar um job, o worker agora devolve o trabalho à fila sem consumir tentativa e libera a lane da conversa para outros jobs. Falhas inesperadas também recebem settlement pelo claim original; o reaper continua como recuperação para encerramento abrupto do processo.
+
 ## [2.0.0] — 2026-11-24
 
 ### ⚠️ Requer atenção
@@ -9924,7 +9952,8 @@ Primeira versão marcada do DeskcommCRM. O projeto vinha sendo desenvolvido publ
 
 - **Node 22 é obrigatório para desenvolvimento.** A suíte de invariantes instancia o cliente do Supabase, que exige o `WebSocket` global — nativo apenas a partir do Node 22. Isso não afeta quem apenas hospeda: a VPS roda a imagem pronta.
 
-[Não lançado]: https://github.com/melgarafael/DeskcommCRM/compare/v2.0.0...HEAD
+[Não lançado]: https://github.com/melgarafael/DeskcommCRM/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/melgarafael/DeskcommCRM/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/melgarafael/DeskcommCRM/compare/v1.69.0...v2.0.0
 [1.69.0]: https://github.com/melgarafael/DeskcommCRM/compare/v1.68.0...v1.69.0
 [1.68.0]: https://github.com/melgarafael/DeskcommCRM/compare/v1.67.0...v1.68.0
