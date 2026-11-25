@@ -21,14 +21,15 @@ import path from "node:path";
 import { calcularBump, type Fragmento, parseFragmento, proximaVersao } from "../lib/release/fragmento";
 import { aplicarNoChangelog, montarSecao } from "../lib/release/montar-secao";
 import { selecionarLoteDeRelease } from "../lib/release/cabe-na-tela";
+import { resolverRepositorioDaRelease, urlDeComparacaoDaRelease } from "../lib/release/repositorio";
 
 const RAIZ = path.resolve(__dirname, "..");
 const DIR_FRAGMENTOS = path.join(RAIZ, ".changes");
 const CHANGELOG = path.join(RAIZ, "CHANGELOG.md");
 const AGENT_SH = path.join(RAIZ, "hostgator-setup-kit", "agent.sh");
-const REPO = "melgarafael/DeskcommCRM";
+const REPO = resolverRepositorioDaRelease(process.env.GITHUB_REPOSITORY);
 
-const compararUrl = (de: string, para: string) => `https://github.com/${REPO}/compare/${de}...${para}`;
+const compararUrl = (de: string, para: string) => urlDeComparacaoDaRelease(REPO, de, para);
 
 /** `.gitkeep` e qualquer não-`.md` ficam de fora; o diretório guarda só fragmento. */
 export function arquivosDeFragmento(dir: string): string[] {
