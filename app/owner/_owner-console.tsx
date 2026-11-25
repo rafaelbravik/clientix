@@ -2,17 +2,20 @@
 
 import { useState, type FormEvent } from "react";
 import { useT } from "@/hooks/i18n/useT";
+import { copyToClipboard } from "@/lib/clipboard";
 import { randomId } from "@/lib/random-id";
 import { OwnerSubscriptionManager } from "./_subscription-manager";
 
 type Tenant = { id: string; slug: string; display_name: string };
+type Invitation = { accept_url?: string; email_dispatched?: boolean; expires_at?: string };
 type OwnerApiPayload = {
   data?:
     | {
         id?: string;
         slug?: string;
         display_name?: string;
-        invitation?: { accept_url?: string; email_dispatched?: boolean };
+        invitation?: Invitation;
+        owner_invitation?: Invitation | null;
       }
     | Tenant[];
   error?: { message?: string };
@@ -38,13 +41,16 @@ export function OwnerConsole({ ownerEmail }: { ownerEmail: string }) {
   const [displayName, setDisplayName] = useState("");
   const [slug, setSlug] = useState("");
   const [plan, setPlan] = useState<"standard" | "pro" | "enterprise" | "">("");
-  const [billingInterval, setBillingInterval] = useState<"monthly" | "annual" | "custom">("monthly");
+  const [billingInterval, setBillingInterval] = useState<"monthly" | "annual" | "custom">(
+    "monthly",
+  );
   const [subscriptionAmount, setSubscriptionAmount] = useState("");
   const [periodEndsAt, setPeriodEndsAt] = useState(defaultPeriodEnd("monthly"));
   const [tenantOwnerEmail, setTenantOwnerEmail] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"viewer" | "agent" | "manager" | "admin">("agent");
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+  const [ownerInvitation, setOwnerInvitation] = useState<Invitation | null>(null);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<Feedback>(null);
 
@@ -89,17 +95,24 @@ export function OwnerConsole({ ownerEmail }: { ownerEmail: string }) {
     }
     const normalizedAmount = subscriptionAmount.trim().replace(",", ".");
     const parsedAmount = normalizedAmount === "" ? null : Number(normalizedAmount);
-    if (parsedAmount !== null && (!Number.isFinite(parsedAmount) || parsedAmount < 0 || parsedAmount > 9_999_999_999)) {
+    if (
+      parsedAmount !== null &&
+      (!Number.isFinite(parsedAmount) || parsedAmount < 0 || parsedAmount > 9_999_999_999)
+    ) {
       setFeedback({ kind: "error", message: "Informe um preço válido." });
       return;
     }
     const periodEnd = new Date(periodEndsAt);
     if (!Number.isFinite(periodEnd.getTime()) || periodEnd <= new Date()) {
-      setFeedback({ kind: "error", message: "O período da assinatura precisa terminar no futuro." });
+      setFeedback({
+        kind: "error",
+        message: "O período da assinatura precisa terminar no futuro.",
+      });
       return;
     }
     setBusy(true);
     setFeedback(null);
+    setOwnerInvitation(null);
     try {
       const response = await fetch("/api/v1/admin/tenants", {
         method: "POST",
@@ -141,6 +154,7 @@ export function OwnerConsole({ ownerEmail }: { ownerEmail: string }) {
         setTenants((current) => [created, ...current.filter((tenant) => tenant.id !== created.id)]);
         setSelectedTenantId(created.id);
       }
+      setOwnerInvitation(payload.data.owner_invitation ?? null);
       setDisplayName("");
       setSlug("");
       setPlan("");
@@ -321,7 +335,9 @@ export function OwnerConsole({ ownerEmail }: { ownerEmail: string }) {
             />
           </label>
           <p className="text-xs text-muted-foreground sm:col-span-2">
-            {t("A nova empresa recebe uma assinatura ativa com este plano e período. O pagamento continua manual.")}
+            {t(
+              "A nova empresa recebe uma assinatura ativa com este plano e período. O pagamento continua manual.",
+            )}
           </p>
           <label className="grid gap-1 text-sm">
             E-mail do administrador inicial
@@ -342,6 +358,48 @@ export function OwnerConsole({ ownerEmail }: { ownerEmail: string }) {
             Criar empresa
           </button>
         </form>
+        {ownerInvitation?.accept_url && (
+          <div className="space-y-3 rounded-md border p-4">
+            <p role="status" className="text-sm">
+              {ownerInvitation.email_dispatched
+                ? t("Convite enviado por e-mail.")
+                : t(
+                    "O envio por e-mail não foi confirmado. Copie o link e compartilhe com o responsável.",
+                  )}
+            </p>
+            <label className="grid gap-1 text-sm">
+              {t("Link do convite")}
+              <input
+                type="url"
+                readOnly
+                value={ownerInvitation.accept_url}
+                className="w-full rounded-md border bg-background px-3 py-2"
+              />
+            </label>
+            {ownerInvitation.expires_at && (
+              <p className="text-sm text-muted-foreground">
+                {t("Válido até")} {new Date(ownerInvitation.expires_at).toLocaleString()}.
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={async () => {
+                const copied = await copyToClipboard(ownerInvitation.accept_url!);
+                setFeedback(
+                  copied
+                    ? { kind: "success", message: t("Link do convite copiado.") }
+                    : {
+                        kind: "error",
+                        message: t("Não foi possível copiar — selecione e copie manualmente."),
+                      },
+                );
+              }}
+              className="rounded-md border px-4 py-2 text-sm font-medium"
+            >
+              {t("Copiar convite")}
+            </button>
+          </div>
+        )}
       </section>
 
       <section aria-labelledby="owner-users-title" className="space-y-4 rounded-lg border p-5">
