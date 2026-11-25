@@ -1,0 +1,25 @@
+/** Repositório usado nos links de comparação gerados pelo corte de release. */
+const REPOSITORIO_DO_PRODUTO = "rafaelbravik/clientix";
+const PARTE_DO_NOME = /^[A-Za-z0-9_.-]+$/;
+
+/**
+ * Usa o contexto oficial do Actions quando disponível.
+ * Em execução local, os cortes apontam para o repositório principal do Clientix.
+ */
+export function resolverRepositorioDaRelease(valor?: string): string {
+  if (!valor) return REPOSITORIO_DO_PRODUTO;
+
+  const partes = valor.trim().split("/");
+  if (partes.length !== 2 || !partes[0] || !partes[1]) return REPOSITORIO_DO_PRODUTO;
+
+  const [proprietario, repositorio] = partes;
+  if (!PARTE_DO_NOME.test(proprietario) || !PARTE_DO_NOME.test(repositorio)) {
+    return REPOSITORIO_DO_PRODUTO;
+  }
+
+  return `${proprietario}/${repositorio}`;
+}
+
+export function urlDeComparacaoDaRelease(repositorio: string, de: string, para: string): string {
+  return `https://github.com/${repositorio}/compare/${de}...${para}`;
+}
