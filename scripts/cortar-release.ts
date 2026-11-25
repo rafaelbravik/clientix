@@ -28,8 +28,9 @@ const DIR_FRAGMENTOS = path.join(RAIZ, ".changes");
 const CHANGELOG = path.join(RAIZ, "CHANGELOG.md");
 const AGENT_SH = path.join(RAIZ, "hostgator-setup-kit", "agent.sh");
 const REPO = resolverRepositorioDaRelease(process.env.GITHUB_REPOSITORY);
+const SERVIDOR_GITHUB = process.env.GITHUB_SERVER_URL ?? "https://github.com";
 
-const compararUrl = (de: string, para: string) => urlDeComparacaoDaRelease(REPO, de, para);
+const compararUrl = (de: string, para: string) => urlDeComparacaoDaRelease(SERVIDOR_GITHUB, REPO, de, para);
 
 /** `.gitkeep` e qualquer não-`.md` ficam de fora; o diretório guarda só fragmento. */
 export function arquivosDeFragmento(dir: string): string[] {
