@@ -60,6 +60,8 @@ KIT_DIR_TESTE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../hostgator-setup-kit" &
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 WORK="$(mktemp -d)"
+# Isola as permissões verificadas pelo helper; não ajusta ~/.docker de quem roda o teste.
+export DOCKER_CONFIG="$WORK/docker-config"
 trap 'rm -rf "$WORK"' EXIT
 
 # git de verdade, resolvido ANTES de $WORK/bin entrar no PATH (senão o shim

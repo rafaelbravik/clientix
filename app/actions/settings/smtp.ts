@@ -2,7 +2,7 @@
 import { z } from "zod";
 import { headers } from "next/headers";
 import { audit } from "@/lib/audit";
-import { escritaDeAdminOuRecusa } from "@/lib/auth/escritaDeAdminOuRecusa";
+import { escritaDeOwnerOuRecusa } from "@/lib/auth/escritaDeOwnerOuRecusa";
 import { checkSmtpConfiguration } from "@/lib/email/smtp";
 import { saveSmtpConfig } from "@/lib/email/config";
 
@@ -17,7 +17,7 @@ const schema = z.object({
 });
 
 export async function updateSmtp(input: z.input<typeof schema>) {
-  const escrita = await escritaDeAdminOuRecusa();
+  const escrita = await escritaDeOwnerOuRecusa();
   if (!escrita.ok) return escrita;
   const { user } = escrita.ctx;
   const parsed = schema.safeParse(input);
@@ -64,7 +64,7 @@ export async function updateSmtp(input: z.input<typeof schema>) {
 }
 
 export async function checkSmtp() {
-  const escrita = await escritaDeAdminOuRecusa();
+  const escrita = await escritaDeOwnerOuRecusa();
   if (!escrita.ok) return escrita;
   return checkSmtpConfiguration();
 }

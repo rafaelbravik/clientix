@@ -11,6 +11,8 @@ printf '{}\n' > "$tmp/.docker/config.json"
 chmod 644 "$tmp/.docker/config.json"
 HOME="$tmp"
 export HOME
+DOCKER_CONFIG="$tmp/.docker"
+export DOCKER_CONFIG
 trap 'rm -rf "$tmp"' EXIT
 
 docker() {

@@ -367,10 +367,6 @@ validate_external_config() {
   if [ "${WAHA_WEBHOOK_REQUIRE_SIGNATURE:-false}" = "true" ] && [ "${#webhook_secret}" -lt 16 ]; then
     missing+=(WAHA_HMAC_SECRET)
   fi
-  if [ -n "${TELEGRAM_MTPROTO_GATEWAY_URL:-}" ] &&
-    [[ ! "${TELEGRAM_MTPROTO_GATEWAY_URL}" =~ ^https://[^/@?#[:space:]]+(/[^?#[:space:]]*)?$ ]]; then
-    missing+=(TELEGRAM_MTPROTO_GATEWAY_URL_requires_https)
-  fi
   [ ${#missing[@]} -eq 0 ] || die "MISSING_EXTERNAL_CONFIG: configure no .env as dependências externas: ${missing[*]}"
 }
 

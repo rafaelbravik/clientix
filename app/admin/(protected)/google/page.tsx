@@ -1,8 +1,13 @@
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 
-import { configuracaoDoAmbiente, enderecoDeRetorno, origemLocalDosCabecalhos } from "@/lib/agenda/google/config";
+import {
+  configuracaoDoAmbiente,
+  enderecoDeRetorno,
+  origemLocalDosCabecalhos,
+} from "@/lib/agenda/google/config";
 import { loadAuthUser } from "@/lib/auth/server";
+import { requirePlatformOwner } from "@/lib/auth/requirePlatformAdmin";
 import { tagDeIdioma } from "@/lib/i18n/datas";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -45,6 +50,7 @@ export const dynamic = "force-dynamic";
  * desta instalação, isto é, ler a agenda de todos os atendentes que conectaram.
  */
 export default async function Page() {
+  await requirePlatformOwner();
   const usuario = await loadAuthUser();
   if (!usuario?.is_platform_admin) notFound();
   const cabecalhos = await headers();
@@ -59,9 +65,11 @@ export default async function Page() {
     .eq("id", 1)
     .maybeSingle();
 
-  const linha = data as
-    | { client_id: string | null; client_secret_encrypted: string | null; updated_at: string | null }
-    | null;
+  const linha = data as {
+    client_id: string | null;
+    client_secret_encrypted: string | null;
+    updated_at: string | null;
+  } | null;
 
   // O que o `.env` traz, para a tela poder dizer de ONDE vem o que está em
   // vigor. Sem isso, quem tem o par no `.env` e abre esta tela vazia conclui que

@@ -7,14 +7,13 @@ import { z } from "zod";
 import { invalidarAppDaMeta } from "@/lib/channels/meta/app";
 import { audit } from "@/lib/audit";
 import { logger } from "@/lib/logger";
-import { escritaDeAdminOuRecusa } from "@/lib/auth/escritaDeAdminOuRecusa";
+import { escritaDeOwnerOuRecusa } from "@/lib/auth/escritaDeOwnerOuRecusa";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { encryptWebhookSecret } from "@/lib/webhooks/secrets";
 
 export type UpdateMetaAppResult =
   /** `verifyToken` SÓ vem quando o token acabou de ser gerado — é a única vez que ele sai do servidor. */
-  | { ok: true; verifyToken?: string }
-  | { ok: false; error: string; details?: unknown };
+  { ok: true; verifyToken?: string } | { ok: false; error: string; details?: unknown };
 
 /**
  * O app da Meta DESTA INSTALAÇÃO: App Secret gravado pelo dono, verify token
@@ -164,10 +163,18 @@ async function oQueEstaGravado(): Promise<
     .eq("id", 1)
     .maybeSingle();
   if (error) {
-    logger.warn("[meta.app] não deu para ler o que está gravado; nada foi alterado", { codigo: error.code });
-    return { ok: false, recusa: { ok: false, error: "leitura_do_app_falhou", details: { codigo: error.code } } };
+    logger.warn("[meta.app] não deu para ler o que está gravado; nada foi alterado", {
+      codigo: error.code,
+    });
+    return {
+      ok: false,
+      recusa: { ok: false, error: "leitura_do_app_falhou", details: { codigo: error.code } },
+    };
   }
-  const linha = data as { app_secret_encrypted?: string | null; verify_token_encrypted?: string | null } | null;
+  const linha = data as {
+    app_secret_encrypted?: string | null;
+    verify_token_encrypted?: string | null;
+  } | null;
   return {
     ok: true,
     temSegredo: texto(linha?.app_secret_encrypted) !== "",
@@ -192,7 +199,7 @@ const SEM_SEGREDO: UpdateMetaAppResult = { ok: false, error: "app_secret_obrigat
  * que o produto oferece desse valor.
  */
 export async function updateMetaApp(input: MetaAppInput): Promise<UpdateMetaAppResult> {
-  const escrita = await escritaDeAdminOuRecusa();
+  const escrita = await escritaDeOwnerOuRecusa();
   if (!escrita.ok) return escrita;
   const { user: authUser } = escrita.ctx;
 
@@ -266,7 +273,7 @@ export async function updateMetaApp(input: MetaAppInput): Promise<UpdateMetaAppR
  * avisa em vez de trocar sozinha.
  */
 export async function rotacionarVerifyTokenDaMeta(): Promise<UpdateMetaAppResult> {
-  const escrita = await escritaDeAdminOuRecusa();
+  const escrita = await escritaDeOwnerOuRecusa();
   if (!escrita.ok) return escrita;
   const { user: authUser } = escrita.ctx;
 

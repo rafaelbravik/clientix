@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Credenciais das integrações da instalação",
+    "subtitle": "O proprietário configura o aplicativo uma vez; cada empresa conecta suas próprias contas",
+    "output": "credenciais-da-instalacao.html",
+    "quality_profile": "standard"
+  },
+  "lanes": [
+    { "id": "operador", "label": "Proprietário e tenants" },
+    { "id": "app", "label": "Vendor e Customer" },
+    { "id": "armazenamento", "label": "Credenciais da instalação" },
+    { "id": "provedores", "label": "Provedores" }
+  ],
+  "mainPath": ["owner", "painel", "acoes", "cofre", "runtime", "contas"],
+  "nodes": [
+    {
+      "id": "owner",
+      "lane": "operador",
+      "col": 0,
+      "type": "frontend",
+      "label": "/owner — proprietário global da instalação"
+    },
+    {
+      "id": "painel",
+      "lane": "app",
+      "col": 1,
+      "type": "frontend",
+      "label": "Vendor: grupo /admin Integrações da instalação (Google, Meta, Telegram, e-mail); Customer self-host: /owner/integracoes"
+    },
+    {
+      "id": "acoes",
+      "lane": "app",
+      "col": 2,
+      "type": "service",
+      "label": "Server Actions — owner + MFA, validação, cifra e audit"
+    },
+    {
+      "id": "cofre",
+      "lane": "armazenamento",
+      "col": 3,
+      "type": "database",
+      "label": "Tabelas globais e platform_config; segredos nunca voltam ao navegador"
+    },
+    {
+      "id": "runtime",
+      "lane": "app",
+      "col": 4,
+      "type": "service",
+      "label": "Resolvedores de Meta, Google, Telegram e e-mail; credenciais TikTok Business continuam no tenant"
+    },
+    {
+      "id": "contas",
+      "lane": "operador",
+      "col": 5,
+      "type": "frontend",
+      "label": "Conexões de cada tenant no Customer — contas, IDs e tokens próprios, inclusive TikTok Business"
+    },
+    {
+      "id": "auditoria",
+      "lane": "armazenamento",
+      "col": 3,
+      "type": "database",
+      "label": "api_audit_log — quem mudou a configuração, sem guardar valores"
+    },
+    {
+      "id": "provedor",
+      "lane": "provedores",
+      "col": 5,
+      "type": "external",
+      "label": "Meta, Google, Telegram, serviço de e-mail e TikTok Business"
+    }
+  ],
+  "edges": [
+    { "id": "e1", "from": "owner", "to": "painel", "label": "abre a tela disponível nesta instalação" },
+    { "id": "e2", "from": "painel", "to": "acoes", "label": "grava ou testa credenciais" },
+    { "id": "e3", "from": "acoes", "to": "cofre", "label": "salva dados globais cifrados" },
+    { "id": "e4", "from": "acoes", "to": "auditoria", "label": "registra a mudança sem o segredo" },
+    {
+      "id": "e5",
+      "from": "cofre",
+      "to": "runtime",
+      "label": "resolutores consomem o que a tela grava"
+    },
+    {
+      "id": "e6",
+      "from": "runtime",
+      "to": "provedor",
+      "label": "autentica chamadas de aplicativo"
+    },
+    {
+      "id": "e7",
+      "from": "contas",
+      "to": "provedor",
+      "label": "tenant autoriza número ou conta própria"
+    },
+    {
+      "id": "e8",
+      "from": "provedor",
+      "to": "contas",
+      "label": "entrega código, callback ou estado da conexão"
+    },
+    {
+      "id": "e9",
+      "from": "auditoria",
+      "to": "owner",
+      "label": "trilha consultável pelo proprietário"
+    }
+  ]
+}

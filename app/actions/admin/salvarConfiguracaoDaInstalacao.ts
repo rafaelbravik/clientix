@@ -4,9 +4,16 @@ import { revalidatePath } from "next/cache";
 
 import { audit } from "@/lib/audit";
 import { escritaDeAdminOuRecusa } from "@/lib/auth/escritaDeAdminOuRecusa";
+import { escritaDeOwnerOuRecusa } from "@/lib/auth/escritaDeOwnerOuRecusa";
 import { MENSAGEM_DA_RECUSA_DE_ESCRITA } from "@/lib/auth/recusa-de-escrita-de-admin";
+import { validarValorDaCredencialDoCanal } from "@/lib/channels/chaves-da-instalacao";
 import { acharChave } from "@/lib/instalacao/catalogo";
-import { estadoParaTela, gravarPelaTela, voltarAoAmbiente, type EstadoParaTela } from "@/lib/instalacao/config";
+import {
+  estadoParaTela,
+  gravarPelaTela,
+  voltarAoAmbiente,
+  type EstadoParaTela,
+} from "@/lib/instalacao/config";
 
 /**
  * `ok: true` carrega o ESTADO NOVO da chave, relido depois da escrita.
@@ -21,8 +28,7 @@ import { estadoParaTela, gravarPelaTela, voltarAoAmbiente, type EstadoParaTela }
  * determinístico por construção; o refresh continua, só que ninguém depende dele.
  */
 export type ResultadoDaGravacao =
-  | { ok: true; estado: EstadoParaTela }
-  | { ok: false; erro: string };
+  { ok: true; estado: EstadoParaTela } | { ok: false; erro: string };
 
 /**
  * Grava uma chave da instalação pela tela.
@@ -57,21 +63,27 @@ export async function salvarConfiguracaoDaInstalacao(
   chave: string,
   valor: string,
 ): Promise<ResultadoDaGravacao> {
-  const escrita = await escritaDeAdminOuRecusa();
-  if (!escrita.ok) return { ok: false, erro: MENSAGEM_DA_RECUSA_DE_ESCRITA[escrita.error] };
-  const { user } = escrita.ctx;
-
   const doCatalogo = acharChave(chave);
-  if (!doCatalogo || doCatalogo.controle !== "edita") {
+  if (!doCatalogo || doCatalogo.controle !== "edita" || doCatalogo.telaDona === "owner") {
     // Falha fechada: chave fora do catálogo, ou que a tela mostra só como
     // diagnóstico, não é editável nem por caminho alternativo.
     return { ok: false, erro: "Esta configuração não pode ser alterada por aqui." };
   }
 
+  const escrita =
+    doCatalogo.telaDona === "email"
+      ? await escritaDeOwnerOuRecusa()
+      : await escritaDeAdminOuRecusa();
+  if (!escrita.ok) return { ok: false, erro: MENSAGEM_DA_RECUSA_DE_ESCRITA[escrita.error] };
+  const { user } = escrita.ctx;
+
   const limpo = valor.trim();
   if (limpo.length === 0) {
     return { ok: false, erro: "Escreva um valor, ou use “Voltar ao padrão” para limpar." };
   }
+
+  const erroDeValidacaoDeCanal = validarValorDaCredencialDoCanal(chave, limpo);
+  if (erroDeValidacaoDeCanal) return { ok: false, erro: erroDeValidacaoDeCanal };
 
   const r = await gravarPelaTela(chave, limpo, {
     ehSegredo: doCatalogo.natureza === "segredo",
@@ -108,6 +120,7 @@ export async function salvarConfiguracaoDaInstalacao(
   });
 
   revalidatePath("/admin/configuracao");
+  revalidatePath("/owner/integracoes");
   return { ok: true, estado: await estadoParaTela(chave, doCatalogo.natureza === "segredo") };
 }
 
@@ -116,14 +129,17 @@ export async function salvarConfiguracaoDaInstalacao(
  * padrão". Sem linha, o resolvedor lê o `.env` de novo e pode semear outra vez.
  */
 export async function voltarConfiguracaoAoPadrao(chave: string): Promise<ResultadoDaGravacao> {
-  const escrita = await escritaDeAdminOuRecusa();
-  if (!escrita.ok) return { ok: false, erro: MENSAGEM_DA_RECUSA_DE_ESCRITA[escrita.error] };
-  const { user } = escrita.ctx;
-
   const doCatalogo = acharChave(chave);
-  if (!doCatalogo || doCatalogo.controle !== "edita") {
+  if (!doCatalogo || doCatalogo.controle !== "edita" || doCatalogo.telaDona === "owner") {
     return { ok: false, erro: "Esta configuração não pode ser alterada por aqui." };
   }
+
+  const escrita =
+    doCatalogo.telaDona === "email"
+      ? await escritaDeOwnerOuRecusa()
+      : await escritaDeAdminOuRecusa();
+  if (!escrita.ok) return { ok: false, erro: MENSAGEM_DA_RECUSA_DE_ESCRITA[escrita.error] };
+  const { user } = escrita.ctx;
 
   const r = await voltarAoAmbiente(chave);
   if (!r.ok) return { ok: false, erro: "Não consegui limpar agora. Tente de novo em instantes." };
@@ -138,5 +154,6 @@ export async function voltarConfiguracaoAoPadrao(chave: string): Promise<Resulta
   });
 
   revalidatePath("/admin/configuracao");
+  revalidatePath("/owner/integracoes");
   return { ok: true, estado: await estadoParaTela(chave, doCatalogo.natureza === "segredo") };
 }

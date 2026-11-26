@@ -23,12 +23,18 @@ type TelegramBotStatus = {
 
 type TelegramUserStatus = {
   connected: boolean;
-  status?: "partial" | "disabled";
-  gateway_configured?: boolean;
+  telegram_app_configured?: boolean;
+  status?: "connected" | "connecting" | "attention" | "disconnected";
   inbound_enabled?: boolean;
-  phone_number?: string;
-  first_name?: string;
-  username?: string;
+  sessions?: Array<{
+    id: string;
+    telegram_phone: string | null;
+    telegram_user_id: string;
+    display_name: string | null;
+    status: string;
+    status_reason: string | null;
+    last_health_check_at: string | null;
+  }>;
 };
 
 export function CanalTelegramClient() {
@@ -43,10 +49,12 @@ export function CanalTelegramClient() {
   // User MTProto states
   const [phone, setPhone] = useState("");
   const [phoneCodeHash, setPhoneCodeHash] = useState("");
+  const [sessionString, setSessionString] = useState("");
   const [smsCode, setSmsCode] = useState("");
   const [password2FA, setPassword2FA] = useState("");
-  const [stepUser, setStepUser] = useState<"phone" | "code">("phone");
+  const [stepUser, setStepUser] = useState<"credentials" | "code" | "password">("credentials");
   const [userSaving, setUserSaving] = useState(false);
+  const [userFormOpen, setUserFormOpen] = useState(false);
 
   const queryBot = useQuery({
     queryKey: ["channel-telegram-bot"],
@@ -64,6 +72,7 @@ export function CanalTelegramClient() {
         return { connected: false };
       }
     },
+    refetchInterval: (query) => (query.state.data?.status === "connecting" ? 5_000 : false),
   });
 
   const botData = queryBot.data;
@@ -114,16 +123,20 @@ export function CanalTelegramClient() {
     }
     setUserSaving(true);
     try {
-      const res = await apiClient.post<{ data: { phone_code_hash: string } }>(
-        "/api/v1/channels/telegram-user/auth",
-        {
-          action: "send_code",
-          phone_number: phone.trim(),
-        },
-      );
+      const res = await apiClient.post<{
+        data: { phone_code_hash: string; session_string: string; is_code_via_app: boolean };
+      }>("/api/v1/channels/telegram-user/auth", {
+        action: "send_code",
+        phone: phone.trim(),
+      });
       setPhoneCodeHash(res.data.phone_code_hash);
+      setSessionString(res.data.session_string);
       setStepUser("code");
-      toast.success(t("Código enviado para o seu aplicativo Telegram!"));
+      toast.success(
+        res.data.is_code_via_app
+          ? t("Código enviado para o aplicativo Telegram")
+          : t("Código enviado pelo método informado pelo Telegram"),
+      );
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : t("Falha ao solicitar código"));
     } finally {
@@ -139,24 +152,90 @@ export function CanalTelegramClient() {
     }
     setUserSaving(true);
     try {
-      await apiClient.post("/api/v1/channels/telegram-user/auth", {
+      const response = await apiClient.post<{
+        data: { password_needed?: boolean; session_string?: string };
+      }>("/api/v1/channels/telegram-user/auth", {
         action: "sign_in",
-        phone_number: phone.trim(),
+        phone: phone.trim(),
         phone_code_hash: phoneCodeHash,
-        code: smsCode.trim(),
-        password: password2FA.trim() || undefined,
+        phone_code: smsCode.trim(),
+        session_string: sessionString,
       });
-      toast.success(t("Conta de Telegram conectada!"));
-      setStepUser("phone");
-      setPhone("");
-      setSmsCode("");
-      void queryUser.refetch();
+      if (response.data.password_needed && response.data.session_string) {
+        setSessionString(response.data.session_string);
+        setStepUser("password");
+        toast.info(t("Agora informe a senha de duas etapas do Telegram"));
+      } else {
+        concluirConexaoTelegram();
+      }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : t("Código inválido ou senha incorreta"));
     } finally {
       setUserSaving(false);
     }
   }
+
+  async function handleConfirmarSenhaTelegram(e: React.FormEvent) {
+    e.preventDefault();
+    if (!password2FA) {
+      toast.error(t("Digite a senha de duas etapas"));
+      return;
+    }
+    setUserSaving(true);
+    try {
+      await apiClient.post("/api/v1/channels/telegram-user/auth", {
+        action: "check_password",
+        phone: phone.trim(),
+        password: password2FA,
+        session_string: sessionString,
+      });
+      concluirConexaoTelegram();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : t("Senha incorreta"));
+    } finally {
+      setUserSaving(false);
+    }
+  }
+
+  function concluirConexaoTelegram() {
+    toast.success(t("Conta de Telegram conectada. O Worker está iniciando a escuta."));
+    setStepUser("credentials");
+    setPhone("");
+    setPhoneCodeHash("");
+    setSessionString("");
+    setSmsCode("");
+    setPassword2FA("");
+    setUserFormOpen(false);
+    void queryUser.refetch();
+  }
+
+  function limparFluxoTelegram() {
+    setStepUser("credentials");
+    setPhone("");
+    setPhoneCodeHash("");
+    setSessionString("");
+    setSmsCode("");
+    setPassword2FA("");
+    if ((userData?.sessions?.length ?? 0) > 0) setUserFormOpen(false);
+  }
+
+  async function handleDesconectarTelegram(channelSessionId: string) {
+    if (!confirm(t("Deseja desconectar esta conta de usuário do Telegram?"))) return;
+    setUserSaving(true);
+    try {
+      await apiClient.delete("/api/v1/channels/telegram-user", {
+        channel_session_id: channelSessionId,
+      });
+      toast.success(t("Conta Telegram desconectada."));
+      void queryUser.refetch();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : t("Erro ao desconectar"));
+    } finally {
+      setUserSaving(false);
+    }
+  }
+
+  const showUserForm = (userData?.sessions?.length ?? 0) === 0 || userFormOpen;
 
   return (
     <div className="flex flex-col gap-6">
@@ -178,11 +257,14 @@ export function CanalTelegramClient() {
           <TabsTrigger value="user">
             {t("Conta de Usuário (Disparos / Humano)")}
             <Badge variant="outline" className="ml-2">
-              {userData?.status === "disabled" ? t("Desativado") : t("Parcial")}
+              {userData?.status === "connected"
+                ? t("Conectado")
+                : userData?.status === "connecting"
+                  ? t("Conectando")
+                  : userData?.status === "attention"
+                    ? t("Verificar conexão")
+                    : t("Desconectado")}
             </Badge>
-            {userData?.connected && (
-              <Badge className="ml-2 bg-emerald-500 text-white">Conectado</Badge>
-            )}
           </TabsTrigger>
         </TabsList>
 
@@ -253,85 +335,145 @@ export function CanalTelegramClient() {
         </TabsContent>
 
         <TabsContent value="user" className="mt-4">
+          {!userData?.telegram_app_configured && (
+            <p
+              role="status"
+              className="mb-4 rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm text-muted-foreground"
+            >
+              {t(
+                "O Dono da instalação precisa configurar o aplicativo Telegram em Administração → Configuração da instalação → Telegram. Depois disso, informe aqui apenas o telefone da conta e confirme o código recebido.",
+              )}
+            </p>
+          )}
           <p
             role="status"
             className="mb-4 rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm text-muted-foreground"
           >
             {t(
-              "Telegram User/MTProto está parcial: autenticação e envio dependem de um gateway HTTPS; mensagens recebidas ainda não entram no dispatcher. O Bot API é o canal Telegram suportado para produção.",
+              "A conta de usuário conecta diretamente ao Telegram e recebe mensagens privadas no Inbox. O Telegram pode limitar contas que enviam mensagens em excesso; mantenha os envios dentro do uso esperado. Grupos ainda não são aceitos neste fluxo.",
             )}
           </p>
           <Card className="p-6">
-            {userData?.connected ? (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between border-b pb-4">
-                  <div>
-                    <h3 className="text-base font-medium">
-                      {userData.first_name || userData.phone_number}
+            <div className="space-y-5">
+              {(userData?.sessions ?? []).map((session) => (
+                <div
+                  key={session.id}
+                  className="flex items-center justify-between gap-4 border-b pb-4"
+                >
+                  <div className="min-w-0">
+                    <h3 className="truncate text-base font-medium">
+                      {session.display_name || session.telegram_phone || t("Conta Telegram")}
                     </h3>
-                    <p className="text-sm text-muted-foreground">{userData.phone_number}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {session.telegram_phone || `ID ${session.telegram_user_id}`}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {session.status === "WORKING"
+                        ? t("Worker conectado")
+                        : session.status === "STARTING"
+                          ? t("Worker iniciando conexão")
+                          : t("Conexão precisa de atenção")}
+                    </p>
                   </div>
-                  <Badge className="bg-emerald-500 text-white">{t("Sessão Ativa")}</Badge>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <Badge
+                      variant={session.status === "WORKING" ? "default" : "outline"}
+                      className={session.status === "WORKING" ? "bg-emerald-500 text-white" : ""}
+                    >
+                      {session.status === "WORKING"
+                        ? t("Ativa")
+                        : session.status === "STARTING"
+                          ? t("Iniciando")
+                          : t("Atenção")}
+                    </Badge>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => void handleDesconectarTelegram(session.id)}
+                      disabled={userSaving}
+                    >
+                      {t("Desconectar")}
+                    </Button>
+                  </div>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  {t(
-                    "Esta conta pode ser utilizada para envio ativo de campanhas e atendimento direto.",
-                  )}
-                </p>
-              </div>
-            ) : stepUser === "phone" ? (
-              <form onSubmit={handleEnviarCodigoTelegram} className="max-w-lg space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="phone">{t("Número de Telefone")}</Label>
-                  <Input
-                    id="phone"
-                    placeholder="+5511999998888"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    required
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {t(
-                      "Você receberá uma mensagem com código de confirmação no seu app do Telegram.",
-                    )}
-                  </p>
-                </div>
-                <Button type="submit" disabled={userSaving}>
-                  {userSaving ? t("Enviando código…") : t("Avançar")}
+              ))}
+
+              {(userData?.sessions?.length ?? 0) > 0 && !userFormOpen && (
+                <Button variant="outline" onClick={() => setUserFormOpen(true)}>
+                  {t("Conectar outra conta")}
                 </Button>
-              </form>
-            ) : (
-              <form onSubmit={handleConfirmarCodigoTelegram} className="max-w-lg space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="code">{t("Código de Verificação")}</Label>
-                  <Input
-                    id="code"
-                    placeholder="12345"
-                    value={smsCode}
-                    onChange={(e) => setSmsCode(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="pass2fa">{t("Senha de 2 Etapas (se ativa na sua conta)")}</Label>
-                  <Input
-                    id="pass2fa"
-                    type="password"
-                    placeholder={t("Deixe vazio se não tiver senha de nuvem")}
-                    value={password2FA}
-                    onChange={(e) => setPassword2FA(e.target.value)}
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <Button type="submit" disabled={userSaving}>
-                    {userSaving ? t("Conectando…") : t("Conectar Telegram")}
-                  </Button>
-                  <Button variant="outline" type="button" onClick={() => setStepUser("phone")}>
-                    {t("Voltar")}
-                  </Button>
-                </div>
-              </form>
-            )}
+              )}
+
+              {showUserForm &&
+                (stepUser === "credentials" ? (
+                  <form onSubmit={handleEnviarCodigoTelegram} className="max-w-lg space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="telegram-phone">{t("Número de Telefone")}</Label>
+                      <Input
+                        id="telegram-phone"
+                        placeholder="+5511999998888"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        required
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        {t(
+                          "Você receberá uma mensagem com código de confirmação no seu app do Telegram.",
+                        )}
+                      </p>
+                    </div>
+                    <Button
+                      type="submit"
+                      disabled={userSaving || !userData?.telegram_app_configured}
+                    >
+                      {userSaving ? t("Enviando código…") : t("Avançar")}
+                    </Button>
+                  </form>
+                ) : stepUser === "code" ? (
+                  <form onSubmit={handleConfirmarCodigoTelegram} className="max-w-lg space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="code">{t("Código de Verificação")}</Label>
+                      <Input
+                        id="code"
+                        placeholder="12345"
+                        value={smsCode}
+                        onChange={(e) => setSmsCode(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button type="submit" disabled={userSaving}>
+                        {userSaving ? t("Confirmando código…") : t("Continuar")}
+                      </Button>
+                      <Button variant="outline" type="button" onClick={limparFluxoTelegram}>
+                        {t("Cancelar")}
+                      </Button>
+                    </div>
+                  </form>
+                ) : (
+                  <form onSubmit={handleConfirmarSenhaTelegram} className="max-w-lg space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="telegram-2fa">{t("Senha de duas etapas do Telegram")}</Label>
+                      <Input
+                        id="telegram-2fa"
+                        type="password"
+                        autoComplete="current-password"
+                        value={password2FA}
+                        onChange={(e) => setPassword2FA(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button type="submit" disabled={userSaving}>
+                        {userSaving ? t("Conectando…") : t("Conectar Telegram")}
+                      </Button>
+                      <Button variant="outline" type="button" onClick={limparFluxoTelegram}>
+                        {t("Cancelar")}
+                      </Button>
+                    </div>
+                  </form>
+                ))}
+            </div>
           </Card>
         </TabsContent>
       </Tabs>

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { loadAuthUser } from "@/lib/auth/server";
+import { requirePlatformOwner } from "@/lib/auth/requirePlatformAdmin";
 import { appDaMetaDoAmbiente } from "@/lib/channels/meta/app";
 import { tagDeIdioma } from "@/lib/i18n/datas";
 import type { Idioma } from "@/lib/i18n/idiomas";
@@ -42,6 +43,7 @@ export const dynamic = "force-dynamic";
  * `tests/unit/app-da-meta-tela-nao-devolve-segredo.test.tsx`.
  */
 export default async function Page() {
+  await requirePlatformOwner();
   const usuario = await loadAuthUser();
   if (!usuario?.is_platform_admin) notFound();
 
@@ -53,14 +55,12 @@ export default async function Page() {
     .eq("id", 1)
     .maybeSingle();
 
-  const linha = data as
-    | {
-        app_secret_encrypted: string | null;
-        verify_token_encrypted: string | null;
-        verify_token_created_at: string | null;
-        updated_at: string | null;
-      }
-    | null;
+  const linha = data as {
+    app_secret_encrypted: string | null;
+    verify_token_encrypted: string | null;
+    verify_token_created_at: string | null;
+    updated_at: string | null;
+  } | null;
 
   // O `.env` é o piso de rollback (`lib/channels/meta/app.ts`). Dizer que ele
   // existe é o que torna a precedência visível: sem isto, quem tem o par no

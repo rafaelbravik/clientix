@@ -258,30 +258,6 @@ const schema = z
     ZERNIO_API_KEY: z.string().optional().default(""),
     ZERNIO_API_BASE_URL: z.string().optional().default(""),
 
-    // MTProto permanece parcial: auth/envio só funcionam por gateway HTTPS
-    // externo confiável; inbound não está ligado ao dispatcher. Vazio significa
-    // desativado, e as rotas retornam indisponibilidade sem simular sucesso.
-    TELEGRAM_MTPROTO_GATEWAY_URL: z
-      .string()
-      .trim()
-      .refine((value) => {
-        if (!value) return true;
-        try {
-          const parsed = new URL(value);
-          return (
-            parsed.protocol === "https:" &&
-            !parsed.username &&
-            !parsed.password &&
-            !parsed.search &&
-            !parsed.hash
-          );
-        } catch {
-          return false;
-        }
-      }, "TELEGRAM_MTPROTO_GATEWAY_URL deve ser URL HTTPS sem credenciais, query ou fragmento")
-      .optional()
-      .default(""),
-
     // ─── Chamada de voz WhatsApp (WaCalls, spec 18) ───
     //
     // NUNCA `required()`: o serviço `wacalls` vive num profile do compose que
@@ -458,6 +434,10 @@ const schema = z
      */
     RESEND_API_KEY: z.string().optional().default(""),
     RESEND_FROM_EMAIL: z.string().optional().default(""),
+
+    /** Credenciais do aplicativo MTProto da instalação, configuráveis pelo Dono. */
+    TELEGRAM_API_ID: z.string().optional().default(""),
+    TELEGRAM_API_HASH: z.string().optional().default(""),
 
     /**
      * SMTP — o SEGUNDO transporte de e-mail, ao lado da Resend, nunca no lugar
@@ -754,7 +734,11 @@ const schema = z
           message: "DOMAIN deve ser um hostname DNS público válido, sem esquema ou porta",
         });
       } else {
-        for (const key of ["NEXT_PUBLIC_APP_URL", "NEXT_PUBLIC_ADMIN_URL", "CLIENTIX_ADMIN_ORIGIN"] as const) {
+        for (const key of [
+          "NEXT_PUBLIC_APP_URL",
+          "NEXT_PUBLIC_ADMIN_URL",
+          "CLIENTIX_ADMIN_ORIGIN",
+        ] as const) {
           const origin = urlDeOrigem(values[key]);
           if (origin && origin.hostname.toLowerCase() !== domain) {
             ctx.addIssue({

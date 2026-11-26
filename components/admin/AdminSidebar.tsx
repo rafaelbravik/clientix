@@ -19,6 +19,7 @@ import {
   Gear,
   Plugs,
   WebhooksLogo,
+  PaperPlaneTilt,
   ArrowRight,
   Lock,
   PuzzlePiece,
@@ -36,6 +37,7 @@ interface NavItem {
   href: string;
   label: string;
   icon: PhosphorIcon;
+  group?: string;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -66,21 +68,41 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/admin/marca", label: "Marca", icon: Palette },
   // A porta da tela do app OAuth do Google — mesma razão da de cima: é
   // configuração da INSTALAÇÃO, e /admin tem navegação própria.
-  { href: "/admin/google", label: "Google Agenda", icon: CalendarBlank },
+  {
+    href: "/admin/google",
+    label: "Google Agenda",
+    icon: CalendarBlank,
+    group: "Integrações da instalação",
+  },
   // A porta da tela do App da Meta (chave secreta e token de verificação do
   // webhook) — mesma razão da de cima: é da INSTALAÇÃO. O rótulo é o da aba de
   // Conexões, para quem vem de lá reconhecer o mesmo nome.
-  { href: "/admin/meta", label: "API Oficial (Meta)", icon: WebhooksLogo },
+  {
+    href: "/admin/meta",
+    label: "API Oficial (Meta)",
+    icon: WebhooksLogo,
+    group: "Integrações da instalação",
+  },
+  // As credenciais do app MTProto do Telegram são globais para a instalação,
+  // como Meta e Google; no artefato Customer, o Owner também as gerencia em
+  // /owner/integracoes porque o revendedor não instala o painel Vendor.
+  {
+    href: "/admin/telegram",
+    label: "Telegram (conta de usuário)",
+    icon: PaperPlaneTilt,
+    group: "Integrações da instalação",
+  },
+  // O servidor de e-mail também vale para todas as empresas da instalação.
+  {
+    href: "/admin/email",
+    label: "E-mail",
+    icon: EnvelopeSimple,
+    group: "Integrações da instalação",
+  },
   // A porta da tela que decide quem pode criar conta nesta instalação — mesma
   // razão das duas de cima: é configuração da INSTALAÇÃO, e /admin tem
   // navegação própria (o registro de `lib/navigation/` cobre só `app/app/**`).
   { href: "/admin/cadastro", label: "Cadastro", icon: Key },
-  // A porta da tela do servidor de e-mail (SMTP) — mesma razão das de cima: um
-  // servidor de e-mail manda o e-mail de todas as empresas desta VPS, então é
-  // configuração da INSTALAÇÃO, e /admin tem navegação própria (o registro de
-  // `lib/navigation/` cobre só `app/app/**`). O rótulo é "E-mail" e não "SMTP"
-  // porque quem instala não precisa conhecer a sigla para achar a tela.
-  { href: "/admin/email", label: "E-mail", icon: EnvelopeSimple },
   // A porta da tela do COMPORTAMENTO da instalação (issue #1034) — mesma razão
   // das três de cima: são chaves da INSTALAÇÃO, e /admin tem navegação própria.
   //
@@ -166,24 +188,30 @@ export function AdminSidebar({
         </div>
       </div>
       <nav className="flex-1 space-y-1 overflow-y-auto p-2" aria-label={t("Navegação plataforma")}>
-        {NAV_ITEMS.map((item) => {
+        {NAV_ITEMS.map((item, index) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
           const Icon = item.icon;
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              aria-current={isActive ? "page" : undefined}
-              className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
-                isActive
-                  ? "bg-accent text-accent-foreground"
-                  : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
-              )}
-            >
-              <Icon size={18} weight={isActive ? "fill" : "regular"} aria-hidden />
-              <span className="truncate">{t(item.label)}</span>
-            </Link>
+            <div key={item.href}>
+              {item.group && NAV_ITEMS[index - 1]?.group !== item.group ? (
+                <p className="px-3 pb-1 pt-4 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
+                  {t(item.group)}
+                </p>
+              ) : null}
+              <Link
+                href={item.href}
+                aria-current={isActive ? "page" : undefined}
+                className={cn(
+                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
+                  isActive
+                    ? "bg-accent text-accent-foreground"
+                    : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                )}
+              >
+                <Icon size={18} weight={isActive ? "fill" : "regular"} aria-hidden />
+                <span className="truncate">{t(item.label)}</span>
+              </Link>
+            </div>
           );
         })}
       </nav>

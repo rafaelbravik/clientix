@@ -1445,7 +1445,7 @@ ghcr_imagens_acessiveis() {
 # Guarda a credencial no Docker do mesmo usuário que instala/atualiza. O
 # token só passa por stdin, nunca por argumento, log ou .env.
 ghcr_login() {
-  local username="$1" token="" docker_config_dir="${HOME:-/root}/.docker" rc=0 xtrace=0
+  local username="$1" token="" docker_config_dir="${DOCKER_CONFIG:-${HOME:-/root}/.docker}" rc=0 xtrace=0
   [ -n "$username" ] || return 1
   [ -r /dev/tty ] && [ -w /dev/tty ] || return 1
   mkdir -p "$docker_config_dir" || return 1
@@ -1483,7 +1483,7 @@ ghcr_login() {
 # acesso. No --yes e no cron, falha fechado e informa como autenticar antes.
 garantir_acesso_ghcr() {
   local nao_interativo="${1:-0}" usuario
-  DOCKER_CONFIG="${HOME:-/root}/.docker"
+  DOCKER_CONFIG="${DOCKER_CONFIG:-${HOME:-/root}/.docker}"
   export DOCKER_CONFIG
   if ! mkdir -p "$DOCKER_CONFIG" || ! chmod 700 "$DOCKER_CONFIG"; then
     c_red "$(t "Não consegui preparar o diretório seguro do Docker.")"

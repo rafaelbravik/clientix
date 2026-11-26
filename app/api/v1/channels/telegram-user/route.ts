@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { type NextRequest, NextResponse } from "next/server";
+import type { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { fail, ok } from "@/lib/api/wrappers";
@@ -8,7 +8,7 @@ import { requireRole } from "@/lib/auth/require-role";
 import { requireSupportWrite } from "@/lib/impersonate/support";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { invalidateWebhookCacheBySessionId } from "@/lib/channels/webhook-session-cache";
-import { env } from "@/lib/env";
+import { getTelegramAppCredentials } from "@/lib/channels/telegram-user/app-credentials";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -18,7 +18,7 @@ const deleteSessionSchema = z.object({
   telegram_user_id: z.string().trim().optional(),
 });
 
-export async function GET(req: NextRequest): Promise<NextResponse> {
+export async function GET(): Promise<NextResponse> {
   const requestId = randomUUID();
   const authz = await requireRole("viewer", { requestId, resource: "channels_telegram_user" });
   if (!authz.ok) return authz.response;
@@ -27,7 +27,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const { data: sessoes, error } = await admin
     .from("channel_sessions")
     .select(
-      "id, telegram_user_id, telegram_phone, telegram_api_id, display_name, status, created_at",
+      "id, telegram_user_id, telegram_phone, display_name, status, status_reason, last_health_check_at, created_at",
     )
     .eq("organization_id", authz.org.orgId)
     .eq("provider", "telegram_user")
@@ -40,19 +40,43 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     });
   }
 
+  const rows = sessoes ?? [];
+  const heartbeatFreshMs = 3 * 60 * 1000;
+  const hasFreshSession = rows.some(
+    (session) =>
+      session.status === "WORKING" &&
+      session.last_health_check_at &&
+      Date.now() - new Date(session.last_health_check_at).getTime() <= heartbeatFreshMs,
+  );
+  const hasFreshStartingSession = rows.some(
+    (session) =>
+      session.status === "STARTING" &&
+      session.last_health_check_at &&
+      Date.now() - new Date(session.last_health_check_at).getTime() <= heartbeatFreshMs,
+  );
+  const status =
+    rows.length === 0
+      ? "disconnected"
+      : hasFreshSession
+        ? "connected"
+        : hasFreshStartingSession
+          ? "connecting"
+          : "attention";
+
   return ok(
     {
-      connected: Boolean((sessoes ?? []).length && env.TELEGRAM_MTPROTO_GATEWAY_URL),
-      status: env.TELEGRAM_MTPROTO_GATEWAY_URL ? "partial" : "disabled",
-      gateway_configured: Boolean(env.TELEGRAM_MTPROTO_GATEWAY_URL),
-      inbound_enabled: false,
-      sessions: (sessoes ?? []).map((s) => ({
+      connected: hasFreshSession,
+      status,
+      inbound_enabled: true,
+      telegram_app_configured: Boolean(await getTelegramAppCredentials()),
+      sessions: rows.map((s) => ({
         id: s.id,
         telegram_user_id: s.telegram_user_id,
         telegram_phone: s.telegram_phone,
-        telegram_api_id: s.telegram_api_id,
         display_name: s.display_name,
         status: s.status,
+        status_reason: s.status_reason,
+        last_health_check_at: s.last_health_check_at,
         created_at: s.created_at,
       })),
     },
@@ -103,10 +127,14 @@ export async function DELETE(req: NextRequest): Promise<NextResponse> {
     return fail("not_found", "Sessão Telegram Usuário não encontrada.", 404, { requestId });
   }
 
-  await admin
+  const { error: archiveError } = await admin
     .from("channel_sessions")
-    .update({ archived_at: new Date().toISOString(), status: "disconnected" })
-    .eq("id", sessao.id);
+    .update({ archived_at: new Date().toISOString(), status: "STOPPED" })
+    .eq("id", sessao.id)
+    .eq("organization_id", authz.org.orgId);
+  if (archiveError) {
+    return fail("internal_error", "Falha ao desconectar a conta Telegram.", 500, { requestId });
+  }
 
   invalidateWebhookCacheBySessionId(sessao.id);
 

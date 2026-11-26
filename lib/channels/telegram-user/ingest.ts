@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { z } from "zod";
 import { logger } from "@/lib/logger";
 import { marcarConversaComMensagem } from "../marcar-conversa";
 import { aplicarEfeitosPosEntrada } from "../pos-entrada";
@@ -6,6 +7,8 @@ import { aplicarEfeitosPosEntrada } from "../pos-entrada";
 export interface TelegramUserIngestPayload {
   message_id: string | number;
   date: number;
+  is_private: true;
+  access_hash?: string | null;
   from: {
     id: string | number;
     first_name: string;
@@ -17,8 +20,30 @@ export interface TelegramUserIngestPayload {
   text?: string | null;
   media_type?: "image" | "audio" | "document" | "video" | null;
   media_url?: string | null;
+  media_mime?: string | null;
   caption?: string | null;
 }
+
+const TelegramIdSchema = z.union([z.string().trim().min(1), z.number().int()]);
+const TelegramUserIngestSchema = z.object({
+  message_id: TelegramIdSchema,
+  date: z.number().int().nonnegative(),
+  is_private: z.literal(true),
+  access_hash: z.string().trim().min(1).optional().nullable(),
+  from: z.object({
+    id: TelegramIdSchema,
+    first_name: z.string().trim().max(256).optional().default(""),
+    last_name: z.string().trim().max(256).optional().nullable(),
+    username: z.string().trim().max(256).optional().nullable(),
+    phone: z.string().trim().max(64).optional().nullable(),
+  }),
+  peer_id: TelegramIdSchema,
+  text: z.string().max(35_000).optional().nullable(),
+  media_type: z.enum(["image", "audio", "document", "video"]).optional().nullable(),
+  media_url: z.string().max(256).optional().nullable(),
+  media_mime: z.string().max(256).optional().nullable(),
+  caption: z.string().max(35_000).optional().nullable(),
+});
 
 export interface TelegramUserIngestResult {
   status: "ingested" | "duplicate" | "ignored" | "failed";
@@ -35,15 +60,17 @@ export async function ingestTelegramUserInbound(
     payload: TelegramUserIngestPayload;
   },
 ): Promise<TelegramUserIngestResult> {
-  const p = opts.payload;
-  if (!p || !p.from || !p.from.id) {
+  const parsed = TelegramUserIngestSchema.safeParse(opts.payload);
+  if (!parsed.success) {
     return { status: "ignored", reason: "payload_invalido" };
   }
+  const p = parsed.data;
 
   const orgId = opts.organizationId;
   const fromUser = p.from;
   const senderId = String(fromUser.id);
   const socialIdentity = `telegram:user:${senderId}`;
+  const providerConversationId = p.access_hash ? `tgu:${String(p.peer_id)}:${p.access_hash}` : null;
 
   const displayName =
     [fromUser.first_name, fromUser.last_name].filter(Boolean).join(" ").trim() ||
@@ -104,6 +131,14 @@ export async function ingestTelegramUserInbound(
 
   if (convExistente) {
     conversationId = convExistente.id;
+    if (providerConversationId) {
+      await admin
+        .from("conversations")
+        .update({ provider_conversation_id: providerConversationId })
+        .eq("id", convExistente.id)
+        .eq("organization_id", orgId)
+        .eq("channel_session_id", opts.channelSessionId);
+    }
   } else {
     const { data: novaConv, error: erroConv } = await admin
       .from("conversations")
@@ -112,6 +147,7 @@ export async function ingestTelegramUserInbound(
         contact_id: contactId,
         channel_session_id: opts.channelSessionId,
         channel: "telegram",
+        provider_conversation_id: providerConversationId,
         status: "open",
       })
       .select("id")
@@ -135,7 +171,7 @@ export async function ingestTelegramUserInbound(
   const type = p.media_type ?? (p.text ? "text" : "text");
   const body = p.caption || p.text || (p.media_url ? `[${type}]` : "[mensagem]");
   const preview = body.slice(0, 120);
-  const externalId = `tgu:${p.peer_id || senderId}:${p.message_id}`;
+  const externalId = `${providerConversationId ?? `tgu:${p.peer_id || senderId}`}:${p.message_id}`;
   const sentAt = p.date ? new Date(p.date * 1000).toISOString() : new Date().toISOString();
 
   // 4. Mensagem
@@ -150,6 +186,8 @@ export async function ingestTelegramUserInbound(
       status: "delivered",
       type,
       body,
+      media_url: p.media_url ?? null,
+      media_mime: p.media_mime ?? null,
       external_id: externalId,
       sent_at: sentAt,
       metadata: {
@@ -171,6 +209,25 @@ export async function ingestTelegramUserInbound(
   }
 
   const messageId = inserida?.id ?? "";
+
+  if (p.media_url && messageId) {
+    const { error: mediaEventError } = await admin.rpc(
+      "emit_event" as never,
+      {
+        p_event_type: "media.persist_requested",
+        p_entity_kind: "message",
+        p_entity_id: messageId,
+        p_payload: { message_id: messageId, conversation_id: resolvedConversationId },
+        p_metadata: { source: "telegram_user_mtproto" },
+        p_organization_id: orgId,
+      } as never,
+    );
+    if (mediaEventError) {
+      logger.warn("telegram_user: não foi possível solicitar persistência da mídia", {
+        message_id: messageId,
+      });
+    }
+  }
 
   // 5. Marca conversa e pós-entrada
   await marcarConversaComMensagem(admin, {

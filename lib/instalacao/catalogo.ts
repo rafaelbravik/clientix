@@ -21,12 +21,16 @@
  * reprova quem adicionar `edita` sem trocar o call site.
  */
 
-import { CHAVES_DE_CANAL_DA_INSTALACAO } from "@/lib/channels/chaves-da-instalacao";
+import {
+  CHAVES_DE_CANAL_DA_INSTALACAO,
+  CREDENCIAIS_EDITAVEIS_DE_CANAL,
+} from "@/lib/channels/chaves-da-instalacao";
 
 export type GrupoDaInstalacao =
   | "email"
   | "ia"
   | "whatsapp"
+  | "integracao"
   | "banco"
   | "fila"
   | "seguranca"
@@ -70,7 +74,7 @@ export interface ChaveDaInstalacao {
    * mostram campos diferentes do MESMO mecanismo, e nenhuma opção aparece em
    * duas. Se um dia aparecer, o defeito não é de tela — é de catálogo.
    */
-  readonly telaDona?: "credenciais" | "email";
+  readonly telaDona?: "credenciais" | "email" | "owner";
   readonly rotulo: string;
   /** O que é, para quem não programa. Uma frase. */
   readonly explicacao: string;
@@ -114,8 +118,21 @@ const DE_CANAL: readonly ChaveDaInstalacao[] = CHAVES_DE_CANAL_DA_INSTALACAO.map
   comoTrocar: c.comoTrocar,
 }));
 
+const CREDENCIAIS_DE_CANAL: readonly ChaveDaInstalacao[] = CREDENCIAIS_EDITAVEIS_DE_CANAL.map(
+  (c) => ({
+    chave: c.chave,
+    rotulo: c.rotulo,
+    explicacao: c.explicacao,
+    grupo: c.grupo,
+    natureza: c.natureza,
+    controle: "edita",
+    telaDona: "owner",
+  }),
+);
+
 export const CATALOGO_DA_INSTALACAO: readonly ChaveDaInstalacao[] = [
   ...DE_CANAL,
+  ...CREDENCIAIS_DE_CANAL,
   {
     chave: "RESEND_API_KEY",
     rotulo: "Chave do serviço de e-mail",

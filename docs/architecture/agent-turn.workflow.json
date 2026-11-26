@@ -10,7 +10,7 @@
   "lanes": [
     {
       "id": "canal",
-      "label": "Canal (WAHA)"
+      "label": "Canal (WAHA + Telegram)"
     },
     {
       "id": "app",
@@ -87,6 +87,30 @@
       "type": "frontend",
       "label": "Msg inbound",
       "sublabel": "cliente escreve"
+    },
+    {
+      "id": "telegram_inbound",
+      "lane": "canal",
+      "col": 0,
+      "type": "frontend",
+      "label": "DM Telegram",
+      "sublabel": "conta MTProto do tenant"
+    },
+    {
+      "id": "telegram_listener",
+      "lane": "worker",
+      "col": 0,
+      "type": "backend",
+      "label": "MTProto listener",
+      "sublabel": "sessão cifrada · só privado"
+    },
+    {
+      "id": "telegram_ingest",
+      "lane": "app",
+      "col": 2,
+      "type": "backend",
+      "label": "Telegram ingest",
+      "sublabel": "contato + mensagem · dedup · mídia"
     },
     {
       "id": "send",
@@ -374,6 +398,27 @@
     }
   ],
   "edges": [
+    {
+      "id": "telegram-inbound-listener",
+      "from": "telegram_inbound",
+      "to": "telegram_listener",
+      "label": "NewMessage · incoming/private",
+      "route": "drop"
+    },
+    {
+      "id": "telegram-listener-ingest",
+      "from": "telegram_listener",
+      "to": "telegram_ingest",
+      "label": "callback do worker",
+      "route": "drop"
+    },
+    {
+      "id": "telegram-ingest-eventlog",
+      "from": "telegram_ingest",
+      "to": "eventlog",
+      "label": "dispatch + mídia persistida",
+      "route": "drop"
+    },
     {
       "id": "inbound-ingest",
       "from": "inbound",
