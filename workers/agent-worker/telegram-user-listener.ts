@@ -18,6 +18,7 @@ import { MAX_MEDIA_BYTES } from "@/lib/messaging/media/types";
 const POLL_INTERVAL_MS = 30_000;
 const HEALTH_INTERVAL_MS = 60_000;
 const READ_RECEIPT_RECONCILIATION_INTERVAL_MS = 60_000;
+const READ_RECEIPT_INBOUND_CHECK_INTERVAL_MS = 15_000;
 const RETRY_AFTER_FAILURE_MS = 90_000;
 
 interface TelegramSessionRow {
@@ -34,6 +35,7 @@ interface ActiveTelegramClient {
   telegramUserId: string;
   lastHealthAt: number;
   lastReceiptReconciliationAt: number;
+  lastReadCheckAtByPeer: Map<string, number>;
 }
 
 function mediaInfo(media: Api.TypeMessageMedia | undefined): {
@@ -153,6 +155,47 @@ async function reconciliarRecibosDeLeituraTelegram(
   }
 }
 
+async function reconciliarLeituraTelegramAposRecebimento(
+  admin: SupabaseClient,
+  row: TelegramSessionRow,
+  entry: ActiveTelegramClient,
+  peerId: string,
+  accessHash: string,
+  log: Logger,
+): Promise<void> {
+  const agora = Date.now();
+  const ultimaVerificacao = entry.lastReadCheckAtByPeer.get(peerId) ?? 0;
+  if (agora - ultimaVerificacao < READ_RECEIPT_INBOUND_CHECK_INTERVAL_MS) return;
+  entry.lastReadCheckAtByPeer.set(peerId, agora);
+
+  try {
+    const referencia = `tgu:${peerId}:${accessHash}`;
+    const estados = await telegramUserGetOutboxReadStates(entry.client, [referencia]);
+    const estado = estados.find((item) => item.peerId === peerId);
+    if (!estado || estado.maxId < 1) return;
+
+    const resultado = await sincronizarLeituraTelegramUsuario(admin, {
+      organizationId: row.organization_id,
+      channelSessionId: row.id,
+      peerId,
+      maxId: estado.maxId,
+    });
+    if (resultado.updated > 0) {
+      log.info("telegram_user: recibos de leitura sincronizados após resposta recebida", {
+        organization_id: row.organization_id,
+        channel_session_id: row.id,
+        messages_updated: resultado.updated,
+      });
+    }
+  } catch (error) {
+    log.warn("telegram_user: consulta de leitura após resposta recebida falhou", {
+      organization_id: row.organization_id,
+      channel_session_id: row.id,
+      reason: safeSessionErrorCode(error),
+    });
+  }
+}
+
 async function connectSession(
   admin: SupabaseClient,
   row: TelegramSessionRow,
@@ -193,6 +236,7 @@ async function connectSession(
       telegramUserId: row.telegram_user_id,
       lastHealthAt: Date.now(),
       lastReceiptReconciliationAt: Date.now(),
+      lastReadCheckAtByPeer: new Map(),
     };
     stage = "register_listener";
     client.addEventHandler(
@@ -255,6 +299,17 @@ async function connectSession(
               organization_id: row.organization_id,
               channel_session_id: row.id,
             });
+          } else if (accessHash) {
+            // Uma resposta do contato confirma que ele abriu a DM. Consulta o
+            // limite de leitura do peer sem esperar o ciclo periódico completo.
+            void reconciliarLeituraTelegramAposRecebimento(
+              admin,
+              row,
+              entry,
+              sender.id.toString(),
+              accessHash,
+              log,
+            );
           }
         } catch (error) {
           log.error("telegram_user: falha ao processar mensagem recebida", {
