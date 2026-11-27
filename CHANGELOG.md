@@ -8,6 +8,22 @@ Se você roda o DeskcommCRM numa VPS, **leia a seção da versão para a qual es
 
 ## [Não lançado]
 
+## [2.2.0] — 2026-11-27
+
+### Adicionado
+
+- **Credenciais de instalação reunidas na área Integrações** O proprietário encontra as credenciais compartilhadas da instalação no grupo “Integrações da instalação” do Vendor; numa instalação self-host Customer, usa `/owner/integracoes`. Google Agenda, Meta, Telegram e e-mail ficam sob essa área. Cada empresa continua autorizando suas contas em Conexões. O token Business usado hoje pelo TikTok continua pertencendo ao tenant; credencial global do app TikTok só entra quando houver um fluxo que a consuma.
+
+### Corrigido
+
+- **O painel do proprietário mostra o convite do administrador inicial** Ao criar uma empresa, o proprietário agora vê o link de aceite do administrador inicial, a validade e o estado do envio por e-mail. O link pode ser copiado para compartilhamento quando o transporte de e-mail não confirmar a entrega.
+
+- **Conta Telegram conclui a etapa 2FA e salva a sessão** Quando a conta do Telegram exige senha de duas etapas, a autenticação reconhece o código RPC mesmo se o Teleproto minificar o nome da classe e avança para a etapa de senha. A sessão MTProto é gravada com o literal bytea do banco, sem serialização JSON de `Buffer`, e não exige segredo de webhook porque não recebe webhooks. Erros inesperados registram apenas metadados seguros, sem telefone, código de login, sessão ou credenciais.
+
+- **Contatos recebidos pelo Telegram ficam completos no CRM** O recebimento de mensagens da conta de usuário do Telegram agora grava o telefone em `contacts.phone_number` e cria o contato com o tipo permitido `person`; números brasileiros são normalizados antes de persistir.
+
+- **Tiques de leitura no Telegram por conta de usuário** Mensagens enviadas pela conta de usuário do Telegram passam a acompanhar o evento MTProto de leitura do destinatário. O Inbox mantém um tique após o envio e mostra dois tiques azuis quando a pessoa abre a conversa; o estado é salvo em `messages` e chega à tela aberta por Realtime.
+
 ## [2.1.0] — 2026-11-25
 
 ### Adicionado
@@ -9952,7 +9968,8 @@ Primeira versão marcada do DeskcommCRM. O projeto vinha sendo desenvolvido publ
 
 - **Node 22 é obrigatório para desenvolvimento.** A suíte de invariantes instancia o cliente do Supabase, que exige o `WebSocket` global — nativo apenas a partir do Node 22. Isso não afeta quem apenas hospeda: a VPS roda a imagem pronta.
 
-[Não lançado]: https://github.com/rafaelbravik/clientix/compare/v2.1.0...HEAD
+[Não lançado]: https://github.com/rafaelbravik/clientix/compare/v2.2.0...HEAD
+[2.2.0]: https://github.com/rafaelbravik/clientix/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/rafaelbravik/clientix/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/melgarafael/DeskcommCRM/compare/v1.69.0...v2.0.0
 [1.69.0]: https://github.com/melgarafael/DeskcommCRM/compare/v1.68.0...v1.69.0
