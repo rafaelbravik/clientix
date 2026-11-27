@@ -45,8 +45,8 @@ importers:
         specifier: ^18.0.1
         version: 18.0.1(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@hookform/resolvers':
-        specifier: ^5.9.1
-        version: 5.9.1(@sinclair/typebox@0.27.12)(@standard-schema/spec@1.1.0)(ajv-formats@2.1.1(ajv@8.20.0))(ajv@8.20.0)(react-hook-form@7.88.0(react@19.3.0))(zod@4.6.5)
+        specifier: ^7.0.8
+        version: 7.0.8(@standard-schema/spec@1.1.0)(ajv-formats@3.0.1(ajv@8.20.0))(ajv@8.20.0)(react-hook-form@7.88.0(react@19.3.0))(zod@4.6.5)
       '@modelcontextprotocol/sdk':
         specifier: ^1.32.2
         version: 1.32.2(zod@4.6.5)
@@ -426,8 +426,8 @@ packages:
     engines: {node: '>=6.0.0'}
     hasBin: true
 
-  '@babel/runtime@7.29.14':
-    resolution: {integrity: sha512-Y5tqevQaUAZhhj82BpYMNC1ssvLQTVAfwKdm8iy8qwmhvC2/CpcAu8OC+QEtjM7pMk7knx83u1Qj8gzkicyelw==}
+  '@babel/runtime@7.29.15':
+    resolution: {integrity: sha512-304gsbbGVmQc+cNGHzwHBlqepYdWLKj3VXCQBGt/EGcV7PUPfKI7kAUNW1FZEOCwlQiLvQjg1JEaAlRQ616h+Q==}
     engines: {node: '>=6.9.0'}
 
   '@babel/runtime@7.29.7':
@@ -784,22 +784,20 @@ packages:
     peerDependencies:
       hono: ^4.13.5
 
-  '@hookform/resolvers@5.9.1':
-    resolution: {integrity: sha512-7b7vsbraJxKgjVSA1Nur9tLwj539WGJUBLA7QNvXnFoT2pM5Z7G+6rlukk4B2/QrTZy6huRtH6wKeESPKuIr6w==}
+  '@hookform/resolvers@7.0.8':
+    resolution: {integrity: sha512-44+R4PUy3MWIBJR4sOjW0bZaz+H81k26urkTYeXAvEa8h45ueHrvQpZR/96iyLOobL6/yO0BJTaRPwwyDlL1/A==}
     peerDependencies:
-      '@sinclair/typebox': '>=0.25.24'
       '@standard-schema/spec': ^1.0.0
-      '@typeschema/main': '>=0.13.7'
       '@vinejs/vine': ^2.0.0 || ^3.0.0 || ^4.0.0
       ajv: ^8.12.0
       ajv-errors: ^3.0.0
-      ajv-formats: ^2.1.1
-      arktype: ^2.0.0
-      ata-validator: ^1.2.0
+      ajv-formats: ^2.1.1 || ^3.0.0
+      arktype: ^2.0.0 || ^3.0.0
+      ata-validator: ^1.23.0
       class-transformer: '>=0.4.0'
       class-validator: '>=0.12.0'
       computed-types: ^1.0.0
-      effect: ^3.10.3
+      effect: ^4.0.0
       fluentvalidation-ts: ^3.0.0
       fp-ts: ^2.7.0
       io-ts: ^2.0.0
@@ -808,16 +806,13 @@ packages:
       react-hook-form: ^7.55.0
       superstruct: '>=0.12.0'
       typanion: ^3.3.2
+      typebox: ^1.0.0
       valibot: '>=0.31.0 || ^1.0.0-beta.4 || ^1.0.0-rc'
       vest: '>=6.0.0'
       yup: ^1.0.0
       zod: ^3.25.0 || ^4.0.0
     peerDependenciesMeta:
-      '@sinclair/typebox':
-        optional: true
       '@standard-schema/spec':
-        optional: true
-      '@typeschema/main':
         optional: true
       '@vinejs/vine':
         optional: true
@@ -852,6 +847,8 @@ packages:
       superstruct:
         optional: true
       typanion:
+        optional: true
+      typebox:
         optional: true
       valibot:
         optional: true
@@ -2913,14 +2910,6 @@ packages:
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
-  ajv-formats@2.1.1:
-    resolution: {integrity: sha512-Wx0Kx52hxE7C18hkMEggYlEifqWZtYaRgouJor+WMdPnQyEK13vgEWyVNup7SoeeoLMsr4kf5h6dOW11I15MUA==}
-    peerDependencies:
-      ajv: ^8.0.0
-    peerDependenciesMeta:
-      ajv:
-        optional: true
-
   ajv-formats@3.0.1:
     resolution: {integrity: sha512-8iUql50EUR+uUcdRQ3HDqa6EVyo3docL8g5WJ3FNcWmu62IbkGUue/pEyLBW8VGKKucTPgqeks4fIU1DA4yowQ==}
     peerDependencies:
@@ -3048,6 +3037,11 @@ packages:
     engines: {node: '>=6.0.0'}
     hasBin: true
 
+  baseline-browser-mapping@2.11.39:
+    resolution: {integrity: sha512-Q9buOYhr2ggrEZpImICecZTJHCCd8yXkRUokFlUEQ8uiD6oP82F4W4jWnhOHZYV+wlvrC51V7Wy0ULyWjil5Wg==}
+    engines: {node: '>=6.0.0'}
+    hasBin: true
+
   bidi-js@1.0.3:
     resolution: {integrity: sha512-RKshQI1R3YQ+n9YJz2QQ147P66ELpa1FQEg20Dk8oW9t2KgLbpDLLp9aGZ7y8WHSshDknG0bknqGw5/tyCs5tw==}
 
@@ -3123,6 +3117,9 @@ packages:
 
   caniuse-lite@1.0.30001826:
     resolution: {integrity: sha512-wTB+9tIbLro/BCXwLuNV1meHE4L9dS6dArMDwgYfNBPMYScqClHyGunhkCSDtHhe/69Xl0sHlKgBVZ+fNsYtWA==}
+
+  caniuse-lite@1.0.30001827:
+    resolution: {integrity: sha512-YWEDr46gSO81M8w6uPbaIy4++IXsirx2asUqvllNiD4BPf75ibxclUjWEqp8ObCenRv+UM2n5Y8xuRPT8V8FrQ==}
 
   chai@6.2.2:
     resolution: {integrity: sha512-NUPRluOfOiTKBKvWPtSD4PhFvWCqOi0BGStNWs57X9js7XGTprSmFoz5F0tWhR4WPjNeR9jXqdC7/UpSJTnlRg==}
@@ -3421,8 +3418,8 @@ packages:
   electron-to-chromium@1.5.439:
     resolution: {integrity: sha512-qu6QIPXhsb+CRcAiTMNjR4A1y/7tCYKkKjr5CZXRVih6qkDf79peZ2BpEU3qoDBNCRrcy3Mra3X9nG5oruuA7Q==}
 
-  electron-to-chromium@1.5.486:
-    resolution: {integrity: sha512-rpybw4Ac4ak/An6G1Me2+61xzwobowDGyuJe71QHHOVpkZv4fPVobsLl7WH6zHSKusAMpaHxGKTpOvpy7+r3dQ==}
+  electron-to-chromium@1.5.492:
+    resolution: {integrity: sha512-4uMs7omhajKiud0GqALLTazS/zyvHLTLmDWVTR+e6BnyJo5bSNrph/JoRWEFJJmY75ct9hCiSGsbFF9fLe5gDw==}
 
   emoji-mart@5.6.0:
     resolution: {integrity: sha512-eJp3QRe79pjwa+duv+n7+5YsNhRcMl812EcFVwrnRvYKoNPoQb5qxU8DG6Bgwji0akHdp6D4Ln6tYLG58MFSow==}
@@ -4472,8 +4469,8 @@ packages:
   minimist@1.2.8:
     resolution: {integrity: sha512-2yyAR8qBkN3YuheJanUpWC5U3bb5osDywNB8RzDVlDwDHbocAJveqqj1u8+SVD7jkWT4yvsHCpWqqWqAxb0zCA==}
 
-  minimizer-webpack-plugin@5.14.0:
-    resolution: {integrity: sha512-PnvQXCJxhgH2ZVVO7Lj0sM6q8L1XGxnUvd8wVQIRwi8khMCLq5wg0Ngxe44bcuZL2FSN81RdVE7YHEVzTKsQDQ==}
+  minimizer-webpack-plugin@5.14.1:
+    resolution: {integrity: sha512-qsfTb5Ao4nre9krFweqj8k5bVU7KxgsP4WkLO/ITTuiJkbitCzYBY+Aum5KTKRhY0wDr8VJ1RILsTCSUtPd1kQ==}
     engines: {node: '>= 10.13.0'}
     peerDependencies:
       '@minify-html/node': '*'
@@ -4596,8 +4593,8 @@ packages:
     resolution: {integrity: sha512-kQK9LGGFiHtrWiNhZtA7Qbw17AQz+dmsEKODRIVTXA9+e5MS/2gZEBhYJt13GrAz5/IOZKddH/0Z3TP/Zgo+yw==}
     engines: {node: '>=18'}
 
-  node-releases@2.0.64:
-    resolution: {integrity: sha512-zAPCKqMcnqs2nGy6nlkm7JduFseiBJy3EXHGLh+8pFR+TxGCBxxiEN21+UROU5CKwX/f4TlUcYjiM+vs/tsyxw==}
+  node-releases@2.0.65:
+    resolution: {integrity: sha512-PfvofsGQ+MiOQIPkX9fU8ELUWmy5zL74CdQaph/ismKszfFkfwXaw0cGiwbwym2hT9k5+mdyl8O5WQ1MD8EHmA==}
     engines: {node: '>=18'}
 
   nodemailer@10.2.1:
@@ -5129,8 +5126,8 @@ packages:
   scheduler@0.28.0:
     resolution: {integrity: sha512-juorfCmIkIw8tT+p5BXSm6PJjQF/ycEYmKyzURCIt/RaZIhL+PulbQ9Yu2z1HdOJDdqDTlxA1+xKBmHXJsczAw==}
 
-  schema-utils@4.8.3:
-    resolution: {integrity: sha512-qIfo3f+lRNqnMPgpXSKvUhsT3pY5U+ppmgGr4j8LanFP3W/Ze+xj8DY/dPb5qVu3m6qFIMyMWKVRLNKxrNhxWg==}
+  schema-utils@4.8.5:
+    resolution: {integrity: sha512-K1RRP7aTUAY2lGXNzPwjMK6AMMzbETdpF3pTPMEnH/RrpmPx6K1X47/gSebrV+1I9pRcgpwZwqpYBlyZAsliiw==}
     engines: {node: '>= 10.13.0'}
     hasBin: true
     peerDependencies:
@@ -5704,8 +5701,8 @@ packages:
     resolution: {integrity: sha512-BMhLD/Sw+GbJC21C/UgyaZX41nPt8bUTg+jWyDeg7e7YN4xOM05YPSIXceACnXVtqyEw/LMClUQMtMZ+PGGpqQ==}
     engines: {node: '>=20'}
 
-  webpack-sources@3.7.0:
-    resolution: {integrity: sha512-PdUhbCycwEgiS1hB/FBDksWKg/ashAIuJKqwdbPn8/dFVgU5LxQiBvG0js6VRRIzPujMrStYCczywp82P0KWng==}
+  webpack-sources@3.7.1:
+    resolution: {integrity: sha512-mcxs7A2LsEdwsNqQburqS4QHPR2Ca3NGplUakn6J5GPQvnVZ4oD4IM4FJcT3f8AVN2e2EsjuIVxKj4rorHvyuQ==}
     engines: {node: '>=10.13.0'}
 
   webpack@5.108.4:
@@ -6008,7 +6005,7 @@ snapshots:
     dependencies:
       '@babel/types': 7.29.8
 
-  '@babel/runtime@7.29.14': {}
+  '@babel/runtime@7.29.15': {}
 
   '@babel/runtime@7.29.7': {}
 
@@ -6279,15 +6276,14 @@ snapshots:
     dependencies:
       hono: 4.13.8
 
-  '@hookform/resolvers@5.9.1(@sinclair/typebox@0.27.12)(@standard-schema/spec@1.1.0)(ajv-formats@2.1.1(ajv@8.20.0))(ajv@8.20.0)(react-hook-form@7.88.0(react@19.3.0))(zod@4.6.5)':
+  '@hookform/resolvers@7.0.8(@standard-schema/spec@1.1.0)(ajv-formats@3.0.1(ajv@8.20.0))(ajv@8.20.0)(react-hook-form@7.88.0(react@19.3.0))(zod@4.6.5)':
     dependencies:
       '@standard-schema/utils': 0.3.0
       react-hook-form: 7.88.0(react@19.3.0)
     optionalDependencies:
-      '@sinclair/typebox': 0.27.12
       '@standard-schema/spec': 1.1.0
       ajv: 8.20.0
-      ajv-formats: 2.1.1(ajv@8.20.0)
+      ajv-formats: 3.0.1(ajv@8.20.0)
       zod: 4.6.5
 
   '@humanfs/core@0.19.2':
@@ -7739,7 +7735,7 @@ snapshots:
   '@testing-library/dom@10.4.1':
     dependencies:
       '@babel/code-frame': 7.29.7
-      '@babel/runtime': 7.29.14
+      '@babel/runtime': 7.29.15
       '@types/aria-query': 5.0.4
       aria-query: 5.3.0
       dom-accessibility-api: 0.5.16
@@ -8286,11 +8282,6 @@ snapshots:
       '@ai-sdk/provider-utils': 5.0.49(zod@4.6.5)
       zod: 4.6.5
 
-  ajv-formats@2.1.1(ajv@8.20.0):
-    optionalDependencies:
-      ajv: 8.20.0
-    optional: true
-
   ajv-formats@3.0.1(ajv@8.20.0):
     optionalDependencies:
       ajv: 8.20.0
@@ -8439,6 +8430,9 @@ snapshots:
 
   baseline-browser-mapping@2.11.37: {}
 
+  baseline-browser-mapping@2.11.39:
+    optional: true
+
   bidi-js@1.0.3:
     dependencies:
       require-from-string: 2.0.2
@@ -8488,10 +8482,10 @@ snapshots:
 
   browserslist@4.29.6:
     dependencies:
-      baseline-browser-mapping: 2.11.37
-      caniuse-lite: 1.0.30001826
-      electron-to-chromium: 1.5.486
-      node-releases: 2.0.64
+      baseline-browser-mapping: 2.11.39
+      caniuse-lite: 1.0.30001827
+      electron-to-chromium: 1.5.492
+      node-releases: 2.0.65
       update-browserslist-db: 1.4.0(browserslist@4.29.6)
     optional: true
 
@@ -8537,6 +8531,9 @@ snapshots:
   caniuse-lite@1.0.30001812: {}
 
   caniuse-lite@1.0.30001826: {}
+
+  caniuse-lite@1.0.30001827:
+    optional: true
 
   chai@6.2.2: {}
 
@@ -8801,7 +8798,7 @@ snapshots:
 
   electron-to-chromium@1.5.439: {}
 
-  electron-to-chromium@1.5.486:
+  electron-to-chromium@1.5.492:
     optional: true
 
   emoji-mart@5.6.0: {}
@@ -10022,10 +10019,10 @@ snapshots:
 
   minimist@1.2.8: {}
 
-  minimizer-webpack-plugin@5.14.0(esbuild@0.28.2)(postcss@8.5.28)(webpack@5.108.4(esbuild@0.28.2)(postcss@8.5.28)):
+  minimizer-webpack-plugin@5.14.1(esbuild@0.28.2)(postcss@8.5.28)(webpack@5.108.4(esbuild@0.28.2)(postcss@8.5.28)):
     dependencies:
       jest-worker: 27.5.1
-      schema-utils: 4.8.3(webpack@5.108.4(esbuild@0.28.2)(postcss@8.5.28))
+      schema-utils: 4.8.5(webpack@5.108.4(esbuild@0.28.2)(postcss@8.5.28))
       terser: 5.51.2
       webpack: 5.108.4(esbuild@0.28.2)(postcss@8.5.28)
     optionalDependencies:
@@ -10095,7 +10092,7 @@ snapshots:
 
   node-releases@2.0.57: {}
 
-  node-releases@2.0.64:
+  node-releases@2.0.65:
     optional: true
 
   nodemailer@10.2.1: {}
@@ -10641,7 +10638,7 @@ snapshots:
 
   scheduler@0.28.0: {}
 
-  schema-utils@4.8.3(webpack@5.108.4(esbuild@0.28.2)(postcss@8.5.28)):
+  schema-utils@4.8.5(webpack@5.108.4(esbuild@0.28.2)(postcss@8.5.28)):
     dependencies:
       '@types/json-schema': 7.0.15
       ajv: 8.20.0
@@ -11278,7 +11275,7 @@ snapshots:
 
   webidl-conversions@8.0.1: {}
 
-  webpack-sources@3.7.0:
+  webpack-sources@3.7.1:
     optional: true
 
   webpack@5.108.4(esbuild@0.28.2)(postcss@8.5.28):
@@ -11299,12 +11296,12 @@ snapshots:
       graceful-fs: 4.2.12
       loader-runner: 4.3.2
       mime-db: 1.54.0
-      minimizer-webpack-plugin: 5.14.0(esbuild@0.28.2)(postcss@8.5.28)(webpack@5.108.4(esbuild@0.28.2)(postcss@8.5.28))
+      minimizer-webpack-plugin: 5.14.1(esbuild@0.28.2)(postcss@8.5.28)(webpack@5.108.4(esbuild@0.28.2)(postcss@8.5.28))
       neo-async: 2.6.2
-      schema-utils: 4.8.3(webpack@5.108.4(esbuild@0.28.2)(postcss@8.5.28))
+      schema-utils: 4.8.5(webpack@5.108.4(esbuild@0.28.2)(postcss@8.5.28))
       tapable: 2.3.4
       watchpack: 2.6.4
-      webpack-sources: 3.7.0
+      webpack-sources: 3.7.1
     transitivePeerDependencies:
       - '@minify-html/node'
       - '@napi-rs/image'
