@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { logger } from "@/lib/logger";
+import { normalizePhoneBR } from "@/lib/webhooks/inbound";
 import { marcarConversaComMensagem } from "../marcar-conversa";
 import { aplicarEfeitosPosEntrada } from "../pos-entrada";
 
@@ -96,9 +97,9 @@ export async function ingestTelegramUserInbound(
         organization_id: orgId,
         display_name: displayName,
         name: displayName,
-        kind: "social",
+        kind: "person",
         social_identity: socialIdentity,
-        phone: fromUser.phone ?? null,
+        phone_number: normalizePhoneBR(fromUser.phone),
         source: "telegram",
         source_metadata: {
           telegram_user_id: senderId,

@@ -1,6 +1,7 @@
 import { Api, TelegramClient, utils } from "teleproto";
 import { StringSession } from "teleproto/sessions";
 
+import { exigeSenhaDeDuasEtapas } from "./auth-errors";
 import type { TelegramUserCredentials } from "./credentials";
 import type {
   TelegramUserCheckPasswordParams,
@@ -84,11 +85,6 @@ function throwIfFlood(error: unknown): never {
   throw error;
 }
 
-function isPasswordNeeded(error: unknown): boolean {
-  if (error instanceof Error && error.name === "SessionPasswordNeededError") return true;
-  return String(error).toUpperCase().includes("SESSION_PASSWORD_NEEDED");
-}
-
 function toUser(user: Api.TypeUser | undefined, phoneFallback: string): TelegramUserMe {
   if (!user || user.className !== "User") throw new Error("telegram_user_unavailable");
   return {
@@ -107,6 +103,35 @@ function peerFromReference(reference: string): Api.InputPeerUser {
   const accessHash = utils.parseID(match[2]);
   if (!userId || !accessHash) throw new Error("telegram_user_peer_unavailable");
   return new Api.InputPeerUser({ userId, accessHash });
+}
+
+export interface TelegramUserOutboxReadState {
+  peerId: string;
+  maxId: number;
+}
+
+/** Consulta o limite de leitura da outra pessoa para DMs específicas. */
+export async function telegramUserGetOutboxReadStates(
+  client: TelegramClient,
+  references: readonly string[],
+): Promise<TelegramUserOutboxReadState[]> {
+  if (references.length === 0) return [];
+
+  const peers = references.map(
+    (reference) => new Api.InputDialogPeer({ peer: peerFromReference(reference) }),
+  );
+  // O schema MTProto exige InputDialogPeer; o binding teleproto tipa este
+  // parâmetro como EntityLike, embora essa classe não pertença a essa união.
+  const result = await client.invoke(
+    new Api.messages.GetPeerDialogs({ peers: peers as unknown as Api.TypeEntityLike[] }),
+  );
+
+  return result.dialogs.flatMap((dialog) => {
+    if (dialog.className !== "Dialog" || dialog.peer.className !== "PeerUser") return [];
+    const maxId = Number(dialog.readOutboxMaxId);
+    if (!Number.isSafeInteger(maxId) || maxId < 0) return [];
+    return [{ peerId: dialog.peer.userId.toString(), maxId }];
+  });
 }
 
 function messageResult(message: Api.Message): TelegramUserMessageResult {
@@ -149,7 +174,7 @@ export async function telegramUserSignIn(
         }),
       );
     } catch (error) {
-      if (isPasswordNeeded(error)) {
+      if (exigeSenhaDeDuasEtapas(error)) {
         return {
           success: false,
           passwordNeeded: true,
@@ -200,35 +225,6 @@ export async function telegramUserGetMe(creds: TelegramUserCredentials): Promise
   return withClient(creds.apiId, creds.apiHash, creds.sessionString, async (client) => {
     if (!(await client.checkAuthorization())) throw new Error("telegram_session_expired");
     return toUser(await client.getMe(), creds.phone);
-  });
-}
-
-export interface TelegramUserOutboxReadState {
-  peerId: string;
-  maxId: number;
-}
-
-/** Consulta o limite de leitura da outra pessoa para DMs específicas. */
-export async function telegramUserGetOutboxReadStates(
-  client: TelegramClient,
-  references: readonly string[],
-): Promise<TelegramUserOutboxReadState[]> {
-  if (references.length === 0) return [];
-
-  const peers = references.map(
-    (reference) => new Api.InputDialogPeer({ peer: peerFromReference(reference) }),
-  );
-  // O schema MTProto exige InputDialogPeer; o binding teleproto tipa este
-  // parâmetro como EntityLike, embora essa classe não pertença a essa união.
-  const result = await client.invoke(
-    new Api.messages.GetPeerDialogs({ peers: peers as unknown as Api.TypeEntityLike[] }),
-  );
-
-  return result.dialogs.flatMap((dialog) => {
-    if (dialog.className !== "Dialog" || dialog.peer.className !== "PeerUser") return [];
-    const maxId = Number(dialog.readOutboxMaxId);
-    if (!Number.isSafeInteger(maxId) || maxId < 0) return [];
-    return [{ peerId: dialog.peer.userId.toString(), maxId }];
   });
 }
 

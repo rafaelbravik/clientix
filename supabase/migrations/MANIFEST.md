@@ -521,6 +521,7 @@ To re-apply on a fresh Supabase project, replay the migrations in version order 
 | `20261117002000` | `9065_tenant_plan_subscriptions` | Adiciona assinatura comercial por organização no Customer, com catálogo de plano existente, owner-only via RPC SECURITY DEFINER e cota aplicada pelo resolvedor canônico. A licença `ACT_...` da instalação continua separada; não inclui gateway nem cobrança automática. |
 | `20261118090000` | `9066_tenant_appearance_palettes` | Permite paletas opcionais de superfície por organização, preservando accent e logos; valida o preset no RPC atômico de marca e atualiza o baseline do self-host. |
 | `20261118100000` | `9067_tenant_green_palette` | Amplia a allowlist de appearance_preset para incluir a paleta Verde natural, preservando cor e logos; sem alteração de schema ou dados. |
+| `20261126220000` | `9068_telegram_user_no_webhook_secret` | Isenta `telegram_user` da constraint de segredo de webhook: sessões MTProto não recebem webhooks e passam a ser persistidas sem um segredo inexistente. |
 
 
 

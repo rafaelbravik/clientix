@@ -9,12 +9,18 @@ import { requireSupportWrite } from "@/lib/impersonate/support";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { encryptWebhookSecret } from "@/lib/webhooks/secrets";
 import { checkChannelQuota } from "@/lib/tenant/plan-limits";
+import { logger } from "@/lib/logger";
 import { getTelegramAppCredentials } from "@/lib/channels/telegram-user/app-credentials";
+import {
+  diagnosticoErroTelegram,
+  mensagemErroTelegram,
+} from "@/lib/channels/telegram-user/auth-errors";
 import {
   telegramUserCheckPassword,
   telegramUserSendCode,
   telegramUserSignIn,
 } from "@/lib/channels/telegram-user/client";
+import { sessionCiphertextForDatabase } from "@/lib/channels/telegram-user/session-storage";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -56,63 +62,6 @@ const authActionSchema = z.discriminatedUnion("action", [
   signInSchema,
   checkPasswordSchema,
 ]);
-
-function mensagemErroTelegram(error: unknown): { code: string; message: string; status: number } {
-  if (
-    error &&
-    typeof error === "object" &&
-    "code" in error &&
-    error.code === "FLOOD_WAIT" &&
-    "retryAfterSeconds" in error
-  ) {
-    const seconds = Number(error.retryAfterSeconds);
-    if (Number.isFinite(seconds) && seconds > 0) {
-      return {
-        code: "rate_limited",
-        message: `O Telegram pediu uma pausa. Tente novamente em ${seconds} segundos.`,
-        status: 429,
-      };
-    }
-  }
-  const raw = error instanceof Error ? `${error.name} ${error.message}` : String(error);
-  const code = raw.match(
-    /(?:FLOOD(?:_PREMIUM)?_WAIT_\d+|PHONE_CODE_INVALID|PHONE_CODE_EXPIRED|PHONE_NUMBER_INVALID|PASSWORD_HASH_INVALID|SESSION_PASSWORD_NEEDED)/i,
-  )?.[0];
-  if (code?.startsWith("FLOOD")) {
-    const seconds = Number(code.match(/\d+/)?.[0] ?? 0);
-    return {
-      code: "rate_limited",
-      message: `O Telegram pediu uma pausa. Tente novamente em ${seconds} segundos.`,
-      status: 429,
-    };
-  }
-  if (code === "PHONE_CODE_INVALID" || code === "PHONE_CODE_EXPIRED") {
-    return {
-      code: "bad_request",
-      message: "O código está incorreto ou expirou. Solicite outro código.",
-      status: 400,
-    };
-  }
-  if (code === "PASSWORD_HASH_INVALID") {
-    return {
-      code: "bad_request",
-      message: "A senha de duas etapas do Telegram está incorreta.",
-      status: 400,
-    };
-  }
-  if (code === "PHONE_NUMBER_INVALID") {
-    return {
-      code: "bad_request",
-      message: "Confira o telefone e use o formato internacional, como +5511999998888.",
-      status: 400,
-    };
-  }
-  return {
-    code: "bad_gateway",
-    message: "O Telegram não concluiu a autenticação. Confira os dados e tente novamente.",
-    status: 502,
-  };
-}
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const supportDenied = await requireSupportWrite();
@@ -186,6 +135,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     } catch (err: unknown) {
       const normalized = mensagemErroTelegram(err);
+      const diagnostic = diagnosticoErroTelegram(err);
+      const logContext = {
+        request_id: requestId,
+        action: data.action,
+        error_type: diagnostic.errorType,
+        telegram_code: diagnostic.telegramCode,
+      };
+      if (normalized.status >= 500) {
+        logger.error("telegram_user: falha inesperada na autenticação", logContext);
+      } else {
+        logger.warn("telegram_user: autenticação recusada", logContext);
+      }
       return fail(normalized.code, normalized.message, normalized.status, { requestId });
     }
   }
@@ -232,6 +193,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         return fail("internal_error", "Falha ao cifrar credenciais MTProto.", 500, { requestId });
       }
 
+      const sessionCiphertext = sessionCiphertextForDatabase(encSession);
+      if (!sessionCiphertext) {
+        return fail("internal_error", "Falha ao cifrar credenciais MTProto.", 500, { requestId });
+      }
+
       const userIdStr = loginResult.user.id;
       const { data: sessaoExistente, error: lookupError } = await admin
         .from("channel_sessions")
@@ -261,10 +227,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         // compatibilidade; novas sessões nunca recebem o API ID/Hash do app.
         telegram_api_id: null,
         telegram_api_hash_encrypted: null,
-        telegram_session_encrypted: Buffer.from(
-          encSession.replace(/^\\x/, ""),
-          "hex",
-        ) as unknown as string,
+        // PostgREST espera o literal bytea recebido do RPC. Enviar Buffer faz
+        // o supabase-js serializá-lo como {type:"Buffer",data:[...]}, que o
+        // Postgres persiste como texto e impede o worker de abrir a sessão.
+        telegram_session_encrypted: sessionCiphertext,
         status: "STARTING" as const,
         status_reason: null,
         last_health_check_at: now,
@@ -321,6 +287,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     } catch (err: unknown) {
       const normalized = mensagemErroTelegram(err);
+      const diagnostic = diagnosticoErroTelegram(err);
+      const logContext = {
+        request_id: requestId,
+        action: data.action,
+        error_type: diagnostic.errorType,
+        telegram_code: diagnostic.telegramCode,
+      };
+      if (normalized.status >= 500) {
+        logger.error("telegram_user: falha inesperada na autenticação", logContext);
+      } else {
+        logger.warn("telegram_user: autenticação recusada", logContext);
+      }
       return fail(normalized.code, normalized.message, normalized.status, { requestId });
     }
   }
