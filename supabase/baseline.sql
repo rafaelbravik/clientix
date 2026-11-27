@@ -51036,7 +51036,9 @@ grant execute on function public.fn_audit_log_row() to service_role;
 grant execute on function public.fn_decrypt_oauth(bytea) to service_role;
 grant execute on function public.fn_encrypt_oauth(text) to service_role;
 grant execute on function public.fn_lgpd_cascade_redact_contact(uuid, uuid, uuid) to service_role;
-grant execute on function public.fn_update_bu-- ---- 9068 — telegram user sem segredo de webhook (migration 9068) ----
+grant execute on function public.fn_update_budget_consumption() to service_role;
+
+-- ---- 9068 — telegram user sem segredo de webhook (migration 9068) ----
 -- 9068 · Telegram User/MTProto não recebe webhook e, portanto, não possui segredo de webhook.
 -- A definição final está no bloco canônico da constraint acima para o baseline
 -- ser reaplicável em instalações com dados sem reconstruir a mesma constraint.

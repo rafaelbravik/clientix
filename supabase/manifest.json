@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "generated_at": "2026-11-27T17:48:41Z",
+  "generated_at": "2026-11-27T17:53:35Z",
   "schema_target": "9068",
   "baseline": {
     "file": "baseline.sql",
-    "checksum": "f3668a5d4f82748561b63941ea3b09eac24fff36a7eef50dc52dd32380be936f",
-    "size_bytes": 2590558,
+    "checksum": "f2e5e6ded592a86328596d56e40f1c0c1f1415ba53731c98f949ae5acf255547",
+    "size_bytes": 2590595,
     "incorporated_through_sequence": 9068
   },
   "migrations": [
@@ -3529,5 +3529,5 @@
       "size_bytes": 723
     }
   ],
-  "updated_at": "2026-11-27T17:48:41Z"
+  "updated_at": "2026-11-27T17:53:35Z"
 }
