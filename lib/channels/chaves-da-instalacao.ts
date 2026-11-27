@@ -46,3 +46,50 @@ export const CHAVES_DE_CANAL_DA_INSTALACAO: readonly ChaveDeCanal[] = [
       "Mesma situação da senha de acesso: o programa do WhatsApp guarda a outra metade. Os dois trocam juntos, no arquivo de instalação.",
   },
 ] as const;
+
+/** Credenciais do aplicativo de canal, configuradas uma vez pelo Dono da instalação. */
+export interface CredencialEditavelDoCanal {
+  readonly chave: string;
+  readonly rotulo: string;
+  readonly explicacao: string;
+  readonly grupo: "integracao";
+  readonly natureza: "numero" | "segredo";
+}
+
+export const CREDENCIAIS_EDITAVEIS_DE_CANAL: readonly CredencialEditavelDoCanal[] = [
+  {
+    chave: "TELEGRAM_API_ID",
+    rotulo: "API ID do aplicativo Telegram",
+    explicacao:
+      "Identificador do aplicativo Telegram desta instalação, obtido em my.telegram.org. É compartilhado pelas empresas desta instalação.",
+    grupo: "integracao",
+    natureza: "numero",
+  },
+  {
+    chave: "TELEGRAM_API_HASH",
+    rotulo: "API Hash do aplicativo Telegram",
+    explicacao:
+      "Chave do aplicativo Telegram desta instalação, obtida junto com o API ID em my.telegram.org. Ela é guardada cifrada e compartilhada pelas empresas desta instalação. Ao trocar as credenciais, contas já conectadas podem precisar ser conectadas novamente.",
+    grupo: "integracao",
+    natureza: "segredo",
+  },
+] as const;
+
+/** Validação declarada na fronteira do canal; consumidores não precisam nomeá-lo. */
+export function validarValorDaCredencialDoCanal(chave: string, valor: string): string | null {
+  if (chave === "TELEGRAM_API_ID") {
+    const apiId = Number(valor);
+    if (
+      !/^\d+$/.test(valor) ||
+      !Number.isSafeInteger(apiId) ||
+      apiId <= 0 ||
+      apiId > 2_147_483_647
+    ) {
+      return "Informe um API ID do Telegram numérico e maior que zero.";
+    }
+  }
+  if (chave === "TELEGRAM_API_HASH" && !/^[a-f0-9]{32}$/i.test(valor)) {
+    return "O API Hash do Telegram precisa ter 32 caracteres hexadecimais.";
+  }
+  return null;
+}

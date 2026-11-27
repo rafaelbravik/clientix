@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { decryptWebhookSecret } from "@/lib/webhooks/secrets";
+import { getTelegramAppCredentials } from "./app-credentials";
 
 export interface TelegramUserCredentials {
   channelSessionId: string;
@@ -25,13 +26,7 @@ export async function resolveTelegramUserCreds(
     .is("archived_at", null)
     .maybeSingle();
 
-  if (
-    error ||
-    !data ||
-    !data.telegram_session_encrypted ||
-    !data.telegram_api_hash_encrypted ||
-    !data.telegram_api_id
-  ) {
+  if (error || !data || !data.telegram_session_encrypted) {
     return null;
   }
 
@@ -42,20 +37,30 @@ export async function resolveTelegramUserCreds(
       : Buffer.from(rawSession as Uint8Array).toString("hex");
   const sessionString = await decryptWebhookSecret(db, hexSession);
 
-  const rawHash = data.telegram_api_hash_encrypted;
-  const hexHash =
-    typeof rawHash === "string"
-      ? rawHash
-      : Buffer.from(rawHash as Uint8Array).toString("hex");
-  const apiHash = await decryptWebhookSecret(db, hexHash);
+  // As credenciais do Dono passam a valer para todos os tenants. A leitura
+  // legada mantém sessões antigas operacionais até o Dono configurar o app;
+  // novas conexões não gravam credenciais por organização.
+  const appCredentials = await getTelegramAppCredentials();
+  let apiId = appCredentials?.apiId ?? null;
+  let apiHash = appCredentials?.apiHash ?? null;
 
-  if (!sessionString || !apiHash) return null;
+  if ((!apiId || !apiHash) && data.telegram_api_id && data.telegram_api_hash_encrypted) {
+    const rawHash = data.telegram_api_hash_encrypted;
+    const hexHash =
+      typeof rawHash === "string"
+        ? rawHash
+        : Buffer.from(rawHash as Uint8Array).toString("hex");
+    apiId = data.telegram_api_id;
+    apiHash = await decryptWebhookSecret(db, hexHash);
+  }
+
+  if (!sessionString || !apiId || !apiHash) return null;
 
   return {
     channelSessionId: data.id,
     userId: data.telegram_user_id,
     phone: data.telegram_phone ?? "",
-    apiId: data.telegram_api_id,
+    apiId,
     apiHash,
     sessionString,
   };

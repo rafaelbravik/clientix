@@ -5,13 +5,12 @@ import { z } from "zod";
 
 import { invalidarCredencialDoGoogle } from "@/lib/agenda/google/config";
 import { audit } from "@/lib/audit";
-import { escritaDeAdminOuRecusa } from "@/lib/auth/escritaDeAdminOuRecusa";
+import { escritaDeOwnerOuRecusa } from "@/lib/auth/escritaDeOwnerOuRecusa";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { encryptWebhookSecret } from "@/lib/webhooks/secrets";
 
 export type UpdateGoogleOAuthResult =
-  | { ok: true }
-  | { ok: false; error: string; details?: unknown };
+  { ok: true } | { ok: false; error: string; details?: unknown };
 
 /**
  * Cadastra o app OAuth do Google DESTA INSTALAÇÃO — sem SSH e sem editar `.env`.
@@ -65,7 +64,7 @@ const entradaSchema = z.object({
 export type GoogleOAuthInput = z.infer<typeof entradaSchema>;
 
 export async function updateGoogleOAuth(input: GoogleOAuthInput): Promise<UpdateGoogleOAuthResult> {
-  const escrita = await escritaDeAdminOuRecusa();
+  const escrita = await escritaDeOwnerOuRecusa();
   if (!escrita.ok) return escrita;
   const { user: authUser } = escrita.ctx;
 

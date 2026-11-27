@@ -11,7 +11,8 @@ export interface TelegramUserSendCodeParams {
 export interface TelegramUserSendCodeResult {
   phoneCodeHash: string;
   isCodeViaApp: boolean;
-  timeout?: number;
+  sessionString: string;
+  emailRequired?: boolean;
 }
 
 export interface TelegramUserSignInParams {
@@ -20,6 +21,7 @@ export interface TelegramUserSignInParams {
   phone: string;
   phoneCodeHash: string;
   phoneCode: string;
+  sessionString: string;
 }
 
 export interface TelegramUserSignInResult {
@@ -34,7 +36,7 @@ export interface TelegramUserCheckPasswordParams {
   apiHash: string;
   phone: string;
   password: string;
-  sessionString?: string;
+  sessionString: string;
 }
 
 export interface TelegramUserMe {
@@ -61,6 +63,11 @@ export interface TelegramUserSendMediaParams {
 export interface TelegramUserMessageResult {
   messageId: string;
   date: number;
+}
+
+export interface TelegramUserMediaResult {
+  buffer: Buffer;
+  mime: string;
 }
 
 export interface TelegramUserFloodError extends Error {

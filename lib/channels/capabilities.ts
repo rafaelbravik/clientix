@@ -161,7 +161,7 @@ export const CHANNEL_CAPABILITIES: Record<ProviderDeMensagem, ChannelCapabilitie
     banRisk: true,
     minIntervalMs: 3000,
     voiceNote: "server-convert",
-    groups: "full",
+    groups: "none",
     costPerMessage: false,
     alteraMensagemEnviada: true,
   },

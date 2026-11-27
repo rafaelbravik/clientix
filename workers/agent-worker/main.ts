@@ -7,10 +7,7 @@ import { avisarRespostaDeCasoObsoleto } from "@/lib/atendimento/aviso-caso-obsol
 import { withServiceJob } from "@/lib/atendimento/fronteira-server";
 import { StaleServiceBoundaryError } from "@/lib/atendimento/fronteira";
 import { getInstallationLicenseStatus } from "@/lib/licensing";
-import {
-  deferJobForLicenseRejection,
-  LICENSE_RECHECK_DELAY_MS,
-} from "./license-settlement";
+import { deferJobForLicenseRejection, LICENSE_RECHECK_DELAY_MS } from "./license-settlement";
 /**
  * Worker 24/7 do agent-engine (fusão Vendaval → Clientix) — o processo
  * long-running que o CRM não tinha: fila durável, cron/follow-up, drain do
@@ -100,6 +97,8 @@ import { runEventLogDrainLoop, prontidaoDoLacoDeEventLog } from "@/lib/event-log
 import { crmEdgeConfigFromEnv } from "@/lib/agent-engine/edge/crm/mcp-client";
 import { enforceHolds, sessionHealthMetrics } from "@/lib/agent-engine/edge/crm/session-watchdog";
 import { runVoiceCallsBridgeLoop } from "@/lib/wacalls/events-bridge";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { runTelegramUserListenerLoop } from "./telegram-user-listener";
 import { runSessionWatchdogLoop } from "@/lib/agent-engine/edge/crm/session-reconciler";
 import { runHealthLoop } from "@/lib/agent-engine/health/circuit";
 import { runFlywheelLoop } from "@/lib/agent-engine/flywheel/live";
@@ -367,6 +366,15 @@ export async function startWorker(
 
   const loopsAbort = new AbortController();
 
+  // MTProto user accounts run in the existing worker. The listener is
+  // opt-in by stored session, so a normal installation only performs a light
+  // reconciliation query and does not create another container or port.
+  const telegramUserListenerLoop = runTelegramUserListenerLoop(
+    createAdminClient(),
+    log,
+    loopsAbort.signal,
+  );
+
   // Drain do event_log (mesmo banco pós-fusão) — transforma dispatch_requested em
   // jobs. Fase 0 (convergência, spec 2026-07-23): o drain liga SEMPRE — o
   // dispatcher nativo EPIC-13 foi aposentado, o engine é o único consumidor.
@@ -441,7 +449,8 @@ export async function startWorker(
           log,
           loopsAbort.signal,
         )
-      : (log.info('ponte WaCalls OFF — endereço ou credencial ausente no env', {}), Promise.resolve());
+      : (log.info("ponte WaCalls OFF — endereço ou credencial ausente no env", {}),
+        Promise.resolve());
 
   // Circuito de saúde do número (block/response rate → hold).
   const healthLoop = runHealthLoop(
@@ -568,7 +577,10 @@ export async function startWorker(
         try {
           await encerrarAvisoDeFaltaDeSaldo(pool, job.organization_id);
         } catch (avisoErr) {
-          log.error("aviso de falta de saldo não foi encerrado", { job_id: job.id, error: errMsg(avisoErr) });
+          log.error("aviso de falta de saldo não foi encerrado", {
+            job_id: job.id,
+            error: errMsg(avisoErr),
+          });
         }
       }
       try {
@@ -614,7 +626,10 @@ export async function startWorker(
         });
         settlementCompleted = true;
         if (!deferred) {
-          log.warn("adiamento da agenda perdeu a posse do claim", { job_id: job.id, kind: job.kind });
+          log.warn("adiamento da agenda perdeu a posse do claim", {
+            job_id: job.id,
+            kind: job.kind,
+          });
         }
         return;
       }
@@ -630,10 +645,21 @@ export async function startWorker(
         try {
           await avisarFaltaDeSaldo(pool, job.organization_id, err);
         } catch (avisoErr) {
-          log.error("aviso de falta de saldo não entrou na Central", { job_id: job.id, error: errMsg(avisoErr) });
+          log.error("aviso de falta de saldo não entrou na Central", {
+            job_id: job.id,
+            error: errMsg(avisoErr),
+          });
         }
         try {
-          await adiarAteORecarregar(pool, job, workerId, err, claim.acquired_at, Date.now(), settlementReporting);
+          await adiarAteORecarregar(
+            pool,
+            job,
+            workerId,
+            err,
+            claim.acquired_at,
+            Date.now(),
+            settlementReporting,
+          );
           settlementCompleted = true;
         } catch (adiarErr) {
           fallbackReason = adiarErr;
@@ -792,6 +818,7 @@ export async function startWorker(
       sessionWatchdogLoop,
       flywheelLoop,
       voiceCallsBridgeLoop,
+      telegramUserListenerLoop,
     ]);
     await workerLoop;
     let graceTimer: NodeJS.Timeout | undefined;

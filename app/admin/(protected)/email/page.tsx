@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { loadAuthUser } from "@/lib/auth/server";
+import { requirePlatformOwner } from "@/lib/auth/requirePlatformAdmin";
 import { getSmtpConfig } from "@/lib/email/config";
 import { transporteEmVigor } from "@/lib/email/roteador";
 import { CATALOGO_DA_INSTALACAO } from "@/lib/instalacao/catalogo";
@@ -43,6 +44,7 @@ export const dynamic = "force-dynamic";
  * `tests/unit/tela-de-smtp-nao-devolve-a-senha.test.tsx`.
  */
 export default async function Page() {
+  await requirePlatformOwner();
   const usuario = await loadAuthUser();
   if (!usuario?.is_platform_admin) notFound();
 

@@ -88,8 +88,11 @@ describe("signed installer compatibility contract", () => {
     const agentWorkerReplyDraftAclMigration = schemaManifest.migrations.find((entry) => entry.sequence === 9064);
     const tenantAppearancePalettesMigration = schemaManifest.migrations.find((entry) => entry.sequence === 9066);
     const tenantGreenPaletteMigration = schemaManifest.migrations.find((entry) => entry.sequence === 9067);
-    expect(schemaManifest.schema_target).toBe("9067");
-    expect(schemaManifest.baseline.incorporated_through_sequence).toBe(9067);
+    const telegramUserNoWebhookMigration = schemaManifest.migrations.find(
+      (entry) => entry.sequence === 9068,
+    );
+    expect(schemaManifest.schema_target).toBe("9068");
+    expect(schemaManifest.baseline.incorporated_through_sequence).toBe(9068);
     expect(webchatMigration).toMatchObject({
       file: "20261010120000_0511_webchat_widget_bootstrap.sql",
       version: "20261010120000",
@@ -214,6 +217,14 @@ describe("signed installer compatibility contract", () => {
       version: "20261118100000",
       sequence: 9067,
       slug: "tenant_green_palette",
+      transactional: true,
+    });
+
+    expect(telegramUserNoWebhookMigration).toMatchObject({
+      file: "20261126220000_9068_telegram_user_no_webhook_secret.sql",
+      version: "20261126220000",
+      sequence: 9068,
+      slug: "telegram_user_no_webhook_secret",
       transactional: true,
     });
 

@@ -35,9 +35,18 @@ const TOKEN_GERADO = "tOkEn_gerado_pelo_servidor_0123456789abcdef";
 
 let linha: Record<string, string | null> | null = null;
 let erroDaLeitura: { code: string; message: string } | null = null;
-let usuario: { is_platform_admin: boolean; idioma: "pt-BR" } | null = null;
+let usuario: {
+  is_platform_admin: boolean;
+  idioma: "pt-BR";
+  platform_role: "owner" | "admin";
+} | null = null;
 
 vi.mock("@/lib/auth/server", () => ({ loadAuthUser: async () => usuario }));
+vi.mock("@/lib/auth/requirePlatformAdmin", () => ({
+  requirePlatformOwner: async () => {
+    if (usuario?.platform_role !== "owner") throw new Error("NEXT_NOT_FOUND");
+  },
+}));
 
 vi.mock("@/lib/supabase/admin", () => ({
   // Sem `rpc`: se a página tentasse decifrar alguma coisa, estouraria aqui.
@@ -80,7 +89,7 @@ import { FormularioDaMeta } from "@/app/admin/(protected)/meta/_form";
 const ORIGINAL = { ...process.env };
 
 beforeEach(() => {
-  usuario = { is_platform_admin: true, idioma: "pt-BR" };
+  usuario = { is_platform_admin: true, idioma: "pt-BR", platform_role: "owner" };
   linha = null;
   erroDaLeitura = null;
   process.env.META_APP_SECRET = SEGREDO_DO_ENV;
@@ -152,7 +161,7 @@ describe("/admin/meta — o que a página entrega ao navegador", () => {
   });
 
   it("quem não administra a instalação não enxerga a tela", async () => {
-    usuario = { is_platform_admin: false, idioma: "pt-BR" };
+    usuario = { is_platform_admin: true, idioma: "pt-BR", platform_role: "admin" };
 
     await expect(Page()).rejects.toThrow("NEXT_NOT_FOUND");
   });

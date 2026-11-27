@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "generated_at": "2026-11-20T21:44:58.771Z",
-  "schema_target": "9067",
+  "generated_at": "2026-11-27T17:53:35Z",
+  "schema_target": "9068",
   "baseline": {
     "file": "baseline.sql",
-    "checksum": "f8df3d3e0400cc9fe4e93e6493e2833cde1cc6dbccc399e7ba241eced343939b",
-    "size_bytes": 2589993,
-    "incorporated_through_sequence": 9067
+    "checksum": "f2e5e6ded592a86328596d56e40f1c0c1f1415ba53731c98f949ae5acf255547",
+    "size_bytes": 2590595,
+    "incorporated_through_sequence": 9068
   },
   "migrations": [
     {
@@ -3518,7 +3518,16 @@
       "checksum": "c04f5a30d2b280f187aea56953299e004c4e49d091d650f5edf1c50d13b1c490",
       "transactional": true,
       "size_bytes": 3693
+    },
+    {
+      "file": "20261126220000_9068_telegram_user_no_webhook_secret.sql",
+      "version": "20261126220000",
+      "sequence": 9068,
+      "slug": "telegram_user_no_webhook_secret",
+      "checksum": "8e815054ecb0ce41e22f01d08d2cde8e128f1929a890bd2b97dd15afa2830052",
+      "transactional": true,
+      "size_bytes": 723
     }
   ],
-  "updated_at": "2026-11-20T21:44:58.771Z"
+  "updated_at": "2026-11-27T17:53:35Z"
 }

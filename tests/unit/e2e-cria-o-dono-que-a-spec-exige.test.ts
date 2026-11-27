@@ -229,4 +229,17 @@ describe("o CI cria o dono que a spec da instalação fresca exige", () => {
       ).not.toMatch(/[^\\][$`]/);
     }
   });
+
+  it("as telas da instalação recebem platform_role owner e scope full", () => {
+    const seed = ler("scripts/seed-e2e-system-update.ts");
+    const precondicao = ler("tests/e2e/utils/precondicao.ts");
+
+    expect(seed).toMatch(/platform_role:\s*"owner"/);
+    expect(seed).toMatch(/scope:\s*"full"/);
+    expect(seed).toMatch(/select\("user_id, revoked_at, platform_role, scope"\)/);
+    expect(precondicao).toMatch(/platform_role:\s*"owner"/);
+    expect(precondicao).toMatch(/scope:\s*"full"/);
+    expect(precondicao).toMatch(/select\("user_id, platform_role, scope, revoked_at"\)/);
+  });
+
 });

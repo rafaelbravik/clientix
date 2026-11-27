@@ -1,6 +1,12 @@
+import { Api, TelegramClient, utils } from "teleproto";
+import { StringSession } from "teleproto/sessions";
+
+import { exigeSenhaDeDuasEtapas } from "./auth-errors";
+import type { TelegramUserCredentials } from "./credentials";
 import type {
   TelegramUserCheckPasswordParams,
   TelegramUserFloodError,
+  TelegramUserMediaResult,
   TelegramUserMe,
   TelegramUserMessageResult,
   TelegramUserSendCodeParams,
@@ -10,281 +16,337 @@ import type {
   TelegramUserSignInParams,
   TelegramUserSignInResult,
 } from "./types";
-import type { TelegramUserCredentials } from "./credentials";
+import { MAX_MEDIA_BYTES } from "@/lib/messaging/media/types";
 
-/**
- * Cliente de transporte para Telegram MTProto (Userbot / Conta de Atendente).
- *
- * Comunica-se com gateway HTTPS de transporte MTProto configurado em
- * `TELEGRAM_MTPROTO_GATEWAY_URL`. Trata especificamente limites de Flood do Telegram
- * (FLOOD_WAIT_X e PeerFloodError) para proteger o número contra ban.
- */
+const CONNECTION_OPTIONS = {
+  connectionRetries: 3,
+  requestRetries: 2,
+  reconnectRetries: 3,
+  retryDelay: 1_000,
+  timeout: 20,
+  autoReconnect: false,
+  sequentialUpdates: true,
+} as const;
 
-function parseFloodWait(errorMessage: string): number | null {
-  const match = errorMessage.match(/FLOOD_WAIT_(\d+)/i) || errorMessage.match(/flood wait (\d+)/i);
-  if (match && match[1]) {
-    return parseInt(match[1], 10);
+function createClient(apiId: number, apiHash: string, sessionString = ""): TelegramClient {
+  return new TelegramClient(new StringSession(sessionString), apiId, apiHash, CONNECTION_OPTIONS);
+}
+
+function saveSession(client: TelegramClient): string {
+  const session = client.session.save();
+  if (typeof session !== "string" || session.length === 0) {
+    throw new Error("telegram_session_unavailable");
   }
-  return null;
+  return session;
 }
 
-export class TelegramUserGatewayUnavailableError extends Error {
-  readonly code = "telegram_user_gateway_unavailable";
+export function createTelegramUserClient(creds: TelegramUserCredentials): TelegramClient {
+  return createClient(creds.apiId, creds.apiHash, creds.sessionString);
+}
 
-  constructor() {
-    super("Telegram User/MTProto está indisponível: configure um gateway HTTPS confiável.");
-    this.name = "TelegramUserGatewayUnavailableError";
+async function withClient<T>(
+  apiId: number,
+  apiHash: string,
+  sessionString: string,
+  operation: (client: TelegramClient) => Promise<T>,
+): Promise<T> {
+  const client = createClient(apiId, apiHash, sessionString);
+  try {
+    await client.connect();
+    return await operation(client);
+  } finally {
+    await client.disconnect().catch(() => undefined);
   }
 }
 
-function gatewayUrl(): string {
-  const configured = process.env.TELEGRAM_MTPROTO_GATEWAY_URL?.trim();
-  if (!configured) throw new TelegramUserGatewayUnavailableError();
-  return configured.replace(/\/$/, "");
-}
-
-type GatewayRecord = Record<string, unknown>;
-
-function gatewayRecord(value: unknown): GatewayRecord {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error("Resposta inválida do gateway Telegram.");
+function floodWaitSeconds(error: unknown): number | null {
+  if (error && typeof error === "object" && "seconds" in error) {
+    const seconds = Number(error.seconds);
+    if (Number.isFinite(seconds) && seconds > 0) return seconds;
   }
-  return value as GatewayRecord;
-}
-
-function gatewayError(body: GatewayRecord, fallback: string): string {
-  if (typeof body.error === "string" && body.error.trim()) return body.error;
-  if (typeof body.message === "string" && body.message.trim()) return body.message;
-  return fallback;
-}
-
-function requiredGatewayString(value: unknown, field: string): string {
-  if (typeof value === "string" && value.trim()) return value.trim();
-  throw new Error(`Resposta inválida do gateway Telegram: ${field} ausente.`);
-}
-
-function gatewayId(value: unknown, field: string): string {
-  if (typeof value === "number" && Number.isSafeInteger(value) && value > 0) return String(value);
-  return requiredGatewayString(value, field);
-}
-
-function parseGatewayUser(value: unknown, phoneFallback?: string): TelegramUserMe {
-  const user = gatewayRecord(value);
-  return {
-    id: gatewayId(user.id, "user.id"),
-    phone: requiredGatewayString(user.phone ?? phoneFallback, "user.phone"),
-    firstName: requiredGatewayString(user.first_name, "user.first_name"),
-    lastName: typeof user.last_name === "string" ? user.last_name : null,
-    username: typeof user.username === "string" ? user.username : null,
-  };
-}
-
-function parseGatewayMessage(body: GatewayRecord): TelegramUserMessageResult {
-  const messageId = gatewayId(body.id ?? body.message_id, "message.id");
-  const date =
-    typeof body.date === "number" && Number.isFinite(body.date)
-      ? body.date
-      : typeof body.date === "string" && /^\d+$/.test(body.date)
-        ? Number(body.date)
-        : Math.floor(Date.now() / 1000);
-  return { messageId, date };
+  const message = error instanceof Error ? error.message : String(error);
+  const match = message.match(/(?:FLOOD(?:_PREMIUM)?_WAIT_(\d+)|wait of (\d+) seconds)/i);
+  const seconds = match?.[1] ?? match?.[2];
+  return seconds ? Number(seconds) : null;
 }
 
 export function createFloodError(seconds: number): TelegramUserFloodError {
   const err = new Error(
-    `FLOOD_WAIT_${seconds}: limite de envio atingido no Telegram MTProto. Aguarde ${seconds}s.`,
+    `O Telegram pediu uma pausa de ${seconds} segundos antes de novas mensagens.`,
   ) as TelegramUserFloodError;
   err.code = "FLOOD_WAIT";
   err.retryAfterSeconds = seconds;
   return err;
 }
 
+function throwIfFlood(error: unknown): never {
+  const seconds = floodWaitSeconds(error);
+  if (seconds !== null) throw createFloodError(seconds);
+  throw error;
+}
+
+function toUser(user: Api.TypeUser | undefined, phoneFallback: string): TelegramUserMe {
+  if (!user || user.className !== "User") throw new Error("telegram_user_unavailable");
+  return {
+    id: user.id.toString(),
+    phone: user.phone ?? phoneFallback,
+    firstName: user.firstName ?? "Telegram",
+    lastName: user.lastName ?? null,
+    username: user.username ?? null,
+  };
+}
+
+function peerFromReference(reference: string): Api.InputPeerUser {
+  const match = /^tgu:(\d+):(-?\d+)$/.exec(reference);
+  if (!match?.[1] || !match[2]) throw new Error("telegram_user_peer_unavailable");
+  const userId = utils.parseID(match[1]);
+  const accessHash = utils.parseID(match[2]);
+  if (!userId || !accessHash) throw new Error("telegram_user_peer_unavailable");
+  return new Api.InputPeerUser({ userId, accessHash });
+}
+
+export interface TelegramUserOutboxReadState {
+  peerId: string;
+  maxId: number;
+}
+
+/** Consulta o limite de leitura da outra pessoa para DMs específicas. */
+export async function telegramUserGetOutboxReadStates(
+  client: TelegramClient,
+  references: readonly string[],
+): Promise<TelegramUserOutboxReadState[]> {
+  if (references.length === 0) return [];
+
+  const peers = references.map(
+    (reference) => new Api.InputDialogPeer({ peer: peerFromReference(reference) }),
+  );
+  // O schema MTProto exige InputDialogPeer; o binding teleproto tipa este
+  // parâmetro como EntityLike, embora essa classe não pertença a essa união.
+  const result = await client.invoke(
+    new Api.messages.GetPeerDialogs({ peers: peers as unknown as Api.TypeEntityLike[] }),
+  );
+
+  return result.dialogs.flatMap((dialog) => {
+    if (dialog.className !== "Dialog" || dialog.peer.className !== "PeerUser") return [];
+    const maxId = Number(dialog.readOutboxMaxId);
+    if (!Number.isSafeInteger(maxId) || maxId < 0) return [];
+    return [{ peerId: dialog.peer.userId.toString(), maxId }];
+  });
+}
+
+function messageResult(message: Api.Message): TelegramUserMessageResult {
+  return { messageId: String(message.id), date: message.date };
+}
+
 export async function telegramUserSendCode(
   params: TelegramUserSendCodeParams,
 ): Promise<TelegramUserSendCodeResult> {
-  const gateway = gatewayUrl();
-  {
-    const res = await fetch(`${gateway}/auth/sendCode`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        api_id: params.apiId,
-        api_hash: params.apiHash,
-        phone: params.phone,
-      }),
-    });
-
-    const body = gatewayRecord(await res.json());
-    if (!res.ok) {
-      const floodSecs = parseFloodWait(gatewayError(body, ""));
-      if (floodSecs) throw createFloodError(floodSecs);
-      throw new Error(gatewayError(body, `sendCode falhou com status ${res.status}`));
-    }
-
+  const client = createClient(params.apiId, params.apiHash);
+  try {
+    await client.connect();
+    const sent = await client.sendCode(
+      { apiId: params.apiId, apiHash: params.apiHash },
+      params.phone,
+    );
     return {
-      phoneCodeHash: requiredGatewayString(body.phone_code_hash, "phone_code_hash"),
-      isCodeViaApp: Boolean(body.is_code_via_app),
-      ...(typeof body.timeout === "number" && Number.isFinite(body.timeout)
-        ? { timeout: body.timeout }
-        : {}),
+      phoneCodeHash: sent.phoneCodeHash,
+      isCodeViaApp: sent.isCodeViaApp,
+      ...(sent.emailRequired ? { emailRequired: true } : {}),
+      sessionString: saveSession(client),
     };
+  } catch (error) {
+    throwIfFlood(error);
+  } finally {
+    await client.disconnect().catch(() => undefined);
   }
 }
 
 export async function telegramUserSignIn(
   params: TelegramUserSignInParams,
 ): Promise<TelegramUserSignInResult> {
-  const gateway = gatewayUrl();
-  {
-    const res = await fetch(`${gateway}/auth/signIn`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        api_id: params.apiId,
-        api_hash: params.apiHash,
-        phone: params.phone,
-        phone_code_hash: params.phoneCodeHash,
-        phone_code: params.phoneCode,
-      }),
-    });
-
-    const body = gatewayRecord(await res.json());
-    if (!res.ok) {
-      if (
-        body.error === "SESSION_PASSWORD_NEEDED" ||
-        (typeof body.message === "string" && body.message.includes("2FA"))
-      ) {
+  return withClient(params.apiId, params.apiHash, params.sessionString, async (client) => {
+    try {
+      await client.invoke(
+        new Api.auth.SignIn({
+          phoneNumber: params.phone,
+          phoneCodeHash: params.phoneCodeHash,
+          phoneCode: params.phoneCode,
+        }),
+      );
+    } catch (error) {
+      if (exigeSenhaDeDuasEtapas(error)) {
         return {
           success: false,
           passwordNeeded: true,
-          ...(typeof body.session_string === "string" && body.session_string.trim()
-            ? { sessionString: body.session_string }
-            : {}),
+          sessionString: saveSession(client),
         };
       }
-      const floodSecs = parseFloodWait(gatewayError(body, ""));
-      if (floodSecs) throw createFloodError(floodSecs);
-      throw new Error(gatewayError(body, `signIn falhou com status ${res.status}`));
+      throwIfFlood(error);
     }
 
+    if (!(await client.checkAuthorization())) throw new Error("telegram_authorization_incomplete");
     return {
       success: true,
-      sessionString: requiredGatewayString(body.session_string, "session_string"),
-      user: parseGatewayUser(body.user, params.phone),
+      sessionString: saveSession(client),
+      user: toUser(await client.getMe(), params.phone),
     };
-  }
+  });
 }
 
 export async function telegramUserCheckPassword(
   params: TelegramUserCheckPasswordParams,
 ): Promise<TelegramUserSignInResult> {
-  const gateway = gatewayUrl();
-  {
-    const res = await fetch(`${gateway}/auth/checkPassword`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        api_id: params.apiId,
-        api_hash: params.apiHash,
-        password: params.password,
-        session_string: params.sessionString,
-      }),
-    });
-
-    const body = gatewayRecord(await res.json());
-    if (!res.ok) {
-      const floodSecs = parseFloodWait(gatewayError(body, ""));
-      if (floodSecs) throw createFloodError(floodSecs);
-      throw new Error(gatewayError(body, `checkPassword falhou com status ${res.status}`));
+  if (!params.sessionString) throw new Error("telegram_session_required");
+  return withClient(params.apiId, params.apiHash, params.sessionString, async (client) => {
+    try {
+      await client.signInWithPassword(
+        { apiId: params.apiId, apiHash: params.apiHash },
+        {
+          password: async () => params.password,
+          onError: (error) => {
+            throw error;
+          },
+        },
+      );
+    } catch (error) {
+      throwIfFlood(error);
     }
 
+    if (!(await client.checkAuthorization())) throw new Error("telegram_authorization_incomplete");
     return {
       success: true,
-      sessionString: requiredGatewayString(body.session_string, "session_string"),
-      user: parseGatewayUser(body.user, params.phone),
+      sessionString: saveSession(client),
+      user: toUser(await client.getMe(), params.phone),
     };
-  }
+  });
 }
 
 export async function telegramUserGetMe(creds: TelegramUserCredentials): Promise<TelegramUserMe> {
-  const gateway = gatewayUrl();
-  {
-    const res = await fetch(`${gateway}/users/getMe`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        api_id: creds.apiId,
-        api_hash: creds.apiHash,
-        session_string: creds.sessionString,
-      }),
-    });
-
-    const body = gatewayRecord(await res.json());
-    if (!res.ok) {
-      throw new Error(gatewayError(body, "getMe falhou"));
-    }
-
-    return parseGatewayUser(body, creds.phone);
-  }
+  return withClient(creds.apiId, creds.apiHash, creds.sessionString, async (client) => {
+    if (!(await client.checkAuthorization())) throw new Error("telegram_session_expired");
+    return toUser(await client.getMe(), creds.phone);
+  });
 }
 
 export async function telegramUserSendMessage(
   creds: TelegramUserCredentials,
   params: TelegramUserSendMessageParams,
 ): Promise<TelegramUserMessageResult> {
-  const gateway = gatewayUrl();
-  {
-    const res = await fetch(`${gateway}/messages/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        api_id: creds.apiId,
-        api_hash: creds.apiHash,
-        session_string: creds.sessionString,
-        to: params.to,
-        text: params.text,
-        reply_to_msg_id: params.replyToMsgId,
-      }),
-    });
-
-    const body = gatewayRecord(await res.json());
-    if (!res.ok) {
-      const floodSecs = parseFloodWait(gatewayError(body, ""));
-      if (floodSecs) throw createFloodError(floodSecs);
-      throw new Error(gatewayError(body, "sendMessage falhou no MTProto"));
+  return withClient(creds.apiId, creds.apiHash, creds.sessionString, async (client) => {
+    if (!(await client.checkAuthorization())) throw new Error("telegram_session_expired");
+    try {
+      const sent = await client.sendMessage(peerFromReference(params.to), {
+        message: params.text,
+      });
+      if (!sent || sent.className !== "Message") throw new Error("telegram_send_ack_missing");
+      return messageResult(sent);
+    } catch (error) {
+      throwIfFlood(error);
     }
-
-    return parseGatewayMessage(body);
-  }
+  });
 }
 
 export async function telegramUserSendMedia(
   creds: TelegramUserCredentials,
   params: TelegramUserSendMediaParams,
 ): Promise<TelegramUserMessageResult> {
-  const gateway = gatewayUrl();
-  {
-    const res = await fetch(`${gateway}/messages/sendMedia`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        api_id: creds.apiId,
-        api_hash: creds.apiHash,
-        session_string: creds.sessionString,
-        to: params.to,
-        media_url: params.mediaUrl,
-        caption: params.caption,
-        media_type: params.mediaType,
-      }),
-    });
-
-    const body = gatewayRecord(await res.json());
-    if (!res.ok) {
-      const floodSecs = parseFloodWait(gatewayError(body, ""));
-      if (floodSecs) throw createFloodError(floodSecs);
-      throw new Error(gatewayError(body, "sendMedia falhou no MTProto"));
+  return withClient(creds.apiId, creds.apiHash, creds.sessionString, async (client) => {
+    if (!(await client.checkAuthorization())) throw new Error("telegram_session_expired");
+    let mediaUrl: URL;
+    try {
+      mediaUrl = new URL(params.mediaUrl);
+    } catch {
+      throw new Error("telegram_media_url_invalid");
+    }
+    if (mediaUrl.protocol !== "https:" || mediaUrl.username || mediaUrl.password) {
+      throw new Error("telegram_media_url_invalid");
     }
 
-    return parseGatewayMessage(body);
+    try {
+      const sent = await client.sendFile(peerFromReference(params.to), {
+        file: mediaUrl.toString(),
+        caption: params.caption ?? undefined,
+        forceDocument: params.mediaType === "document",
+      });
+      if (!sent || sent.className !== "Message") throw new Error("telegram_send_ack_missing");
+      return messageResult(sent);
+    } catch (error) {
+      throwIfFlood(error);
+    }
+  });
+}
+
+export async function telegramUserFetchMedia(
+  creds: TelegramUserCredentials,
+  peerReference: string,
+  messageId: string,
+): Promise<TelegramUserMediaResult> {
+  let peer: Api.InputPeerUser;
+  try {
+    peer = peerFromReference(peerReference);
+  } catch {
+    throw new Error("telegram_media_reference_invalid");
   }
+  const numericMessageId = Number(messageId);
+  if (!Number.isSafeInteger(numericMessageId) || numericMessageId <= 0) {
+    throw new Error("telegram_media_reference_invalid");
+  }
+
+  return withClient(creds.apiId, creds.apiHash, creds.sessionString, async (client) => {
+    if (!(await client.checkAuthorization())) throw new Error("telegram_session_expired");
+    const messages = await client.getMessages(peer, { ids: numericMessageId });
+    const message = messages[0];
+    if (!message?.media) throw new Error("telegram_media_missing");
+    const content = await client.downloadMedia(message);
+    if (!Buffer.isBuffer(content) || content.length === 0) throw new Error("telegram_media_empty");
+    if (content.length > MAX_MEDIA_BYTES) throw new Error("telegram_media_too_large");
+    const document =
+      message.media.className === "MessageMediaDocument" ? message.media.document : undefined;
+    if (document?.className === "Document" && Number(document.size) > MAX_MEDIA_BYTES) {
+      throw new Error("telegram_media_too_large");
+    }
+    const mime =
+      document?.className === "Document"
+        ? document.mimeType || "application/octet-stream"
+        : message.media.className === "MessageMediaPhoto"
+          ? "image/jpeg"
+          : "application/octet-stream";
+    return { buffer: content, mime };
+  });
+}
+
+function messageIdFromExternalId(externalId: string, recipient: string): number {
+  if (!externalId.startsWith(`${recipient}:`)) {
+    throw new Error("telegram_message_reference_invalid");
+  }
+  const messageId = Number(externalId.slice(recipient.length + 1));
+  if (!Number.isSafeInteger(messageId) || messageId <= 0) {
+    throw new Error("telegram_message_reference_invalid");
+  }
+  return messageId;
+}
+
+export async function telegramUserEditMessage(
+  creds: TelegramUserCredentials,
+  params: { to: string; externalId: string; text: string },
+): Promise<void> {
+  await withClient(creds.apiId, creds.apiHash, creds.sessionString, async (client) => {
+    if (!(await client.checkAuthorization())) throw new Error("telegram_session_expired");
+    const messageId = messageIdFromExternalId(params.externalId, params.to);
+    await client.editMessage(peerFromReference(params.to), {
+      message: messageId,
+      text: params.text,
+    });
+  });
+}
+
+export async function telegramUserRevokeMessage(
+  creds: TelegramUserCredentials,
+  params: { to: string; externalId: string },
+): Promise<void> {
+  await withClient(creds.apiId, creds.apiHash, creds.sessionString, async (client) => {
+    if (!(await client.checkAuthorization())) throw new Error("telegram_session_expired");
+    const messageId = messageIdFromExternalId(params.externalId, params.to);
+    await client.deleteMessages(peerFromReference(params.to), [messageId], { revoke: true });
+  });
 }

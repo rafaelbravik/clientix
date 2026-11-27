@@ -156,38 +156,57 @@ export async function afirmarAdminDeTenantPuro(email: string): Promise<void> {
 export async function afirmarDonoDoServidor(email: string): Promise<void> {
   const userId = await idPorEmail(email);
   const svc = servico();
-  const { count, error } = await svc
+  const { data: existing, error: erroLeitura } = await svc
     .from("platform_admins")
-    .select("user_id", { count: "exact", head: true })
+    .select("user_id, platform_role, scope, revoked_at")
     .eq("user_id", userId)
-    .is("revoked_at", null);
-  if (error) throw new Error(`precondição: consulta a platform_admins falhou (${error.message})`);
-
-  // Mesma falha fechada da irmã: contagem nula é "não medi", nunca "é zero".
-  if (count === null) {
-    throw new Error(
-      `precondição: platform_admins não devolveu contagem para ${email} — ` +
-        `sem esse número a spec mediria a superfície errada sem saber.`,
-    );
+    .maybeSingle();
+  if (erroLeitura) {
+    throw new Error(`precondição: consulta a platform_admins falhou (${erroLeitura.message})`);
   }
-  if (count > 0) return;
 
-  // `granted_by` é NOT NULL — a tabela registra QUEM promoveu, e a primeira
-  // versão desta função omitia a coluna. O CI reprovou com a mensagem do
-  // Postgres inteira, que é o comportamento desejado: a precondição falhou alto
-  // e nomeou a causa em vez de deixar a bateria medir a superfície errada.
-  // Auto-concessão é o que `seed-e2e-system-update.ts:93-97` já faz — não há um
-  // "quem promoveu" anterior num banco semeado do zero.
+  const atual = existing as {
+    platform_role: string;
+    scope: string;
+    revoked_at: string | null;
+  } | null;
+  if (atual?.revoked_at === null && atual.platform_role === "owner" && atual.scope === "full") {
+    return;
+  }
+
+  const acessoDeDono = {
+    platform_role: "owner",
+    scope: "full",
+    revoked_at: null,
+    revoked_by: null,
+    revoke_reason: null,
+  };
+
+  if (existing) {
+    const { error } = await svc
+      .from("platform_admins")
+      .update(acessoDeDono as never)
+      .eq("user_id", userId);
+    if (error) {
+      throw new Error(
+        `PRECONDIÇÃO NÃO SATISFEITA: ${email} não pôde receber papel de proprietário (${error.message}). ` +
+          `Esta spec mede o painel da instalação, que exige platform_role=owner. Conserto: ${CONSERTO}`,
+      );
+    }
+    return;
+  }
+
   const { error: erroInsert } = await svc.from("platform_admins").insert({
     user_id: userId,
     granted_by: userId,
+    ...acessoDeDono,
     reason: "precondição e2e — dono do servidor para a bateria do painel da instalação",
   } as never);
   if (erroInsert) {
     throw new Error(
-      `PRECONDIÇÃO NÃO SATISFEITA: ${email} não é dono do servidor e a promoção falhou ` +
-        `(${erroInsert.message}). Esta spec mede o painel da INSTALAÇÃO, que só o dono ` +
-        `alcança. Conserto manual: ${CONSERTO}`,
+      `PRECONDIÇÃO NÃO SATISFEITA: ${email} não é proprietário do servidor e a promoção falhou ` +
+        `(${erroInsert.message}). Esta spec mede o painel da INSTALAÇÃO, que só o dono alcança. ` +
+        `Conserto manual: ${CONSERTO}`,
     );
   }
 }

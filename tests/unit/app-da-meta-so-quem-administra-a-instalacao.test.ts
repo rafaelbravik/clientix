@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  *
  * `updateMetaApp` e `rotacionarVerifyTokenDaMeta` gravam a credencial que assina
  * a entrada de mensagens de TODAS as organizações da VPS. O que as fecha é a
- * primeira linha de cada uma: `requirePlatformAdmin()`. Medido pelo revisor do
+ * primeira linha de cada uma: `requirePlatformOwnerEscrita()`. Medido pelo revisor do
  * lote 8: apagando essa chamada das duas, a suíte inteira ficava verde (876
  * arquivos) — o teste vizinho, `app-da-meta-save-exige-o-segredo.test.ts`, DUBLA
  * o `requirePlatformAdmin` para devolver sempre um admin, e por construção não
@@ -25,7 +25,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * Os controles (com a linha) existem para a recusa não poder vir de um dublê
  * quebrado: sem eles, "lançou" seria verde também se a sessão nunca respondesse.
  *
- * Sabotagem que confirma a vigia: apagar `await requirePlatformAdmin()` de uma das
+ * Sabotagem que confirma a vigia: apagar `await escritaDeOwnerOuRecusa()` de uma das
  * duas actions deixa vermelho o caso dela.
  */
 
@@ -111,16 +111,17 @@ async function recusa(chamada: () => Promise<unknown>): Promise<string | null> {
   return "(a action terminou sem redirecionar)";
 }
 
-const ADMIN_DA_INSTALACAO = {
+const OWNER_DA_INSTALACAO = {
   user_id: USUARIO,
   scope: "full",
   mfa_required: false,
   revoked_at: null,
+  platform_role: "owner",
 };
 
 describe("updateMetaApp — o gate da instalação", () => {
   it("support_readonly TEM a linha e mesmo assim não grava: a escrita exige scope full", async () => {
-    linhaDeAdmin = { ...ADMIN_DA_INSTALACAO, scope: "support_readonly" };
+    linhaDeAdmin = { ...OWNER_DA_INSTALACAO, scope: "support_readonly" };
     const { updateMetaApp } = await acoes();
     // A recusa VOLTA como resultado (a tela diz "somente leitura"), não lança ao error boundary.
     await expect(updateMetaApp({ app_secret: SEGREDO })).resolves.toEqual({ ok: false, error: "forbidden_scope" });
@@ -137,8 +138,19 @@ describe("updateMetaApp — o gate da instalação", () => {
     expect(tabelasDoServiceRole, "a action leu ou gravou o app da Meta para quem não administra a instalação").toEqual([]);
   });
 
-  it("CONTROLE: com a linha em platform_admins, a mesma chamada chega ao banco da instalação", async () => {
-    linhaDeAdmin = ADMIN_DA_INSTALACAO;
+  it("admin global sem papel Owner não pode alterar credenciais de toda a instalação", async () => {
+    linhaDeAdmin = { ...OWNER_DA_INSTALACAO, platform_role: "admin" };
+    const { updateMetaApp } = await acoes();
+
+    await expect(updateMetaApp({ app_secret: SEGREDO })).resolves.toEqual({
+      ok: false,
+      error: "forbidden_scope",
+    });
+    expect(tabelasDoServiceRole).toEqual([]);
+  });
+
+  it("CONTROLE: o Owner global consegue alterar credenciais da instalação", async () => {
+    linhaDeAdmin = OWNER_DA_INSTALACAO;
     const { updateMetaApp } = await acoes();
 
     expect(await updateMetaApp({ app_secret: SEGREDO })).toEqual({ ok: true });
@@ -155,8 +167,19 @@ describe("rotacionarVerifyTokenDaMeta — o gate da instalação", () => {
     expect(tabelasDoServiceRole, "a rotação gerou token para quem não administra a instalação").toEqual([]);
   });
 
-  it("CONTROLE: com a linha em platform_admins, a rotação chega ao banco da instalação", async () => {
-    linhaDeAdmin = ADMIN_DA_INSTALACAO;
+  it("admin global sem papel Owner não pode rotacionar o token da instalação", async () => {
+    linhaDeAdmin = { ...OWNER_DA_INSTALACAO, platform_role: "admin" };
+    const { rotacionarVerifyTokenDaMeta } = await acoes();
+
+    await expect(rotacionarVerifyTokenDaMeta()).resolves.toEqual({
+      ok: false,
+      error: "forbidden_scope",
+    });
+    expect(tabelasDoServiceRole).toEqual([]);
+  });
+
+  it("CONTROLE: o Owner global consegue rotacionar o token da instalação", async () => {
+    linhaDeAdmin = OWNER_DA_INSTALACAO;
     const { rotacionarVerifyTokenDaMeta } = await acoes();
 
     const r = await rotacionarVerifyTokenDaMeta();

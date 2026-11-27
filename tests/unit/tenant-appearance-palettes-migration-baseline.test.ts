@@ -60,8 +60,8 @@ describe.each([
     const migration = readFileSync(`supabase/migrations/${file}`);
     const entry = manifest.migrations.find((item) => item.sequence === sequence);
 
-    expect(manifest.schema_target).toBe("9067");
-    expect(manifest.baseline.incorporated_through_sequence).toBe(9067);
+    expect(manifest.schema_target).toBe("9068");
+    expect(manifest.baseline.incorporated_through_sequence).toBe(9068);
     expect(manifest.baseline.checksum).toBe(sha256(baselineBytes));
     expect(manifest.baseline.size_bytes).toBe(baselineBytes.byteLength);
     expect(entry).toMatchObject({

@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("next/headers", () => ({ headers: async () => new Headers({ "x-request-id": "req-smtp" }) }));
-vi.mock("@/lib/auth/escritaDeAdminOuRecusa", () => ({ escritaDeAdminOuRecusa: mocks.authorize }));
+vi.mock("@/lib/auth/escritaDeOwnerOuRecusa", () => ({ escritaDeOwnerOuRecusa: mocks.authorize }));
 vi.mock("@/lib/email/config", () => ({ saveSmtpConfig: mocks.save }));
 vi.mock("@/lib/email/smtp", () => ({ checkSmtpConfiguration: vi.fn() }));
 vi.mock("@/lib/audit", () => ({ audit: mocks.audit }));

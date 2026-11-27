@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useT } from "@/hooks/i18n/useT";
 import { copyToClipboard } from "@/lib/clipboard";
 import { randomId } from "@/lib/random-id";
@@ -228,6 +229,22 @@ export function OwnerConsole({ ownerEmail }: { ownerEmail: string }) {
           .
         </p>
       </header>
+      <section className="flex flex-wrap items-center justify-between gap-4 rounded-lg border p-5">
+        <div>
+          <h2 className="text-lg font-semibold">{t("Integrações desta instalação")}</h2>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            {t(
+              "Cadastre aqui as credenciais dos aplicativos. Elas ficam disponíveis para todas as empresas desta instalação; cada empresa conecta suas próprias contas.",
+            )}
+          </p>
+        </div>
+        <Link
+          href="/owner/integracoes"
+          className="inline-flex min-h-10 items-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+        >
+          {t("Gerenciar integrações")}
+        </Link>
+      </section>
       <section aria-labelledby="owner-tenants-title" className="space-y-4 rounded-lg border p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>

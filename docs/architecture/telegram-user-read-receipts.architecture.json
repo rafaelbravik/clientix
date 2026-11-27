@@ -1,0 +1,124 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Recibos de leitura da conta Telegram",
+    "subtitle": "Evento MTProto com reconciliação pelo limite de leitura do diálogo",
+    "quality_profile": "standard"
+  },
+  "lanes": [
+    { "id": "telegram", "label": "Telegram MTProto" },
+    { "id": "worker", "label": "Agent Worker" },
+    { "id": "dados", "label": "Customer e Realtime" },
+    { "id": "operacao", "label": "Atendimento" }
+  ],
+  "mainPath": ["read_update", "listener", "messages", "realtime", "inbox"],
+  "nodes": [
+    {
+      "id": "read_update",
+      "lane": "telegram",
+      "col": 0,
+      "type": "external",
+      "label": "UpdateReadHistoryOutbox",
+      "sublabel": "PeerUser + maxId: destinatário leu até esta mensagem"
+    },
+    {
+      "id": "dialog_state",
+      "lane": "telegram",
+      "col": 0,
+      "type": "external",
+      "label": "messages.getPeerDialogs",
+      "sublabel": "readOutboxMaxId consultado somente para DMs com mensagens pendentes"
+    },
+    {
+      "id": "listener",
+      "lane": "worker",
+      "col": 1,
+      "type": "backend",
+      "label": "telegram-user-listener",
+      "sublabel": "limita por tenant/sessão/peer e resolve external_id"
+    },
+    {
+      "id": "messages",
+      "lane": "dados",
+      "col": 2,
+      "type": "database",
+      "label": "messages",
+      "sublabel": "outbound até maxId: status read, delivered_at e read_at"
+    },
+    {
+      "id": "realtime",
+      "lane": "dados",
+      "col": 3,
+      "type": "service",
+      "label": "Supabase Realtime",
+      "sublabel": "UPDATE da conversa invalida e recarrega mensagens"
+    },
+    {
+      "id": "inbox",
+      "lane": "operacao",
+      "col": 4,
+      "type": "frontend",
+      "label": "Inbox · MessageBubble",
+      "sublabel": "um tique enviado; dois azuis após leitura"
+    },
+    {
+      "id": "log",
+      "lane": "worker",
+      "col": 2,
+      "type": "backend",
+      "label": "Logger estruturado",
+      "sublabel": "falhas com organização, sessão e código seguro; sem telefone/conteúdo"
+    }
+  ],
+  "edges": [
+    {
+      "id": "telegram-listener",
+      "from": "read_update",
+      "to": "listener",
+      "label": "somente recibo outbox de DM"
+    },
+    {
+      "id": "telegram-dialog-reconcile",
+      "from": "dialog_state",
+      "to": "listener",
+      "label": "fallback periódico a cada 60 s para mensagens pendentes"
+    },
+    {
+      "id": "listener-messages",
+      "from": "listener",
+      "to": "messages",
+      "label": "UPDATE monotônico em organização + sessão"
+    },
+    {
+      "id": "messages-realtime",
+      "from": "messages",
+      "to": "realtime",
+      "label": "postgres_changes UPDATE"
+    },
+    {
+      "id": "realtime-inbox",
+      "from": "realtime",
+      "to": "inbox",
+      "label": "atualiza o estado visível sem recarregar a página"
+    },
+    {
+      "id": "listener-log",
+      "from": "listener",
+      "to": "log",
+      "label": "erro de persistência ou correlação"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Limite do recibo",
+      "items": [
+        "A confirmação de envio produz um tique; abrir a conversa produz dois tiques azuis.",
+        "Telegram não fornece um estado separado de entrega ao aparelho.",
+        "Recibos atrasados não regridem status read; grupos e canais não entram neste fluxo de conta de usuário.",
+        "Quando o evento MTProto não chega, o worker reconcilia o readOutboxMaxId da API apenas para DMs com mensagens pendentes."
+      ]
+    }
+  ]
+}
