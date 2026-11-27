@@ -73,30 +73,49 @@ interface Creds {
 }
 
 async function ensurePlatformAdmin(userId: string): Promise<void> {
-  const { data: existing } = await admin
+  const { data: existing, error: lookupError } = await admin
     .from("platform_admins")
-    .select("user_id, revoked_at")
+    .select("user_id, revoked_at, platform_role, scope")
     .eq("user_id", userId)
     .maybeSingle();
-  if (existing && (existing as { revoked_at: string | null }).revoked_at === null) {
-    console.log(`[seed] platform_admin já ativo: ${userId}`);
+  if (lookupError) throw new Error(`select platform_admins: ${lookupError.message}`);
+
+  const atual = existing as {
+    revoked_at: string | null;
+    platform_role: string;
+    scope: string;
+  } | null;
+  if (atual?.revoked_at === null && atual.platform_role === "owner" && atual.scope === "full") {
+    console.log(`[seed] platform owner já ativo: ${userId}`);
     return;
   }
+
+  const acessoDeDono = {
+    platform_role: "owner",
+    scope: "full",
+    revoked_at: null,
+    revoked_by: null,
+    revoke_reason: null,
+  };
+
   if (existing) {
-    await admin
+    const { error } = await admin
       .from("platform_admins")
-      .update({ revoked_at: null, revoked_by: null, revoke_reason: null } as never)
+      .update(acessoDeDono as never)
       .eq("user_id", userId);
-    console.log(`[seed] platform_admin reativado: ${userId}`);
+    if (error) throw new Error(`update platform owner: ${error.message}`);
+    console.log(`[seed] platform owner ativado/normalizado: ${userId}`);
     return;
   }
+
   const { error } = await admin.from("platform_admins").insert({
     user_id: userId,
     granted_by: userId,
+    ...acessoDeDono,
     reason: "seed e2e — dono do servidor para o teste de atualização self-service",
   } as never);
-  if (error) throw new Error(`insert platform_admins: ${error.message}`);
-  console.log(`[seed] platform_admin criado: ${userId}`);
+  if (error) throw new Error(`insert platform owner: ${error.message}`);
+  console.log(`[seed] platform owner criado: ${userId}`);
 }
 
 /**
