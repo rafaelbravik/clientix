@@ -34,8 +34,8 @@ describe("migration 9064 — tripla e fronteira do baseline", () => {
     };
     const entry = manifest.migrations.find((item) => item.sequence === 9064);
 
-    expect(manifest.schema_target).toBe("9067");
-    expect(manifest.baseline.incorporated_through_sequence).toBe(9067);
+    expect(manifest.schema_target).toBe("9068");
+    expect(manifest.baseline.incorporated_through_sequence).toBe(9068);
     expect(manifest.baseline.checksum).toBe(sha256(baseline));
     expect(manifest.baseline.size_bytes).toBe(baseline.byteLength);
     expect(entry).toMatchObject({

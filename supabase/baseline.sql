@@ -48925,7 +48925,7 @@ alter table public.channel_sessions
   drop constraint if exists channel_sessions_webhook_secret_provider_check;
 alter table public.channel_sessions
   add constraint channel_sessions_webhook_secret_provider_check
-  check (provider = 'webchat' or webhook_secret_encrypted is not null);
+  check (provider in ('webchat', 'telegram_user') or webhook_secret_encrypted is not null);
 
 -- Provider/ref/conversation CHECKs already have one canonical final block above.
 -- It carries the WebChat value; duplicating drop+add here would make baseline
@@ -48950,7 +48950,7 @@ comment on column public.channel_sessions.status is
 comment on column public.channel_sessions.webchat_public_id is
   'Identificador público não secreto do widget. Resolve uma única sessão WebChat; o tenant vem da linha, nunca do request.';
 comment on constraint channel_sessions_webhook_secret_provider_check on public.channel_sessions is
-  'Todos os providers que recebem webhook exigem webhook_secret_encrypted; WebChat não recebe webhooks.';
+  'Providers que recebem webhooks exigem webhook_secret_encrypted; WebChat e Telegram User/MTProto não recebem webhooks.';
 
 grant select (webchat_public_id) on public.channel_sessions to authenticated;
 
@@ -51036,18 +51036,9 @@ grant execute on function public.fn_audit_log_row() to service_role;
 grant execute on function public.fn_decrypt_oauth(bytea) to service_role;
 grant execute on function public.fn_encrypt_oauth(text) to service_role;
 grant execute on function public.fn_lgpd_cascade_redact_contact(uuid, uuid, uuid) to service_role;
-grant execute on function public.fn_update_budget_consumption() to service_role;
-
--- ---- 9068 — telegram user sem segredo de webhook (migration 9068) ----
+grant execute on function public.fn_update_bu-- ---- 9068 — telegram user sem segredo de webhook (migration 9068) ----
 -- 9068 · Telegram User/MTProto não recebe webhook e, portanto, não possui segredo de webhook.
--- A sessão usa o listener MTProto do worker e as credenciais do app configuradas pelo Owner.
-
-alter table public.channel_sessions
-  drop constraint if exists channel_sessions_webhook_secret_provider_check;
-
-alter table public.channel_sessions
-  add constraint channel_sessions_webhook_secret_provider_check
-  check (provider in ('webchat', 'telegram_user') or webhook_secret_encrypted is not null);
-
+-- A definição final está no bloco canônico da constraint acima para o baseline
+-- ser reaplicável em instalações com dados sem reconstruir a mesma constraint.
 comment on constraint channel_sessions_webhook_secret_provider_check on public.channel_sessions is
   'Providers que recebem webhooks exigem webhook_secret_encrypted; WebChat e Telegram User/MTProto não recebem webhooks.';

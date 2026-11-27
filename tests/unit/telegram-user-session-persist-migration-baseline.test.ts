@@ -9,15 +9,25 @@ const BLOCK_HEADER = "-- ---- 9068 — telegram user sem segredo de webhook (mig
 const sha256 = (content: Buffer | string) => createHash("sha256").update(content).digest("hex");
 
 describe("migration 9068 — sessão Telegram User sem webhook", () => {
-  it("espelha a migration no final idempotente do baseline", () => {
+  it("mantém a constraint uma única vez no baseline e amplia o vocabulário para MTProto", () => {
     const baseline = readFileSync(resolve(ROOT, "supabase/baseline.sql"), "utf8");
     const migration = readFileSync(resolve(ROOT, "supabase/migrations", MIGRATION_FILE), "utf8");
     const start = baseline.lastIndexOf(BLOCK_HEADER);
+    const additions = [
+      ...baseline.matchAll(/add\s+constraint\s+channel_sessions_webhook_secret_provider_check\s+check\s*\(([\s\S]*?)\);/gi),
+    ];
+    const baselineCheck = additions[0]?.[1]?.replace(/\s+/g, " ").trim();
+    const migrationCheck = migration
+      .match(/add\s+constraint\s+channel_sessions_webhook_secret_provider_check\s+check\s*\(([\s\S]*?)\);/i)?.[1]
+      ?.replace(/\s+/g, " ")
+      .trim();
 
     expect(start).toBeGreaterThanOrEqual(0);
-    expect(baseline.slice(start).replace(/\r\n/g, "\n").trim()).toBe(
-      `${BLOCK_HEADER}\n${migration.replace(/\r\n/g, "\n").trim()}`,
-    );
+    expect(additions).toHaveLength(1);
+    expect(baselineCheck).toBe("provider in ('webchat', 'telegram_user') or webhook_secret_encrypted is not null");
+    expect(migrationCheck).toBe(baselineCheck);
+    expect(baseline.slice(start)).not.toMatch(/drop\s+constraint|add\s+constraint/i);
+    expect(baseline.slice(start)).toMatch(/comment\s+on\s+constraint\s+channel_sessions_webhook_secret_provider_check/i);
   });
 
   it("registra sequência, checksums e tamanho do baseline no manifest", () => {
